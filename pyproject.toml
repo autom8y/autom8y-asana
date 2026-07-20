@@ -235,6 +235,24 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
+# mcp/ is the asana-mcp-v1 REFERENCE POC island (charter §5.3: throwaway, never
+# promoted; production reimplements). Its httpx use IS the ratified design —
+# constraint-5 sidecar speaks raw HTTP to the satellite; Autom8yHttpClient has
+# no auth-ctor seam (dossier ASM-1 receipt) — so the SDK-only import ban and
+# strict typing-block rules are scoped out here, NOT repo-wide:
+# - TID251: banned-api httpx (ruled sidecar transport, B1-O4)
+# - TC001/TC002/TC003: type-checking-block moves (POC readability)
+# - ERA001: commented code (annotated seam notes)
+# - SIM105: try/except/pass (deliberate defensive attr set)
+"mcp/**" = [
+    "TID251",
+    "TC001",
+    "TC002",
+    "TC003",
+    "ERA001",
+    "SIM105",
+]
+
 # Tests have relaxed linting rules:
 # - F841: unused variables (fixtures, mocks)
 # - E402: imports after code (fixture setup)
@@ -279,9 +297,14 @@ ignore = [
 "src/autom8_asana/_defaults/log.py" = ["TID251"]
 # T201: print() is intentional in CLI/script entrypoints (structured output to stdout/stderr)
 "src/autom8_asana/automation/polling/cli.py" = ["T201"]
+"src/autom8_asana/automation/forwarding_stage_backfill/cli.py" = ["T201"]
+"src/autom8_asana/services/receipts_service.py" = ["BLE001"]  # stage-advance leg is a designed no-throw boundary (a receipt must never fail on the stage write)
 "src/autom8_asana/metrics/__main__.py" = ["T201"]
 "src/autom8_asana/metrics/compute.py" = ["T201"]
 "src/autom8_asana/entrypoint.py" = ["T201"]
+"src/autom8_asana/automation/workflows/onboarding_walkthrough/link_on_play.py" = ["T201"]
+"src/autom8_asana/automation/workflows/onboarding_walkthrough/contact_synthesis.py" = ["T201"]
+"src/autom8_asana/automation/workflows/onboarding_walkthrough/template_comment.py" = ["T201"]
 # T201: print() is intentional in smoke test and CI scripts (terminal progress/results)
 "run_smoke_test.py" = ["T201"]
 ".ci/**/*.py" = ["T201"]

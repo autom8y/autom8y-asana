@@ -35,6 +35,7 @@ __all__ = [
     "OperatorTokenError",
     "OperatorMintRefusedError",
     "OperatorAccessDeniedError",
+    "OperatorBatchVersionSkewError",
 ]
 
 
@@ -548,3 +549,39 @@ class OperatorAccessDeniedError(OperatorTokenError):
     identical to a genuine absence by design (no existence oracle). Handled
     gracefully: WARNING, empty deck, NO crash, NO SA fallback (G-NO-FALLBACK).
     """
+
+
+class OperatorBatchVersionSkewError(OperatorTokenError):
+    """A single operator batch carried DIVERGENT ``weights_version`` ids.
+
+    provenance-to-the-human Sprint 1 (render-wiring, G1 cardinality). The
+    provenance carry rules ``weights_version`` at RESPONSE/META grain -- ONE id per
+    batch, because every office in a single ``execute-batch`` is scored by the same
+    process-global registry version (contract §3.1). That ruling has a load-bearing
+    precondition: the batch must not actually carry offices scored by different ids.
+    If it does (a future partial re-registration or mixed-scheme migration window),
+    a single META token would be a LIE for the divergent offices, so the fold
+    raises this typed error INSTEAD of silently collapsing to one office's id.
+
+    This is the render-seam analogue of the emission-side
+    ``WeightsVersionCardinalityError`` (data plane
+    ``core/metrics/weights_provenance_projection.py``): the degenerate divergent
+    state is caught BEFORE a single token is chosen, and surfaced typed rather than
+    null-coerced away (G3/G4). At the current single-scheme registry state this can
+    never fire; it is the named guard the row-grain trigger (§3.1) arms against.
+
+    Attributes:
+        versions: The sorted list of distinct ``weights_version`` ids observed in
+            the batch (>=2 when this error is raised).
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        reason: str | None = None,
+        versions: list[str] | None = None,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(message, reason=reason, **kwargs)
+        self.versions = versions or []

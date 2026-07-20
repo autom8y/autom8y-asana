@@ -428,6 +428,45 @@ def test_query_introspection_endpoints_in_spec(spec):
     )
 
 
+def test_query_ops_carry_governed_fleet_safety_vocabulary(spec):
+    """Query introspection ops carry the GOVERNED x-fleet-* safety vocabulary.
+
+    Reconciliation guard (asana-mcp-v1 sprint-1 substrate-hygiene; slate A4):
+    the query subsystem previously hand-stamped an ungoverned
+    ``x-idempotent`` / ``x-safe`` pair that GOV-009 never validated. Those
+    bare markers MUST be retired, and every visible ``/v1/query`` operation
+    MUST instead carry the canonical ``x-fleet-idempotency`` +
+    ``x-fleet-side-effects`` extensions from
+    ``autom8y_api_schemas.extensions.OPERATION_LEVEL_EXTENSIONS`` — one
+    vocabulary, not two.
+    """
+    from autom8y_api_schemas.extensions import OPERATION_LEVEL_EXTENSIONS
+
+    query_ops = [
+        (path, method, op)
+        for path, item in spec["paths"].items()
+        if path.startswith("/v1/query")
+        for method, op in item.items()
+        if method in ("get", "post") and isinstance(op, dict)
+    ]
+    assert query_ops, "No /v1/query operations found in spec"
+
+    for path, method, op in query_ops:
+        # Ungoverned bare markers are fully retired.
+        assert "x-idempotent" not in op, f"ungoverned x-idempotent survives on {method} {path}"
+        assert "x-safe" not in op, f"ungoverned x-safe survives on {method} {path}"
+        # Governed vocabulary present and well-formed (safe read = idempotent, zero side effects).
+        assert op.get("x-fleet-idempotency") == {"idempotent": True, "key_source": None}, (
+            f"{method} {path} missing governed x-fleet-idempotency"
+        )
+        assert op.get("x-fleet-side-effects") == [], (
+            f"{method} {path} missing governed x-fleet-side-effects"
+        )
+        # Keys used are members of the canonical operation-level extension set.
+        assert "x-fleet-idempotency" in OPERATION_LEVEL_EXTENSIONS
+        assert "x-fleet-side-effects" in OPERATION_LEVEL_EXTENSIONS
+
+
 # --- Test 15: Resolver endpoint in spec ---
 
 

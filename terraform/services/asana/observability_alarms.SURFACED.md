@@ -1,4 +1,4 @@
-# SURFACED operator levers — observability alarm suite (AL-1..AL-4)
+# SURFACED operator levers — observability alarm suite (AL-1..AL-5 + C4 DMS retire)
 
 > Every command below is a **PROD-BEHAVIOR MUTATION**. None has been executed by
 > the build that authored `observability_alarms.tf`. They are printed here for
@@ -21,8 +21,9 @@ the live apply pipeline is cross-repo — see Handoff note):
 ```
 # DO NOT FIRE — operator review first.
 terraform init
-terraform plan -out=alarms.tfplan          # expect: 7 alarms to add, 0 SNS actions
-terraform apply alarms.tfplan               # creates alarms in INSUFFICIENT_DATA, no paging
+terraform plan -out=alarms.tfplan          # expect: 7 alarms to add (AL-1..AL-4), 0 SNS actions;
+                                            # AL-5 adopts the LIVE canary via L-6 import FIRST (else plan shows +2 AL-5 resources)
+terraform apply alarms.tfplan               # creates AL-1..4 alarms in INSUFFICIENT_DATA, no paging
 ```
 
 Expected post-apply: AL-1 (×4 skip_reason), AL-2, AL-3, AL-4 (×1 workflow) all
@@ -82,6 +83,59 @@ The `environment` dimension code change (AI-5) is SAFE-AUTONOMOUS to author but
 PROD-MUTATING to deploy. AL-4 stays in INSUFFICIENT_DATA until a prod series
 exists. The Lambda deploy is the operator lever (cross-repo pipeline).
 
+## L-6 — (AL-5) Import the LIVE per-GID freshness canary + arm
+
+Unlike AL-1..AL-4 (authored-only), the AL-5 metric filter + alarm for the ASR offer
+GID `1143843662099250` are **already live** — created via the AWS API as an in-lane,
+non-paging observability canary with two-sided teeth proven (RED age=7200s→ALARM
+19:45Z; GREEN age=300s→OK 19:48Z; real-log backtest breaching 07-11→07-13), 2026-07-13.
+The live resource names **match** the TF names, so a future apply adopts them via
+`terraform import` rather than colliding:
+
+```
+# DO NOT FIRE — reconciles the live canary into TF state (confirm-first; the CI apply lane is wedged).
+terraform import 'aws_cloudwatch_log_metric_filter.al5_offer_frame_age["1143843662099250"]' \
+  '/ecs/autom8y-asana-service:asana-AL5-offer-frame-age-1143843662099250'
+terraform import 'aws_cloudwatch_metric_alarm.al5_offer_frame_stale["1143843662099250"]' \
+  'asana-AL5-offer-frame-stale-1143843662099250'
+terraform plan          # expect: 0 changes for AL-5 (live == TF); AL-1..4 still to-add
+```
+
+Arm AL-5 paging (confirm-first — NEW paging wiring):
+
+```
+# DO NOT FIRE — wires a pager to the per-GID freshness alarm (G: confirm-first).
+terraform apply -var 'arm_paging=true' \
+  -var 'page_sns_topic_arn=arn:aws:sns:us-east-1:696318035277:<PAGER_TOPIC>' \
+  -var 'paging_armed_alarms=["AL-5"]'
+```
+
+Register another GID for per-GID detection: add it to `var.substrate_freshness_gids`
+(default `["1143843662099250"]`). Byte-verbatim revert of the live canary (in-lane,
+non-paging — safe to run without confirmation):
+
+```
+aws logs delete-metric-filter --region us-east-1 \
+  --log-group-name /ecs/autom8y-asana-service \
+  --filter-name asana-AL5-offer-frame-age-1143843662099250
+aws cloudwatch delete-alarms --region us-east-1 \
+  --alarm-names asana-AL5-offer-frame-stale-1143843662099250
+```
+
+## L-7 — (C4) Retire the orphaned warmer dead-man
+
+`autom8-asana-cache-warmer-DMS-24h` is orphaned — it watches `LastSuccessTimestamp`
+in the now-EMPTY namespace `Autom8y/AsanaCacheWarmer` (`list-metrics` = `[]`); the
+current warmer no longer emits it. Superseded by AL-5 (+ the AL-6 warm-liveness
+candidate). Its actions wire to the paging SNS `autom8y-platform-alerts`, so the retire
+touches paging topology → confirm-first:
+
+```
+# DO NOT FIRE — deletes a paging-wired alarm (confirm-first).
+aws cloudwatch delete-alarms --region us-east-1 --alarm-names autom8-asana-cache-warmer-DMS-24h
+# Verify (read-only): describe-alarms --alarm-names autom8-asana-cache-warmer-DMS-24h -> no MetricAlarms.
+```
+
 ---
 
 ### Rung ledger for these levers
@@ -93,3 +147,6 @@ exists. The Lambda deploy is the operator lever (cross-repo pipeline).
 | L-3 IAM   | PROD-MUTATING (policy)        | `authored`  | `live` |
 | L-4 enable| PROD-MUTATING (cron)          | `authored`  | `live` |
 | L-5 deploy| PROD-MUTATING (lambda)        | `emitting`(code) | `emitting`(prod series) |
+| L-6 import| PROD-MUTATING (TF import)     | `detecting-via-canary` | `merged`+`imported` (0-diff) |
+| L-6 arm   | PROD-MUTATING (wire pager)    | `detecting-via-canary` | `protecting-prod` |
+| L-7 retire| PROD-MUTATING (delete paging alarm) | `disposition-surfaced` | `retired` |

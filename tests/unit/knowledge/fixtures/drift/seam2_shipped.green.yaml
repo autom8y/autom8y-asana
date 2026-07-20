@@ -1,0 +1,9 @@
+# Truthful green fixture — faithful to seam2 telos at origin/main e95a9de6.
+# Purpose: fed to detect_telos_shipped_must_be_missing to assert NO_DRIFT (GREEN).
+telos:
+  initiative_slug: seam2-consumer-realization
+  attestation_status:
+    inception: INSCRIBED
+    shipped: MISSING
+    verified_realized: UNATTESTED
+    last_eunomia_advisory: null

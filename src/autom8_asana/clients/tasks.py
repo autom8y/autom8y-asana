@@ -199,13 +199,24 @@ class TasksClient(BaseClient):
         Raises:
             ValidationError: If task_gid is invalid.
         """
+        from autom8_asana.cache.models.coverage import stored_projection
         from autom8_asana.cache.models.entry import EntryType
         from autom8_asana.persistence.validation import validate_gid
 
         validate_gid(task_gid, "task_gid")
 
-        # FR-CLIENT-001: Check cache first
-        cached_entry = self._cache_get(task_gid, EntryType.TASK)
+        # PHE (ADR-taskcache-projection-coverage-2026-07-08): resolve the
+        # requested projection BEFORE the lookup so the hit is gated on
+        # coverage. The predicate runs on entry METADATA before the raw/model
+        # branch, so raw=True and model paths are identical by construction.
+        resolved_opt_fields = self._resolve_opt_fields(opt_fields)
+
+        # FR-CLIENT-001: Check cache first -- serve ONLY a projection-covering
+        # entry. A non-covering entry is a coverage-miss (logged loud) and is
+        # exposed as existing_entry for the re-hydration union below.
+        cached_entry, existing_entry = self._cache_get_covering(
+            task_gid, EntryType.TASK, resolved_opt_fields
+        )
 
         if cached_entry is not None:
             # Per NFR-OBS-001: Log cache hit at DEBUG level
@@ -214,6 +225,40 @@ class TasksClient(BaseClient):
                 extra={"task_gid": task_gid},
             )
             data = cached_entry.data
+            # Completeness canary, DEMOTED to cross-writer telemetry (PHE): the
+            # coverage predicate now gates hits on stored projection metadata,
+            # so this fires only for metadata-less writers whose entries slipped
+            # through the empty-request serve path. It is a SIGNAL to
+            # investigate, not a proof of regression. O(1) on the passing path.
+            if "custom_fields" not in data:
+                logger.warning(
+                    "TASK cache hit missing custom_fields "
+                    "(metadata-less cross-writer -- entry predates PHE stamping)",
+                    extra={"task_gid": task_gid, "cached_keys": sorted(data.keys())},
+                )
+            # Requested-prefix loud canary on TRUSTED hits (defense-in-depth,
+            # warn-only -- can never cost a false miss): after the predicate
+            # passes, a requested family whose top-level prefix is absent as a
+            # key in served data MAY indicate a LYING writer (metadata stamping
+            # fields it did not fetch). AXIOM PARTIALLY FALSIFIED LIVE
+            # (qa-adversary G9, 2026-07-08): Asana OMITS the key entirely for
+            # unset omitted-unless-set fields (opt_fields=["external"] returns
+            # NO "external" key, while null-valued start_on IS returned as
+            # key:null). So a missing prefix here is AMBIGUOUS -- lying writer
+            # OR legitimately-unset omitted field -- which is why this stays
+            # warn-only and MUST NOT be promoted to a miss/refusal without a
+            # per-family always-materializes allowlist (rejected absent
+            # telemetry; see ADR fork open-forks).
+            missing_prefixes = {f.split(".", 1)[0] for f in resolved_opt_fields} - set(data.keys())
+            if missing_prefixes:
+                logger.warning(
+                    "TASK cache trusted hit missing requested top-level families "
+                    "(writer stamped fields it did not fetch?)",
+                    extra={
+                        "task_gid": task_gid,
+                        "missing_prefixes": sorted(missing_prefixes),
+                    },
+                )
             if raw:
                 return data
             task = Task.model_validate(data)
@@ -227,25 +272,49 @@ class TasksClient(BaseClient):
             extra={"task_gid": task_gid, "opt_fields_count": opt_fields_count},
         )
 
-        # Cache miss: fetch from API.
-        # Ensure parent.gid is always included when the caller specified a narrow
-        # opt_fields set (cascade-resolution minimum -- mirrors list_async, which
-        # resolves through _resolve_opt_fields at the list path). A targeted
-        # get_async that omits parent.gid caches a parent-less task under the
-        # opt_fields-blind TASK cache key; a later full-fields hydration read (the
-        # GFR upward walk) then gets that stale cache hit and cannot reach the
-        # Business root ("Reached root without finding Business" -> no-identity-path).
-        # Bare get_async(gid) (opt_fields=None) keeps its Asana default-fields
-        # behavior -- only the explicitly-narrowed case is widened.
-        resolved_opt_fields = (
-            self._resolve_opt_fields(opt_fields) if opt_fields is not None else None
+        # Cache miss: fetch a TRUE SUPERSET of BOTH the caller's projection AND the
+        # cache-coherence standard set. The TASK cache key is opt_fields-blind
+        # (FR-CLIENT-002): the field-shape of the FIRST fetch of a gid is what every
+        # subsequent cache-hit reader receives.
+        #
+        # Option B (thermia-ruled, HANDOFF-thermia-to-10xdev-taskcache-fix-2026-07-07)
+        # as corrected under QA #212 NO-GO: hydrate the miss with
+        #   caller-projection  UNION  STANDARD_TASK_OPT_FIELDS
+        # NOT STANDARD alone. STANDARD is NOT a superset of every caller's request --
+        # it drops modified_at/due_on/completed/tags/assignee/notes/etc. that
+        # BASE_OPT_FIELDS (freshness/hierarchy_warmer/progressive watermarks) and
+        # field_write_service._TASK_OPT_FIELDS (_refetch_updated echo) require. Fetching
+        # STANDARD alone would satisfy the FG-BUG (custom_fields present) but regress
+        # those callers to None on a guaranteed-miss refetch. The UNION satisfies the
+        # thermodynamicist's invariant literally ("a cache read at projection P returns
+        # a value satisfying P, or a miss -- never a silently-narrowed task") for EVERY
+        # P, AND keeps FG-BUG closed (STANDARD subset of union => custom_fields.* always
+        # present). _resolve_opt_fields restores the caller-projection + parent.gid /
+        # memberships cascade minimum that origin/main's miss path carried; for a bare
+        # get (opt_fields=None) it returns STANDARD, so the union collapses to STANDARD.
+        #
+        # PHE (fork b): on a COVERAGE-miss the union additionally carries the
+        # stored projection of the non-covering entry -- the anti-thrash
+        # keystone. Entry projections are monotonically non-decreasing within a
+        # cache lifetime, so disjoint reader pairs converge after ONE widening
+        # fetch (pinned by the ping-pong regression test). FETCH-UNION-THEN-
+        # REPLACE: merge is REJECTED (splicing two modified_at snapshots
+        # manufactures torn reads); because the fetch union includes the stored
+        # projection, replace loses zero fields. TTL resets honestly (every
+        # byte is fresh).
+        stored = (
+            stored_projection(existing_entry) if existing_entry is not None else None
+        ) or frozenset()
+        superset_opt_fields = sorted(
+            set(resolved_opt_fields) | set(STANDARD_TASK_OPT_FIELDS) | stored
         )
-        params = self._build_opt_fields(resolved_opt_fields)
+        params = self._build_opt_fields(superset_opt_fields)
         data = await self._http.get(f"/tasks/{task_gid}", params=params)
 
-        # Store in cache with entity-type TTL (delegates to TaskTTLResolver)
+        # Store in cache with entity-type TTL (delegates to TaskTTLResolver);
+        # stamp the projection actually fetched (PHE metadata authority).
         ttl = self._resolve_entity_ttl(data)
-        self._cache_set(task_gid, data, EntryType.TASK, ttl=ttl)
+        self._cache_set(task_gid, data, EntryType.TASK, ttl=ttl, opt_fields=superset_opt_fields)
 
         if raw:
             return data

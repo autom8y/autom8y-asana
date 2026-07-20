@@ -56,6 +56,7 @@ if TYPE_CHECKING:
     from datetime import date
 
     from autom8_asana.cache.models.staleness_settings import StalenessCheckSettings
+    from autom8_asana.clients.data._endpoints.operator import OperatorBatchMeta
     from autom8_asana.clients.data._metrics import MetricsHook
     from autom8_asana.clients.data._operator_mint import OperatorTokenProvider
     from autom8_asana.protocols.auth import AuthProvider
@@ -403,17 +404,28 @@ class DataServiceClient:
         Should be called when not using the context manager pattern.
 
         This method is idempotent - safe to call multiple times.
+
+        Robust against partially-initialized instances: every lazily-created
+        client attribute is read via ``getattr`` with a ``None`` default, so
+        close() never raises AttributeError when ``__init__`` did not run to
+        completion (e.g. a constructor that raised partway, or a test shim
+        that neuters ``__init__`` -- the exact shape that broke the Post-Merge
+        full-suite run when ``_operator_client`` was added to close() but a
+        shimmed instance never had the attribute assigned).
         """
-        if self._client is not None:
-            await self._client.close()
+        log = getattr(self, "_log", None)
+        client: Autom8yHttpClient | None = getattr(self, "_client", None)
+        if client is not None:
+            await client.close()
             self._client = None
-            if self._log:
-                self._log.debug("DataServiceClient: HTTP client closed")
-        if self._operator_client is not None:
-            await self._operator_client.close()
+            if log:
+                log.debug("DataServiceClient: HTTP client closed")
+        operator_client: Autom8yHttpClient | None = getattr(self, "_operator_client", None)
+        if operator_client is not None:
+            await operator_client.close()
             self._operator_client = None
-            if self._log:
-                self._log.debug("DataServiceClient: operator HTTP client closed")
+            if log:
+                log.debug("DataServiceClient: operator HTTP client closed")
 
     # --- HTTP Client Management ---
 
@@ -1444,6 +1456,52 @@ class DataServiceClient:
         from autom8_asana.clients.data._endpoints import operator as _operator_ep
 
         return await _operator_ep.execute_operator_batch(
+            self,
+            insight_name,
+            phones,
+            period=period,
+            start_date=start_date,
+            end_date=end_date,
+            filters=filters,
+            limit=limit,
+            pacer=pacer,
+        )
+
+    async def get_operator_insights_batch_with_meta_async(
+        self,
+        insight_name: str,
+        phones: list[str],
+        *,
+        period: str | None = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
+        filters: dict[str, Any] | None = None,
+        limit: int | None = None,
+        pacer: OperatorCallPacer | None = None,
+    ) -> tuple[dict[str, list[dict[str, Any]]], OperatorBatchMeta]:
+        """As :meth:`get_operator_insights_batch_async`, plus the provenance meta.
+
+        provenance-to-the-human Sprint 1 (render-wiring, H5): the deck path's
+        provenance-carrying batch call. Returns ``(per_office_rows,
+        OperatorBatchMeta)`` where the rows are byte-identical to the plain method
+        and the meta carries the RESPONSE/META-grain ``weights_version`` +
+        ``synced_at`` (the asOf) that the plain fold structurally drops. The deck
+        (operator-batch) render consumes the meta to disclose the weight-scheme
+        provenance + query-date stamp AT THE POINT OF ACTION.
+
+        Returns:
+            ``(mapping of office_phone -> rows, OperatorBatchMeta)``. The meta's
+            fields are None when the batch carried no provenance (declared absence).
+
+        Raises:
+            OperatorMintRefusedError / OperatorAccessDeniedError: as
+                :meth:`get_operator_insights_batch_async`.
+            OperatorBatchVersionSkewError: the served offices disagree on the
+                ``weights_version`` (G1 META-grain precondition violated).
+        """
+        from autom8_asana.clients.data._endpoints import operator as _operator_ep
+
+        return await _operator_ep.execute_operator_batch_with_meta(
             self,
             insight_name,
             phones,

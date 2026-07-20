@@ -60,6 +60,21 @@ class MissingConfigurationError(Exception):
     pass
 
 
+def _projection_metadata(opt_fields: list[str] | None) -> dict[str, Any]:
+    """Build PHE projection metadata for a warm-written TASK entry.
+
+    Per ADR-taskcache-projection-coverage-2026-07-08 fork (c): warm writers
+    must stamp the fetcher's projection or every warmed entry is
+    coverage-UNKNOWN and the warmer degrades to prefetch-without-serve.
+    None/empty => no stamp (UNKNOWN, fail-safe: miss-once-and-heal).
+    """
+    if not opt_fields:
+        return {}
+    from autom8_asana.cache.models.completeness import create_completeness_metadata
+
+    return create_completeness_metadata(sorted(set(opt_fields)))
+
+
 @dataclass(frozen=True)
 class MigrationResult:
     """Result of task collection migration operation.
@@ -177,6 +192,7 @@ async def migrate_task_collection_loading(
     batch_api: Callable[[list[str]], Awaitable[dict[str, str]]],
     task_fetcher: Callable[[list[str]], Awaitable[list[dict[str, Any]]]],
     ttl: int | None = 300,
+    opt_fields: list[str] | None = None,
 ) -> MigrationResult:
     """Migrate load_task_collection() to use SDK caching.
 
@@ -200,6 +216,10 @@ async def migrate_task_collection_loading(
         task_fetcher: Async function to fetch full task data for stale GIDs.
             Takes list of GIDs, returns list of task dicts.
         ttl: Cache TTL in seconds (default: 300 = 5 minutes).
+        opt_fields: The projection ``task_fetcher`` fetches at (PHE,
+            ADR-taskcache-projection-coverage-2026-07-08). When provided,
+            written entries carry projection metadata so covered reads HIT;
+            None = coverage-UNKNOWN (entries miss once on first read and heal).
 
     Returns:
         MigrationResult with task list and cache statistics.
@@ -296,6 +316,7 @@ async def migrate_task_collection_loading(
                     version=version,
                     cached_at=datetime.now(UTC),
                     ttl=ttl,
+                    metadata=_projection_metadata(opt_fields),
                 )
                 cache.set_versioned(gid, entry)
                 fresh_tasks_by_gid[gid] = task
@@ -335,6 +356,7 @@ async def warm_project_tasks(
     project_gid: str,
     task_fetcher: Callable[[str], Awaitable[list[dict[str, Any]]]],
     ttl: int | None = 300,
+    opt_fields: list[str] | None = None,
 ) -> int:
     """Pre-warm cache for all tasks in a project.
 
@@ -347,6 +369,9 @@ async def warm_project_tasks(
         task_fetcher: Async function that takes project_gid and returns
             list of task dicts (with modified_at).
         ttl: Cache TTL in seconds.
+        opt_fields: The projection ``task_fetcher`` fetches at (PHE). Without
+            it, warmed entries are coverage-UNKNOWN and the warmer degrades to
+            prefetch-without-serve (every first read re-fetches).
 
     Returns:
         Number of tasks warmed.
@@ -386,6 +411,7 @@ async def warm_project_tasks(
             version=version,
             cached_at=now,
             ttl=ttl,
+            metadata=_projection_metadata(opt_fields),
         )
         entries_to_cache[gid] = entry
 
