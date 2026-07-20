@@ -66,6 +66,10 @@ _SATELLITE_PAGE_SIZE = 100
 DEFAULT_NAME_CACHE_TTL_S = 300.0
 DEFAULT_MAX_RESOLUTION_RETRIES = 3
 DEFAULT_BACKOFF_BASE_S = 0.5
+# Ceiling on any single backoff sleep. Caps the honored Retry-After header so a
+# pathological upstream value (e.g. Retry-After: 99999) cannot stall the tool call to
+# timeout; the exponential term is bounded by it too.
+_MAX_BACKOFF_S = 30.0
 
 # Resolution outcome vocabulary (CLOSED).
 RES_RESOLVED = "resolved"
@@ -285,9 +289,11 @@ async def _get_tags_by_name(
 ) -> Any:
     """GET the #246 name-resolution route with 429-aware exponential backoff.
 
-    Non-200 responses are mapped by ``map_http_error`` (upstream code/message passthrough;
-    503-warming stays curated). A transport failure is a retryable server-class refusal.
-    Returns the parsed JSON body on 200.
+    Each backoff sleep is capped at ``_MAX_BACKOFF_S`` (honored Retry-After included) so a
+    pathological upstream value cannot stall the tool call to timeout. Non-200 responses are
+    mapped by ``map_http_error`` (upstream code/message passthrough; 503-warming stays
+    curated). A transport failure is a retryable server-class refusal. Returns the parsed
+    JSON body on 200.
     """
     resp: httpx.Response | None = None
     for attempt in range(max_retries + 1):
@@ -301,7 +307,7 @@ async def _get_tags_by_name(
             ) from exc
         if resp.status_code != 429 or attempt == max_retries:
             break
-        delay = _retry_after_hint(resp) or backoff_base_s * (2**attempt)
+        delay = min(_retry_after_hint(resp) or backoff_base_s * (2**attempt), _MAX_BACKOFF_S)
         await sleep(delay)
 
     assert resp is not None  # loop runs at least once (max_retries >= 0)
@@ -377,7 +383,22 @@ async def read_back_tag_state(ctx: Any, task_gid: str, expected_tag_gid: str) ->
             "detail": f"read-back unavailable: task GET returned HTTP {resp.status_code}",
         }
 
-    body = resp.json()
+    # The body parse MUST sit inside the soft-fail envelope: a 200 with a malformed /
+    # non-JSON body would otherwise raise AFTER the write already committed, crashing the
+    # caller and MASKING the successful-write receipt. Per this function's contract a
+    # failed confirmation downgrades to "unavailable" -- it never retracts the write.
+    # (httpx Response.json() raises json.JSONDecodeError / UnicodeDecodeError, both
+    # ValueError subclasses.)
+    try:
+        body = resp.json()
+    except ValueError as exc:
+        return {
+            "checked": False,
+            "tag_present": None,
+            "observed_tags": None,
+            "opt_fields": READ_BACK_OPT_FIELDS,
+            "detail": f"read-back unavailable: malformed/non-JSON task body: {exc}",
+        }
     data = body.get("data") if isinstance(body, dict) else None
     raw_tags = data.get("tags") if isinstance(data, dict) else None
     observed = (

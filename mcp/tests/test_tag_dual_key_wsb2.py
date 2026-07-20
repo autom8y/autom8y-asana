@@ -74,6 +74,7 @@ class AsanaBackend:
     tags_by_name: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     tags_meta: dict[str, Any] | None = None
     strip_on_add: bool = False
+    malformed_read_back: bool = False
     calls: list[tuple[str, str, dict]] = field(default_factory=list)
     tagged: set[str] = field(default_factory=set)
     task_tags: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
@@ -147,6 +148,11 @@ class AsanaBackend:
         # GET /api/v1/tasks/{gid} — read-back (PLAY-3)
         if method == "GET" and "/tasks/" in path:
             gid = path.split("/")[-1]
+            if self.malformed_read_back:
+                # 200 but a non-JSON body — the read-back parse must soft-fail, not crash.
+                return httpx.Response(
+                    200, content=b"<html>not json</html>", headers={"content-type": "text/html"}
+                )
             return httpx.Response(
                 200, json={"data": {"gid": gid, "tags": self.task_tags.get(gid, [])}, "meta": {}}
             )
@@ -408,7 +414,23 @@ async def test_429_honors_retry_after_header(ctx_factory):
 
     res = await resolve_tag_name(ctx, "play_launch", sleep=rec_sleep)
     assert res.status == RES_RESOLVED
-    assert delays == [7.0]  # header wins over exponential
+    assert delays == [7.0]  # header wins over exponential (7 < 30 cap, so honored as-is)
+
+
+async def test_429_retry_after_header_is_capped(ctx_factory):
+    """A pathological upstream Retry-After is capped at _MAX_BACKOFF_S (30s), so it
+    cannot stall the tool call to timeout."""
+    backend = AsanaBackend(tags_by_name={"play_launch": _one_match()})
+    backend.fail_next("GET", "/api/v1/tags", 429, times=1, headers={"retry-after": "99999"})
+    ctx = ctx_factory(backend)
+    delays: list[float] = []
+
+    async def rec_sleep(d: float) -> None:
+        delays.append(d)
+
+    res = await resolve_tag_name(ctx, "play_launch", sleep=rec_sleep)
+    assert res.status == RES_RESOLVED
+    assert delays == [30.0]  # 99999 capped to the 30s ceiling
 
 
 async def test_429_backoff_surfaces_through_orchestrator(ctx_factory):
@@ -536,3 +558,31 @@ async def test_read_back_direct_helper_soft_on_transport_error():
         await client.aclose()
     assert result["checked"] is False
     assert result["tag_present"] is None
+
+
+async def test_read_back_malformed_200_body_does_not_retract_write(ctx_factory):
+    """C-2: a 200 read-back with a non-JSON body must SOFT-fail (checked=False) and
+    leave the committed write result intact — never crash the caller post-write."""
+    backend = AsanaBackend(tags_by_name={"play_launch": _one_match()}, malformed_read_back=True)
+    ctx = ctx_factory(backend)
+    out = await execute_tagged_write(ctx, task_gid="111", tag_name="play_launch")
+    # the write survives; only the confirmation degrades
+    assert out["status"] == "completed"
+    assert out["write"]["committed"] == ["add_tag", "push", "mark_complete"]
+    assert out["confirmation"]["checked"] is False
+    assert out["confirmation"]["tag_present"] is None
+    assert "malformed/non-JSON" in out["confirmation"]["detail"]
+
+
+async def test_read_back_direct_helper_malformed_body_soft():
+    def _html_200(_req: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=b"<html>not json</html>")
+
+    client = httpx.AsyncClient(base_url="http://x.local", transport=httpx.MockTransport(_html_200))
+    try:
+        result = await read_back_tag_state(_Ctx(http=client), "111", "TAG123")
+    finally:
+        await client.aclose()
+    assert result["checked"] is False
+    assert result["tag_present"] is None
+    assert "malformed/non-JSON" in result["detail"]
