@@ -1,0 +1,261 @@
+initiative: asana-mcp-postfelt-hardening
+leg: 9
+leg_type: attest
+from: postfelt-wave (multi-rite procession — hygiene/sre/10x-dev/docs seats under the PT-01 §B standing grant; dispatcher-coordinated, session b3f74f84)
+to: eunomia/verification-auditor (PT-09 three-limb receipts-only attest; rite synced 2026-07-20, awaits operator restart)
+date: "2026-07-20"
+verification_deadline: "2026-08-14 (PROPOSED, carried from the parent telos ratified-unamended value; operator may amend at A3 ratification)"
+rite_disjoint_attester: eunomia verification-auditor (R1 binding carried from the parent telos — ADVISORY over receipts; felt/witness observations inside the predicate remain the operator's own; eunomia attests receipt integrity, never a felt outcome)
+grandeur_anchor: >
+  asana-mcp-v1 SHIPPED on the operator's felt verdict (their words, envelope §5.2 — cited,
+  never paraphrased), and the post-felt hardening wave then landed ALL FIVE workstreams in
+  a single day. The fleet's first fail-closed deploy regime is LIVE and already proven on a
+  real deploy: the a8 startPeriod clamp (#104) unblocked the TG→/ready flip (#1157), the
+  manual apply landed it, and PT-04 recorded the first /ready-gated deploy in this fleet's
+  history — a warming task held OUT of rotation for ~29.5 minutes returning fail-closed 503
+  while the old task served every client request (zero errors observed) — ALB-1, the scar
+  that made every deploy clumsy since the witness began, is dead, and the measured warm
+  (~29.5 min > the 18-24 min band) proved the operator's grace-2400 window NECESSARY, not
+  conservative. Tags are now addressable by NAME through the curated satellite route with
+  consumed-trigger honesty and read-back confirmation (live e2e receipt at the tested
+  head). The knowledge and governance planes were reconciled to landed reality by a single
+  writer and re-verified anchor-by-anchor. Five head-bound adversary verdicts gate-kept
+  every merge; every condition was discharged with a receipt; the HALT list never bit;
+  rungs never rounded up — the push-run false-green was caught, owned, and ledgered
+  (merged ≠ applied ≠ protecting-prod is ENFORCED, not recited). What crosses this seam is
+  the last delegable act: eunomia's receipts-only attest of the operator's own three-limb
+  predicate. The felt outcome was and remains the operator's alone.
+verdict_protocol: REFUSE
+standing_grant: >
+  PT-01 §B (operator-written 2026-07-20, durable to PT-09 attest or revocation): DAG s1-s6
+  + PT-02..PT-08 executed autonomously per dispatch map — DISCHARGED with receipts; this
+  leg is the grant's terminal act. The attester's own binding (telos, carried from the
+  parent's ratified-unamended value): eunomia verification-auditor, rite-disjoint ADVISORY
+  over receipts, R1 binding — attests receipt integrity, NEVER a felt outcome. Operator
+  reservations untouched and reserved: GATE-PROBE ruling (due 2026-08-03); the tasks.py:254
+  fork ruling (dossier ADDENDUM-1 §A1.4 — completes limb (c) reconciliation); A3 telos
+  ratification; any new write verb; any felt language anywhere.
+premises:
+  - id: P-1
+    text: >-
+      Limb (a) receipts COMPLETE: both TGs health-check /ready matcher 200, ECS grace
+      2400s, taskdef :659 registered with startPeriod=300 (the a8 clamp firing) — verified
+      by direct AWS reads 2026-07-20; PT-04 receipt: the apply's own :658→:659 rollout
+      became the first /ready-gated deploy (ecs-svc/0263950317217302961, 15:12:13Z →
+      COMPLETED + steady state 15:44:01Z), the WARMING task held out of rotation ~29.5 min
+      returning 503 (blue TG Target.ResponseCodeMismatch) while ECS container liveness
+      stayed HEALTHY on /health (both design layers observed simultaneously), old task
+      served throughout (listener Weight=1 to green), client probes during the warm
+      returned 200 only. COND-2 both legs empirically discharged.
+    source_gate: G-PROVE
+    status: VERIFIED
+    evidence_kind: doc
+    evidence_path: ".sos/wip/asana-mcp-postfelt-hardening.PT01-activation-ledger.md"
+  - id: P-2
+    text: >-
+      Limb (b) receipts COMPLETE: #249 (sidecar dual-key tag_gid|tag_name via the #246
+      satellite name-resolution route) merged at this squash — PT-05 conditions bound
+      (page-cap truncation honesty; TTL cache + capped 429 backoff), PLAY-2 consumed-
+      trigger re-fire warning verbatim in the tool description, PLAY-3 post-write
+      read-back IMPLEMENTED with explicit opt_fields; live e2e-by-NAME PASS against the
+      deployed satellite with in-transcript provenance at the tested head (resolve
+      SMOKE→1216701886984400; idempotency DEMONSTRATED 2×POST 200, read-back count=1).
+    source_gate: G-PROVE
+    status: VERIFIED
+    evidence_kind: sha
+    evidence_sha: "b630a901332c260ce336bf3e49549883164e1406"
+  - id: P-3
+    text: >-
+      Limb (c) substrate FILED (reconciliation ruling operator-staged): #247 merged at
+      this squash — dossier ADDENDUM-1 append-only (C2 no-re-fire receipt filed, UV-P #4
+      DISCHARGED-BY-PROBE; digest-§11 consumed-trigger scope split recorded honestly; the
+      tasks.py:254 ruling STAGED at §A1.4, fork (a) flip vs (b′) keep-with-caveat,
+      OPERATOR-ONLY); telos Gate-B rows all carry real anchors; .know refreshed and
+      re-verified at landed reality (island CI-gap named TOTAL; SCAR-TG-LIVENESS-001
+      CURED with history preserved; defer-watch 17 entries incl. TAG-2, PLAY-3,
+      preload-duration).
+    source_gate: G-PROVE
+    status: VERIFIED
+    evidence_kind: sha
+    evidence_sha: "b0cb45f0cd762b6b3f473d0c0517613be1638c40"
+  - id: P-4
+    text: >-
+      The critic chain is ON DISK: five head-bound adversary verdicts (a8 #104
+      PASS-W-C@979d28f7 → 80402fd3; autom8y #1157 PASS-W-C@fc29c6cb → clean PASS at
+      merge-time pin re-verify → d502398d; asana #249 i1 PASS-W-C@16cfbb64; #249 i2 DELTA
+      PASS@b98936e7 with all conditions DISCHARGED; asana #247 PT-07
+      CONCUR-W-C@a44b78aa with K1-a DISCHARGED 9/9 ancestry) inscribed with every
+      condition-discharge receipt at this squash. PT-08 (signal-sifter) rendered clean
+      CONCUR on the s6 sweep — zero discrepancies, zero conditions.
+    source_gate: G-CRITIC
+    status: VERIFIED
+    evidence_kind: sha
+    evidence_sha: "33c38f35061384cc02744407a78447b696732573"
+  - id: P-5
+    text: >-
+      Rungs held the whole wave, cross-repo: fleet #1154 (e8079654) + a8 #104 (80402fd3)
+      + autom8y #1157 (d502398d) MERGED; APPLIED via manual workflow_dispatch run
+      29753896034 with the production environment gate approved on the operator identity
+      (push-triggered "Service Terraform" runs are PLAN-ONLY — their Apply job skips; the
+      wave's own earlier APPLY-GREEN misread of run 29746910345 is owned and corrected in
+      the ledger, with the Satellite Receiver's terraform leg identified as the 13:58Z
+      applier of #1154's knobs); LIVE verified by direct AWS reads; PROTECTING-PROD
+      receipted by PT-04. Cross-repo SHAs anchor as doc because they are not
+      satellite-repo objects.
+    source_gate: G-RUNG
+    status: VERIFIED
+    evidence_kind: doc
+    evidence_path: ".sos/wip/asana-mcp-postfelt-hardening.PT01-activation-ledger.md"
+  - id: P-6
+    text: >-
+      No theater anywhere in the chain: PT-04 was observed on a REAL deploy event (the
+      shape's named failure signal — simulated/replayed probe presented as live — did not
+      occur; the timeline is the recorded live rollout ecs-svc/0263950317217302961); the
+      e2e-by-NAME ran against the DEPLOYED satellite with provenance (module __file__ +
+      git HEAD) printed in-transcript at the tested head; no defect was ever injected
+      into working production code (V3/V4 fence sweeps: src/ bit-identical, zero new
+      write verbs, warming fence teeth verified by planted-string probe); the #249 i2
+      critic adversarially proved the cured transcript genuine using the old transcript's
+      own has_more:false metadata against satellite source.
+    source_gate: G-THEATER
+    status: VERIFIED
+    evidence_kind: doc
+    evidence_path: ".ledge/reviews/ADVERSARY-VERDICTS-asana-mcp-postfelt-wave-2026-07-20.md"
+  - id: P-7
+    text: >-
+      The attester's ground truth is origin/main, NEVER the local ref: satellite
+      origin/main carries the whole chain (all nine wave merge SHAs ancestry-verified
+      2026-07-20 — the PT-07 K1-a discharge, re-recorded in-tree by the single writer at
+      this commit); the operator's primary checkout main ref is frozen PRE-EPIC at
+      f3d8eec1 with 21 untracked collisions (the wave's 3rd-strike stale-checkout hazard;
+      safe-sync recipe in the s6 report). Fetch first; read origin/main.
+    source_gate: G-PREMISE
+    status: VERIFIED
+    evidence_kind: sha
+    evidence_sha: "53e408ff4437825dfc62884126de713fd8e755a7"
+levers:
+  - name: >-
+      eunomia/verification-auditor: PT-09 three-limb attest per
+      three-evidence-leg-attestation — for EACH limb of the operator's verbatim predicate
+      re-derive three non-substitutable legs (receipts-exist: re-read the anchors uncached
+      after fetch; discrimination: own-construction checks — e.g. live AWS reads of TG
+      path/grace/taskdef for limb (a), a fresh READ-ONLY name-resolution against the
+      deployed route for limb (b) (the sandbox is deleted — resolution-only, ZERO writes),
+      dossier/telos anchor re-verification for limb (c); user-surface: the PT-04 client
+      probe log + the e2e transcript + the live route). Render per-limb + overall
+      PASS-ADVISORY / FLAG-ADVISORY / REFUSE-ADVISORY; report to .ledge/reviews/; then
+      `ari procession writeback-telos` to reconcile the telos attestation_status
+      (verified_realized + last_eunomia_advisory) — landing via a docs PR. Tools in-grant:
+      read-only Bash + AWS read probes + `ari procession receipts` (substrate check) +
+      `reconcile-telos` (seam-vs-telos check on THIS charge).
+    consumer_rite: eunomia
+    scoped_authority: >-
+      read-only re-derivation + one docs PR for the attestation report and telos
+      writeback; NO Asana writes, NO felt language, NO GATE-PROBE, self-grade caps
+      MODERATE on its own report
+    status: READY
+  - name: >-
+      Operator: tasks.py:254 idempotency-annotation fork ruling (dossier ADDENDUM-1
+      §A1.4 — fork (a) flip vs (b′) keep-with-caveat) — completes limb (c)
+      reconciliation at their mark
+    consumer_rite: operator
+    scoped_authority: operator-exclusive (charter-reserved ruling)
+    status: DEFER
+  - name: >-
+      Operator: A3 ratification of the PROPOSED post-felt telos (verification_deadline
+      2026-08-14 and rite_disjoint_attester amendable at ratification; mission +
+      predicate are the operator's own words, not amendable)
+    consumer_rite: operator
+    scoped_authority: operator-exclusive
+    status: DEFER
+  - name: >-
+      Operator: GATE-PROBE second-leg conversion ruling COMMIT/PARK/KILL, due 2026-08-03
+      (repos/.ledge/decisions/PROBE-fleet-mcp-second-leg-2026-07-20.md); interim evidence
+      accrues from daily-driver use
+    consumer_rite: operator
+    scoped_authority: operator-exclusive (scheduled ruling, never drifting)
+    status: DEFER
+  - name: >-
+      Operator: stale-checkout safe-sync (s6 leg-5 recipe: 13 identical untracked → rm;
+      8 divergent → .operator-local aside; then git merge --ff-only origin/main) + the
+      duplicate PLAY task cleanup in their Asana routing (limb-b double-fire residue)
+    consumer_rite: operator
+    scoped_authority: operator working tree + their Asana workspace
+    status: DEFER
+hard_gates:
+  - id: G-PROVE
+    name: Proof-present
+    verdict: REFUSE
+    binding: >-
+      every attested limb stands on a receipt the attester RE-DERIVES — the three legs
+      are non-substitutable (a green record is not a live read; a live read is not a
+      discrimination; neither is the user-surface); the builder's and critics' proofs are
+      inherited by NONE of the legs; adjectives rejected; per-item {path}:{line} or
+      command receipts only
+  - id: G-PREMISE
+    name: Premise-verified
+    verdict: REFUSE
+    binding: >-
+      fetch origin FIRST and re-verify P-1..P-7 live at attest entry; the local main ref
+      is frozen pre-epic (f3d8eec1, 3rd-strike hazard) — origin/main is the only ground;
+      live AWS point-reads are valid for the flip premise; the PT-04 deploy receipt is
+      HISTORICAL — attest from the ledger + ECS service events, do NOT roll a deploy to
+      reproduce it
+  - id: G-THEATER
+    name: Anti-theater
+    verdict: REFUSE
+    binding: >-
+      never inject a defect into working production to manufacture a RED
+      (discriminating-canary doctrine); the limb-(b) discrimination leg is READ-ONLY
+      name-resolution against the deployed route — the sandbox apparatus is DELETED and
+      the ratified write verbs on real tasks are NOT the attester's to fire; a
+      simulated/replayed probe presented as live is the shape's named failure signal
+  - id: G-RUNG
+    name: Rung-held
+    verdict: REFUSE
+    binding: >-
+      merged ≠ applied ≠ protecting-prod; fleet push runs are PLAN-ONLY (Apply skips) —
+      never cite a push-run as an apply; WS-A is protecting-prod ONLY via the PT-04
+      receipt; the sidecar island is merged→live (the service wheel excludes mcp/ — no
+      ECS deploy carries it); limb (c) is receipts-FILED, reconciliation operator-staged
+      — attest the filed altitude, never round up to reconciled
+  - id: G-CRITIC
+    name: Critic-disjoint
+    verdict: REFUSE
+    binding: >-
+      the attester is rite-disjoint by construction (eunomia; zero authorship in the
+      wave); the five inscribed verdicts are corroborating INPUTS, not substitutes for
+      the attester's own three legs; the attester's own report self-grades MODERATE
+      (self-ref-evidence-grade-rule); two-round cap then ESCALATE to the operator
+  - id: G-HALT
+    name: Halt-on-missing
+    verdict: REFUSE
+    binding: >-
+      a missing or contradicted receipt on any limb renders FLAG-ADVISORY or
+      REFUSE-ADVISORY on THAT limb — never silent narrowing, never wave-level tokens;
+      NEVER speak a felt verdict (GATE-FELT was closed by the OPERATOR 2026-07-20 —
+      cite envelope §5.2 verbatim, never paraphrase-as-fact); NEVER touch GATE-PROBE
+      (operator-only, due 2026-08-03); any write to a real Asana object → STOP + surface
+seam:
+  rung_ceiling: merged
+  rung_held: true
+  rung_detail: >-
+    LICENSED ceiling, not ladder position: the telos verified_realized is UNATTESTED,
+    which licenses a charge ceiling of merged (reconcile-telos G9 rule) — THIS attest is
+    the act that lifts the license. The ladder-position RECEIPTS (documented, not
+    claimed): WS-A protecting-prod (the PT-04 receipt IS a real deploy protected by the
+    flip, ledger §PT-04); the sidecar island merged→live (runs from main; the service
+    wheel excludes mcp/ — no ECS deploy carries it); knowledge/governance landed; limb
+    (c) reconciliation operator-staged. The attester re-derives these and its verdict
+    grade selects the token the telos may then carry — never rounded up.
+  evidence_grade: MODERATE
+  evidence_grade_detail: >-
+    self-referential ceiling across the wave's own records (self-ref-evidence-grade-rule);
+    the five rite-disjoint verdicts are STRONG-at-claim-level inputs on their bound heads;
+    document-level lift beyond MODERATE arrives only via this attest.
+  verified_realized_status: >-
+    limbs (a)(b): receipts-complete, awaiting the PT-09 attest; limb (c): receipts-FILED
+    (dossier ADDENDUM-1) with the tasks.py:254 reconciliation ruling operator-staged at
+    §A1.4; telos rows: asana-mcp-v1 shipped LANDED + verified_realized REALIZED citing
+    the operator's §5.2 verdict; asana-mcp-postfelt-hardening shipped UNATTESTED-partial,
+    verified_realized UNATTESTED, last_eunomia_advisory null — THIS leg mints it.
