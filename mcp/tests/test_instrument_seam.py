@@ -10,7 +10,6 @@ from __future__ import annotations
 import asyncio
 
 import pytest
-
 from asana_mcp.observability import (
     _INSTRUMENTED_ATTR,
     _WRAPPED_ATTR,

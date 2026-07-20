@@ -16,7 +16,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-_SRC = str(Path(__file__).resolve().parents[2] / "src")
+_SRC = str(Path(__file__).resolve().parents[1])  # sprint-6: mcp/ root (was repo/src)
 
 _SCRIPT = r"""
 import sys, json, socket, tempfile, os

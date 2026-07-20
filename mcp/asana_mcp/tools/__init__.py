@@ -8,5 +8,7 @@ Two-tier grain (C1):
 
 Each module exposes ``register(mcp, ctx)`` (mount-seam item 2). sprint-2 ships
 the READ tools (1-5); tool 6 (match_business) is surface-not-POC and only
-stub-noted (see ``_match_business_stub``).
+stub-noted (see ``_match_business_stub``). sprint-3 adds ``composite_write`` (the
+add_tag->push->mark_complete write tier), EXPOSURE-GATED default OFF; the sprint-6
+assembly (``asana_mcp.assembly``) wires it behind its flag, then applies instrument().
 """

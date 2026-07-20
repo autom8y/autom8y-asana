@@ -30,6 +30,11 @@ dependencies = [
     "fastmcp>=3.4.4,<3.5.0",
     "httpx>=0.25.0",
     "pydantic>=2.0.0",
+    # Observability floor (s4 instrument(), wired at sprint-6 assembly): span API +
+    # per-client traceparent injection onto ctx.http (contract §3; httpx-instrumentation
+    # floor mirrors the satellite root pyproject.toml:25 ">=0.42b0").
+    "opentelemetry-api>=1.20.0",
+    "opentelemetry-instrumentation-httpx>=0.42b0",
     # Sanctioned fleet bridge (SVR-8): TokenManager mints the S2S JWT. Its
     # AsanaQueryClient/AsanaServiceConfig speak HTTP to the REST surface — it does
     # NOT import autom8_asana. This is the ONLY autom8y_core touch-point.
@@ -40,6 +45,8 @@ dependencies = [
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
+    # s4 observability tests: InMemorySpanExporter (fake collector) needs the SDK.
+    "opentelemetry-sdk>=1.20.0",
 ]
 
 [tool.hatch.build.targets.wheel]

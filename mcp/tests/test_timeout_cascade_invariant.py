@@ -10,7 +10,6 @@ from __future__ import annotations
 import os
 
 import pytest
-
 from asana_mcp.timeouts import (
     ALB_IDLE_TIMEOUT_FLOOR_S,
     SATELLITE_HONEST_BOUND_S,
