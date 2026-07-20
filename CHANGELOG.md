@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Cache refresh endpoint (`/v1/admin/cache/refresh`) restricted to super-admin service accounts (Bedrock W4C-P3, SEC-DT-10)
+- **F1a cross-consumer rate-limit budget allocator (INERT, default-off)** — a
+  process-singleton *advisory* limiter that unifies the fleet's per-client AIMD
+  with a static, C-11-decoupled **110/60s** warmer floor and telemeters fair-share
+  overage (`budget_floor_overage`) without ever hard-blocking. Gated by the single
+  operator knob **`ASANA_BUDGET_ALLOCATOR_ENABLED`** (default **`false`** → merges
+  INERT, byte-identical passthrough at the seam; **activation is OPERATOR-ONLY at
+  the GO-LIVE gate**, never enabled by this change). The floor is env-tunable
+  without a code change (`ASANA_BUDGET_ALLOCATOR_FLOOR_MAX_REQUESTS`,
+  `_FLOOR_WINDOW_SECONDS`, `_FAIR_SHARE_MAX_REQUESTS`). Per-lane **fail-open**: any
+  limiter fault leaves the lane proceeding un-arbitrated (`budget_lane_failopen`
+  tripwire), never fail-closed. **Rollback** = flip the knob to `false` (config-only;
+  no schema migration). Per HANDOFF-arch-to-10x-f1a-budget-allocator-2026-07-20.
 
 ### Changed
 - Bumped `autom8y-core` to `>=3.0.0,<4.0.0` (Operation Terminus alignment)
