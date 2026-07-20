@@ -279,9 +279,14 @@ ignore = [
 "src/autom8_asana/_defaults/log.py" = ["TID251"]
 # T201: print() is intentional in CLI/script entrypoints (structured output to stdout/stderr)
 "src/autom8_asana/automation/polling/cli.py" = ["T201"]
+"src/autom8_asana/automation/forwarding_stage_backfill/cli.py" = ["T201"]
+"src/autom8_asana/services/receipts_service.py" = ["BLE001"]  # stage-advance leg is a designed no-throw boundary (a receipt must never fail on the stage write)
 "src/autom8_asana/metrics/__main__.py" = ["T201"]
 "src/autom8_asana/metrics/compute.py" = ["T201"]
 "src/autom8_asana/entrypoint.py" = ["T201"]
+"src/autom8_asana/automation/workflows/onboarding_walkthrough/link_on_play.py" = ["T201"]
+"src/autom8_asana/automation/workflows/onboarding_walkthrough/contact_synthesis.py" = ["T201"]
+"src/autom8_asana/automation/workflows/onboarding_walkthrough/template_comment.py" = ["T201"]
 # T201: print() is intentional in smoke test and CI scripts (terminal progress/results)
 "run_smoke_test.py" = ["T201"]
 ".ci/**/*.py" = ["T201"]

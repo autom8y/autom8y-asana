@@ -376,6 +376,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     sli_heartbeat.start()
     app.state.sli_heartbeat = sli_heartbeat
 
+    # Start the periodic account-status push loop (SD-02, sprint-C6).
+    # Live execution home for the account-status snapshot push: the one-shot
+    # fires at the tail of progressive preload; this loop re-pushes at the
+    # ratified 4h cadence (STATUS_PUSH_INTERVAL_SECONDS; <= 0 disables) so
+    # churned accounts do not stay marked ACTIVE until the next deploy.
+    # Failures inside the seam degrade to status_push_fatal_error and never
+    # escape the background task. Stored on app.state for clean shutdown.
+    from autom8_asana.api.status_push import AccountStatusPushLoop
+
+    status_push_loop = AccountStatusPushLoop()
+    status_push_loop.start()
+    app.state.status_push_loop = status_push_loop
+
     # Per TDD-SECTION-TIMELINE-REMEDIATION: Section timeline warm-up pipeline
     # REMOVED. Timeline data is now computed on first request and served from
     # derived cache on subsequent requests. No app.state keys for timeline
@@ -413,6 +426,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             await app.state.sli_heartbeat.stop()
         except Exception as e:  # BROAD-CATCH: degrade  # noqa: BLE001
             logger.warning("sli_heartbeat_stop_error", extra={"error": str(e)})
+
+    # Stop the account-status push loop (SD-02, sprint-C6).
+    if hasattr(app.state, "status_push_loop"):
+        try:
+            await app.state.status_push_loop.stop()
+        except Exception as e:  # BROAD-CATCH: degrade  # noqa: BLE001
+            logger.warning("status_push_loop_stop_error", extra={"error": str(e)})
 
     # Cancel background cache warming if still running
     if hasattr(app.state, "cache_warming_task"):

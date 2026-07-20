@@ -507,15 +507,23 @@ class TestBatchCachePopulation:
 class TestOptFields:
     """Tests for opt_fields parameter handling with cache."""
 
-    async def test_cache_hit_ignores_opt_fields(
+    async def test_cache_hit_serves_covered_opt_fields(
         self,
         sections_client: SectionsClient,
         cache_provider: MockCacheProvider,
         mock_http: MockHTTPClient,
     ) -> None:
-        """Cache hit returns cached data regardless of opt_fields."""
-        # Arrange: Pre-populate cache
+        """PHE contract (supersedes 'cache hit ignores opt_fields'): the hit
+        serves WITHOUT HTTP iff the requested projection is covered by the
+        entry's stored projection (ADR-taskcache-projection-coverage)."""
+        from dataclasses import replace as dc_replace
+
+        # Arrange: Pre-populate cache with a projection-stamped entry
         cache_entry = make_cache_entry(gid=SECTION_GID, name="Cached Section")
+        cache_entry = dc_replace(
+            cache_entry,
+            metadata={"opt_fields_used": ["name"], "completeness_level": "standard"},
+        )
         cache_provider._cache[f"{SECTION_GID}:{EntryType.SECTION.value}"] = cache_entry
 
         # Act

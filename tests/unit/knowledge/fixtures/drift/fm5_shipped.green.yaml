@@ -1,0 +1,9 @@
+# Truthful green fixture — faithful to fm5 telos at origin/main e95a9de6.
+# Purpose: fed to detect_telos_shipped_not_missing to assert NO_DRIFT (GREEN).
+telos:
+  initiative_slug: fm5-column-fidelity
+  attestation_status:
+    inception: INSCRIBED
+    shipped: LANDED  # a87ae1ca #161 merged 2026-06-26
+    verified_realized: UNATTESTED
+    last_eunomia_advisory: null

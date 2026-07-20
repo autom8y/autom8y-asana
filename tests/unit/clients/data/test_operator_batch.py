@@ -18,11 +18,16 @@ import respx
 
 from autom8_asana.clients.data._endpoints.operator import (
     OPERATOR_BATCH_PATH,
+    OperatorBatchMeta,
     distribute_per_office,
 )
 from autom8_asana.clients.data.client import DataServiceClient
 from autom8_asana.clients.data.config import DataServiceConfig
-from autom8_asana.errors import OperatorAccessDeniedError, OperatorMintRefusedError
+from autom8_asana.errors import (
+    OperatorAccessDeniedError,
+    OperatorBatchVersionSkewError,
+    OperatorMintRefusedError,
+)
 
 pytestmark = pytest.mark.usefixtures("enable_insights_feature")
 
@@ -276,3 +281,147 @@ class TestExecuteOperatorBatch:
                     )
         assert not data_route.called
         assert not appts_route.called
+
+
+# --- provenance-carry meta path (Sprint 1, render-wiring H5) ---
+
+_VERSION = "2026-03-24-static-UNRATIFIED"
+_ASOF = "2026-07-13T00:00:00Z"
+
+
+def _phone_result_meta(
+    phone: str,
+    rows: list[dict[str, Any]],
+    *,
+    weights_version: str | None,
+    synced_at: str | None,
+) -> dict:
+    """A per-phone success entry with provenance in its data.meta block."""
+    meta: dict[str, Any] = {}
+    if weights_version is not None:
+        meta["weights_version"] = weights_version
+    if synced_at is not None:
+        meta["data_freshness"] = {"synced_at": synced_at}
+    return {
+        "phone": phone,
+        "status": "success",
+        "data": {"result_type": "result", "data": rows, "meta": meta},
+        "error": None,
+    }
+
+
+def _op_envelope_meta(
+    per_office: dict[str, list[dict]],
+    *,
+    weights_version: str | None,
+    synced_at: str | None,
+) -> dict:
+    results = [
+        _phone_result_meta(p, rows, weights_version=weights_version, synced_at=synced_at)
+        for p, rows in per_office.items()
+    ]
+    return {"data": {"insight": "account_level_stats", "results": results}}
+
+
+class TestExecuteOperatorBatchWithMeta:
+    """The meta-carrying sibling surfaces the provenance the plain fold drops."""
+
+    async def test_carries_weights_version_and_asof(self) -> None:
+        client = _client()
+        with respx.mock:
+            respx.post(OPERATOR_BATCH_PATH).mock(
+                return_value=httpx.Response(
+                    200,
+                    json=_op_envelope_meta(
+                        {"+1111": [{"nsr_ncr": 0.1}]},
+                        weights_version=_VERSION,
+                        synced_at=_ASOF,
+                    ),
+                )
+            )
+            async with client:
+                rows, meta = await client.get_operator_insights_batch_with_meta_async(
+                    "account_level_stats", phones=["+1111"]
+                )
+        assert rows == {"+1111": [{"nsr_ncr": 0.1}]}
+        assert meta.weights_version == _VERSION
+        assert meta.synced_at == _ASOF
+
+    async def test_rows_byte_identical_to_plain_method(self) -> None:
+        # The meta-carrying path's rows are the SAME as the plain fold (no drift).
+        envelope = _op_envelope_meta(
+            {"+1111": [{"nsr_ncr": 0.1}], "+2222": [{"nsr_ncr": 0.2}]},
+            weights_version=_VERSION,
+            synced_at=_ASOF,
+        )
+        client = _client()
+        with respx.mock:
+            respx.post(OPERATOR_BATCH_PATH).mock(return_value=httpx.Response(200, json=envelope))
+            async with client:
+                rows_plain = await client.get_operator_insights_batch_async(
+                    "account_level_stats", phones=["+1111", "+2222"]
+                )
+        client2 = _client()
+        with respx.mock:
+            respx.post(OPERATOR_BATCH_PATH).mock(return_value=httpx.Response(200, json=envelope))
+            async with client2:
+                rows_meta, _ = await client2.get_operator_insights_batch_with_meta_async(
+                    "account_level_stats", phones=["+1111", "+2222"]
+                )
+        assert rows_plain == rows_meta
+
+    async def test_absent_provenance_yields_declared_empty_meta(self) -> None:
+        client = _client()
+        with respx.mock:
+            respx.post(OPERATOR_BATCH_PATH).mock(
+                return_value=httpx.Response(
+                    200,
+                    json=_op_envelope_meta(
+                        {"+1111": [{"spend": 100}]}, weights_version=None, synced_at=None
+                    ),
+                )
+            )
+            async with client:
+                rows, meta = await client.get_operator_insights_batch_with_meta_async(
+                    "account_level_stats", phones=["+1111"]
+                )
+        assert rows == {"+1111": [{"spend": 100}]}
+        assert meta == OperatorBatchMeta()
+
+    async def test_empty_phones_yields_empty_rows_and_meta(self) -> None:
+        client = _client()
+        with respx.mock:
+            route = respx.post(OPERATOR_BATCH_PATH)
+            async with client:
+                rows, meta = await client.get_operator_insights_batch_with_meta_async(
+                    "account_level_stats", phones=[]
+                )
+        assert rows == {}
+        assert meta == OperatorBatchMeta()
+        assert not route.called
+
+    async def test_version_skew_raises_typed_g1(self) -> None:
+        # FIRE-SEAM (G1): a batch response whose offices disagree on weights_version
+        # raises typed rather than collapsing to one office's id. (Guard presence;
+        # the two-sided proof-it-bites is the disjoint adversary's.)
+        envelope = {
+            "data": {
+                "insight": "account_level_stats",
+                "results": [
+                    _phone_result_meta(
+                        "+1111", [{"nsr_ncr": 0.1}], weights_version="A", synced_at=None
+                    ),
+                    _phone_result_meta(
+                        "+2222", [{"nsr_ncr": 0.2}], weights_version="B", synced_at=None
+                    ),
+                ],
+            }
+        }
+        client = _client()
+        with respx.mock:
+            respx.post(OPERATOR_BATCH_PATH).mock(return_value=httpx.Response(200, json=envelope))
+            with pytest.raises(OperatorBatchVersionSkewError):
+                async with client:
+                    await client.get_operator_insights_batch_with_meta_async(
+                        "account_level_stats", phones=["+1111", "+2222"]
+                    )

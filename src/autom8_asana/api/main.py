@@ -70,6 +70,7 @@ from .routes import (
     projects_router,
     query_introspection_router,
     query_router,
+    receipts_router,
     resolver_router,
     section_timelines_router,
     sections_router,
@@ -122,6 +123,7 @@ _S2S_TAGS: frozenset[str] = frozenset(
         "intake-custom-fields",
         "intake-create",
         "matching",
+        "receipts",
     }
 )
 
@@ -464,6 +466,7 @@ def create_app() -> FastAPI:
             RouterMount(router=section_timelines_router),
             RouterMount(router=intake_custom_fields_router),
             RouterMount(router=intake_create_router),
+            RouterMount(router=receipts_router),
             RouterMount(router=matching_router),
         ],
         lifespan=lifespan,
@@ -754,16 +757,26 @@ def create_app() -> FastAPI:
         ]
         spec["x-query-method-ready-when"] = "FastAPI ships @app.query() with httptools support"
 
-        # Annotate visible query introspection GET endpoints as safe reads.
-        # These are already GET (inherently safe/idempotent) but the extension
-        # marks them as part of the query subsystem for tooling discovery.
+        # Annotate visible query introspection endpoints with the GOVERNED
+        # fleet safety vocabulary, replacing the previously hand-stamped,
+        # ungoverned ``x-idempotent`` / ``x-safe`` pair that GOV-009 never
+        # validated (asana-mcp-v1 sprint-1 substrate-hygiene; slate A4
+        # SPIKE-mcp-substrate-concepts-2026-07-17.md:83-90; frame SVR-1).
+        # A safe read is idempotent with no idempotency key and zero side
+        # effects; the value shapes are the canonical ``FleetIdempotency`` /
+        # ``FleetSideEffect`` TypedDicts declared in
+        # ``autom8y_api_schemas.extensions`` (OPERATION_LEVEL_EXTENSIONS) —
+        # one vocabulary, not two.
         for path_key, path_item in spec.get("paths", {}).items():
             if path_key.startswith("/v1/query"):
                 for method_key in ("get", "post"):
                     op = path_item.get(method_key)
                     if op is not None:
-                        op["x-idempotent"] = True
-                        op["x-safe"] = True
+                        op["x-fleet-idempotency"] = {
+                            "idempotent": True,
+                            "key_source": None,
+                        }
+                        op["x-fleet-side-effects"] = []
 
         # 6. Inject inbound webhook definition (Sprint-7: Lexicon Ascension)
         #
