@@ -1,16 +1,18 @@
 ---
 domain: test-coverage
-generated_at: "2026-05-08T00:00Z"
+generated_at: "2026-07-20T00:00:00Z"
 expires_after: "7d"
 source_scope:
   - "./tests/**/*.py"
+  - "./mcp/tests/**/*.py"
   - "./pyproject.toml"
+  - "./.github/workflows/test.yml"
 generator: theoros
-source_hash: "8980bcd7"
+source_hash: "793e670b"
 confidence: 0.92
 format_version: "1.0"
 update_mode: "incremental"
-incremental_cycle: 1
+incremental_cycle: 2
 max_incremental_cycles: 3
 land_sources:
   - ".sos/land/workflow-patterns.md"
@@ -18,6 +20,13 @@ land_hash: "9db9c6f33d48f5c2fce398de7d3359fef30a0a0bd809044f7259f792ee6c4b9e"
 ---
 
 # Codebase Test Coverage
+
+> **WITNESS-ARC REFRESH 2026-07-20 (source_hash `793e670b`; targeted WS-D s5 pass by
+> docs/tech-writer, asana-mcp-postfelt-hardening — NOT a theoros full regen).** Adds the
+> §"MCP Island Test Topology" section (which suites CI collects vs skips, which lint/type
+> gates scope the island, the SAT-1 parity regression guard) + Knowledge Gaps 7-9. Prior
+> counts (files, markers, asserts) were NOT re-censused this pass and remain pinned at
+> their stated hashes.
 
 ## Coverage Gaps
 
@@ -385,6 +394,51 @@ External tree style (separate `tests/` directory, not co-located with source). T
 
 35 `@pytest.mark.scar` invocations across 11 test files (HYG-001 — verified at HEAD `8980bcd7`). The `scar` marker is registered in `pyproject.toml` and enables `pytest -m scar` selection. Files include `tests/unit/api/test_exports_auth_exclusion.py` (SCAR-WS8), `tests/unit/api/middleware/test_idempotency_finalize_scar.py`, `tests/unit/reconciliation/test_section_registry.py`.
 
+## MCP Island Test Topology (asana-mcp-v1) — verified at `793e670b` (2026-07-20)
+
+The shipped MCP surface splits its tests across TWO roots with DIFFERENT CI standing:
+
+**CI-COLLECTED — `tests/asana_mcp/` (9 files; landed via #240/#238 squashes)**
+Inside `testpaths = ["tests"]` (`pyproject.toml:113`) → runs in the sharded PR gate
+(`satellite-ci-reusable`, `.github/workflows/test.yml:40-89`). The s4 floor suite, two-sided
+per discriminating-canary doctrine:
+- `test_budget_partition_and_rate_cap.py` — ΣSHARE/RPS invariants fail-loud (`:34,:41`);
+  burst+1 → exactly one typed `MCP_RATE_BUDGET_EXHAUSTED` refusal (`:54,:76`)
+- `test_cold_frame_mapping.py` — 503-warming maps retryable + true-cause, NEVER auth-shaped
+  (`:22`); auth-shaped cold-frame fixture REJECTED (`:40`)
+- `test_fences.py` — constraint-5: no domain-SDK import (`:29`), no direct Asana endpoint
+  (`:35`), scanner teeth (`:41`), one timeout SoT (`:49`), env-prefix discipline (`:66`)
+- `test_import_safety.py` — clean-env import + broken-fixture teeth (`:70`)
+- `test_honesty_passthrough.py` / `test_instrument_seam.py` / `test_postures.py` /
+  `test_span_and_traceparent.py` / `test_timeout_cascade_invariant.py`
+
+**NOT CI-COLLECTED — `mcp/tests/` (10 files; landed via #239 squash)**
+OUTSIDE `testpaths` → the sharded gate never collects it; the suite runs locally via the POC
+venv (s2 receipt: 29 passed; the unified 98-test suite incl. `test_assembly_floor.py`,
+`test_composite_write_s3.py`, `test_cold_frame_mapping.py`, `test_fences.py` rglob-widened
+rides the #242 branch, IN FLIGHT). Files on main: conftest, discovery/query/resolve tools,
+errors passthrough (MCP-1) + errors C3, import safety, readiness gate, schema canary, seam
+conformance. **Gap named**: until #242 lands (and/or `mcp/tests` joins a CI lane), the
+read-tool island's own regression suite is a local-only gate.
+
+**Lint/type gates scoping the island**:
+- ruff runs repo-wide with the `"mcp/**"` per-file-ignores carve-out (`pyproject.toml:237-254`
+  — TID251 httpx is the ratified constraint-5 transport); `src/asana_mcp/` rides full rules.
+- mypy gates `src/autom8_asana` ONLY (`.github/workflows/test.yml:53` `mypy_targets`) —
+  neither `src/asana_mcp` nor `mcp/` is type-gated in CI.
+- The RUF100 dead-noqa drift-guard covers `src/` only (`test.yml:420`) — `mcp/` excluded.
+- CodeQL runs at the org level (no repo workflow file); the #242 branch already absorbed one
+  HIGH (fence scanner reshaped to regex).
+
+**SAT-1 regression guard (the parity contract test — CI-gated)**:
+`tests/unit/services/test_entity_vocabulary_parity.py` (#245 `2eb830ca`) is the standing
+guard for the SCAR-VOCAB-PARITY-001 class: parity side (introspection vocabulary ⊆ execution
+vocabulary, `TestIntrospectionExecutionParity:73`) + teeth side (unknown entity rejected AND
+the rejection carries the full execution vocabulary, `TestUnknownEntityTeeth:113`, `:126`).
+Route-level 404 shape pinned by `tests/unit/api/test_routes_query_aggregate.py:125-142`
+(tc_ra002). Open flag (adversary D1-F4): no route-level POSITIVE test drives
+`POST /v1/query/process_sales/rows|aggregate` through the HTTP surface.
+
 ## Knowledge Gaps
 
 1. **Actual runtime coverage percentage** — `fail_under = 80` configured and enforced; project-crucible baseline was 87.59%, but no coverage report run during this audit cycle to confirm current state
@@ -393,6 +447,9 @@ External tree style (separate `tests/` directory, not co-located with source). T
 4. **`tests/synthetic/test_synthetic_coverage.py` purpose** — contents not read; filename suggests coverage gap detection
 5. **`services/intake_*_service.py` service-layer isolation** — tested only through route tests; direct service error path coverage unknown
 6. **Schemathesis 47 xfails pending triage** — pre-existing OpenAPI contract violations in `test_openapi_fuzz.py` that have not been resolved or categorized
+7. **`mcp/tests/` is a local-only gate** (2026-07-20) — outside `testpaths`; the read-tool island's suite is not CI-collected on main. Resolves when #242 lands the unified `mcp/tests/` suite or a CI lane adopts the path.
+8. **D1-F3 vacuous adversarial test on main** (2026-07-20) — `tests/unit/services/test_query_service.py:753`: mock truthiness defeats the `entity_service.py:114` guard; the test passes vacuously and fails when run honestly (proven main-identical, cure-wave adversary D1-F3). Deserves its own fix; not a witness-arc regression.
+9. **Adversary-DELTA sidecar test recommendations, ledgered** (2026-07-20) — D2-F1: cap `_upstream_suffix` interpolation length (~2KB defense-in-depth; production reimplementation); D2-F2: assert the auth-branch suffix never matches the warming lexicon (mirror the existing disjointness test); D1-F4 flag: add a route-level positive process_* rows/aggregate test.
 
 ```metadata
 criteria_grades:

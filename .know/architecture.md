@@ -1,16 +1,18 @@
 ---
 domain: architecture
-generated_at: "2026-05-08T00:00Z"
+generated_at: "2026-07-20T00:00:00Z"
 expires_after: "7d"
 source_scope:
   - "./src/**/*.py"
+  - "./mcp/**/*.py"
+  - "./tests/asana_mcp/**/*.py"
   - "./pyproject.toml"
 generator: theoros
-source_hash: "8980bcd7"
+source_hash: "793e670b"
 confidence: 0.92
 format_version: "1.0"
 update_mode: "incremental"
-incremental_cycle: 1
+incremental_cycle: 2
 max_incremental_cycles: 3
 land_sources:
   - ".sos/land/initiative-history.md"
@@ -18,6 +20,15 @@ land_hash: "62e88f60226e924b7fc0298605ce934fc6c36a3b4090ed524a4ef0d3cc4a05ff"
 ---
 
 # Codebase Architecture
+
+> **WITNESS-ARC REFRESH 2026-07-20 (source_hash `793e670b`; targeted WS-D s5 pass by
+> docs/tech-writer, asana-mcp-postfelt-hardening — NOT a theoros full regen).**
+> Adds the §"MCP Sidecar Surfaces" section: asana-mcp-v1 SHIPPED 2026-07-20 (GATE-FELT
+> closed by the operator; `.sos/wip/asana-mcp-v1.felt-gate-envelope.md:503-526`), and the
+> merged-state additions on main (#237/#238/#239/#240/#241 + #245 cure) are described
+> against direct file reads at `793e670b`. #242 (package-root unification) is IN FLIGHT.
+> Pre-existing sections preserved unrevised (they describe `src/autom8_asana` and remain
+> accurate for that tree; per-section re-verification was out of this pass's scope).
 
 ## Package Structure
 
@@ -150,6 +161,80 @@ The `autom8_asana` package lives under `src/autom8_asana/` and is a large Python
 - adaptive_semaphore (AIMD), config_translator, response_handler, sync
 
 **`src/autom8_query_cli.py`** — Standalone CLI (`autom8-query` entrypoint) using direct httpx (TID251-exempt).
+
+## MCP Sidecar Surfaces (asana-mcp-v1) — merged state at `793e670b` (2026-07-20)
+
+v1 SHIPPED 2026-07-20 (GATE-FELT closed by the operator; felt verdict verbatim at
+`.sos/wip/asana-mcp-v1.felt-gate-envelope.md:503-526`). The MCP additions on main are a
+REFERENCE-POSTURE POC island (charter §5.3: throwaway, never promoted; production
+reimplements post-probe — see `.know/design-constraints.md` MCP-REFERENCE-POSTURE-001) and
+currently live in TWO package roots pending the #242 unification:
+
+**`mcp/asana_mcp/` — read-surface sidecar island (#239, squash `23440991`)**
+
+- `mcp/asana_mcp/server.py:33` `create_server()` — FastMCP server factory; read tools 1-5
+  (`list_entity_types`, `describe_entity`, `query_rows`, `query_aggregate`, `resolve_entity`)
+  + `tools/_match_business_stub.py`. Tool schemas are hand-authored from the satellite's
+  same-commit Pydantic models (the B1-O1 schema-drift posture).
+- `mcp/asana_mcp/bridge.py` — S2S JWT token-provider seam (autom8y-core TokenManager side,
+  dossier B2-O1).
+- `mcp/asana_mcp/errors.py` — typed error mapping incl. the MCP-1 cure: `_upstream_suffix`
+  (`errors.py:110`) passes upstream code/message/details through, incl. the 404
+  `available_types` recovery hint (`errors.py:127`) whose loss cost the n=0 witness four
+  blind guesses (digest §2 MCP-1). C3 invariant held: the 503-warming branch carries curated
+  warming-not-auth text and takes no upstream suffix.
+- `mcp/asana_mcp/settings.py` — `ASANA_MCP_*` env contract (base URL, ready path `/ready`,
+  request/connect timeouts, readiness fail-open).
+- `mcp/tests/` (10 files) — the island's own suite; **NOT collected by CI**
+  (`testpaths = ["tests"]`, `pyproject.toml:113`) — see `.know/test-coverage.md`.
+
+**`src/asana_mcp/` — pre-unification modules (#240 + #238)**
+
+- `src/asana_mcp/observability.py` (#240, squash `edaa9ddd`) — `instrument()`
+  (`observability.py:726`) span decoration + budget-partition guardrails:
+  `validate_partition` (`observability.py:259`) enforces the fail-loud config-time
+  invariants `ΣSHARE ≤ 1.0` and `RATE_RPS×60 ≤ SHARE_MCP×PAT_TOTAL_RPM` via
+  `BudgetPartitionError` (`observability.py:173`); defaults 0.60/0.32/0.08 of the 1500/min
+  shared-PAT bucket (`observability.py:146-152`), env-overridable
+  (`ASANA_MCP_PAT_SHARE_*`, `observability.py:157-159`).
+- `src/asana_mcp/timeouts.py` (#240) — single timeout source-of-truth
+  (fence-tested: `tests/asana_mcp/test_fences.py:49`).
+- `src/asana_mcp/tools/composite_write.py` (#238, squash `a0b7142d`) — the ONE ratified
+  composite write tool `asana_complete_tagged_task` (add_tag → push(PUT-save) →
+  mark_complete), exposure-gated OFF:
+  `WRITE_SURFACE_ENV = "ASANA_MCP_ENABLE_WRITE_SURFACE"` (`composite_write.py:82`),
+  `write_surface_enabled` (`composite_write.py:86`); `register()` self-gates and attaches
+  NOTHING when OFF (`composite_write.py:277-285`).
+- **Not in the shipped wheel**: `[tool.hatch.build.targets.wheel]` packages carry only
+  `src/autom8_asana` + `src/autom8_query_cli.py` (`pyproject.toml:109`).
+- `tests/asana_mcp/` (9 files) — s4 floor tests (budget partition + rate cap, cold-frame
+  mapping, fences, import-safety, honesty passthrough, instrument seam, postures,
+  span/traceparent, timeout cascade); **CI-collected** (inside `testpaths`).
+
+**Satellite-side cure (#245, squash `2eb830ca` — SAT-1)** — `get_resolvable_entities`
+(`src/autom8_asana/services/resolver.py:290`) is now descriptor-driven from EntityRegistry:
+an entity is resolvable iff its descriptor's schema key is registered AND it has a
+resolvable project GID (or is body-parameterized). Cured execution vocabulary = 17 names
+(all NINE process_* pipelines + `project`/`section` body-parameterized addressing). Parity
+contract test `tests/unit/services/test_entity_vocabulary_parity.py` (parity `:73`, teeth
+`:113,:126`) is the regression guard. See `.know/scar-tissue.md` SCAR-VOCAB-PARITY-001.
+
+**Lint scoping** — `pyproject.toml:237-254`: `"mcp/**"` per-file-ignores (TID251 httpx =
+the ratified constraint-5 transport, TC001-003, ERA001, SIM105) with the design-anchored
+comment in place. `src/asana_mcp/` rides the full `src/` rule set.
+
+**Constraint-5 fence (standing)**: the MCP process NEVER imports the domain SDK and makes
+ZERO direct Asana calls — the sidecar speaks raw httpx to the satellite REST surface only.
+Enforced two-sided by `tests/asana_mcp/test_fences.py:29,35,41` and
+`mcp/tests/test_import_safety.py:32,41`.
+
+**IN FLIGHT — #242 (s6 assembly; OPEN draft "rebases after merge")**: unifies the package
+root to `mcp/asana_mcp/` + `mcp/tests/` (FORK-D/D3 package-root ruling), adds
+`asana_mcp.assembly.build_instrumented_server` (create_server → composite register →
+instrument) and the unified 98-test suite (assembly floor F1-F4, cold-frame mapping,
+fences, composite two-sided pair). Until #242 lands, the two-root split above IS main's
+state. WS-C of asana-mcp-postfelt-hardening owns the rebase/format/un-draft; merges stay
+operator-reserved.
 
 ## Layer Boundaries
 
@@ -433,6 +518,11 @@ pyproject.toml deps
 | autom8y-data service | `DataServiceClient` | Insights, exports, reconciliation, batch |
 
 ## Defer-Watch Active Entries
+
+> This table is a stale 2026-04-29 snapshot. The CANONICAL registry is
+> `.know/defer-watch.yaml` (now 15+ entries, incl. the 2026-07-20 MCP entries
+> `mcp-tag2-tag-only-play-verb-2026-07-20` and
+> `mcp-play3-automation-fire-confirmation-2026-07-20`). Consult the yaml, not this table.
 
 | Entry | Scope | Status | Deadline |
 |-------|-------|--------|----------|
