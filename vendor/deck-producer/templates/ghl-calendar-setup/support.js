@@ -36,18 +36,15 @@
     };
   }
   function parseDcText(src) {
-    const openMatch = /<x-dc(?:\s[^>]*)?>/.exec(src);
-    if (!openMatch) return null;
-    const close = src.lastIndexOf("</x-dc>");
-    if (close === -1 || close < openMatch.index) return null;
-    const template = src.slice(openMatch.index + openMatch[0].length, close);
     const doc = new DOMParser().parseFromString(src, "text/html");
+    const dc = doc.querySelector("x-dc");
+    if (!dc) return null;
     const scriptEl = doc.querySelector("script[data-dc-script]");
     const { props, preview } = parseDataProps(
       scriptEl?.getAttribute("data-props") ?? null
     );
     return {
-      template,
+      template: dc.innerHTML,
       js: scriptEl ? scriptEl.textContent || "" : "",
       props,
       preview
@@ -153,11 +150,18 @@
     runtime.markFetched(rootName);
     runtime.setRootName(rootName);
     runtime.adoptParsed(rootName, parsed);
-    fetch(location.href).then((res) => res.ok ? res.text() : "").then((t) => {
-      const raw = t ? parseDcText(t) : null;
-      if (raw?.template) runtime.updateHtml(rootName, raw.template);
-    }).catch(() => {
-    });
+    // R1(b): parseDcDocument already selected the real <x-dc> template from the
+    // live document by DOM query. The location.href re-fetch is a redundant
+    // re-hydration path that re-parses the whole page — the vector that lets a
+    // text-level extractor mis-select. Only re-fetch when the in-document parse
+    // produced no template.
+    if (!parsed.template) {
+      fetch(location.href).then((res) => res.ok ? res.text() : "").then((t) => {
+        const raw = t ? parseDcText(t) : null;
+        if (raw?.template) runtime.updateHtml(rootName, raw.template);
+      }).catch(() => {
+      });
+    }
     const dc = doc.querySelector("x-dc");
     const hostEl = doc.createElement("div");
     hostEl.id = "dc-root";
@@ -1386,14 +1390,20 @@
     let rootName = null;
     function updateHtml(name, html) {
       const r = registry.get(name);
+      // R1(c): htmlSeq mirrors updateJs's jsSeq — a monotonic generation counter
+      // so a stale (superseded) template update cannot clobber a newer one.
+      const seq = r.htmlSeq = (r.htmlSeq || 0) + 1;
       r.html = html;
       if (name === rootName) {
         const mode = DESIGN_DOC_MODE_RE.exec(html)?.[1] ?? null;
         if (mode || !r.htmlStreaming) helmet.setDesignDocMode(mode);
       }
       try {
-        r.tpl = compileTemplate(html, host);
+        const tpl = compileTemplate(html, host);
+        if (r.htmlSeq !== seq) return;
+        r.tpl = tpl;
       } catch (e) {
+        if (r.htmlSeq !== seq) return;
         console.error("[dc-runtime] template compile FAILED for", name, e);
       }
       registry.bump(name);

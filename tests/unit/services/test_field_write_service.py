@@ -416,3 +416,90 @@ class TestFieldWriteService:
         # Verify the API call includes only the matched GID
         call_kwargs = client.tasks.update_async.call_args.kwargs
         assert call_kwargs["custom_fields"]["cf_fq"] == ["opt_q1"]
+
+
+class TestRefetchUpdatedReadsRealFields:
+    """C2 regression close (QA #212): _refetch_updated runs against a REAL TasksClient
+    (real cache + opt_fields-honoring HTTP mock), so a STANDARD-only miss regression
+    surfaces as a None echo instead of being hidden by a complete-dict stub.
+
+    _refetch_updated fetches via get_async(opt_fields=_TASK_OPT_FIELDS). due_on is in
+    _TASK_OPT_FIELDS but NOT in STANDARD_TASK_OPT_FIELDS, so a STANDARD-only miss would
+    drop it and echo None -- write_fields(include_updated=True) would lie.
+    """
+
+    async def test_refetch_updated_echoes_written_due_on_non_none(self) -> None:
+        """A written due_on must echo NON-None through the real refetch path.
+
+        RED on the STANDARD-only HEAD: the miss fetch omits due_on -> the honoring
+        mock returns it absent -> _refetch_updated echoes due_on=None (the lie).
+        GREEN after the union fix: due_on is fetched and echoed with its real value.
+        """
+        from unittest.mock import MagicMock
+
+        from autom8y_cache.testing import MockCacheProvider
+
+        from autom8_asana.clients.tasks import TasksClient
+        from autom8_asana.config import AsanaConfig
+        from autom8_asana.models.business import STANDARD_TASK_OPT_FIELDS
+        from autom8_asana.resolution.field_resolver import ResolvedField
+        from autom8_asana.services.field_write_service import _TASK_OPT_FIELDS
+
+        # Precondition: due_on is a field the caller requests that STANDARD drops.
+        assert "due_on" in set(_TASK_OPT_FIELDS)
+        assert "due_on" not in set(STANDARD_TASK_OPT_FIELDS)
+
+        real_due_on = "2026-07-15"
+
+        def _honor_opt_fields(path: str, params: dict) -> dict:
+            """Return ONLY the requested fields (models Asana opt_fields projection)."""
+            requested = (
+                set(params.get("opt_fields", "").split(",")) if params.get("opt_fields") else set()
+            )
+            full = {
+                "gid": "9999999999",
+                "resource_type": "task",
+                "name": "Test Offer",
+                "due_on": real_due_on,
+                "completed": False,
+                "assignee": None,
+                "notes": "",
+                "custom_fields": [],
+                "memberships": [{"project": {"gid": PROJECT_GID}}],
+            }
+            projected: dict = {"gid": full["gid"], "resource_type": full["resource_type"]}
+            for field, value in full.items():
+                if field.split(".")[0] in requested:
+                    projected[field] = value
+            return projected
+
+        http = MagicMock()
+        http.get = AsyncMock(side_effect=_honor_opt_fields)
+
+        real_tasks = TasksClient(
+            http=http,
+            config=AsanaConfig(),
+            auth_provider=MagicMock(),
+            cache_provider=MockCacheProvider(),
+            client=None,
+        )
+        client = MagicMock()
+        client.tasks = real_tasks
+
+        service = FieldWriteService(client, _make_write_registry())
+
+        resolved = [
+            ResolvedField(
+                input_name="due_on",
+                matched_name="due_on",
+                is_core=True,
+                status="resolved",
+            )
+        ]
+
+        updated = await service._refetch_updated("9999999999", resolved, _make_write_info())
+
+        assert updated["due_on"] == real_due_on, (
+            "write_fields(include_updated=True) must echo the real due_on; a STANDARD-only "
+            "miss drops due_on and echoes None (the lie the #212 NO-GO caught)"
+        )

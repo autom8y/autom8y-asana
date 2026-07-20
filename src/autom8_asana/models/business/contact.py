@@ -12,6 +12,8 @@ Per ADR-0076: Auto-invalidation on parent reference change.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from enum import StrEnum
 from typing import TYPE_CHECKING, ClassVar
 
 from pydantic import PrivateAttr
@@ -203,6 +205,47 @@ class Contact(BusinessEntity, UpwardTraversalMixin):
         return self.nickname or self.first_name or self.name or ""
 
 
+# --- Ranked contact-card value objects (contact-synthesis-card-on-play, ADR §5) ---
+# These live in the entity layer (not the workflow module) because
+# ``ContactHolder.ranked_contacts()`` below constructs them: siting ``ContactCard``
+# in ``contact_synthesis.py`` would create a circular import (that module imports
+# ``ContactHolder`` from here). Keeping them here also makes ``ranked_contacts()``
+# an entity-internal derivation with ZERO imports outside this module (ADR §10 AP-F;
+# TDD §1 constraint). Build errata D1-D4 note in the TDD records this placement.
+
+
+class Provenance(StrEnum):
+    """Source tier for a ranked contact card entry (ADR §5).
+
+    Phase-1 is Asana-only: every ``ContactCard`` carries ``ASANA``. ``EMPLOYEES`` and
+    ``CORROBORATED`` are Phase-2 tiers activated purely in the workflow/service layer
+    (``ContactSynthesis``) with NO reshape of this dataclass or the ranker (HANDOFF P-1).
+    """
+
+    ASANA = "asana"
+    EMPLOYEES = "employees"
+    CORROBORATED = "corroborated"
+
+
+@dataclass
+class ContactCard:
+    """One ranked, provenance-annotated contact-card entry (ADR §5; TDD §3).
+
+    A pure value object: the deterministic output of ``ContactHolder.ranked_contacts()``.
+    ``rank_reason`` is MANDATORY on every card (rendered as ``<em>``) — it is the human
+    picker's signal for why a row is ranked where it is, and is required even at n=1
+    (94% single-contact modal case; ADR §10 AP-E).
+    """
+
+    full_name: str
+    nickname: str | None
+    contact_email: str | None
+    role: str | None
+    provenance: Provenance
+    rank: int
+    rank_reason: str
+
+
 class ContactHolder(
     HolderFactory,
     child_type="Contact",
@@ -234,6 +277,77 @@ class ContactHolder(
                 result: Contact = contact
                 return result
         return None
+
+    # --- Ranked contact card (contact-synthesis-card-on-play, ADR §6; TDD §4) ---
+
+    # Static position-weight map over the Position enum. Absent key -> weight 0.
+    # Keys are lowercase; ``position`` values are matched case-insensitively (below),
+    # mirroring ``Contact.is_owner`` which lowercases before comparing.
+    _POSITION_WEIGHT: ClassVar[dict[str, int]] = {
+        "owner": 5,
+        "ceo": 5,
+        "founder": 5,
+        "president": 4,
+        "principal": 4,
+        "manager": 3,
+        "director": 3,
+    }
+
+    def ranked_contacts(self) -> list[ContactCard]:
+        """Return this holder's contacts as a deterministically ranked card list.
+
+        Pure deterministic ordering over ``self.children``. No I/O, no external data,
+        no rendering, no client/SDK imports (ADR §10 AP-F; TDD §1). Extends the
+        ``owner`` precedent above — same bounded scope, one pure derivation.
+
+        Ranking is a stable tuple sort, every term derived from recorded facts
+        (operator ruling: no model inference; ADR §6):
+
+        1. ``is_owner`` DESC
+        2. position-weight DESC (static map; case-insensitive; absent -> 0)
+        3. has-email DESC
+        4. corroborated DESC (Phase-2; constant 0 at Phase-1)
+        5. ``full_name`` alpha ASC (deterministic tie-break -> total order)
+
+        Every card carries ``provenance=ASANA`` (Phase-1) and a non-empty
+        ``rank_reason`` (mandatory even at n=1).
+
+        Returns:
+            Ranked ``ContactCard`` list, rank 1-based in sorted order.
+        """
+
+        def _sort_key(c: Contact) -> tuple[int, int, int, int, str]:
+            position_key = (c.position or "").lower().strip()
+            return (
+                -int(c.is_owner),  # Tier 1: is_owner DESC
+                -self._POSITION_WEIGHT.get(position_key, 0),  # Tier 2: position-weight DESC
+                -int(c.contact_email is not None),  # Tier 3: has-email DESC
+                0,  # Tier 4: corroborated (Phase-2; 0 at Phase-1)
+                c.full_name or "",  # Tier 5: alpha ASC
+            )
+
+        def _rank_reason(c: Contact) -> str:
+            if c.is_owner:
+                return f"owner/{c.position}" if c.position else "owner"
+            if c.position:
+                return c.position
+            if c.contact_email:
+                return "has email on file"
+            return "sole contact on file"  # n=1 case (94% of offices; ADR §6 AP-E)
+
+        sorted_children = sorted(self.children, key=_sort_key)
+        return [
+            ContactCard(
+                full_name=c.full_name or "",
+                nickname=c.nickname or c.preferred_name,
+                contact_email=c.contact_email,
+                role=c.position,
+                provenance=Provenance.ASANA,
+                rank=i + 1,
+                rank_reason=_rank_reason(c),
+            )
+            for i, c in enumerate(sorted_children)
+        ]
 
 
 # Self-register ContactHolder with HOLDER_REGISTRY (R-009)
