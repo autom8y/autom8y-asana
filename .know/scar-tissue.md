@@ -1,18 +1,19 @@
 ---
 domain: scar-tissue
-generated_at: "2026-07-08T00:00:00Z"
+generated_at: "2026-07-20T00:00:00Z"
 expires_after: "7d"
 source_scope:
   - "./src/**/*.py"
   - "./tests/**/*.py"
+  - "./mcp/**/*.py"
   - "./pyproject.toml"
   - "./.github/workflows/**"
 generator: theoros
-source_hash: "f3d8eec1"
+source_hash: "f6a72824"
 confidence: 0.95
 format_version: "1.0"
 update_mode: "incremental"
-incremental_cycle: 2
+incremental_cycle: 3
 max_incremental_cycles: 3
 land_sources:
   - ".sos/land/scar-tissue.md"
@@ -52,6 +53,29 @@ land_hash: "a15a024ce204de3301b612526c5b1b59e4841fa3d3d70f2226e1b430cd73da1e"
 > Repair for SD-02 is PENDING-MERGE(C-6) only — NOT on main at HEAD.
 > **SUPERSEDED-BY**: this refresh supersedes the absence of SD-02 knowledge in the prior catalog.
 > Prior catalog fully preserved; no existing SCARs modified except Knowledge Gaps extended.
+
+> **WITNESS-ARC REFRESH 2026-07-20 (source_hash `793e670b`; targeted WS-D s5 pass by
+> docs/tech-writer, asana-mcp-postfelt-hardening — NOT a theoros full regen).**
+> Three scars promoted + two candidates filed from the asana-mcp-v1 witness arc.
+> Evidence spine: `.sos/wip/asana-mcp-v1.limb-a-witness-evidence-digest.md` (§§1-11),
+> `.ledge/reviews/INCIDENT-asana-mcp-witness-mint-halt-2026-07-18.md` (§8 receipts),
+> `.ledge/reviews/ADVERSARY-REPORT-asana-mcp-cure-wave-DELTA-2026-07-19.md`.
+> New: **SCAR-VOCAB-PARITY-001** (SAT-1 introspection/execution vocabulary split — the
+> dyn-enum class at its 3rd strike; CURED #245 `2eb830ca` + parity contract test),
+> **SCAR-AUTHSIG-001** (TEB auth-signature attribution 400/404/401 ≠ expired-creds +
+> sa_*/client_* species map + incident P4 rows), **SCAR-TG-LIVENESS-001** (ALB-1: TG
+> health-checking `/health` shifts traffic to cold tasks — 3rd strike of the
+> SCAR-011/011b health-endpoint-semantics class; remediation = WS-A fleet IaC, not this
+> repo), plus candidates **SCAR-CANDIDATE-PLAY-CONSUMED-TRIGGER** (re-run = re-trigger on
+> consumed-trigger automations; W-3 caveat class; N=1) and **SCAR-CANDIDATE-OPTFIELDS**
+> (bare passthrough GETs return None for unrequested fields; N=1). Prior catalog fully
+> preserved; the Category Coverage table was NOT recounted this pass.
+>
+> **REFRESH PASS 2 (2026-07-20, same seat; re-verified at origin/main `f6a72824`):**
+> SCAR-TG-LIVENESS-001 → **CURED** (WS-A landed AND live; PT-04 first-/ready-gated-deploy
+> receipt — see the scar's CURED record). Island paths in the pass-1 sections that cited
+> `tests/asana_mcp/*` now live at `mcp/tests/*` post-#242 unification (`beaf3344`);
+> per-section path notes updated where load-bearing.
 
 ## Failure Catalog
 
@@ -113,12 +137,17 @@ DEF-005 (2 refs), DEF-002 (2 refs), SCAR-006 (1 ref).
 | Env Var Naming | `AUTOM8_DATA_API_KEY` typo (missing Y) — production API auth failures | Authentication | `clients/data/config.py:231` |
 | CSI-001 | **DISCHARGED** `docs/api-reference/openapi.json` hand-edited to add 13 M-02 examples not derivable from Pydantic source | Documentation / Spec Drift | DISCHARGED 2026-04-29 via T-08 (`4d4097c3`), PR #38 (`80256049`) |
 | SCAR-SD02 | Status push is structurally dead code in prod — wired only into entity-warm Lambda lane (paused Trap-4 since 2026-06-08); prod warm paths (ECS progressive preload, SWR, prematerialize lanes) never call it; `account_status` table has 0 rows / `synced_at` NULL since table creation (2026-03-28) | Data Model / Push Seam | PENDING-MERGE(C-6) `fix/sd02-status-push-live-seam` — no fix on main at HEAD |
+| SCAR-VOCAB-PARITY-001 | Introspection advertised the process_* pipelines while execution's hand-enumerated vocabulary rejected them (UNKNOWN_ENTITY_TYPE) — the dyn-enum class at its 3rd strike; the first agentic consumer hit it in minutes | Data Model / Registry Drift | CURED #245 `2eb830ca`: `services/resolver.py:290` descriptor-driven; parity guard `tests/unit/services/test_entity_vocabulary_parity.py` |
+| SCAR-AUTHSIG-001 | sa_* TEB mint failures misread as expired creds; SDK flattened diagnosable auth bodies to "status N" (P1 error-opacity class, N=2 with MCP-1 sidecar flattening) | Authentication / Error Opacity | Attribution table in the SCAR section; MCP-1 island cure `mcp/asana_mcp/errors.py:110`; SDK detail-carry LEDGERED |
+| SCAR-TG-LIVENESS-001 | ~~BOTH ALB target groups health-check `/health` (liveness, always-200) — every deploy shifts traffic to an ALIVE-but-NOT-WARM task while the warm task drains~~ **CURED** 2026-07-20 (WS-A): fleet #1157 `d502398d` (TG → fail-closed `/ready` both TGs, grace 120→2400) + satellite #248 `6edc83d5` (four-state fail-closed `/ready`); PT-04 receipt: first /ready-gated deploy clean, warming task held out ≈29.5 min, zero client-visible 503s | Startup / Deployment Failure (CURED) | Fleet IaC autom8y #1157 `d502398d` + #1154 `e8079654` + a8 #104 `80402fd3`; satellite `6edc83d5`; apply run 29753896034 SUCCESS; PT-04 receipt (activation ledger `:128-144`) |
 
 ### New Candidates Not Yet Assigned SCAR IDs
 
 - **SCAR-CANDIDATE-B**: `PhoneNormalizer.normalize()` lacked `NumberParseException` in its except tuple. Fix: `models/business/matching/normalizers.py:77-82`, commit `0f18f4e8`.
 - **SCAR-CANDIDATE-C**: `list_workflows` handler missing `response_model`. Fix: `api/routes/workflows.py`, commit `bb97a744`.
 - **Metrics CLI Under-count** (session-20260427): `autom8-query` CLI silently under-counts active sections (~6 in parquet vs ~22 expected). Root cause unresolved — 4 open questions: bucket mapping, freshness SLA, section-coverage gap, staleness-surface decision. Location: `metrics/compute.py`, `dataframes/offline.py`.
+- **SCAR-CANDIDATE-PLAY-CONSUMED-TRIGGER** (filed 2026-07-20, N=1 — below the ≥3 promotion floor per scar-tissue-promotion): tag-triggered Asana plays can be CONSUMED-TRIGGER designs — on fire they strip the trigger tag and reopen/recycle the card. Re-running a "converged" write chain against such a listener re-ARMS and re-FIRES the play: **re-run = re-trigger BY DESIGN**. W-3's "whole-chain safe re-run" holds only against NON-consuming listeners (the C2 sandbox Rule — a section move — measured re-PUT-silent; the live calendar-integration play fired twice on the directed re-run, protocol-authored). Evidence: digest §11 (`.sos/wip/asana-mcp-v1.limb-a-witness-evidence-digest.md:236-271`); envelope §2.3. Discipline now: run write-witness convergence legs in non-consuming contexts (or sandbox); remediation shapes PLAY-2 (tool-description re-run-is-recovery-not-verification) + PLAY-3 (automation-fired confirmation signal) ride WS-B2/production — see `.know/defer-watch.yaml` `mcp-play3-automation-fire-confirmation-2026-07-20`.
+- **SCAR-CANDIDATE-OPTFIELDS** (filed 2026-07-20, N=1): the bare satellite passthrough GET returns `None` for UNREQUESTED fields — a `tags=[]` / `completed: None` read taken without explicit `opt_fields` is UNDER-DETERMINED, not empty. Every state probe MUST pass explicit `opt_fields` for the fields it asserts on. Evidence: digest §11 instrument correction (`...limb-a-witness-evidence-digest.md:253-255`).
 
 ---
 
@@ -313,6 +342,161 @@ not_.comparison  Input should be a valid dictionary or instance of Comparison
 **Residual exception**: 2 `"example":` (singular) entries at `src/autom8_asana/api/routes/dataframes.py:511,632` — raw dict inline OpenAPI 3.0 annotation (pre-CSI-001 pattern, not regressions).
 
 **Status**: DISCHARGED 2026-04-29 (PR #38 `80256049`). Still discharged at `8980bcd7`.
+
+---
+
+## SCAR-VOCAB-PARITY-001 (Added 2026-07-20) — SAT-1 introspection/execution vocabulary split — the dyn-enum class, 3rd strike
+
+**Severity**: P1 at discovery (blocked the v1 witness's designed read chain) — CURED in
+production 2026-07-19.
+
+**Symptom**: `GET /v1/query/entities` and `/v1/query/process_sales/fields` advertised the
+nine process_* pipelines (200) while `POST /v1/query/process_sales/rows|aggregate` rejected
+them — 404 UNKNOWN_ENTITY_TYPE carrying an `available_types` of only 8 names. The
+execution-only names `project`/`section` appeared in NO introspection output. The first real
+agentic consumer (limb-(a) witness n=0, 2026-07-19) hit the split in minutes and had to
+invent undocumented `project`+`project_gid` addressing: 12 tool calls / 291 KB of spills
+where 4 calls should have sufficed (digest §§1-3).
+
+**Root cause**: the execution gate's vocabulary (`get_resolvable_entities`) was
+hand-enumerated from a dynamic-discovery loop instead of derived from the EntityRegistry
+descriptors the introspection surface reads — two sources of truth for one vocabulary.
+
+**Recurrence lineage (the dyn-enum class — a hand-enumerated vocabulary drifting from its
+registry SSOT; H1 recurrence ≥ 3 + H3 mechanism-overlap per scar-tissue-promotion,
+satellite-local branch)**:
+1. dyn-enum-contract arc (2026-06-30): enum OPTION-SETs drifting from consumer copies —
+   producer half landed #175 `cb4b4201`; telos `.know/telos/dyn-enum-contract.md`.
+2. 19-vs-18 deck-enum drift killed by provider-agnostic registry-driven selection —
+   #194 `40861dd1`.
+3. THIS strike: query execution vocabulary vs entity-registry introspection (SAT-1).
+
+**Cure (#245, squash `2eb830ca`; deployed and live-verified 2026-07-19)**:
+`get_resolvable_entities` (`src/autom8_asana/services/resolver.py:290`) is descriptor-driven
+— an entity is resolvable iff its EntityRegistry descriptor's schema key is registered AND
+it has a resolvable project GID, or it is body-parameterized. Cured vocabulary = 17 names
+including all NINE process_* pipelines (nine, not the commit message's "seven" — adversary
+D1-F2 correction kept honestly). Live receipt: server-side `query_aggregate` returned the
+full stage census in ONE call; unknown entity → 404 carrying the 17-name vocabulary
+(digest §6 LIVE RECEIPT). The n=1 witness re-run passed the bar: 4 calls, zero vocabulary
+errors, no spill (digest §7).
+
+**Regression guard (two-sided)**: `tests/unit/services/test_entity_vocabulary_parity.py` —
+parity side (introspection ⊆ execution, `TestIntrospectionExecutionParity` `:73`) + teeth
+side (unknown entity still rejected AND the rejection carries the full cured vocabulary,
+`TestUnknownEntityTeeth` `:113`, `:126`); CI-collected (inside `testpaths`). Route-level 404
+shape separately pinned by `tests/unit/api/test_routes_query_aggregate.py:125-142`
+(tc_ra002). Known gap: no route-level POSITIVE test drives
+`POST /v1/query/process_sales/rows|aggregate` through the HTTP surface (adversary D1-F4
+flag — acceptance proven at the service seam).
+
+**Known ruled consequence**: the cure activates the scheduled warmer's process builds — up
+to nine additional full pipeline builds per warm cycle on the shared PAT (adversary D1-F1
+MATERIAL; operator RULED ACCEPT 2026-07-19; #234 banked-chunk warming governs 429 posture;
+the watch item — full-preload duration delta — is consumed by WS-A grace sizing).
+
+**Defensive pattern**: any surface that names entity types MUST derive its vocabulary from
+EntityRegistry descriptors — never hand-enumerate. "Introspection vocabulary ⊆ execution
+vocabulary" is the standing parity invariant (governance-check/contract-test candidate,
+digest §4).
+
+---
+
+## SCAR-AUTHSIG-001 (Added 2026-07-20) — TEB auth-signature attribution: 400/404 ≠ expired credentials
+
+**Severity**: P1 misdiagnosis class — realized at the 2026-07-18 witness mint halt, where
+"status 400" read as expired creds and was NOT.
+
+**The attribution table (incident §8 direct-probe receipts — classify BEFORE touching
+secrets)**:
+
+| Signature | Meaning | It is NOT |
+|---|---|---|
+| 400 `AUTH-TEB-004` "business_id required" | the sa_* credential is business_scoped and the TEB body lacks `business_id` | expired/wrong credentials |
+| 404 `AUTH-TEB-005` "Unknown business_id" | the credential AUTHENTICATED; the business row is absent from the AUTH-PLANE registry (`retryable: false`) | expired/wrong credentials; not transient |
+| 401 `AUTH-TEB-001` "Invalid service account credentials" | THE actual credential-failure signature | a business-scope problem |
+
+**Species map (incident P2/P4)**: `sa_*` → `POST {auth}/tokens/exchange-business` (TEB,
+business-scoped); `client_*` → `/oauth/token` (tenant-unbound — and KILLED for satellite
+reads: the satellite's own middleware precedence trips AUTH-TEB-004 on oauth tokens). Token
+audience is HARDCODED on BOTH mint species (`token_service.py:705/:767`; `oauth.py:1637`) —
+no env override seam. The auth-plane business registry is a DISTINCT namespace from the
+Asana/data-plane (the pinned data-plane UUID was absent auth-side; resolution = provision,
+autom8y#1115 migration 034).
+
+**Error-opacity lineage (the incident-P1 class, N=2)**:
+1. SDK `TokenManager` flattens 4xx/5xx mint errors to "Token exchange failed with status N",
+   discarding the diagnosable auth body (incident §2 R6; `token_manager.py:718-722`) — the
+   detail-carry fix stays LEDGERED (SDK/deployment-PR horizon).
+2. The MCP sidecar flattened the satellite's 404 `available_types` recovery hint to "entity
+   type or route was not found" (digest §2 MCP-1) — CURED in-island
+   (`mcp/asana_mcp/errors.py:110` `_upstream_suffix`).
+
+**Defensive pattern**: error mappers MUST carry upstream code/message/details through the
+boundary; a recovery hint discarded at a seam is a guess-loop manufactured downstream.
+Classify TEB failures by signature (table above) before rotating any secret.
+
+**Remaining incident-P4 rows (carried, unresolved)**: the drift-scan-is-a-stub caveat; the
+schema pre-commit gate never fires on the canonical path (incident §6 P4 rows 4-5).
+
+---
+
+## SCAR-TG-LIVENESS-001 (Added 2026-07-20) — ALB target groups gate TRAFFIC on liveness — deploys knock the surface cold
+
+**Severity**: P1 client-visible — three deploys in one afternoon put the witness's n=1 and
+n=2 runs inside honest cold windows (digest §9).
+
+**Mechanism (ALB-1, receipt-anchored)**: BOTH target groups (`autom8y-asana-service`,
+`a8-asana-green`) health-check **`/health`** — liveness, always-200 (matcher 200, interval
+30s). Every deploy therefore shifts traffic to a task that is ALIVE but NOT WARM while the
+warm task drains (green TG registered 16:58:59Z; old task drained 17:06Z). `/ready` exists
+(503 until cache preload completes — `api/lifespan.py` step 14 background warm) and is NOT
+in the traffic gate. Re-probed live at frame time 2026-07-19 (frame SVR-1: both TGs still
+`hc_path: "/health"`).
+
+**Class lineage (3rd strike of health-endpoint semantics — SCAR-011/011b are the priors)**:
+SCAR-011 (ECS health check pointed at `/health/ready` cycles the service on slow startups)
+taught that RESTART gates ride liveness; SCAR-011b (new startup dependency gated on
+`/health`) taught that readiness dependencies belong on the readiness endpoint. ALB-1
+completes the split: **restart-gate = liveness (`/health`); TRAFFIC-gate = readiness
+(`/ready`)**. Conflating the two, in either direction, is the scar class.
+
+**Remediation (named; NOT this repo)**: WS-A of asana-mcp-postfelt-hardening — fleet IaC in
+the autom8y repo terraform (service-stateless module + `services/asana` vars): point TG
+health checks at `/ready` (matcher 200) and raise ECS healthCheckGracePeriod / unhealthy
+thresholds to cover the full 17-frame preload (the D1-F1 preload-duration measurement sizes
+the grace). Effect: the warm task serves until the new one is READY — deploys become
+client-invisible for every satellite consumer, not just MCP.
+
+**CURED RECORD (refresh pass 2, 2026-07-20 — WS-A landed AND live; history above kept)**:
+- Fleet IaC: autom8y **#1157 MERGED `d502398d`** ("fix(asana): TG health check to
+  fail-closed /ready" — both TGs `/health`→`/ready` matcher 200, ECS grace 120→2400,
+  ref bump + image pins) on top of **#1154 `e8079654`** (healthy-host deployment alarms)
+  and a8 **#104 `80402fd3`** ("fix(ecs): clamp container startPeriod to AWS cap").
+- Satellite half: **#248 `6edc83d5`** — four-state fail-closed `/ready`
+  (`src/autom8_asana/api/routes/health.py` + `api/preload/progressive.py`; regression
+  suite `tests/unit/api/preload/test_ready_fail_closed.py`, root-CI-gated).
+- Applied: Service-Terraform apply run **29753896034 SUCCESS** (manual
+  `workflow_dispatch` — push runs are plan-only; the dispatch mechanism is the ledger'd
+  apply path).
+- **PT-04 receipt (the limb-(a)-class proof)**: first `/ready`-gated deploy
+  `ecs-svc/0263950317217302961` completed clean 15:44:01Z — the WARMING task was held out
+  of rotation ≈29.5 min (TG-unhealthy on fail-closed 503 the whole time, never killed,
+  ECS container-liveness HEALTHY simultaneously — both layers visible), old task served
+  100% of traffic until the swap, ZERO client-visible 503s; "ALB-1 CLASS KILLED".
+  Receipt: `.sos/wip/asana-mcp-postfelt-hardening.PT01-activation-ledger.md:128-144`
+  (§PT-04 RECEIPT).
+- **Residual watch (registered)**: measured full warming ≈29.5 min EXCEEDS the prior
+  18-24 min band — grace 2400 proved necessary, and the D1-F1 preload-load question
+  sharpens into reduce-OR-persist: see `.know/defer-watch.yaml`
+  `mcp-preload-duration-reduce-or-persist-2026-07-20`.
+
+**Defensive pattern**: the honest cold-window error did its job — the C3 warming text
+("transient, NOT an auth failure") let unassisted agents diagnose-and-wait instead of
+misdiagnosing auth. Keep warming errors typed, retryable, and never auth-shaped
+(`mcp/tests/test_readiness_gate.py`; `mcp/tests/test_cold_frame_mapping.py` — post-#242
+unified path). The fail-closed `/ready` (#248) extends the pattern: readiness REFUSES
+(503) until the preload contract is met, so traffic gates can trust it.
 
 ---
 
@@ -573,6 +757,11 @@ Selectable: `pytest -m scar`
 | Env Var Naming | principal-engineer | All ecosystem env vars use `AUTOM8Y_` prefix (not `AUTOM8_`) |
 | Metrics CLI Under-count | observability-engineer | `autom8-query` CLI parquet loading silently drops sections — verify bucket mapping before trusting CLI output |
 | SCAR-SD02 | platform-engineer, principal-engineer | Status push (SD-02) is wired ONLY into the entity-warm Lambda lane (paused Trap-4 since 2026-06-08); prod never calls it; `account_status` table has 0 rows. Repair PENDING-MERGE(C-6). Pre-enable landmines: (L1) E.164 phone sweep before enable, (L2) Lambda env must carry AUTOM8Y_DATA_URL + AUTOM8Y_DATA_API_KEY, (L3) only unit-project rows reach the push per current PIPELINE_TYPE_BY_PROJECT_GID wiring — decide scope before re-arming. |
+| SCAR-VOCAB-PARITY-001 | principal-engineer, architect | Entity-type vocabularies derive from EntityRegistry descriptors ONLY — never hand-enumerate; keep `test_entity_vocabulary_parity.py` green (introspection ⊆ execution; teeth carry the full vocabulary) |
+| SCAR-AUTHSIG-001 | principal-engineer, platform-engineer | Classify TEB mint failures by signature (400 TEB-004 = scope, 404 TEB-005 = unregistered business, 401 TEB-001 = credentials) BEFORE rotating secrets; error mappers carry upstream code+details through every boundary |
+| SCAR-TG-LIVENESS-001 | platform-engineer | TRAFFIC gates (ALB TG health checks) target `/ready` (readiness); RESTART gates (ECS container health) target `/health` (liveness) — never swap the two |
+| SCAR-CANDIDATE-PLAY-CONSUMED-TRIGGER | principal-engineer, qa-adversary | Never direct a write-chain re-run "convergence" leg at a task carrying a consumed-trigger play — re-run = re-trigger by design; use a non-consuming context or sandbox |
+| SCAR-CANDIDATE-OPTFIELDS | principal-engineer, qa-adversary | Passthrough-GET state probes MUST pass explicit `opt_fields` for every asserted field — unrequested fields read as None, not as their live values |
 
 12 scars still untagged: SCAR-003, 004, 007, 016-019, 020, 022, 024, 025.
 
@@ -596,6 +785,8 @@ Selectable: `pytest -m scar`
 14. **SCAR-LOG-001 active**: `autom8y-log>=0.5.6` unchanged; no stdlib shim; defer-watch `DEFER-WS4-T3-2026-04-29` deadline 2026-Q3
 15. **SCAR-SD02 repair PENDING-MERGE(C-6)**: `fix/sd02-status-push-live-seam` not yet on main; `account_status` table has 0 rows / `synced_at` NULL since 2026-03-28. Three enable-time landmines (L1 E.164 sweep, L2 Lambda env secrets, L3 PIPELINE_TYPE_BY_PROJECT_GID coverage) must be resolved before re-arming the entity-warm lane.
 16. **SCAR-CW-001 fix paths stale at HEAD**: fix-location mapping (lines 363-364) cites `src/autom8_asana/lambda_handlers/cache_warmer/facade.py:76` and `lambda_handlers/cache_warmer/discovery.py` — paths do not exist at HEAD (f3d8eec1). Lambda handlers are flat files; `facade.py` is at `src/autom8_asana/models/business/detection/facade.py`, `discovery.py` at `src/autom8_asana/services/discovery.py`. NOT corrected in place: the semantic mapping of SCAR-CW-001 layers 4-5 onto the current flat handler files is unresolved. [UV-P: correct fix-location paths for SCAR-CW-001 layers 4-5 | METHOD: file-read at HEAD | REASON: subdirectory structure dissolved between SCAR-CW-001 era and HEAD; layer→file mapping cannot be asserted without re-deriving the cold-start taxonomy]
+17. **Witness-arc candidates at N=1 (2026-07-20)**: SCAR-CANDIDATE-PLAY-CONSUMED-TRIGGER and SCAR-CANDIDATE-OPTFIELDS filed as Failure Catalog candidates only — promotion beyond needs recurrence ≥3 per scar-tissue-promotion. PLAY-2/PLAY-3 remediation shapes ride WS-B2/production reimplementation (defer-watch `mcp-play3-automation-fire-confirmation-2026-07-20`); the opt_fields discipline binds all passthrough state probes NOW.
+18. **D1-F3 vacuous adversarial test on main (deserves its own fix)**: `tests/unit/services/test_query_service.py:753` `test_project_gid_none_raises_service_not_configured` — the mock's `MagicMock()` return makes `descriptor.body_parameterized` truthy, so the `services/entity_service.py:114` guard never raises; silently vacuous since the A1 receiver-surface change; pre-existing (proven main-identical by the cure-wave adversary, D1-F3). Not fixed by the witness arc.
 
 ```metadata
 domain: scar-tissue

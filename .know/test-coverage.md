@@ -1,16 +1,18 @@
 ---
 domain: test-coverage
-generated_at: "2026-05-08T00:00Z"
+generated_at: "2026-07-20T00:00:00Z"
 expires_after: "7d"
 source_scope:
   - "./tests/**/*.py"
+  - "./mcp/tests/**/*.py"
   - "./pyproject.toml"
+  - "./.github/workflows/test.yml"
 generator: theoros
-source_hash: "8980bcd7"
+source_hash: "f6a72824"
 confidence: 0.92
 format_version: "1.0"
 update_mode: "incremental"
-incremental_cycle: 1
+incremental_cycle: 2
 max_incremental_cycles: 3
 land_sources:
   - ".sos/land/workflow-patterns.md"
@@ -18,6 +20,17 @@ land_hash: "9db9c6f33d48f5c2fce398de7d3359fef30a0a0bd809044f7259f792ee6c4b9e"
 ---
 
 # Codebase Test Coverage
+
+> **WITNESS-ARC REFRESH 2026-07-20 (source_hash `793e670b`; targeted WS-D s5 pass by
+> docs/tech-writer, asana-mcp-postfelt-hardening — NOT a theoros full regen).** Adds the
+> §"MCP Island Test Topology" section (which suites CI collects vs skips, which lint/type
+> gates scope the island, the SAT-1 parity regression guard) + Knowledge Gaps 7-9. Prior
+> counts (files, markers, asserts) were NOT re-censused this pass and remain pinned at
+> their stated hashes.
+> REFRESH PASS 2 (2026-07-20, same seat; §MCP re-verified at `f6a72824`): #242 `beaf3344`
+> unified the island — `tests/asana_mcp/` is GONE; the §MCP section is restated and
+> Knowledge Gap 7 updated (island CI-gap now total). #248's `/ready` fail-closed suite
+> added to the CI-gated satellite list.
 
 ## Coverage Gaps
 
@@ -385,6 +398,58 @@ External tree style (separate `tests/` directory, not co-located with source). T
 
 35 `@pytest.mark.scar` invocations across 11 test files (HYG-001 — verified at HEAD `8980bcd7`). The `scar` marker is registered in `pyproject.toml` and enables `pytest -m scar` selection. Files include `tests/unit/api/test_exports_auth_exclusion.py` (SCAR-WS8), `tests/unit/api/middleware/test_idempotency_finalize_scar.py`, `tests/unit/reconciliation/test_section_registry.py`.
 
+## MCP Island Test Topology (asana-mcp-v1) — verified at `f6a72824` (2026-07-20, refresh pass 2)
+
+> Pass-1 of this section (authored at `793e670b`) described a TWO-root split with
+> `tests/asana_mcp/` CI-collected. **#242 MERGED `beaf3344` superseded that**: the island is
+> unified under `mcp/` and `tests/asana_mcp/` NO LONGER EXISTS on main. Restated below
+> against direct reads at `f6a72824`.
+
+**The island suite — `mcp/tests/` (21 files; unified by #242) — root CI collects NONE of it**:
+- Root `testpaths = ["tests"]` (`pyproject.toml:113`) excludes `mcp/`; NO workflow in
+  `.github/workflows/` references `mcp/` (grep-verified at `f6a72824`). The island carries
+  its OWN `mcp/pyproject.toml` (`name = "asana-mcp"`, its own `testpaths = ["tests"]` →
+  `mcp/tests/` when run from `mcp/`) — a LOCAL/venv gate (lineage receipts: s2 29-passed;
+  unified 92/92 then 98-passed on the assembly branch; adversary re-ran both).
+- Contents: assembly floor F1-F4 (`test_assembly_floor.py` — traceparent, budget partition
+  fail-loud + burst+1 single refusal, import-safety, honesty ×4 + hiding-unwrapper
+  rejection), `test_budget_partition_and_rate_cap.py` (`:33` oversubscription, `:40`
+  RPS-exceeds-share), `test_cold_frame_mapping.py` (warming-not-auth two-sided),
+  `test_fences.py` (`:30` no domain-SDK import, `:36` no direct Asana endpoint, `:42`
+  scanner teeth, `:50` one timeout SoT, `:67` env-prefix discipline),
+  `test_composite_write_s3.py` (refusal RED / convergence GREEN pair),
+  `test_import_safety.py` + `test_import_safety_obs.py`, errors passthrough (MCP-1) + C3,
+  honesty passthrough, instrument seam, postures, readiness gate, schema canary, seam
+  conformance, span/traceparent, timeout cascade.
+- **The formerly-CI-collected floor tests moved OUT of the root gate with the
+  unification** — the pass-1 partial CI-gap is now a TOTAL island CI-gap (see Knowledge
+  Gap 7). Reference-posture context: the island is a throwaway POC
+  (MCP-REFERENCE-POSTURE-001), so a local-only gate is a NAMED trade, not an accident —
+  but it is now the whole island, not half of it.
+
+**Satellite-side MCP-adjacent suites that ARE root-CI-gated** (inside `tests/`):
+- `tests/unit/services/test_entity_vocabulary_parity.py` — the SAT-1 guard (below).
+- `tests/unit/api/preload/test_ready_fail_closed.py` (#248 `6edc83d5`) — the four-state
+  fail-closed `/ready` regression suite (the WS-A satellite half; 323 lines).
+
+**Lint/type gates scoping the island (re-verified at `f6a72824`)**:
+- ruff runs repo-wide with the `"mcp/**"` per-file-ignores carve-out (`pyproject.toml:237-254`
+  — TID251 httpx is the ratified constraint-5 transport) + #242's operator-CLI extensions.
+- mypy gates `src/autom8_asana` ONLY (`.github/workflows/test.yml:53` `mypy_targets`) —
+  `mcp/` is not type-gated in CI.
+- The RUF100 dead-noqa drift-guard covers `src/` only (`test.yml:420`) — `mcp/` excluded.
+- CodeQL runs at the org level (no repo workflow file); the assembly branch absorbed one
+  HIGH pre-merge (fence scanner reshaped to regex).
+
+**SAT-1 regression guard (the parity contract test — CI-gated)**:
+`tests/unit/services/test_entity_vocabulary_parity.py` (#245 `2eb830ca`) is the standing
+guard for the SCAR-VOCAB-PARITY-001 class: parity side (introspection vocabulary ⊆ execution
+vocabulary, `TestIntrospectionExecutionParity:73`) + teeth side (unknown entity rejected AND
+the rejection carries the full execution vocabulary, `TestUnknownEntityTeeth:113`, `:126`).
+Route-level 404 shape pinned by `tests/unit/api/test_routes_query_aggregate.py:125-142`
+(tc_ra002). Open flag (adversary D1-F4): no route-level POSITIVE test drives
+`POST /v1/query/process_sales/rows|aggregate` through the HTTP surface.
+
 ## Knowledge Gaps
 
 1. **Actual runtime coverage percentage** — `fail_under = 80` configured and enforced; project-crucible baseline was 87.59%, but no coverage report run during this audit cycle to confirm current state
@@ -393,6 +458,9 @@ External tree style (separate `tests/` directory, not co-located with source). T
 4. **`tests/synthetic/test_synthetic_coverage.py` purpose** — contents not read; filename suggests coverage gap detection
 5. **`services/intake_*_service.py` service-layer isolation** — tested only through route tests; direct service error path coverage unknown
 6. **Schemathesis 47 xfails pending triage** — pre-existing OpenAPI contract violations in `test_openapi_fuzz.py` that have not been resolved or categorized
+7. **The ENTIRE mcp island suite is a local-only gate** (updated refresh pass 2, 2026-07-20) — #242 `beaf3344` unified all island tests (21 files, incl. the formerly-CI-collected s4 floor suite) under `mcp/tests/`, outside root `testpaths` (`pyproject.toml:113`); no workflow references `mcp/`. The pass-1 partial gap is now total. Candidate resolutions: a dedicated CI lane over `mcp/` (running `pytest` from `mcp/` against `mcp/pyproject.toml`), or an explicit reference-posture acceptance recorded until the GATE-PROBE ruling (island is throwaway per charter §5.3).
+8. **D1-F3 vacuous adversarial test on main** (2026-07-20) — `tests/unit/services/test_query_service.py:753`: mock truthiness defeats the `entity_service.py:114` guard; the test passes vacuously and fails when run honestly (proven main-identical, cure-wave adversary D1-F3). Deserves its own fix; not a witness-arc regression.
+9. **Adversary-DELTA sidecar test recommendations, ledgered** (2026-07-20) — D2-F1: cap `_upstream_suffix` interpolation length (~2KB defense-in-depth; production reimplementation); D2-F2: assert the auth-branch suffix never matches the warming lexicon (mirror the existing disjointness test); D1-F4 flag: add a route-level positive process_* rows/aggregate test.
 
 ```metadata
 criteria_grades:
