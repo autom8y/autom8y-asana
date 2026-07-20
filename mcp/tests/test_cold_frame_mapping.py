@@ -9,7 +9,6 @@ mapping still discriminates).
 from __future__ import annotations
 
 import pytest
-
 from asana_mcp.observability import (
     AuthShapedError,
     MappedError,

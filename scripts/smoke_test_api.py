@@ -339,7 +339,11 @@ async def tier0_health(
     if (
         r.status_code in (200, 503)
         and body
-        and body.get("status") in ("ok", "unavailable")
+        # "degraded" is a designed serviceable steady-state (200): a deliberate
+        # partial degrade (e.g. cache built-on-request, S3-down legacy fallback)
+        # surfaces a degraded signal without failing readiness. The message below
+        # prints the actual status seen, so a degraded task is honestly reported.
+        and body.get("status") in ("ok", "degraded", "unavailable")
     ):
         r.status = TestStatus.PASS
         r.message = f"{r.status_code} {body.get('status', '')}"

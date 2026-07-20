@@ -37,14 +37,17 @@ S1 (CONTRACT VALUES WIRED): timeout + budget defaults now carry the contract's
    §1.2/§2.2 values (no longer placeholders). The only unresolved seam number is
    the live ALB idle timeout (contract UV-P-1, 60s floor used) — safe under 60 or
    120.
-S2 (FASTMCP REGISTRY SEAM): ``_iter_tool_handles`` duck-types FastMCP's tool
-   registry because the FastMCP pin is deferred (frame UV-P-1) and s2's skeleton is
-   unlanded. The CORE wrapper is fully tested; instrument() wiring is tested against
-   the local harness. s2 wires the real middleware/registry API at pin time.
-S3 (TRACEPARENT PER-REQUEST): ``propagate_traceparent`` injects into a carrier the
-   caller applies. Production must wire HTTPXClientInstrumentor onto ctx.http
-   (contract §3.3) so injection is per-request; injecting client default headers
-   would leak a stale traceparent. Documented, not solved here.
+S2 (FASTMCP REGISTRY SEAM — RECONCILED at sprint-6 assembly): ``_iter_tool_handles``
+   now reads the REAL fastmcp 3.4.4 registry ``mcp._local_provider._components``
+   (keys ``"tool:{name}@{version}"`` -> ``FunctionTool`` with a settable ``.fn``;
+   replacing ``.fn`` was verified to intercept ``call_tool``). The legacy
+   ``_tools``/``_tool_manager._tools`` probe is kept as a fallback for the duck-typed
+   FakeMcp unit harness. Production: re-pin if fastmcp's provider API moves (UV-P-1).
+S3 (TRACEPARENT PER-REQUEST — WIRED at sprint-6 assembly, FORK-D Pythia D3):
+   ``instrument()`` now wires ``HTTPXClientInstrumentor().instrument_client(ctx.http)``
+   so the active tool span's W3C traceparent rides EACH outbound request (never the
+   client default headers — no stale-traceparent leak). s4's ``propagate_traceparent``
+   carrier path is retained for the duck-typed FakeCtx unit harness.
 S4 (RATE CAP BOUNDS THE INDUCER): the MCP makes zero Asana calls; its cap bounds
    the INDUCER (tool executions that can trigger satellite build fan-out), not PAT
    consumption directly. Warmers/API cannot be starved by construction — the cap
@@ -79,7 +82,9 @@ from asana_mcp.timeouts import (
 if TYPE_CHECKING:  # pragma: no cover - typing only, never imported at runtime
     from fastmcp import FastMCP  # sprint-2 dependency; NOT installed at s4 time
 
-    from asana_mcp.skeleton import Settings  # s2-owned
+    from asana_mcp.settings import (
+        Settings,
+    )  # s2-owned (sprint-6: corrected from asana_mcp.skeleton)
 
 __all__ = [
     "NATIVE_HONESTY_FIELDS",
@@ -163,6 +168,7 @@ _EPS = 1e-9
 
 _INSTRUMENTED_ATTR = "_asana_mcp_instrumented"
 _WRAPPED_ATTR = "_asana_mcp_obs_wrapped"
+_HTTP_INSTRUMENTED_ATTR = "_asana_mcp_http_instrumented"
 
 
 # ---------------------------------------------------------------------------
@@ -703,24 +709,73 @@ def instrument_tool(
 # ---------------------------------------------------------------------------
 
 
+def _fn_handle(name: str, tool_obj: Any) -> tuple[str, Any, Callable[[Callable[..., Any]], None]]:
+    def _setter(new_fn: Callable[..., Any], _t: Any = tool_obj) -> None:
+        _t.fn = new_fn
+
+    return (str(name), tool_obj.fn, _setter)
+
+
 def _iter_tool_handles(
     mcp: Any,
 ) -> list[tuple[str, Any, Callable[[Callable[..., Any]], None]]]:
-    """Best-effort adapter over FastMCP's tool registry (shortcut S2)."""
+    """Adapter over FastMCP's tool registry.
+
+    RECONCILED at sprint-6 assembly against the real fastmcp 3.4.4 API: tools live in
+    ``mcp._local_provider._components`` keyed ``"tool:{name}@{version}"`` -> a
+    ``FunctionTool`` carrying a settable ``.fn`` (replacing ``.fn`` was verified to
+    intercept ``call_tool``). Resource/prompt components share the dict, so only
+    ``"tool:"``-prefixed keys are wrapped. The legacy ``_tools`` / ``_tool_manager
+    ._tools`` shapes are kept as a fallback for the duck-typed FakeMcp unit harness
+    (test_instrument_seam.py).
+    """
+    handles: list[tuple[str, Any, Callable[[Callable[..., Any]], None]]] = []
+
+    # Real fastmcp 3.4.x: provider-held component registry.
+    components = getattr(getattr(mcp, "_local_provider", None), "_components", None)
+    if isinstance(components, Mapping):
+        for key, tool_obj in components.items():
+            if str(key).startswith("tool:") and hasattr(tool_obj, "fn"):
+                handles.append(_fn_handle(getattr(tool_obj, "name", key), tool_obj))
+        if handles:
+            return handles
+
+    # Fallback: legacy / duck-typed registry shapes (FakeMcp harness).
     registry = getattr(mcp, "_tools", None)
     if registry is None:
-        tool_manager = getattr(mcp, "_tool_manager", None)
-        registry = getattr(tool_manager, "_tools", None)
-    handles: list[tuple[str, Any, Callable[[Callable[..., Any]], None]]] = []
+        registry = getattr(getattr(mcp, "_tool_manager", None), "_tools", None)
     if isinstance(registry, Mapping):
         for name, tool_obj in registry.items():
             if hasattr(tool_obj, "fn"):
-
-                def _setter(new_fn: Callable[..., Any], _t: Any = tool_obj) -> None:
-                    _t.fn = new_fn
-
-                handles.append((str(name), tool_obj.fn, _setter))
+                handles.append(_fn_handle(name, tool_obj))
     return handles
+
+
+def _instrument_ctx_http(ctx: Any) -> None:
+    """Wire ``HTTPXClientInstrumentor`` onto ``ctx.http`` (idempotent per client).
+
+    FORK-D (Pythia D3): v1 rides the raw ``httpx.AsyncClient`` frozen mount-seam. The
+    per-client instrumentor injects the active span's W3C ``traceparent`` on EVERY
+    outbound request, yielding one trace across the sidecar->ALB->satellite hop
+    (contract §3.3 / checklist item 1) — NOT via client default headers (which would
+    leak a stale traceparent across requests). Kept out of the wrap loop so a
+    promote-time swap to ``autom8y_http.Autom8yHttpClient`` touches only this helper
+    and ``bridge.build_http_client``; ``instrument()`` stays client-type-agnostic.
+    """
+    if ctx is None:
+        return
+    http = getattr(ctx, "http", None)
+    if http is None or getattr(http, _HTTP_INSTRUMENTED_ATTR, False):
+        return
+    try:
+        from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+    except ImportError:  # otel-httpx optional; s4 carrier path still available
+        return
+    HTTPXClientInstrumentor().instrument_client(http)
+    try:
+        setattr(http, _HTTP_INSTRUMENTED_ATTR, True)
+    except (AttributeError, TypeError):  # pragma: no cover - defensive
+        pass
 
 
 def instrument(mcp: FastMCP, settings: Settings) -> FastMCP:
@@ -736,6 +791,11 @@ def instrument(mcp: FastMCP, settings: Settings) -> FastMCP:
     obs = _coerce_obs_settings(settings)
     obs.validate()  # fail-loud: timeout cascade + budget partition invariants
     rate_cap = obs.build_rate_cap()
+
+    # (FORK-D RESOLVED — Pythia D3) wire per-client httpx instrumentation onto the
+    # sidecar's ctx.http so the active tool span's traceparent rides each outbound
+    # hop (contract §3.3 / checklist item 1). s2 exposes ctx at mcp.sidecar_context.
+    _instrument_ctx_http(getattr(mcp, "sidecar_context", None))
 
     get_ctx = getattr(mcp, "get_context", None)
     for name, current_fn, set_fn in _iter_tool_handles(mcp):
