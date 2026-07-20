@@ -333,7 +333,7 @@ class TestAggregationCompiler:
 
 
 # ---------------------------------------------------------------------------
-# TestBuildPostAggSchema (TC-AH006)
+# TestBuildPostAggSchema (TC-AH006)  # noqa: ERA001
 # ---------------------------------------------------------------------------
 
 

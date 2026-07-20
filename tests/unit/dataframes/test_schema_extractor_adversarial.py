@@ -309,7 +309,7 @@ class TestConcurrentExtraction:
                 ext = SchemaExtractor(schema)
                 model = ext._build_dynamic_row_model()
                 models.append(model)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         threads = [threading.Thread(target=build_model) for _ in range(10)]
@@ -350,7 +350,7 @@ class TestConcurrentExtraction:
                 row = ext.extract(task)
                 d = row.to_dict()
                 results.append((schema.task_type, len(d) == len(schema.columns)))
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append((schema.task_type, e))
 
         threads = []
@@ -416,7 +416,7 @@ class TestDynamicModelProperties:
 
         ext = SchemaExtractor(OFFER_SCHEMA)
         model = ext._build_dynamic_row_model()
-        # platforms is List[Utf8]
+        # platforms is List[Utf8]  # noqa: ERA001
         platforms_field = model.model_fields.get("platforms")
         assert platforms_field is not None
         assert platforms_field.default_factory is list

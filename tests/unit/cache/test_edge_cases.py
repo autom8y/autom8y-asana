@@ -52,7 +52,7 @@ class TestModificationCacheAdversarial:
                 check = cache.get("shared_gid")
                 if check:
                     results.append(check.modified_at)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         threads = [threading.Thread(target=set_modification, args=(i,)) for i in range(10)]
@@ -79,7 +79,7 @@ class TestModificationCacheAdversarial:
             try:
                 for i in range(100):
                     cache.get(f"gid_{i % 100}")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         def do_clear() -> None:
@@ -87,7 +87,7 @@ class TestModificationCacheAdversarial:
                 for _ in range(10):
                     cache.clear()
                     time.sleep(0.001)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         threads = [threading.Thread(target=do_gets) for _ in range(5)]
@@ -114,7 +114,7 @@ class TestModificationCacheAdversarial:
                     cache.set(f"gid_{i}", "2025-01-01T00:00:00Z")
                     time.sleep(0.001)
                     cache.cleanup_expired()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         threads = [threading.Thread(target=set_and_cleanup) for _ in range(5)]
@@ -183,7 +183,7 @@ class TestMetricsAdversarial:
                     metrics.record_eviction()
                     metrics.record_error()
                     metrics.record_overflow_skip("task")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         threads = [threading.Thread(target=update_metrics) for _ in range(10)]
@@ -211,7 +211,7 @@ class TestMetricsAdversarial:
             try:
                 for _ in range(100):
                     metrics.record_hit(latency_ms=1.0)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         def take_snapshots() -> None:
@@ -219,7 +219,7 @@ class TestMetricsAdversarial:
                 for _ in range(20):
                     snapshots.append(metrics.snapshot())
                     time.sleep(0.001)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         threads = [threading.Thread(target=update_metrics) for _ in range(5)]

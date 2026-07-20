@@ -69,7 +69,7 @@ def mock_tasks_client() -> MagicMock:
     client = MagicMock()
 
     # Default: return a parent task for any GID
-    async def _get_async(gid: str, **kwargs):
+    async def _get_async(gid: str, **kwargs):  # noqa: ANN003
         return _make_parent_response(gid)
 
     client.get_async = AsyncMock(side_effect=_get_async)
@@ -492,7 +492,7 @@ class TestPacingErrorResilience:
 
         call_count = 0
 
-        async def _flaky_get(gid: str, **kwargs):
+        async def _flaky_get(gid: str, **kwargs):  # noqa: ANN003
             nonlocal call_count
             call_count += 1
             if call_count % 3 == 0:
@@ -531,7 +531,7 @@ class TestPacingErrorResilience:
 
         call_index = 0
 
-        async def _fail_last_batch(gid: str, **kwargs):
+        async def _fail_last_batch(gid: str, **kwargs):  # noqa: ANN003
             nonlocal call_index
             call_index += 1
             if 100 < call_index <= 110:  # Fail batch 3 items
@@ -559,7 +559,7 @@ class TestPacingConcurrencyInteraction:
         current_concurrent = 0
         lock = asyncio.Lock()
 
-        async def _tracking_get(gid: str, **kwargs):
+        async def _tracking_get(gid: str, **kwargs):  # noqa: ANN003
             nonlocal max_concurrent, current_concurrent
             async with lock:
                 current_concurrent += 1

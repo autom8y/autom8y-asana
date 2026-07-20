@@ -1522,7 +1522,7 @@ class TestOfferFreshnessResilience:
 
         captured: list[dict] = []
 
-        def _capture(event: str, *a, **kw):
+        def _capture(event: str, *a, **kw):  # noqa: ANN002, ANN003
             captured.append({"event": event, "extra": kw.get("extra", {})})
 
         # Contract patched OUT -> multiplier ceiling (1800s) applies (the old bug
@@ -1598,7 +1598,7 @@ class TestOfferFreshnessResilience:
 
         captured: list[dict] = []
 
-        def _capture(event: str, *a, **kw):
+        def _capture(event: str, *a, **kw):  # noqa: ANN002, ANN003
             captured.append({"event": event, "extra": kw.get("extra", {})})
 
         # Exercise the SHIPPED contract (no patch of the map) — the real value.
@@ -1642,7 +1642,7 @@ class TestOfferFreshnessResilience:
 
         captured: list[dict] = []
 
-        def _capture(event: str, *a, **kw):
+        def _capture(event: str, *a, **kw):  # noqa: ANN002, ANN003
             captured.append({"event": event, "extra": kw.get("extra", {})})
 
         with patch(
@@ -1754,7 +1754,7 @@ class TestOfferFreshnessResilience:
 
         captured: list[dict] = []
 
-        def _capture(event: str, *a, **kw):
+        def _capture(event: str, *a, **kw):  # noqa: ANN002, ANN003
             captured.append({"event": event, "extra": kw.get("extra", {})})
 
         with patch(

@@ -84,7 +84,7 @@ def _make_schema(*, has_cascade: bool = False) -> MagicMock:
     return schema
 
 
-def _build_patch_stack(
+def _build_patch_stack(  # noqa: PLR0913
     mock_persistence: MagicMock,
     mock_df_persistence: MagicMock,
     mock_dataframe_cache: MagicMock | None = None,

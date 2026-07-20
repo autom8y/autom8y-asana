@@ -1454,7 +1454,7 @@ OB_GUIDE_DECK = "email-forwarding-setup"
 def _core_mint_available() -> bool:
     """True iff the autom8y-core canonical-address gate is importable."""
     try:
-        from autom8y_core.helpers.routing import format_routing_address
+        from autom8y_core.helpers.routing import format_routing_address  # noqa: F401
 
         return True
     except ImportError:

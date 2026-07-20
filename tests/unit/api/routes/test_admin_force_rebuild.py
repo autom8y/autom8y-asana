@@ -11,9 +11,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 # Patch targets match where imports are resolved in _perform_force_rebuild:
-#   from autom8_asana.services.resolver import EntityProjectRegistry
-#   from autom8_asana.cache.dataframe.factory import get_dataframe_cache
-#   from autom8_asana.dataframes.section_persistence import SectionPersistence
+#   from autom8_asana.services.resolver import EntityProjectRegistry  # noqa: ERA001
+#   from autom8_asana.cache.dataframe.factory import get_dataframe_cache  # noqa: ERA001
+#   from autom8_asana.dataframes.section_persistence import SectionPersistence  # noqa: ERA001
 _REGISTRY_PATCH = "autom8_asana.services.resolver.EntityProjectRegistry.get_instance"
 _CACHE_PATCH = "autom8_asana.cache.dataframe.factory.get_dataframe_cache"
 _PERSISTENCE_PATCH = "autom8_asana.dataframes.section_persistence.SectionPersistence"

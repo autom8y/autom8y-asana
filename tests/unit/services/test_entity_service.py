@@ -78,7 +78,7 @@ def service(entity_registry: EntityRegistry, project_registry: MagicMock) -> Ent
 
 
 # ---------------------------------------------------------------------------
-# Tests: validate_entity_type
+# Tests: validate_entity_type  # noqa: ERA001
 # ---------------------------------------------------------------------------
 
 
@@ -175,7 +175,7 @@ class TestValidateEntityType:
 
 
 # ---------------------------------------------------------------------------
-# Tests: EntityContext
+# Tests: EntityContext  # noqa: ERA001
 # ---------------------------------------------------------------------------
 
 

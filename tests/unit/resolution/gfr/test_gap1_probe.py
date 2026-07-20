@@ -26,7 +26,7 @@ _SCRIPTS_DIR = _REPO_ROOT / "scripts"
 if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
-from gfr_dynvocab import gap1_probe
+from gfr_dynvocab import gap1_probe  # noqa: E402
 
 pytestmark = [pytest.mark.xdist_group("gfr_resolver")]
 

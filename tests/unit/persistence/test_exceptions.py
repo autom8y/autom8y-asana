@@ -560,7 +560,7 @@ class TestExceptionHierarchy:
                 raise exc
             except SaveOrchestrationError:
                 pass  # Expected
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 pytest.fail(f"{type(exc).__name__} was not caught: {e}")
 
     def test_can_distinguish_exception_types(self) -> None:

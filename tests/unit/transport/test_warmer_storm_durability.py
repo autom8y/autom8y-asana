@@ -186,7 +186,7 @@ async def _warm_one_invocation(client: AsanaHttpClient, gids: tuple[str, ...]) -
         try:
             await client.get(f"/projects/{gid}/sections")
             completed.append(gid)
-        except Exception:
+        except Exception:  # noqa: BLE001 -- storm retries exhausted is a per-GID gap
             pass
 
     await asyncio.gather(*[_one(gid) for gid in gids], return_exceptions=True)

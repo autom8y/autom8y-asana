@@ -76,7 +76,7 @@ def mock_cache_provider() -> MagicMock:
 def mock_tasks_client() -> MagicMock:
     client = MagicMock()
 
-    async def _get_async(gid: str, **kwargs):
+    async def _get_async(gid: str, **kwargs):  # noqa: ANN003
         return _make_parent_response(gid)
 
     client.get_async = AsyncMock(side_effect=_get_async)
@@ -251,7 +251,7 @@ class TestErrorResilience:
 
         call_count = 0
 
-        async def _flaky_get(gid: str, **kwargs):
+        async def _flaky_get(gid: str, **kwargs):  # noqa: ANN003
             nonlocal call_count
             call_count += 1
             # Fail every 3rd fetch
@@ -301,7 +301,7 @@ class TestErrorResilience:
 
         call_index = 0
 
-        async def _fail_last_batch(gid: str, **kwargs):
+        async def _fail_last_batch(gid: str, **kwargs):  # noqa: ANN003
             nonlocal call_index
             call_index += 1
             # Fail everything in batch 3 (items 101-110) during Phase 1
@@ -335,7 +335,7 @@ class TestConcurrencyInteraction:
         current_concurrent = 0
         lock = asyncio.Lock()
 
-        async def _tracking_get(gid: str, **kwargs):
+        async def _tracking_get(gid: str, **kwargs):  # noqa: ANN003
             nonlocal max_concurrent, current_concurrent
             async with lock:
                 current_concurrent += 1
@@ -511,7 +511,7 @@ class TestPhase2Unaffected:
             },
         }
 
-        async def _get(gid: str, **kwargs):
+        async def _get(gid: str, **kwargs):  # noqa: ANN003
             data = responses.get(gid)
             if data is None:
                 return None

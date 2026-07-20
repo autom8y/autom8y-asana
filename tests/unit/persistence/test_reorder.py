@@ -128,8 +128,8 @@ class TestComputeReorderPlan:
         """SC-002: 7 items, 5 in order, 2 displaced -> 2 moves."""
         desired = make_resources(7)
         # Swap items at positions 2 and 5 to displace 2 elements
-        # desired:  [0, 1, 2, 3, 4, 5, 6]
-        # current:  [0, 1, 5, 3, 4, 2, 6]
+        # desired:  [0, 1, 2, 3, 4, 5, 6]  # noqa: ERA001
+        # current:  [0, 1, 5, 3, 4, 2, 6]  # noqa: ERA001
         # Position seq: [0, 1, 5, 3, 4, 2, 6]
         # LIS = [0, 1, 3, 4, 6] -> length 5
         current = [
@@ -160,7 +160,7 @@ class TestComputeReorderPlan:
     def test_moves_produce_desired_order(self) -> None:
         """SC-004: Applying moves to current produces desired order."""
         desired = make_resources(7)
-        # Scramble: [3, 6, 0, 5, 1, 4, 2]
+        # Scramble: [3, 6, 0, 5, 1, 4, 2]  # noqa: ERA001
         current = [
             desired[3],
             desired[6],

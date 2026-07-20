@@ -160,7 +160,7 @@ async def test_h_dark_gate_holds_even_when_data_creds_present(
         result = await resolve_and_push_snapshot(
             [office],
             data_service_url="https://data.internal",
-            auth_token="tok",
+            auth_token="tok",  # noqa: S106 -- test stub, not a real secret
         )
     assert result.dry_run is True
     helper.assert_not_awaited()

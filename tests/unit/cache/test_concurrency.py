@@ -55,7 +55,7 @@ class TestInMemoryCacheConcurrency:
                     result = cache.get_versioned("shared", EntryType.TASK)
                     with results_lock:
                         results.append(result.data if result else None)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         threads = [threading.Thread(target=read_key) for _ in range(20)]
@@ -87,7 +87,7 @@ class TestInMemoryCacheConcurrency:
                         ttl=300,
                     )
                     cache.set_versioned("shared", entry)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         threads = [threading.Thread(target=write_key, args=(i,)) for i in range(10)]
@@ -118,7 +118,7 @@ class TestInMemoryCacheConcurrency:
                 for _ in range(200):
                     cache.get_versioned("shared", EntryType.TASK)
                     time.sleep(0.0001)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         def writer(thread_id: int) -> None:
@@ -133,7 +133,7 @@ class TestInMemoryCacheConcurrency:
                     )
                     cache.set_versioned("shared", entry)
                     time.sleep(0.0002)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         readers = [threading.Thread(target=reader) for _ in range(10)]
@@ -175,7 +175,7 @@ class TestInMemoryCacheConcurrency:
                         ops += 1
                 with ops_lock:
                     successful_ops.append(ops)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         threads = [
@@ -221,7 +221,7 @@ class TestInMemoryCacheConcurrency:
                 # Verify all retrieved
                 for k in keys:
                     assert k in results
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         threads = [threading.Thread(target=batch_ops, args=(i,)) for i in range(10)]
@@ -256,14 +256,14 @@ class TestInMemoryCacheConcurrency:
             try:
                 for i in range(100):
                     cache.invalidate(f"key_{i}")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         def reader() -> None:
             try:
                 for i in range(100):
                     cache.get_versioned(f"key_{i % 100}", EntryType.TASK)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         threads = [threading.Thread(target=invalidator) for _ in range(5)]
@@ -296,7 +296,7 @@ class TestInMemoryCacheConcurrency:
                         ttl=300,
                     )
                     cache.set_versioned(f"key_{i}", entry)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         def clearer() -> None:
@@ -304,7 +304,7 @@ class TestInMemoryCacheConcurrency:
                 for _ in range(10):
                     cache.clear()
                     time.sleep(0.01)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         threads = [threading.Thread(target=writer) for _ in range(5)]
@@ -349,7 +349,7 @@ class TestInMemoryCacheConcurrency:
 
                     with ops_lock:
                         ops_count += 1
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         threads = [threading.Thread(target=contend) for _ in range(50)]
@@ -381,7 +381,7 @@ class TestInMemoryCacheConcurrency:
                         ttl=300,
                     )
                     cache.set_versioned(f"fill_{i}", entry)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         def read_cache() -> None:
@@ -389,7 +389,7 @@ class TestInMemoryCacheConcurrency:
                 for _ in range(500):
                     key = f"fill_{random.randint(0, 199)}"
                     cache.get_versioned(key, EntryType.TASK)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         threads = [threading.Thread(target=fill_cache) for _ in range(3)]
@@ -427,14 +427,14 @@ class TestModificationCheckCacheConcurrency:
             try:
                 for i in range(100):
                     cache.set(f"gid_{thread_id}_{i}", f"2025-01-{(i % 28) + 1:02d}T00:00:00Z")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         def get_ops(thread_id: int) -> None:
             try:
                 for i in range(100):
                     cache.get(f"gid_{thread_id}_{i}")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         threads: list[threading.Thread] = []
@@ -465,7 +465,7 @@ class TestModificationCheckCacheConcurrency:
                         for i in range(50)
                     }
                     cache.set_many(modifications)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         threads = [threading.Thread(target=bulk_set, args=(i,)) for i in range(10)]
@@ -497,7 +497,7 @@ class TestModificationCheckCacheConcurrency:
                     cached, uncached = cache.get_many(gids)
                     with results_lock:
                         results.append((cached, uncached))
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         threads = [threading.Thread(target=bulk_get) for _ in range(20)]
@@ -531,7 +531,7 @@ class TestModificationCheckCacheConcurrency:
                     )
                     time.sleep(0.005)
                     cache.cleanup_expired()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         threads = [threading.Thread(target=set_and_cleanup, name=f"t{i}") for i in range(10)]
@@ -560,7 +560,7 @@ class TestCacheMetricsConcurrency:
                     metrics.record_hit(latency_ms=1.0)
                     metrics.record_miss(latency_ms=1.0)
                     metrics.record_write(latency_ms=1.0)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         threads = [threading.Thread(target=record_metrics) for _ in range(20)]
@@ -595,7 +595,7 @@ class TestCacheMetricsConcurrency:
             try:
                 for _ in range(50):
                     metrics.record_hit(latency_ms=1.0)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         threads = [threading.Thread(target=record_metrics) for _ in range(20)]
@@ -621,7 +621,7 @@ class TestCacheMetricsConcurrency:
             try:
                 for _ in range(100):
                     metrics.record_hit(latency_ms=1.0)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         def take_snapshots() -> None:
@@ -631,7 +631,7 @@ class TestCacheMetricsConcurrency:
                     with snapshots_lock:
                         snapshots.append(snap)
                     time.sleep(0.001)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         threads = [threading.Thread(target=record_metrics) for _ in range(10)]
@@ -666,7 +666,7 @@ class TestCacheMetricsConcurrency:
                 for _ in range(100):
                     metrics.record_hit(latency_ms=1.0)
                     metrics.record_miss(latency_ms=1.0)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         def reset_metrics() -> None:
@@ -674,7 +674,7 @@ class TestCacheMetricsConcurrency:
                 for _ in range(10):
                     metrics.reset()
                     time.sleep(0.01)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         threads = [threading.Thread(target=record_metrics) for _ in range(10)]
@@ -715,7 +715,7 @@ class TestDeadlockPrevention:
             def nested_op() -> None:
                 try:
                     cache.get_versioned("other_key", EntryType.TASK)
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001
                     callback_errors.append(e)
 
             # Run in separate thread to avoid deadlock from re-entrant lock
@@ -775,7 +775,7 @@ class TestDeadlockPrevention:
                     cache2.get_versioned(f"key_{i}", EntryType.TASK)
                     cache2.set_versioned(f"key_{i}", entry)
                     cache1.get_versioned(f"key_{i}", EntryType.TASK)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         threads = [threading.Thread(target=cross_operate) for _ in range(10)]

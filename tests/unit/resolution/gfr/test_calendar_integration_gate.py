@@ -198,7 +198,7 @@ class TestGate2S3AccessDeniedDegradation:
 
     @pytest.mark.asyncio
     async def test_access_denied_degrades_to_tier_miss_cachenotwarm_pt03(self) -> None:
-        import polars as pl
+        import polars as pl  # noqa: F401 — ensures the frames substrate is importable
 
         from autom8_asana.cache.dataframe.circuit_breaker import CircuitBreaker
         from autom8_asana.cache.dataframe.coalescer import DataFrameCacheCoalescer

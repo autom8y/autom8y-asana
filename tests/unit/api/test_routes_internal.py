@@ -79,26 +79,26 @@ class TestDeprecatedImportsRemoved:
     def test_gid_lookup_request_not_importable(self) -> None:
         """GidLookupRequest model has been removed."""
         with pytest.raises(ImportError):
-            from autom8_asana.api.routes.internal import GidLookupRequest
+            from autom8_asana.api.routes.internal import GidLookupRequest  # noqa: F401
 
     def test_gid_lookup_response_not_importable(self) -> None:
         """GidLookupResponse model has been removed."""
         with pytest.raises(ImportError):
-            from autom8_asana.api.routes.internal import GidLookupResponse
+            from autom8_asana.api.routes.internal import GidLookupResponse  # noqa: F401
 
     def test_phone_vertical_input_not_importable(self) -> None:
         """PhoneVerticalInput model has been removed."""
         with pytest.raises(ImportError):
             from autom8_asana.api.routes.internal import (
-                PhoneVerticalInput,
+                PhoneVerticalInput,  # noqa: F401
             )
 
     def test_resolve_gids_not_importable(self) -> None:
         """resolve_gids function has been removed."""
         with pytest.raises(ImportError):
-            from autom8_asana.api.routes.internal import resolve_gids
+            from autom8_asana.api.routes.internal import resolve_gids  # noqa: F401
 
     def test_gid_index_cache_not_importable(self) -> None:
         """_gid_index_cache has been removed."""
         with pytest.raises(ImportError):
-            from autom8_asana.api.routes.internal import _gid_index_cache
+            from autom8_asana.api.routes.internal import _gid_index_cache  # noqa: F401

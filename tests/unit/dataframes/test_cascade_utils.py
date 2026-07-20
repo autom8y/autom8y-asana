@@ -13,7 +13,7 @@ from autom8_asana.dataframes.cascade_utils import (
 from autom8_asana.dataframes.models.schema import ColumnDef, DataFrameSchema
 
 # ---------------------------------------------------------------------------
-# DataFrameSchema.get_cascade_columns()
+# DataFrameSchema.get_cascade_columns()  # noqa: ERA001
 # ---------------------------------------------------------------------------
 
 
@@ -93,7 +93,7 @@ class TestGetCascadeColumns:
 
 
 # ---------------------------------------------------------------------------
-# is_cascade_provider()
+# is_cascade_provider()  # noqa: ERA001
 # ---------------------------------------------------------------------------
 
 
@@ -118,7 +118,7 @@ class TestIsCascadeProvider:
 
 
 # ---------------------------------------------------------------------------
-# cascade_provider_field_mapping()
+# cascade_provider_field_mapping()  # noqa: ERA001
 # ---------------------------------------------------------------------------
 
 
@@ -156,7 +156,7 @@ class TestCascadeProviderFieldMapping:
 
 
 # ---------------------------------------------------------------------------
-# cascade_warm_phases()
+# cascade_warm_phases()  # noqa: ERA001
 # ---------------------------------------------------------------------------
 
 
@@ -198,7 +198,7 @@ class TestCascadeWarmPhases:
 
 
 # ---------------------------------------------------------------------------
-# cascade_warm_order()
+# cascade_warm_order()  # noqa: ERA001
 # ---------------------------------------------------------------------------
 
 

@@ -94,7 +94,7 @@ class TestCoalescerDedupMetricMotoIntegration:
     @pytest.fixture(autouse=True)
     def _check_moto(self) -> None:
         try:
-            import moto
+            import moto  # noqa: F401
         except ImportError:
             pytest.skip("moto not installed")
 

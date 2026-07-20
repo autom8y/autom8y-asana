@@ -1102,7 +1102,7 @@ class TestFG6BuildCoordinatorBroadExceptionHandling:
         )
 
         async def assert_failing_build() -> tuple[None, datetime]:
-            assert False, "precondition-violation"
+            assert False, "precondition-violation"  # noqa: B011, PT015
 
         coord = BuildCoordinator(
             max_concurrent_builds=4,

@@ -50,7 +50,7 @@ pytestmark = pytest.mark.usefixtures("enable_insights_feature")
 _AUTH_ORIGIN = "https://auth.test.local"
 _TOKEN_URL = f"{_AUTH_ORIGIN}/operator/token"
 _DATA_BASE = "http://data.test.local"
-_HARNESS_TOKEN = "operator.roundtrip.token"
+_HARNESS_TOKEN = "operator.roundtrip.token"  # noqa: S105 -- test fixture
 
 # The data-plane C-1 allowlist WITH PR-D1's +2 names (the round-trip exercises a NEW
 # name, offer_level_stats / question_level_stats, that origin/main does not yet carry).

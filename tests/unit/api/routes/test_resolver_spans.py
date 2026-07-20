@@ -164,7 +164,7 @@ def app(monkeypatch):
     monkeypatch.setenv("AUTOM8Y_ENV", "LOCAL")
     monkeypatch.setenv("AUTH__DEV_MODE", "true")
 
-    from autom8_asana.api.lifespan import _discover_entity_projects
+    from autom8_asana.api.lifespan import _discover_entity_projects  # noqa: PLC2701
     from autom8_asana.api.main import create_app
 
     with patch(
