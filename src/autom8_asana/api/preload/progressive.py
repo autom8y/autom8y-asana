@@ -426,6 +426,15 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
             # ADR-011 degraded-mode fallback: legacy in-memory preload ran
             # (S3 unavailable). Override the READY it set internally with a
             # DEGRADED signal so operators see the S3-down posture.
+            #
+            # KNOWN LIMITATION (recorded as a PR-3 gating note): legacy swallows
+            # its own exceptions and returns None, unconditionally setting ready
+            # in its own `finally`. A legacy warm that FAILED internally is
+            # therefore indistinguishable at this boundary from a clean one and
+            # surfaces under this same reason (severity-masked). Emitting a
+            # distinct reason ("legacy_fallback_failed") would require legacy to
+            # propagate its outcome -- out of scope here (legacy.py is untouched;
+            # its fail-open is locked by test_startup_preload.py).
             set_cache_degraded("s3_unavailable_legacy_fallback")
             return
 

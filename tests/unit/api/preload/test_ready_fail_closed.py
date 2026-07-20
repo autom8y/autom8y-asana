@@ -280,6 +280,10 @@ class TestReadyEndpointFailClosed:
         response = client.get("/ready")
 
         assert response.status_code == 200
+        # Top-level status is "degraded" (a designed serviceable steady-state).
+        # The smoke test's T0-2 /ready matcher must accept this (scripts/
+        # smoke_test_api.py) — a degraded cache is a sticky 200, not a failure.
+        assert response.json()["status"] == "degraded"
         cache_check = response.json()["checks"]["cache"]
         assert cache_check["status"] == "degraded"
         assert cache_check["detail"]["cause"] == "PRELOAD_DEGRADED"
