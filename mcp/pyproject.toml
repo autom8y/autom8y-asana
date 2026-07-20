@@ -1,0 +1,54 @@
+# asana_mcp — FastMCP sidecar POC (asana-mcp-v1 sprint-2 read-surface)
+#
+# REFERENCE / THROWAWAY POSTURE (charter §5.3 + V-4 + constraint 8):
+#   This package is a proof-of-concept. It is NOT production code and NOT to be
+#   promoted before the charter §4 probe rules COMMIT. It exists to make the
+#   felt-gate limb (a) demonstrable: an agent, from schemas alone, answers a real
+#   business question via list -> describe -> rows -> aggregate.
+#
+# CONSTRAINT 5 (load-bearing, actively-harmful-if-violated): this package NEVER
+#   imports the `autom8_asana` domain SDK and makes ZERO direct Asana API calls.
+#   It speaks HTTP only to the autom8y-asana REST S2S surface. Auth JOINS the
+#   existing fleet bridge `autom8y_core.TokenManager` (SVR-8) — zero new
+#   auth-minting code.
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "asana-mcp"
+version = "0.1.0"
+description = "FastMCP sidecar over the autom8y-asana REST S2S surface (reference POC — asana-mcp-v1 sprint-2)"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    # Pinned at POC pin time per R5/UV-P-1 re-probe (PyPI, 2026-07-17):
+    #   FastMCP latest == 3.4.4 (requires_python >=3.10; healthy weekly 3.4.x cadence).
+    #   Never hand-roll transport (constraint 7); MCP protocol pinned 2025-11-25.
+    #   The 2026-07-28 stateless-overhaul window remains the watch item (UV-P-1 narrowed).
+    "fastmcp>=3.4.4,<3.5.0",
+    "httpx>=0.25.0",
+    "pydantic>=2.0.0",
+    # Sanctioned fleet bridge (SVR-8): TokenManager mints the S2S JWT. Its
+    # AsanaQueryClient/AsanaServiceConfig speak HTTP to the REST surface — it does
+    # NOT import autom8_asana. This is the ONLY autom8y_core touch-point.
+    "autom8y-core>=4.2.0,<5.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["asana_mcp"]
+
+[tool.pytest.ini_options]
+# Tests run against faked HTTP (httpx.MockTransport) with envelope shapes
+# transcribed from autom8_asana/query/models.py — they NEVER hit live Asana and
+# do NOT require fastmcp (the pure handlers are fastmcp-free by construction).
+pythonpath = ["."]
+asyncio_mode = "auto"
+testpaths = ["tests"]
