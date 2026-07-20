@@ -351,7 +351,7 @@ resource "aws_cloudwatch_metric_alarm" "al5_offer_frame_stale" {
   for_each = var.substrate_freshness_gids
 
   alarm_name        = "asana-AL5-offer-frame-stale-${each.key}"
-  alarm_description = "Per-GID offer frame staleness: served LKG frame for project_gid=${each.key} older than ${var.offer_frame_stale_threshold_seconds}s over 2x300s. RB-SUBSTRATE-FRESHNESS. Cures SCAR-015 entity-level blindness (per-GID axis). NON-PAGING until AL-5 armed + apply-imported; confirm-first."
+  alarm_description = "Per-GID offer frame staleness: served LKG frame for project_gid=${each.key} older than ${var.offer_frame_stale_threshold_seconds}s, 2-of-12 datapoints over 3600s (M-of-N sparsity cure). RB-SUBSTRATE-FRESHNESS. Cures SCAR-015 entity-level blindness (per-GID axis) AND the sparsity-blindness the 300s/2-of-2 config masked. NON-PAGING until AL-5 armed + apply-imported; confirm-first."
   namespace         = var.substrate_freshness_namespace
   metric_name       = "OfferFrameAgeSeconds"
   dimensions = {
@@ -360,8 +360,14 @@ resource "aws_cloudwatch_metric_alarm" "al5_offer_frame_stale" {
   statistic           = "Maximum"
   comparison_operator = "GreaterThanThreshold"
   threshold           = var.offer_frame_stale_threshold_seconds
-  period              = 300
-  evaluation_periods  = 2
+  # SPARSITY-BLINDNESS RECONFIG (node-0, EXECUTION-RECEIPT-al5-reconfig.md,
+  # 2026-07-20, two-sided-teeth-proven): Period 300->3600, EvaluationPeriods
+  # 2->12, DatapointsToAlarm 2 (M-of-N: 2-of-12h). Sparse breaching datapoints
+  # (a starved GID served only a handful of times over hours) now trip the alarm;
+  # the prior 2-of-2-over-300s config read OK through 10,000s+ breaches. Codifies
+  # the live API reconfig into IaC so terraform state == live (was drift).
+  period              = 3600
+  evaluation_periods  = 12
   datapoints_to_alarm = 2
   treat_missing_data  = "notBreaching" # missing serve != stale; residual blind spot per header
 
