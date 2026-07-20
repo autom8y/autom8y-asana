@@ -12,6 +12,13 @@ from pathlib import Path
 
 _SRC = Path(__file__).resolve().parents[2] / "src" / "asana_mcp"
 _IMPORT_DOMAIN = re.compile(r"^\s*(import|from)\s+autom8_asana", re.MULTILINE)
+# Ban-scanner over SOURCE TEXT (not URL sanitization): any occurrence of the
+# endpoint literal in sidecar source is a constraint-5 violation, so substring
+# over-matching is the intended, stricter direction. Regex form keeps the
+# scanner style consistent with _IMPORT_DOMAIN (and outside CodeQL's
+# py/incomplete-url-substring-sanitization pattern, which mis-read the old
+# `in` check as an allowlist).
+_ASANA_ENDPOINT = re.compile(r"app\.asana\.com")
 
 
 def _py_files() -> list[Path]:
@@ -26,7 +33,7 @@ def test_no_domain_sdk_import() -> None:
 
 # --- constraint-5: no direct Asana endpoint literal ---
 def test_no_direct_asana_endpoint() -> None:
-    offenders = [f.name for f in _py_files() if "app.asana.com" in f.read_text()]
+    offenders = [f.name for f in _py_files() if _ASANA_ENDPOINT.search(f.read_text())]
     assert offenders == [], f"direct Asana endpoint found in {offenders}"
 
 
