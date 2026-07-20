@@ -460,3 +460,111 @@
   unblock_owner: security rite (buildable this session on operator go)
   evidence_anchors:
     - .ledge/reviews/RECEIPT-credential-topology-closure-c1-2026-07-07.md (GATE-GAP-1)
+
+# ─── MCP ENTRIES ADDED 2026-07-20 (asana-mcp-postfelt-hardening WS-D s5) ─────
+# APPEND-ONLY per defer-watch discipline. TAG-2 is the frame §8 mandated entry
+# (register at first shape/sprint touch); PLAY-3 is the operator-directed
+# design-watch from the limb-(b) A1 Notes dictation. Neither is a build grant.
+
+- id: mcp-tag2-tag-only-play-verb-2026-07-20
+  filed_at: 2026-07-20
+  filed_by: tech-writer (docs rite, WS-D s5)
+  parent_initiative: asana-mcp-postfelt-hardening
+  parent_workstream: WS-D (registration only — the deferred subject is charter W-2 territory)
+  scope: >
+    TAG-2: a tag-only "play" invocation path — "trigger the play tag" does not
+    intrinsically want completion, but v1's charter shape (W-2: ONE composite;
+    W-3: idempotent-verbs-only) bundles add_tag with push + mark_complete, so a
+    tag-only trigger is not offered. Whether the play-trigger use case warrants
+    an add_tag-scoped invocation path is CHARTER-AMENDMENT territory (W-2 ruled
+    the single-composite shape) — watch, not build.
+  status: DEFERRED-charter-W2-ruled  # deliberate deferral, not a gap: W-2 was operator-RATIFIED
+  blocker: >
+    Deferral rationale (why-not-now): charter W-2 RULED the single-composite
+    write shape (DECISION-fleet-mcp-program-alignment-2026-07-17.md §2; GATE-BW
+    ratified the dossier over that shape 2026-07-17). Offering a tag-only verb
+    now would amend a ratified charter wall mid-reference-posture and add a
+    second write invocation before the probe rules on the program's second leg.
+    Any new write verb is HALT-AND-SURFACE per the PT-01 standing grant.
+  unblock_signal: >
+    Watch-trigger (boolean-evaluable): the GATE-PROBE ruling reads COMMIT on the
+    probe entry repos/.ledge/decisions/PROBE-fleet-mcp-second-leg-2026-07-20.md
+    (status SCHEDULED; probe_due 2026-08-03; ruling operator-only among
+    COMMIT / PARK / KILL). On COMMIT, slate D1-D11 become mandatory-to-evaluate
+    and the production-reimplementation horizon opens — the correct altitude at
+    which to evaluate a conscious W-2 amendment. On PARK/KILL this entry stays
+    DEFERRED (re-evaluate only at a future probe COMMIT or explicit operator
+    charter motion).
+  watch_trigger: 2026-08-03  # = probe_due; evaluate at/after the operator's probe ruling
+  escalation_target: >
+    10x-dev rite Potnia — escalation path is a CHARTER AMENDMENT proposal
+    (operator-reserved ratification; sessions never amend W-2), evaluating an
+    add_tag-scoped invocation path with the PLAY-1 consumed-trigger caveat and
+    PLAY-2 re-run-is-recovery description in scope.
+  owner_rite: 10x-dev
+  retry_action: >
+    On probe COMMIT: draft the W-2 amendment proposal (tag-only invocation
+    shape: separate curated tool vs composite parameter) with the digest §10
+    TAG-2 evidence + TAG-1 name-resolution surface (WS-B) as inputs; route to
+    the operator for ratify/kill. Do NOT build ahead of the ruling.
+  scope_boundary: >
+    Must NOT collapse into: asana-mcp-postfelt-hardening WS-B (tag-by-NAME
+    addressing of the EXISTING composite — disjoint concern) or any WS-B2
+    sidecar PR. Boundary-violation signal: any new write tool or add_tag-scoped
+    invocation landing in a sprint PR without an operator charter amendment on
+    the record.
+  evidence_anchors:
+    - .sos/wip/asana-mcp-v1.limb-a-witness-evidence-digest.md:230-234 (TAG-2 finding, operator-implied verb-scope)
+    - .sos/wip/frames/asana-mcp-postfelt-hardening.md §8 (defer-watch mandate; "Watch, not build")
+    - /Users/tomtenuta/Code/a8/a8/repos/.ledge/decisions/PROBE-fleet-mcp-second-leg-2026-07-20.md (the watch-trigger instrument)
+
+- id: mcp-play3-automation-fire-confirmation-2026-07-20
+  filed_at: 2026-07-20
+  filed_by: tech-writer (docs rite, WS-D s5)
+  parent_initiative: asana-mcp-postfelt-hardening
+  parent_workstream: WS-B2 (design-watch; production-reimplementation horizon)
+  scope: >
+    PLAY-3 (operator directive, limb-(b) A1 Notes — envelope §2.3, verbatim:
+    "perhaps we need to do a deeper dive on the confirmation signal that sends
+    back to the AI from the MCP, confirming that the routing was successfully
+    triggered so that we don't fall victim to this duplication again in the
+    future"): design an MCP→AI confirmation signal that the tag-driven
+    automation ROUTING actually fired, so an agent never re-runs a composite to
+    "verify" a play (re-run = re-trigger on consumed-trigger plays; PLAY-1).
+    Pairs with PLAY-2 (composite description + result envelope: re-run is for
+    RECOVERY after an incomplete chain, never verification, when
+    play/consumed-trigger tags are involved).
+  status: DESIGN-WATCH  # registered design question, not a committed build
+  blocker: >
+    Deferral rationale (why-not-now): the tool result today cannot know whether
+    a workspace automation consumed the tag — no automation-fire feedback
+    surface exists on the satellite, and designing one (webhook correlation vs
+    activity-feed probe vs dependency-task detection) is production
+    reimplementation territory (reference-posture bars building it into the
+    throwaway island; charter §5.3 / MCP-REFERENCE-POSTURE-001).
+  unblock_signal: >
+    EITHER (i) WS-B2 (shape sprint-4) opens the composite tool-schema /
+    description surface — fold the PLAY-2 description text in AND record the
+    PLAY-3 signal-design question in that sprint's artifacts; OR (ii) the
+    GATE-PROBE ruling reads COMMIT and the production reimplementation (D2
+    conventions / SC-3 wire-error envelope horizon) begins — PLAY-3 becomes a
+    named requirement of the production tool-result envelope.
+  watch_trigger: 2026-08-03  # first evaluation at the probe ruling; earlier if WS-B2 dispatches first
+  escalation_target: rnd rite Potnia (production reimplementation owner) with 10x-dev as the build rite once shaped
+  owner_rite: rnd (design) / 10x-dev (eventual build)
+  retry_action: >
+    At trigger: author the PLAY-3 design note (candidate mechanisms: satellite
+    webhook-correlation receipt on the tag-add; post-chain activity probe with
+    explicit opt_fields per SCAR-CANDIDATE-OPTFIELDS; dependency-task presence
+    check) + fold PLAY-2 wording into the composite description; route per the
+    production-rider ledger (frame §8).
+  scope_boundary: >
+    Must NOT collapse into: WS-B2's limb-(b)-by-NAME delivery (the predicate
+    limb needs no confirmation signal) or the reference island (no new
+    island features). Boundary-violation signal: an automation-fire probe or
+    confirmation field landing in mcp/ or src/asana_mcp/ before the probe
+    ruling / production horizon.
+  evidence_anchors:
+    - .sos/wip/asana-mcp-v1.felt-gate-envelope.md:320-324 (operator A1 Notes — the PLAY-3 directive verbatim + its PLAY-3 ledgering line)
+    - .sos/wip/asana-mcp-v1.limb-a-witness-evidence-digest.md:257-265 (PLAY-1/PLAY-2 wave-ledger findings PLAY-3 pairs with)
+    - .know/scar-tissue.md (SCAR-CANDIDATE-PLAY-CONSUMED-TRIGGER — the mechanism this signal defends against)
