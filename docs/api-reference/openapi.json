@@ -3076,6 +3076,7 @@
               "resolver:read": "Resolve business identifiers to Asana entities (S2S)",
               "sections:read": "Read access to project sections",
               "sections:write": "Create, update, delete, and reorder sections",
+              "tags:read": "Read access to workspace tags and tag name->GID resolution",
               "tasks:read": "Read access to Asana tasks, subtasks, and dependents",
               "tasks:write": "Create, update, delete, duplicate, tag, and move tasks",
               "users:read": "Read access to Asana user profiles",
@@ -5686,6 +5687,166 @@
             "type": "asana_api"
           }
         ]
+      }
+    },
+    "/api/v1/tags": {
+      "get": {
+        "description": "List workspace tags, or resolve an exact tag name to its GID(s).\n\nThis is the read surface that makes Asana tags addressable by NAME. Supply\n``name`` to resolve a human-readable tag name to the GID(s) the composite\nwrite tool requires. Without ``name``, the full workspace tag list is\nreturned one page at a time.\n\nName resolution is EXACT and case-sensitive. Because Asana tag names are\nnot unique, a match may return more than one tag -- the caller decides how\nto disambiguate. A name with no match returns HTTP 200 with an empty\n``data`` list (not 404): a filtered collection with zero results is an\nempty collection, not a missing resource. Case-folding or fuzzy matching,\nif desired, belongs in the caller/sidecar layer, not this primitive.\n\nRequires Bearer token authentication (JWT or PAT).\n\nArgs:\n    name: Exact tag name to resolve. Omit for an unfiltered listing.\n    limit: Items per page for the unfiltered listing (1-100, default 100).\n    offset: Pagination cursor from a previous unfiltered response.\n\nReturns:\n    Envelope with a list of tag resources (``gid``, ``name``, ``color``,\n    ``permalink_url``). For a name query the list is the complete match\n    set; for an unfiltered listing it is one page plus a pagination cursor.\n\nRaises:\n    503: The Asana workspace GID is not configured on the service.",
+        "operationId": "list_tags_api_v1_tags_get",
+        "parameters": [
+          {
+            "description": "Exact tag name to resolve to its GID(s). Matching is case-sensitive and byte-for-byte. Returns every tag with that exact name (Asana tag names are not unique); an empty list means no tag by that name exists. When omitted, the full workspace tag list is returned (paginated).",
+            "in": "query",
+            "name": "name",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Exact tag name to resolve to its GID(s). Matching is case-sensitive and byte-for-byte. Returns every tag with that exact name (Asana tag names are not unique); an empty list means no tag by that name exists. When omitted, the full workspace tag list is returned (paginated).",
+              "examples": [
+                "play_custom_calendar_integration"
+              ],
+              "title": "Name"
+            }
+          },
+          {
+            "description": "Number of items per page",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "description": "Number of items per page",
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Pagination cursor from previous response",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Pagination cursor from previous response",
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse_list_AsanaResource__"
+                }
+              }
+            },
+            "description": "Paginated workspace tags, or exact name-filtered matches"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 401 List Tags Api V1 Tags Get"
+                }
+              }
+            },
+            "description": "Unauthorized -- AUTH-TEB (JWTAuthMiddleware) or application-layer error"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 403 List Tags Api V1 Tags Get"
+                }
+              }
+            },
+            "description": "Forbidden -- AUTH-TEB-004 (JWTAuthMiddleware) or application-layer error"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found (Resource or Schema not found)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "PersonalAccessToken": []
+          },
+          {
+            "OAuth2Asana": [
+              "tags:read"
+            ]
+          }
+        ],
+        "summary": "List workspace tags or resolve a tag name to its GID",
+        "tags": [
+          "tags"
+        ],
+        "x-fleet-idempotency": {
+          "idempotent": true
+        },
+        "x-fleet-rate-limit": {
+          "tier": "external"
+        },
+        "x-fleet-side-effects": []
       }
     },
     "/api/v1/tasks": {
@@ -9447,6 +9608,10 @@
     {
       "description": "Access Asana workspace information. Supports listing all workspaces accessible to the authenticated user and retrieving a single workspace by GID. Workspace GIDs are required by project and user list endpoints. Requires PAT Bearer authentication.",
       "name": "workspaces"
+    },
+    {
+      "description": "Read and resolve Asana workspace tags. Supports listing all tags in the default workspace (cursor-based pagination) and resolving an exact tag name to its GID(s) via the 'name' query parameter -- the name->GID primitive that makes tags addressable by name for the composite write path. Read-only. Requires PAT Bearer authentication.",
+      "name": "tags"
     },
     {
       "description": "Fetch Asana task data as structured DataFrames for analytical use. Schema-based extraction maps custom fields to typed columns (base, unit, contact, business, offer, asset_edit, asset_edit_holder). Use GET /api/v1/dataframes/schemas to discover available schemas and their column definitions. Supports JSON records (default) or Polars-serialized output via Accept header content negotiation. Requires PAT Bearer authentication.",
