@@ -105,7 +105,9 @@ class RecordingBackend:
         if method == "POST" and path.endswith("/tags"):
             gid = path.split("/")[-2]
             self.tagged.add(gid)
-            return httpx.Response(200, json={"data": {"gid": gid, "tag": body.get("tag_gid")}, "meta": {}})
+            return httpx.Response(
+                200, json={"data": {"gid": gid, "tag": body.get("tag_gid")}, "meta": {}}
+            )
 
         # push / mark_complete: PUT /api/v1/tasks/{gid}
         if method == "PUT" and "/tasks/" in path:
@@ -162,13 +164,17 @@ async def test_partial_failure_then_rerun_converges(ctx_factory):
     backend.fail_next("PUT", "/tasks/111", 500)  # first PUT (push) fails once
     ctx = ctx_factory(backend)
 
-    r1 = await execute_composite_write(ctx, task_gid="111", tag_gid="222", save_fields={"notes": "x"})
+    r1 = await execute_composite_write(
+        ctx, task_gid="111", tag_gid="222", save_fields={"notes": "x"}
+    )
     assert r1.status == "refused_incomplete"
     assert r1.committed == ["add_tag"]
     assert backend.tagged == {"111"} and "111" not in backend.completed
     assert r1.rerun_guidance and "converge" in r1.rerun_guidance
 
-    r2 = await execute_composite_write(ctx, task_gid="111", tag_gid="222", save_fields={"notes": "x"})
+    r2 = await execute_composite_write(
+        ctx, task_gid="111", tag_gid="222", save_fields={"notes": "x"}
+    )
     assert r2.status == "completed"
     assert r2.committed == ["add_tag", "push", "mark_complete"]
     assert backend.completed == {"111"}
@@ -260,4 +266,9 @@ def test_register_exposes_when_enabled_via_env(monkeypatch):
 def test_settings_flag_false_overrides_env_true(monkeypatch):
     """Explicit settings.enable_write_surface=False wins over a truthy env var."""
     monkeypatch.setenv("ASANA_MCP_ENABLE_WRITE_SURFACE", "true")
-    assert write_surface_enabled(_Ctx(http=None, settings=types.SimpleNamespace(enable_write_surface=False))) is False
+    assert (
+        write_surface_enabled(
+            _Ctx(http=None, settings=types.SimpleNamespace(enable_write_surface=False))
+        )
+        is False
+    )

@@ -202,9 +202,7 @@ async def execute_composite_write(
         return _refuse(steps)
 
     # Step 3 — mark_complete: PUT /api/v1/tasks/{gid} {completed: true}
-    if not await _run_step(
-        ctx, steps[2], "PUT", f"/api/v1/tasks/{task_gid}", {"completed": True}
-    ):
+    if not await _run_step(ctx, steps[2], "PUT", f"/api/v1/tasks/{task_gid}", {"completed": True}):
         return _refuse(steps)
 
     return CompositeWriteResult(status=_STATUS_COMPLETED, steps=steps)
@@ -294,9 +292,7 @@ def register(mcp: Any, ctx: SidecarContext) -> None:
         due_on: str | None = None,
     ) -> dict[str, Any]:
         save_fields = {
-            k: v
-            for k, v in (("name", name), ("notes", notes), ("due_on", due_on))
-            if v is not None
+            k: v for k, v in (("name", name), ("notes", notes), ("due_on", due_on)) if v is not None
         }
         result = await execute_composite_write(
             ctx, task_gid=task_gid, tag_gid=tag_gid, save_fields=save_fields
