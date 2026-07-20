@@ -99,8 +99,9 @@ telos:
     # DISCHARGED. Root-cause of the gap: the operator's primary checkout main
     # ref frozen at f3d8eec1 — carried as a WS-E row. (Independently re-run by
     # this seat: git merge-base --is-ancestor x9, all ANCESTOR-OK.)
-    verified_realized: UNATTESTED   # limb (a): PT-04 receipt EXISTS (ledger :128-144); limb (b): #249 landed — live e2e-by-NAME receipt dispatcher-reported (PT-05/PT-06 chain); limb (c): receipt FILED, operator ruling STAGED (dossier ADDENDUM-1 §A1.4). Attestation itself is eunomia PT-09's, receipts-only.
-    last_eunomia_advisory: null   # eunomia attests at PT-09, receipts only
+    verified_realized: 'UNATTESTED'
+    last_eunomia_grade: 'MODERATE'
+    last_eunomia_advisory: '.ledge/reviews/VERDICT-pt09-asana-mcp-postfelt-hardening-2026-07-20.md:5'
   receipt_grammar:
     per_item_file_line_anchors:
       - ".sos/wip/asana-mcp-v1.limb-a-witness-evidence-digest.md:200-211 (ALB-1 root cause + disposition — WS-A source)"
