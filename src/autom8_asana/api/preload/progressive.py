@@ -220,7 +220,11 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
     import time
 
     from autom8_asana import AsanaClient
-    from autom8_asana.api.routes.health import set_cache_ready
+    from autom8_asana.api.routes.health import (
+        set_cache_degraded,
+        set_cache_failed,
+        set_cache_ready,
+    )
     from autom8_asana.auth.bot_pat import BotPATError, get_bot_pat
     from autom8_asana.cache.dataframe.factory import get_dataframe_cache
     from autom8_asana.config import get_workspace_gid
@@ -278,7 +282,9 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                 "progressive_preload_skipped",
                 extra={"reason": "entity_registry_not_ready"},
             )
-            set_cache_ready(True)
+            # Deliberate skip: registry not ready, but the pod can still serve
+            # (cache builds on request). Surface a degraded signal, not READY.
+            set_cache_degraded("entity_registry_not_ready")
             return
 
         # Get all registered project GIDs with their entity types
@@ -311,7 +317,9 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                     "excluded_count": excluded_count,
                 },
             )
-            set_cache_ready(True)
+            # Deliberate skip: nothing to preload. Serviceable, but surface the
+            # signal so an unexpected empty registry is visible to operators.
+            set_cache_degraded("no_registered_projects")
             return
 
         project_gids = [gid for gid, _ in project_configs]
@@ -333,7 +341,9 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                 "progressive_preload_no_bot_pat",
                 extra={"fallback": "cache_built_on_request"},
             )
-            set_cache_ready(True)
+            # Documented degrade: no bot PAT -> cache builds on request. Serve,
+            # but surface the degraded signal instead of claiming READY.
+            set_cache_degraded("bot_pat_unavailable")
             return
 
         workspace_gid = get_workspace_gid()
@@ -342,7 +352,9 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                 "progressive_preload_no_workspace",
                 extra={"fallback": "cache_built_on_request"},
             )
-            set_cache_ready(True)
+            # Documented degrade: no workspace GID -> cache builds on request.
+            # Serve, but surface the degraded signal instead of claiming READY.
+            set_cache_degraded("workspace_gid_unavailable")
             return
 
         # Initialize unified S3DataFrameStorage (Phase 2/3,
@@ -371,6 +383,10 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
         # Initialize section persistence with unified storage delegate
         if df_storage is None:
             logger.warning("progressive_preload_no_s3_storage")
+            # Documented degrade: no S3 storage configured. Serviceable via
+            # on-request cache building; surface the degraded signal instead of
+            # relying on the finally block to claim READY.
+            set_cache_degraded("s3_storage_unavailable")
             return
         persistence = SectionPersistence(storage=df_storage)
 
@@ -407,6 +423,10 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
             from .legacy import _preload_dataframe_cache
 
             await _preload_dataframe_cache(app)
+            # ADR-011 degraded-mode fallback: legacy in-memory preload ran
+            # (S3 unavailable). Override the READY it set internally with a
+            # DEGRADED signal so operators see the S3-down posture.
+            set_cache_degraded("s3_unavailable_legacy_fallback")
             return
 
         # Get watermark repository and DataFrameCache singleton
@@ -793,11 +813,32 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
 
         await push_account_status_snapshot(trigger="preload")
 
+        # Preload ran to completion: mark the cache READY. This is the ONLY
+        # honest success signal -- it lives at the end of the try body, so any
+        # exception or abort skips it and the outcome is FAILED/DEGRADED instead.
+        set_cache_ready(True)
+
     except WarmupOrderingError:
         # WarmupOrderingError is a safety-critical invariant violation
         # (SCAR-005/006). It must NEVER be caught by BROAD-CATCH handlers.
+        # Fail closed: the warm-up invariant was violated, so the cache is not
+        # trustworthy -- /ready must report 503, not masquerade as ready.
+        set_cache_failed("warmup_ordering_violation")
         raise
-    except Exception as e:  # ADVISORY: outer startup degrade; WarmupOrderingError is re-raised above and never reaches here
+    except asyncio.CancelledError:
+        # SIGTERM / task cancellation during preload (e.g. ECS task shutdown).
+        # Fail closed and re-raise to honor cooperative cancellation: an aborted
+        # preload never leaves a half-warm cache reporting ready.
+        set_cache_failed("preload_aborted")
+        raise
+    except Exception as e:
+        # ADVISORY: outer startup degrade; WarmupOrderingError/CancelledError are
+        # handled above. WS-A Finding-1 (liveness-masquerade fix): fail closed.
+        # Previously this degrade path let the finally block set the cache READY,
+        # so a failed preload masqueraded as ready and shifted production traffic
+        # onto a silently-cold task. The pod stays alive (/health untouched) so
+        # the previous task keeps serving under the target-group gate.
+        set_cache_failed(f"preload_exception_{type(e).__name__}")
         logger.exception(
             "progressive_preload_failed",
             extra={
@@ -813,8 +854,11 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
             with contextlib.suppress(asyncio.CancelledError):
                 await heartbeat_task
 
-        # Always set cache ready
-        set_cache_ready(True)
+        # NOTE: the cache-ready signal is deliberately NOT set here. Setting it
+        # unconditionally in `finally` was the fail-open defect (WS-A Finding-1):
+        # it fired on EXCEPTION/SIGTERM and masked a failed preload as ready. The
+        # outcome is now set exactly once per path: READY at the end of the try
+        # body, DEGRADED on the deliberate-degrade returns, FAILED in the handlers.
 
         elapsed_ms = (time.perf_counter() - start_time) * 1000
         logger.info(
