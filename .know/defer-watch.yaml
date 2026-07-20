@@ -535,6 +535,17 @@
     RECOVERY after an incomplete chain, never verification, when
     play/consumed-trigger tags are involved).
   status: DESIGN-WATCH  # registered design question, not a committed build
+  status_note_2026_07_20: >
+    Island-side IMPLEMENTED by WS-B2 #249 (squash b630a901), hours after
+    filing: PLAY-3 confirmation read-back with explicit opt_fields
+    (mcp/asana_mcp/tools/tag_resolve.py:54-56,:354 — soft-fail, never retracts
+    the write; confirmation field in the composite result,
+    composite_write.py:281,:294) + PLAY-2/consumed-trigger hazard text
+    (composite_write.py:413-421). Unblock condition (i) is thereby consumed
+    for the REFERENCE island. The watch REMAINS OPEN for the production
+    reimplementation half (this entry's original horizon): carry the same
+    confirmation-signal requirement into the production tool-result envelope
+    at probe-COMMIT.
   blocker: >
     Deferral rationale (why-not-now): the tool result today cannot know whether
     a workspace automation consumed the tag — no automation-fire feedback
@@ -542,6 +553,9 @@
     activity-feed probe vs dependency-task detection) is production
     reimplementation territory (reference-posture bars building it into the
     throwaway island; charter §5.3 / MCP-REFERENCE-POSTURE-001).
+    [Superseded in part by status_note_2026_07_20: the island now carries a
+    tag-applied read-back confirmation; the AUTOMATION-fired signal proper
+    remains the production-horizon question.]
   unblock_signal: >
     EITHER (i) WS-B2 (shape sprint-4) opens the composite tool-schema /
     description surface — fold the PLAY-2 description text in AND record the
