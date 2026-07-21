@@ -48,6 +48,64 @@ class TestRedisCacheProviderInit:
             assert provider._degraded is True
             assert provider.is_healthy() is False
 
+    def test_init_with_redis_installed_is_not_degraded(self) -> None:
+        """GREEN companion to the packaging fix.
+
+        With the ``redis`` package present -- as the production image now
+        installs via ``--extra redis`` -- the provider imports redis, builds its
+        (lazy) connection pool, and constructs NON-degraded. This is the live
+        warmer path that was broken while the extra was omitted from the prod
+        image (``import redis`` -> ImportError -> NO-OP degraded cache).
+        """
+        import redis as real_redis  # noqa: F401  proves the extra resolves
+
+        from autom8_asana.cache.backends.redis import RedisCacheProvider
+
+        provider = RedisCacheProvider()
+
+        # import resolved and construction is non-degraded (lazy pool, no connect)
+        assert provider._redis_module is not None
+        assert provider._degraded is False
+
+    def test_import_failure_announces_degraded_mode_loudly(self) -> None:
+        """Never-silent guard on the exact production packaging omission.
+
+        When the ``redis`` package is absent, construction MUST (a) fail open
+        into degraded mode -- the warmer still degrades gracefully, it does not
+        raise -- and (b) emit a distinct high-visibility ERROR-level
+        ``cache_degraded_mode`` event so the dead warmer cache can never run dark
+        again (a CloudWatch Logs metric filter alarms on that event).
+        """
+        import sys
+
+        from autom8y_log.testing import MockLogger
+
+        from autom8_asana.cache.backends import redis as redis_backend
+
+        mock_logger = MockLogger()
+        # Setting sys.modules["redis"] = None forces the in-__init__ `import redis`
+        # to raise ImportError even though the package is installed in the test env.
+        with (
+            patch.object(redis_backend, "logger", mock_logger),
+            patch.dict(sys.modules, {"redis": None}),
+        ):
+            provider = redis_backend.RedisCacheProvider()
+
+        # (a) fail-open: constructs, degrades gracefully, is not healthy
+        assert provider._degraded is True
+        assert provider._redis_module is None
+        assert provider.is_healthy() is False
+
+        # (b) LOUD: a distinct ERROR-level cache_degraded_mode event was emitted
+        mock_logger.assert_logged("error", "cache_degraded_mode")
+        entry = next(
+            e
+            for e in mock_logger.entries
+            if e.event == "cache_degraded_mode" and e.level == "error"
+        )
+        assert entry.kwargs["extra"]["reason"] == "redis_package_not_installed"
+        assert entry.kwargs["extra"]["fail_open"] is True
+
     def test_init_with_config(self) -> None:
         """Test initialization with RedisConfig."""
         from autom8_asana.cache.backends.redis import RedisCacheProvider, RedisConfig
