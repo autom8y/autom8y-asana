@@ -157,6 +157,7 @@ __all__ = [
     "WarmerFloorGate",
     "get_budget_allocator",
     "reset_budget_allocator",
+    "running_in_warmer_lane",
     "set_budget_allocator",
 ]
 
@@ -164,6 +165,31 @@ logger = get_logger(__name__)
 
 # Token-bucket admission tolerance -- see WarmerFloorGate.admit for the ULP trap.
 _ADMIT_EPSILON = 1e-9
+
+# The substrate warmer lane runs ONLY in the two cache-warmer Lambdas
+# (``autom8-asana-cache-warmer`` / ``-bulk``; topology-inventory.md). AWS Lambda
+# always sets ``AWS_LAMBDA_FUNCTION_NAME``; the ECS service and the near-zero
+# workflow Lambdas leave this marker absent, so only the warmer processes match.
+_WARMER_LANE_FUNCTION_MARKER = "cache-warmer"
+
+
+def running_in_warmer_lane() -> bool:
+    """Whether THIS process is the substrate warmer lane (``Lane.WARMER``).
+
+    True only inside the cache-warmer Lambdas (their function name carries
+    ``cache-warmer``). The static 110/60s floor is a per-lane RESERVATION: routing
+    ECS's (fair-share) or a near-zero workflow Lambda's gap-warm through the warmer
+    gate would throttle a client-felt / fair-share build to the warmer's
+    reservation rate -- a ~30-min gap-fill for a worst-case set (capacity-spec
+    §1.5). The lane is resolved from the runtime environment, NOT from a new
+    operator knob (pythia PC-3 "one knob, no per-lane sub-knobs"): which process
+    is the warmer is an intrinsic fact of the deployment, not a separate
+    arm/disarm. The operator's single ``ASANA_BUDGET_ALLOCATOR_ENABLED`` knob
+    still gates activation on top of this lane check.
+    """
+    import os
+
+    return _WARMER_LANE_FUNCTION_MARKER in os.environ.get("AWS_LAMBDA_FUNCTION_NAME", "")
 
 
 class Lane(StrEnum):

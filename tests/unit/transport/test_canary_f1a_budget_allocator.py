@@ -21,18 +21,22 @@ Pair (b) -- warmer self-suppression re-arm:
 from __future__ import annotations
 
 from typing import Any
+from unittest.mock import MagicMock
 
 from autom8_asana.config import BudgetAllocatorConfig
+from autom8_asana.dataframes.builders.hierarchy_warmer import HierarchyWarmer
 from autom8_asana.transport.adaptive_semaphore import AIMDConfig, AsyncAdaptiveSemaphore
 from autom8_asana.transport.budget_allocator import (
     BudgetAllocator,
     Lane,
     PublishedFloor,
     WarmerFloorGate,
+    set_budget_allocator,
 )
 
 _FAIR_SHARE_CAP = 1390
 _FLOOR = 110
+_WARMER_FUNCTION_NAME = "autom8-asana-cache-warmer"
 
 
 class _RecordingLog:
@@ -179,3 +183,65 @@ def test_canary_rollback_rehearsal_byte_identical_revert() -> None:
     # interposition state -- exactly the pre-allocator surface.
     assert killed_log.named("budget_floor_overage") == []
     assert killed.registered_client_count == 0
+
+
+# ==========================================================================
+# Pair (c) -- warm-loop floor WIRING (F-C3-01): the gate reaches production
+# ==========================================================================
+#
+# Before this build the flip was registration-only: WarmerFloorGate.admit had
+# ZERO production call sites (CUSTODY-f1a-flip-ac4-ac5-2026-07-21 §2). The gap-warm
+# loop resolves its pacing ONCE per sweep via HierarchyWarmer._floor_paced: ARMED
+# in the warmer lane it wraps the fetch through the gate; otherwise it returns the
+# fetch closure UNCHANGED (byte-identical -- no interposition on the Asana path).
+
+
+def _minimal_warmer() -> HierarchyWarmer:
+    return HierarchyWarmer(
+        store=MagicMock(),
+        client=MagicMock(),
+        project_gid="1143843662099250",
+        entity_type="project",
+        max_concurrent=1,
+        task_to_dict=lambda t: dict(t),
+    )
+
+
+async def _bare_fetch(gid: str) -> tuple[dict[str, Any] | None, bool]:
+    return {"gid": gid}, False
+
+
+def test_canary_pair_c_green_warmer_lane_armed_wires_the_gate(monkeypatch: Any) -> None:
+    """GREEN-after: warmer lane + ARMED => the gap fetch is wrapped through the gate."""
+    monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", _WARMER_FUNCTION_NAME)
+    set_budget_allocator(BudgetAllocator(BudgetAllocatorConfig(enabled=True)))
+    fetch_one, cure_active = _minimal_warmer()._floor_paced(_bare_fetch)
+    assert cure_active is True
+    assert fetch_one is not _bare_fetch  # production path now interposes the gate
+
+
+def test_canary_pair_c_red_disabled_is_byte_identical(monkeypatch: Any) -> None:
+    """RED-before/disabled: byte-identical -- the SAME closure is returned, no gate.
+
+    ENABLED=false reproduces the pre-build registration-only surface (F-C3-01):
+    _floor_paced hands back the bare fetch UNCHANGED. The canary bites only if the
+    disabled path had wired the gate.
+    """
+    monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", _WARMER_FUNCTION_NAME)
+    set_budget_allocator(BudgetAllocator(BudgetAllocatorConfig(enabled=False)))
+    fetch_one, cure_active = _minimal_warmer()._floor_paced(_bare_fetch)
+    assert cure_active is False
+    assert fetch_one is _bare_fetch  # byte-identical: the exact same callable object
+
+
+def test_canary_pair_c_red_wrong_lane_is_byte_identical(monkeypatch: Any) -> None:
+    """Armed but NOT the warmer lane (ECS) => byte-identical, gate never wired.
+
+    Guards the stage-2 hazard: enabling the knob in the ECS service must not route
+    its fair-share gap-warm through the warmer's 110/60s reservation.
+    """
+    monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "autom8y-asana-service")
+    set_budget_allocator(BudgetAllocator(BudgetAllocatorConfig(enabled=True)))
+    fetch_one, cure_active = _minimal_warmer()._floor_paced(_bare_fetch)
+    assert cure_active is False
+    assert fetch_one is _bare_fetch  # byte-identical: no interposition off the warmer lane
