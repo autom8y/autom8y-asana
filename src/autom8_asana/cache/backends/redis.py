@@ -152,9 +152,29 @@ class RedisCacheProvider(CacheBackendBase):
             if self._connection_manager is None:
                 self._initialize_pool()
         except ImportError:
-            logger.warning(
-                "redis_package_not_installed",
-                extra={"fallback": "degraded_mode"},
+            # LOUD degraded-mode announcement (never-silent companion to the
+            # packaging fix that adds `--extra redis` to the production image).
+            # A missing `redis` package means this backend runs a NO-OP cache:
+            # get_versioned() -> None, set_batch() -> void. For the warmer lane a
+            # dead cache is load-bearing -- all hierarchy-warm banking is lost at
+            # process death and large gap sets never converge -- so this boot-time
+            # signal MUST be a high-visibility ERROR, not a quiet warning, and it
+            # MUST be distinctly named so a CloudWatch Logs metric filter can alarm
+            # on `cache_degraded_mode` (the Lambda warmer has no metrics scrape
+            # endpoint; the structured log is the observable signal). Fail-open
+            # stands: the warmer still degrades gracefully -- this ANNOUNCES, it
+            # does not raise.
+            logger.error(
+                "cache_degraded_mode",
+                extra={
+                    "backend": type(self).__name__,
+                    "reason": "redis_package_not_installed",
+                    "impact": "no_op_cache",
+                    "fail_open": True,
+                    "remediation": (
+                        "build the image with the `redis` extra (uv sync --extra redis)"
+                    ),
+                },
             )
             self._degraded = True
 
