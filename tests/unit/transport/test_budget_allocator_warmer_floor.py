@@ -25,6 +25,7 @@ from autom8_asana.transport.budget_allocator import (
     BudgetAllocator,
     PublishedFloor,
     WarmerFloorGate,
+    running_in_warmer_lane,
 )
 
 # capacity-specification.md §1.2: the offer key's worst-case gap-fill.
@@ -189,3 +190,32 @@ def test_warmer_floor_gate_api_is_aimd_decoupled() -> None:
     alloc = BudgetAllocator(BudgetAllocatorConfig(enabled=True))
     gate = alloc.warmer_floor_gate()
     assert isinstance(gate, WarmerFloorGate)
+
+
+# --------------------------------------------------------------------------
+# running_in_warmer_lane: only the cache-warmer Lambdas claim the floor
+# --------------------------------------------------------------------------
+
+
+def test_warmer_lane_true_for_cache_warmer_functions(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The two warmer Lambdas (main + bulk) carry the ``cache-warmer`` token."""
+    for name in ("autom8-asana-cache-warmer", "autom8-asana-cache-warmer-bulk"):
+        monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", name)
+        assert running_in_warmer_lane() is True
+
+
+def test_warmer_lane_false_for_ecs_and_near_zero_lambdas(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ECS (no Lambda env) and near-zero workflow Lambdas are NOT the warmer lane.
+
+    Floor pacing is a per-lane RESERVATION: these processes must never be throttled
+    to the warmer's 110/60s. (capacity-spec: a worst-case floor-paced sweep is
+    ~30 min -- catastrophic for a client-felt/fair-share build.)
+    """
+    monkeypatch.delenv("AWS_LAMBDA_FUNCTION_NAME", raising=False)
+    assert running_in_warmer_lane() is False  # ECS service leaves it unset
+
+    for name in ("autom8y-asana-service", "autom8-asana-insights-export", ""):
+        monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", name)
+        assert running_in_warmer_lane() is False
