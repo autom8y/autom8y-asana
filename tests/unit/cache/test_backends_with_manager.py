@@ -120,7 +120,7 @@ class TestRedisCacheProviderWithManager:
 
         assert provider.is_healthy() is False
 
-    @patch("redis.ConnectionPool")
+    @patch("redis.BlockingConnectionPool")
     def test_no_pool_created_when_manager_provided(self, mock_pool: MagicMock) -> None:
         """No internal pool is created when connection_manager is provided."""
         manager = _make_redis_manager_mock()
@@ -137,7 +137,7 @@ class TestRedisCacheProviderWithManager:
 class TestRedisCacheProviderBackwardCompat:
     """Verify RedisCacheProvider works without connection_manager (backward compat)."""
 
-    @patch("redis.ConnectionPool")
+    @patch("redis.BlockingConnectionPool")
     def test_default_construction_works(self, mock_pool: MagicMock) -> None:
         """Provider without connection_manager creates pool normally."""
         provider = RedisCacheProvider(config=_make_redis_config())
