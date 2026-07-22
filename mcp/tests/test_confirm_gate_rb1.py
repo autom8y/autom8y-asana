@@ -263,7 +263,7 @@ async def test_garbage_token_refuses_with_zero_writes():
     backend = RecordingBackend()
     tool, client = _registered_tool(backend)
     try:
-        result = await tool(task_gid=TASK, tag_gid=TAG, confirmation_token="not-a-token")
+        result = await tool(task_gid=TASK, tag_gid=TAG, confirmation_token="not-a-token")  # noqa: S106  # test dummy, not a secret
     finally:
         await client.aclose()
 
