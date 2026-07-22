@@ -12,6 +12,8 @@ from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from autom8y_auth import ServiceClaims
+from pydantic import ValidationError
 
 from autom8_asana.api.dependencies import (
     AuthContext,
@@ -333,3 +335,112 @@ class TestBotPatNeverLogged:
         assert "1/" not in error_message
         # But should contain helpful error info
         assert error_code == "S2S_NOT_CONFIGURED"
+
+
+class TestGetAuthContextClaimsValidationError:
+    """Fail-clean on an unrecognized/malformed token species (operator ruling R21, Lane-1).
+
+    A JWT can clear JWKS/signature/expiry/audience yet carry claims that do not
+    fit the SDK's ``ServiceClaims`` model (an unrecognized species whose
+    ``scope`` claim is the wrong type). ``autom8y_auth`` then raises a pydantic
+    ``ValidationError`` from ``ServiceClaims.model_validate`` — a ``ValueError``,
+    NOT an ``autom8y_auth.AuthError``. Before this fix that exception escaped the
+    except chain in ``get_auth_context`` and surfaced as a 500 via the generic
+    handler. It must now be refused cleanly as a 401, WITHOUT widening what is
+    accepted (the recognized-service path stays byte-behavior-identical).
+    """
+
+    @staticmethod
+    def _claims_validation_error() -> ValidationError:
+        """Reproduce the exact pydantic ValidationError the SDK raises.
+
+        Mirrors ``ServiceClaims.model_validate`` on an unrecognized species: a
+        payload whose ``scope`` claim is a list instead of the declared
+        ``str | None``. Building the real SDK error (rather than a synthetic
+        stand-in) gives the test teeth — it fails if the SDK ever stops raising
+        here or if the guard stops catching pydantic errors.
+        """
+        try:
+            ServiceClaims.model_validate(
+                {
+                    "sub": "svc",
+                    "iss": "https://auth.autom8y.io",
+                    "exp": 9999999999,
+                    "iat": 1000000000,
+                    "scope": ["not", "a", "string"],
+                }
+            )
+        except ValidationError as exc:
+            return exc
+        raise AssertionError(  # pragma: no cover - guards the fixture premise
+            "ServiceClaims.model_validate did not raise on a list-typed scope"
+        )
+
+    async def test_unrecognized_species_returns_401_logged_as_auth_failure(self) -> None:
+        """Malformed-claims JWT -> clean 401 auth refusal, never an escaped 500.
+
+        Two-sided reject leg: asserts the pydantic ``ValidationError`` is
+        converted to ``ApiAuthError`` (401 + ``WWW-Authenticate: Bearer``) and
+        that it never propagates as a raw ``ValidationError`` (which FastAPI's
+        generic handler would render as a 500). Also asserts the refusal is
+        logged as an auth failure (``s2s_jwt_validation_failed``), not a server
+        error (``logger.exception``).
+        """
+        # Arrange
+        mock_request = MagicMock()
+        mock_request.state.request_id = "test-claims-mismatch"
+        jwt_token = "header.payload.signature"
+
+        with patch(
+            "autom8_asana.auth.jwt_validator.validate_service_token",
+            new_callable=AsyncMock,
+            side_effect=self._claims_validation_error(),
+        ):
+            with patch("autom8_asana.api.dependencies.logger") as mock_logger:
+                # Act & Assert - refused as a typed 401, not an escaped 500
+                with pytest.raises(ApiAuthError) as exc_info:
+                    await get_auth_context(request=mock_request, token=jwt_token)
+
+        assert exc_info.value.status_code == 401
+        assert exc_info.value.code == "INVALID_TOKEN"
+        assert exc_info.value.headers == {"WWW-Authenticate": "Bearer"}
+
+        # Logged as an auth failure, not a server error.
+        warning_events = [call.args[0] for call in mock_logger.warning.call_args_list if call.args]
+        assert "s2s_jwt_validation_failed" in warning_events
+        mock_logger.exception.assert_not_called()
+
+    async def test_recognized_service_token_still_validates(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """FENCE: the fail-clean guard must NOT change what is accepted.
+
+        Two-sided accept leg: a recognized service token continues to validate
+        and yields JWT-mode ``AuthContext`` backed by the bot PAT — identical to
+        behavior before the guard was added.
+        """
+        # Arrange
+        mock_request = MagicMock()
+        mock_request.state.request_id = "test-recognized-service"
+        jwt_token = "header.payload.signature"
+        bot_pat = "0/bot_pat_from_env_here123456"
+
+        monkeypatch.setenv("ASANA_PAT", bot_pat)
+        clear_bot_pat_cache()
+
+        mock_claims = MagicMock()
+        mock_claims.service_name = "autom8_data"
+        mock_claims.scope = "multi-tenant"
+
+        with patch(
+            "autom8_asana.auth.jwt_validator.validate_service_token",
+            new_callable=AsyncMock,
+            return_value=mock_claims,
+        ):
+            # Act
+            result = await get_auth_context(request=mock_request, token=jwt_token)
+
+        # Assert - accepted path unchanged
+        assert result.mode == AuthMode.JWT
+        assert result.asana_pat == bot_pat
+        assert result.caller_service == "autom8_data"
