@@ -242,6 +242,15 @@ async def _run_step(
     """Execute one backing call; mutate `step`; return True iff committed (2xx)."""
     try:
         resp = await ctx.http.request(method, path, json=body)
+    except McpToolError as err:
+        # Already honestly classified (e.g. the bridge's S2S mint-failure
+        # mapping: credential-invalid 401 vs auth-infra 503). Carry the shape
+        # through the step receipt — NEVER relabel it a transport error (the
+        # 401-fail-clean fix; the failure families never cross-dress).
+        step.status = _STEP_FAILED
+        step.http_status = err.status
+        step.detail = f"{err.kind}: {err.message}"
+        return False
     except Exception as exc:  # noqa: BLE001 - transport failure is a legitimate refusal
         step.status = _STEP_FAILED
         step.detail = f"transport error: {type(exc).__name__}: {exc}"
