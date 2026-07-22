@@ -56,6 +56,12 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from asana_mcp.errors import McpToolError
+from asana_mcp.tools.confirm_gate import (
+    REDEEM_OK,
+    ConfirmationGate,
+    build_confirmation_envelope,
+    intent_fingerprint,
+)
 from asana_mcp.tools.tag_resolve import (
     TagNameCache,
     read_back_tag_state,
@@ -427,7 +433,18 @@ TOOL_DESCRIPTION = (
     "\n"
     "CONFIRMATION: after the write the tool reads the task back (explicit opt_fields) and "
     "reports the observed tag state, so you get a mechanism receipt that the tag actually "
-    "applied. A tag absent-after-apply is a hint that a consumed-trigger automation fired."
+    "applied. A tag absent-after-apply is a hint that a consumed-trigger automation fired.\n"
+    "\n"
+    "CONFIRM-BEFORE-FIRING GATE (R5 / RB-1 — REQUIRED): applying a tag can fire live "
+    "business automations, so this tool is two-phase. Phase 1: call WITHOUT "
+    "confirmation_token — NOTHING is written; you receive a confirmation_required "
+    "envelope with a single-use, expiring confirmation_token bound to exactly these "
+    "arguments. You MUST present the pending write to the HUMAN operator and wait for "
+    "their explicit yes. Phase 2: only after the human approves, call again with the "
+    "SAME arguments plus confirmation_token — the chain then executes. A token that is "
+    "reused, expired, or presented with ANY changed argument is refused (zero writes) "
+    "and a fresh confirmation is required. v1 posture: ALL tags are treated "
+    "trigger-capable; do not assume any tag is exempt."
 )
 
 
@@ -443,6 +460,10 @@ def register(mcp: Any, ctx: SidecarContext) -> None:
 
     # One process-lifetime name->GID cache shared across tool invocations (TTL-bounded).
     tag_cache = TagNameCache()
+    # RB-1 (R5): one process-lifetime confirm-before-firing gate. The EXPOSED
+    # surface pauses for a human yes; the pure executors below it are unchanged
+    # (the WS-B2 layering precedent), so their two-sided suites stay untouched.
+    confirmation_gate = ConfirmationGate()
 
     async def asana_complete_tagged_task(
         task_gid: str,
@@ -451,10 +472,32 @@ def register(mcp: Any, ctx: SidecarContext) -> None:
         name: str | None = None,
         notes: str | None = None,
         due_on: str | None = None,
+        confirmation_token: str | None = None,
     ) -> dict[str, Any]:
         save_fields = {
             k: v for k, v in (("name", name), ("notes", notes), ("due_on", due_on)) if v is not None
         }
+
+        # --- RB-1 confirm-before-firing gate (R5): fires BEFORE any backend call.
+        fingerprint = intent_fingerprint(
+            task_gid=task_gid, tag_gid=tag_gid, tag_name=tag_name, save_fields=save_fields
+        )
+        if confirmation_token is None:
+            reason = "confirmation_required"
+        else:
+            outcome = confirmation_gate.redeem(confirmation_token, fingerprint)
+            reason = None if outcome == REDEEM_OK else outcome
+        if reason is not None:
+            return build_confirmation_envelope(
+                reason=reason,
+                token=confirmation_gate.issue(fingerprint),
+                ttl_s=confirmation_gate.ttl_s,
+                task_gid=task_gid,
+                tag_gid=tag_gid,
+                tag_name=tag_name,
+                save_fields=save_fields,
+            )
+
         return await execute_tagged_write(
             ctx,
             task_gid=task_gid,
