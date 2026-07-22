@@ -32,6 +32,7 @@ from autom8y_auth import (
 )
 from autom8y_log import get_logger
 from fastapi import Depends, Header, Request
+from pydantic import ValidationError
 
 from autom8_asana import AsanaClient
 from autom8_asana.api.exception_types import ApiAuthError, ApiServiceUnavailableError
@@ -211,6 +212,28 @@ async def get_auth_context(
             },
         )
         raise ApiAuthError(e.code, "JWT validation failed")
+    except ValidationError:
+        # Leaky-SDK-contract defense: a JWT that clears JWKS/signature/expiry/
+        # audience but whose CLAIMS do not fit the SDK's ServiceClaims model (an
+        # unrecognized token species whose `scope` — or another claim — is the
+        # wrong type) makes the SDK raise a pydantic ``ValidationError`` from
+        # ``ServiceClaims.model_validate``. That is a ``ValueError``, NOT an
+        # ``autom8y_auth.AuthError``, so absent this clause it escaped the chain
+        # above and surfaced as a 500 via the generic exception handler. Refuse
+        # it cleanly as an auth failure (401), mirroring the PermanentAuthError
+        # path above. This does NOT widen acceptance — the token is still
+        # rejected; only the rejection shape is corrected. The validation detail
+        # is deliberately NOT logged: pydantic error text can echo raw claim
+        # values, and this module logs events, never token contents.
+        logger.warning(
+            "s2s_jwt_validation_failed",
+            extra={
+                "request_id": request_id,
+                "error_code": "INVALID_TOKEN",
+                "error_message": "service token claims failed schema validation",
+            },
+        )
+        raise ApiAuthError("INVALID_TOKEN", "JWT validation failed")
 
     try:
         bot_pat = get_bot_pat()
