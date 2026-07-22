@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -100,6 +100,24 @@ class TestCreateAutom8CacheProvider:
         except Exception:  # noqa: BLE001
             # Redis not available, which is fine for this test
             pass
+
+    def test_max_connections_wired_from_settings(self) -> None:
+        """Pool cap comes from settings.cache.redis_max_connections.
+
+        (env ASANA_CACHE_REDIS_MAX_CONNECTIONS). RED on the previous
+        construction: a hardcoded ``max_connections=20`` left the setting
+        dead and the cap untunable from warmer IaC.
+        """
+        from autom8_asana.settings import reset_settings
+
+        with patch.dict(
+            os.environ,
+            {"REDIS_HOST": "localhost", "ASANA_CACHE_REDIS_MAX_CONNECTIONS": "33"},
+        ):
+            reset_settings()
+            provider = create_autom8_cache_provider(redis_ssl=False)
+            assert provider._config.max_connections == 33
+        reset_settings()
 
     def test_ssl_values_from_env(self) -> None:
         """Test that REDIS_SSL environment variable is parsed correctly."""
