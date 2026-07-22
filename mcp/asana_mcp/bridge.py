@@ -18,9 +18,60 @@ from collections.abc import Awaitable, Callable
 
 import httpx
 
+from asana_mcp.errors import McpToolError
 from asana_mcp.settings import Settings
 
 TokenProvider = Callable[[], Awaitable[str]]
+
+
+def _classify_mint_failure(exc: BaseException) -> McpToolError | None:
+    """Map an S2S token-MINT failure to an honest, correctly-classified error.
+
+    The 401-fail-clean fix (operator ruling R21, Lane 1): with the daily-tool
+    credential rotatable, a revoked/invalid ``sa_*`` pair must present CLEANLY
+    — auth-shaped, non-retryable, remediation named — instead of erupting as a
+    raw SDK traceback or being mislabeled a transport error. The two failure
+    families NEVER cross-dress (the C3 / s4-posture discipline, applied at the
+    MINT seam): credential-invalid is 401-shaped and non-retryable; auth-INFRA
+    trouble (exchange unreachable / retries exhausted) is 503-shaped and
+    retryable, explicitly NOT a credential failure.
+
+    Classification is by exception-class NAME across the MRO — deliberately no
+    ``autom8y_core`` import (C9a import-safety: the SDK stays a lazy, run-time
+    dependency; tests fake the taxonomy with same-named classes). Hierarchy at
+    autom8y-core 4.9.0: ``InvalidServiceKeyError`` and ``RetryExhaustedError``
+    both subclass ``TokenAcquisitionError``, so the invalid-key check runs
+    FIRST. Anything unrecognized returns None and propagates untouched — this
+    seam never over-claims.
+    """
+    mro_names = {c.__name__ for c in type(exc).__mro__}
+    if "InvalidServiceKeyError" in mro_names:
+        return McpToolError(
+            "The MCP mount's service-account credentials were REJECTED at S2S "
+            "token mint (the auth server reports them invalid or revoked). "
+            "This is NOT cache warming and NOT a satellite failure — retrying "
+            "cannot succeed. Likely cause: the credential was rotated or "
+            "revoked. Remediation: update the CLIENT_ID / CLIENT_SECRET values "
+            "in the mount's MCP env entry and restart the session.",
+            kind="auth",
+            retryable=False,
+            status=401,
+            code="S2S_MINT_CREDENTIALS_INVALID",
+        )
+    if "TokenAcquisitionError" in mro_names:
+        return McpToolError(
+            "S2S token mint failed against the auth service (exchange "
+            "unreachable, transient error, or retries exhausted). This is an "
+            "auth-INFRASTRUCTURE condition — retryable — and explicitly NOT a "
+            "credential failure: do not rotate or change CLIENT_ID / "
+            "CLIENT_SECRET on this signal.",
+            kind="server",
+            retryable=True,
+            status=503,
+            retry_after=30.0,
+            code="S2S_MINT_UNAVAILABLE",
+        )
+    return None
 
 
 def _default_token_provider() -> TokenProvider:
@@ -54,7 +105,15 @@ def build_http_client(
     provider = token_provider or _default_token_provider()
 
     async def _attach_bearer(request: httpx.Request) -> None:
-        token = await provider()
+        try:
+            token = await provider()
+        except McpToolError:
+            raise  # already honestly classified (injected providers may pre-shape)
+        except Exception as exc:
+            mapped = _classify_mint_failure(exc)
+            if mapped is not None:
+                raise mapped from exc
+            raise  # never over-claim: unknown failures propagate untouched
         request.headers["Authorization"] = f"Bearer {token}"
 
     timeout = httpx.Timeout(settings.request_timeout_s, connect=settings.connect_timeout_s)
