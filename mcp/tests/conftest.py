@@ -112,6 +112,27 @@ RESOLVE_ENVELOPE = {
     },
     "meta": {"request_id": "req-resolve-1"},
 }
+# GET /api/v1/workflows -> list_workflows: SuccessResponse[list[WorkflowEntry]] SINGLE
+# envelope. Entries transcribed verbatim from the registered configs
+# (lambda_handlers/{insights_export,conversation_audit}.py::_config) — the oracle
+# carries NO side-effect field, so the disclosure tool states the write posture itself.
+WORKFLOWS_ENVELOPE = {
+    "data": [
+        {
+            "workflow_id": "insights-export",
+            "log_prefix": "lambda_insights_export",
+            "requires_data_client": True,
+            "response_metadata_keys": ["total_tables_succeeded", "total_tables_failed"],
+        },
+        {
+            "workflow_id": "conversation-audit",
+            "log_prefix": "lambda_conversation_audit",
+            "requires_data_client": True,
+            "response_metadata_keys": ["truncated_count"],
+        },
+    ],
+    "meta": {"request_id": "req-workflows-1", "timestamp": "2026-07-23T00:00:00Z"},
+}
 
 
 def _json(payload, status=200):
@@ -136,6 +157,8 @@ def healthy_handler(request: httpx.Request) -> httpx.Response:
         return _json(AGG_ENVELOPE)
     if m == "POST" and p == "/v1/resolve/unit":
         return _json(RESOLVE_ENVELOPE)
+    if m == "GET" and p == "/api/v1/workflows/":
+        return _json(WORKFLOWS_ENVELOPE)
     return _json({"error": {"code": "UNMAPPED_ROUTE"}}, status=404)
 
 
