@@ -1,17 +1,17 @@
 ---
 domain: architecture
-generated_at: "2026-07-20T00:00:00Z"
+generated_at: "2026-07-23T14:56:44Z"
 expires_after: "7d"
 source_scope:
   - "./src/**/*.py"
   - "./mcp/**/*.py"
   - "./pyproject.toml"
 generator: theoros
-source_hash: "f6a72824"
-confidence: 0.92
+source_hash: "70d45434e1e79ce7bc380936e47a4e265447ffd4db88dc37cd8b37edc70b862f"
+confidence: 0.72
 format_version: "1.0"
-update_mode: "incremental"
-incremental_cycle: 2
+update_mode: "full"
+incremental_cycle: 0
 max_incremental_cycles: 3
 land_sources:
   - ".sos/land/initiative-history.md"
@@ -20,541 +20,144 @@ land_hash: "62e88f60226e924b7fc0298605ce934fc6c36a3b4090ed524a4ef0d3cc4a05ff"
 
 # Codebase Architecture
 
-> **WITNESS-ARC REFRESH 2026-07-20 (source_hash `793e670b`; targeted WS-D s5 pass by
-> docs/tech-writer, asana-mcp-postfelt-hardening — NOT a theoros full regen).**
-> Adds the §"MCP Sidecar Surfaces" section: asana-mcp-v1 SHIPPED 2026-07-20 (GATE-FELT
-> closed by the operator; `.sos/wip/asana-mcp-v1.felt-gate-envelope.md:503-526`), and the
-> merged-state additions on main (#237/#238/#239/#240/#241 + #245 cure) are described
-> against direct file reads at `793e670b`. #242 (package-root unification) is IN FLIGHT.
-> Pre-existing sections preserved unrevised (they describe `src/autom8_asana` and remain
-> accurate for that tree; per-section re-verification was out of this pass's scope).
->
-> **REFRESH PASS 2 (2026-07-20, same WS-D seat; every §MCP anchor re-verified by direct
-> read at origin/main `f6a72824`)**: #242 MERGED `beaf3344` — island UNIFIED under `mcp/`
-> (`src/asana_mcp/` and `tests/asana_mcp/` are GONE from main); §MCP rewritten to the
-> unified state. Also landed: #248 `6edc83d5` (fail-closed four-state `/ready`) and #246
-> `2ee3391c` (GET /api/v1/tags, WS-B1). WS-A deploy-invisibility is LIVE — see
-> scar-tissue SCAR-TG-LIVENESS-001 CURED record (PT-04 receipt).
+> Fresh full-observation pass at synced HEAD `d0c8b662` (2026-07-23). Covers both `src/autom8_asana/**` (FastAPI service + SDK, 564 .py) and the NEW top-level `mcp/**` island (asana-mcp-v1 sidecar, 48 .py, shipped 2026-07-20, unified under `mcp/` per #242 — `src/asana_mcp/` and `tests/asana_mcp/` are gone). This pass also closes four long-standing whole-package omissions never covered before — `domain/`, `normalizer/`, top-level `contracts/`, and `resolution/gfr/` — and updates the MCP section for the modular `tools/` breakdown, `list_report_workflows` (#268), and the RB-1 confirm-before-firing gate (#263).
 
 ## Package Structure
 
-The `autom8_asana` package lives under `src/autom8_asana/` and is a large Python SDK + FastAPI service. There are **33 top-level packages/sub-packages** organized into functional tiers.
+The `autom8_asana` package lives under `src/autom8_asana/` — a large Python 3.12 async-first Asana SDK + FastAPI service, **26 top-level packages**. Plus a structurally separate `mcp/` root (the sidecar).
 
-### Root-Level Coordination Files
+### Root-Level Coordination Files (`src/autom8_asana/`)
 
-| File | Purpose |
-|------|---------|
-| `client.py` | `AsanaClient` facade — aggregates all sub-clients into a single SDK entry point |
-| `entrypoint.py` | Dual-mode entrypoint (ECS/uvicorn vs Lambda/awslambdaric) — detects `AWS_LAMBDA_RUNTIME_API` env var |
-| `config.py` | `AsanaConfig` — Pydantic settings for the SDK (PAT, workspace GID, base URL) |
-| `settings.py` | `Settings` + `get_settings()` — global pydantic-settings singleton (~50 env vars, `@lru_cache`) |
-| `errors.py` | Top-level error types: `AsanaError`, `RateLimitError`, `ServerError`, `TimeoutError`, `InsightsServiceError` |
+`client.py` (`AsanaClient` facade), `entrypoint.py` (dual-mode ECS/uvicorn vs Lambda/awslambdaric), `config.py` (frozen-dataclass SDK config), `settings.py` (`Settings` + `get_settings()` pydantic-settings singleton), `errors.py` (top-level SDK error hierarchy), `storage_namespace.py` (the 12-namespace `StorageNamespaceContract` S3 SSOT — see Key Abstractions).
 
 ### Package Inventory
 
-**`_defaults/`** (4 files) — Platform default providers: `auth.py` (`EnvAuthProvider`), `cache.py`, `log.py` (`DefaultLogProvider`), `observability.py` (`NullObservabilityHook`).
+**Unchanged from prior observation** (accurate, re-verified): `_defaults/`, `api/`, `api/routes/`, `automation/`, `batch/`, `cache/`, `clients/`, `core/`, `dataframes/`, `lambda_handlers/`, `lifecycle/`, `metrics/`, `models/`, `observability/`, `patterns/`, `persistence/`, `protocols/`, `query/`, `reconciliation/`, `search/`, `services/`, `transport/`.
 
-**`api/`** (11 direct files + 4 sub-packages) — FastAPI application layer. Hub package. Key files:
-- `main.py` — `create_app()` factory: mounts all 22 routers, wires middleware, builds OpenAPI spec with 3 security schemes + OAuth2 scope pilot
-- `lifespan.py` — startup/shutdown context manager: 13-step initialization sequence (see Data Flow §5)
-- `models.py` — Re-exports fleet-standard `SuccessResponse`, `ErrorResponse`, `ErrorDetail`, `PaginationMeta` from `autom8y_api_schemas`; adds `ExportsSuccessResponse` typed variant with field-level examples (added `20ef7952`)
-- `client_pool.py` — `ClientPool` for per-token `AsanaClient` resilience (IMP-19)
-- `dependencies.py` — FastAPI DI: `AuthContextDep`, `EntityServiceDep`, `RequestId`, `DataServiceClient` injection
-- `fleet_query_adapter.py` — Translates FleetQuery DSL → EntityQueryService kwargs
-- `middleware/` — `core.py` (RequestLoggingMiddleware), `idempotency.py` (DynamoDB/InMemory/Noop stores)
-- `preload/` — `progressive.py` (parallel project warm-up with resume), `legacy.py`, `constants.py`
+**`auth/`** [CORRECTED — 7 files, not 5]: `bot_pat.py`, `jwt_validator.py`, `dual_mode.py`, `service_token.py`, `audit.py`, plus:
+- `business_token.py` — per-business token minter for the grain-bridge leads consumer; hand-built exchange client over `POST /tokens/exchange-business` (NOT the pinned `autom8y-auth` TokenManager, whose exchange sends an empty body). `requested_scopes` frozen to `["data:read"]` per mint.
+- `per_business_provider.py` — `PerBusinessTokenProvider`, an anti-IDOR `AuthProvider` wrapping exactly ONE minted single-tenant token per business; never reused across tenants.
 
-**`api/routes/`** (26 files) — Route handlers. Notable:
-- `tasks.py`, `projects.py`, `sections.py`, `users.py`, `workspaces.py` — CRUD routes (PAT auth)
-- `dataframes.py` — Schema-based DataFrame extraction (PAT auth)
-- `exports.py` — Phase-1 BI export pipeline, dual-mount `/v1/exports` + `/api/v1/exports`
-- `_exports_helpers.py` — Predicate transformation helpers: `attach_identity_complete`, `dedupe_by_key`, `apply_active_default_section_predicate`, `_walk_predicate` visitor
-- `fleet_query.py` — FleetQuery surface, dual-mount (S2S auth)
-- `resolver.py`, `intake_*.py` — Entity resolution and intake pipeline (S2S)
-- `query.py` — Query introspection + row/aggregate endpoints (S2S)
-- `_security.py` — `pat_router`, `s2s_router` factory
-- Co-located `*_models.py` files contain Pydantic request/response models shared with service layer (TENSION-002)
+**`domain/`** [NEW] (2 files, 522 lines) — Pure domain logic, zero infrastructure deps (DIP):
+- `forwarding_stage.py` (365 lines) — `ForwardingStage` StrEnum (`Sent→Approved→Verified→Stalled→Flowing→Live` + `Inactive`); reconciles the human-onboarded Asana custom-field vocabulary with the EBI `ReceiptKind` machine lifecycle as an asserted-by-test contract. `StageTransitionValidator` enforces never-downgrade / fail-closed / idempotence.
+- `forwarding_stage_backfill.py` (157 lines) — pure evidence→stage `derive_stage` for the S4 backfill.
 
-**`auth/`** (5 files) — `bot_pat.py`, `jwt_validator.py`, `dual_mode.py`, `service_token.py`, `audit.py`.
+**`normalizer/`** [NEW] (2 files, 715 lines) — Phase-2 ACL for the legacy `CustomCalUrl` scheduling cascade:
+- `scheduling_stratum.py` (358 lines) — pure, side-effect-free resolver; declarative first-non-empty-wins walk over 8 provider fields (`CASCADE_PRIORITY` is data, not branch logic). Zero I/O/persistence/concurrency/mutation.
+- `scheduling_extractor.py` (364 lines) — the I/O boundary; reads the 8 provider source values via GFR's by-name resolution (`resolution/gfr/resolve_async`).
 
-**`automation/`** (~25 files) — Automation engine + workflows + events + polling (APScheduler-based).
+**`contracts/`** [NEW, top-level — distinct from `models/contracts/`] (1 file, 101 lines):
+- `vocabulary_sync.py` — typed cross-repo envelope (`VocabularySyncRequest`) for the dynamic enum-option-set sync (producer=autom8y-asana, consumer=autom8y-data). Three locks: `field_key: Literal["vertical"]` + `extra="forbid"` (Lock-2); `vertical_key = normalize(option.name)` portable key never a GID (Lock-3); `enabled` for drift-observability only. Deliberately zero internal imports (`[PROPOSE — promote to autom8y-core]`).
 
-**`batch/`** (3 files) — `BatchClient`, `models.py`.
+**`resolution/gfr/`** [NEW, subpackage of `resolution/`] (8 files, ~1725 lines) — GID Field Resolver: gid-first, field-declarative READ facade:
+- `__init__.py` — ONE public verb `resolve_async(gid, fields) -> ResolvedFields`. Hides entity-tree topology entirely (topology types not re-exported).
+- `engine.py` (325 lines) — 7-step spine: plan → entry (single accounted Asana-API read: hydrate + type-detect + parent-walk to Business gid) → guard (identity-path purity) → identity-read (GID-EXACT `RowsRequest`, `join=None`) → posture (per-field provenance) → optional tier-2 verification → cardinality (`AmbiguousCardinalityError` on `row_count != 1`). Cache-only hard line: all Asana-API reads happen in the entry phase; a downstream cache miss returns `UnresolvedError` with zero further API calls.
+- `dynvocab.py`/`dynvocab_overrides.py` — by-name field resolution (case/space/underscore-insensitive). `models.py` (`FieldWithProvenance`, `ResolvedFields`). `errors.py` (`UnresolvedError`, `AmbiguousCardinalityError`, closed-vocab `UNRESOLVED_REASONS`). `guard.py`, `planner.py`, `posture.py`, `entry.py`, `truth_source.py` support the spine.
 
-**`cache/`** (~35 files, 5 sub-packages) — Largest single subsystem. Tiered cache:
-- `backends/` — `base.py` (template-method ABC), `memory.py`, `redis.py`, `s3.py`
-- `models/` — entry, errors, freshness_stamp, freshness_unified (FreshnessState enum), metrics, mutation_event, settings, versioning, staleness_settings, completeness, events
-- `policies/` — freshness_policy, staleness, hierarchy, coalescer, lightweight_checker
-- `dataframe/` — `DataFrameCache`, build_coordinator, circuit_breaker, coalescer, decorator, factory, warmer; tiers (memory, progressive)
-- `integration/` — 15 files including `dataframe_cache.py`, `factory.py`, loader, staleness/freshness coordinators, mutation_invalidator, hierarchy_warmer, force_warm, batch, dataframes, derived, stories, upgrader
-- `providers/` — `tiered.py`, `unified.py`
+## MCP Sidecar Surfaces (asana-mcp-v1)
 
-**`clients/`** (~20 files + `data/` sub-package) — Asana API wrappers.
-- `base.py` (`BaseClient`) — check-before-HTTP, store-on-miss cache pattern
-- One file per resource: tasks, projects, sections, users, workspaces, attachments, custom_fields, goals, portfolios, stories, tags, teams, webhooks, etc.
-- `data/` — `DataServiceClient` wraps autom8y-data HTTP API; sub-modules: `client.py`, `config.py`, `models.py`, `_cache.py`, `_metrics.py`, `_normalize.py`, `_pii.py`, `_policy.py`, `_response.py`, `_retry.py`; `_endpoints/` (batch, export, insights, reconciliation, simple)
+v1 SHIPPED 2026-07-20; a REFERENCE-POSTURE throwaway POC island under `mcp/`, unified since #242. A FastMCP process (NOT a FastAPI route table). Speaks HTTP only to the satellite's own S2S surface — never imports the `autom8_asana` domain SDK, makes zero direct Asana API calls (constraint 5). Participates in ZERO of semgrep / mypy-strict / coverage / CI-test-collection (see Design Constraints + Test Coverage domains).
 
-**`core/`** (~13 files) — Cross-cutting utilities and registries:
-- `entity_registry.py` — `EntityDescriptor` (frozen dataclass), `EntityRegistry` singleton (O(1) lookup by name/GID/`EntityType`)
-- `project_registry.py` — Project GID constants (9 pipeline projects)
-- `system_context.py` — `SystemContext.reset_all()`; xdist-worker-keyed `_reset_registry: dict[str, list[...]]` (updated `20ef7952`)
-- concurrency, connections, creation, datetime_utils, entity_types, errors, field_utils, logging, registry, registry_validation, retry, scope, string_utils, timing, types
+**`mcp/asana_mcp/server.py` `create_server()`** registers **6 read tools** via the modular `tools/` package:
+- `tools/discovery.py` — `list_entity_types`, `describe_entity` (thin tier)
+- `tools/query.py` — `query_rows`, `query_aggregate` (rich native tier; proxies satellite `/v1/query`)
+- `tools/resolve.py` — `resolve_entity` (proxies `/v1/resolve/{entity_type}`)
+- `tools/workflows.py` [NEW — #268] — `list_report_workflows`: PURE read/disclosure tool reading the live `GET /api/v1/workflows` oracle. Deliberately does NOT expose invocation (`POST /api/v1/workflows/{id}/invoke` is a declared write-verb that uploads/deletes Asana attachments and can re-fire a consuming listener — SCAR-CANDIDATE-PLAY-CONSUMED-TRIGGER).
+- `tools/_match_business_stub.py` — tool 6, deliberately NOT registered.
 
-**`dataframes/`** (~45 files, 5 sub-packages) — Second-largest subsystem. Schema-driven:
-- `builders/` — `base.py` (DataFrameBuilder ABC, `gather_with_limit` for max-25 concurrent), progressive (concrete), parallel_fetch, section, task_cache, freshness, hierarchy_warmer, cascade_validator (5%/20% null thresholds), post_build_validation, build_result, fields
-- `schemas/` — base, business, contact, offer, unit, asset_edit, asset_edit_holder, process
-- `extractors/` — base, default, business, contact, offer, unit, asset_edit, asset_edit_holder, process, schema
-- `models/` — registry (SchemaRegistry singleton), schema (DataFrameSchema), task_row
-- `resolver/` — protocol (CustomFieldResolver), cascading, coercer, default, mock, normalizer
-- `views/` — cascade_view (CascadeViewPlugin), dataframe_view, cf_utils
-- Direct: annotations, cache_integration, cascade_utils, errors, offline, section_persistence, storage, watermark
+**`tools/composite_write.py`** — `asana_complete_tagged_task`, the sole write path; requires `ASANA_MCP_ENABLE_WRITE_SURFACE` (default OFF) AND, since #263, a two-phase confirm-token exchange for `add_tag`. Consumes `tools/tag_resolve.py` (dual-key `gid|name` resolver, #249).
 
-**`lambda_handlers/`** (13 files) — AWS Lambda handlers, each independently deployable: `cache_warmer`, `cache_invalidate`, `workflow_handler`, `insights_export`, `conversation_audit`, `payment_reconciliation`, `reconciliation_runner`, `push_orchestrator`, `pipeline_stage_aggregator`, `story_warmer`, `checkpoint`, `cloudwatch`, `timeout`.
+**`tools/confirm_gate.py` (211 lines) [NEW — #263, RB-1 gate, ruling R5/R21]**: two-phase confirmation, transport-agnostic. A call WITHOUT `confirmation_token` performs zero backend calls and returns a `confirmation_required` envelope carrying a single-use, TTL-bounded (600s), intent-fingerprint-bound token; a call with the token and byte-identical intent executes the composite chain. In-process store (`DEFAULT_MAX_PENDING=32`); restart clears pending confirmations (fails safe). V1 posture: ALL tags treated trigger-capable (no narrowing allowlist — deliberately unowned).
 
-**`lifecycle/`** (~13 files) — Task lifecycle state machine:
-- `engine.py` (`LifecycleEngine`) — 4-phase pipeline: Create → Configure → Actions → Wire; fail-forward
-- completion, creation, dispatch, init_actions, loop_detector, observation, observation_store, reopen, sections, seeding, webhook, webhook_dispatcher, wiring, config
+**`mcp/asana_mcp/bridge.py`** — mints S2S JWTs via the fleet `autom8y_core.TokenManager` (lazy-imported for import-safety, C9a). #264 fail-clean-on-401 (`_classify_mint_failure`): distinguishes `InvalidServiceKeyError` (→ `McpToolError kind=auth, 401, non-retryable, S2S_MINT_CREDENTIALS_INVALID`) from auth-infra-down (→ `kind=server, 503, retryable`), by exception-class-name across the MRO (no live `autom8y_core` import). Readiness gate is fail-closed (proxies satellite `/ready`).
 
-**`metrics/`** (8 files + `definitions/`) — Business metrics:
-- `compute.py` — CLI computation tool
-- metric, registry, resolve (SectionIndex), expr, freshness, sla_profile, cloudwatch_emit
-- `definitions/` — lifecycle, offer
-
-**`models/`** (~20 files + `business/` sub-package) — Pydantic domain models:
-- Direct: task (hub type), project, section, story, user, workspace, tag, webhook, goal, portfolio, team, attachment, custom_field, custom_field_accessor, base, common
-- `business/` — Rich entity models (business, contact, offer, unit, process, asset_edit, activity, sections, section_timeline, dna, hours, location, videography, descriptors, mixins, patterns, reconciliation, registry, resolution, seeder, holder_factory, hydration)
-- `business/fields.py` — `CascadingFieldDef`, `InheritedFieldDef`; migrated to `autom8y_log` in `20ef7952`
-- `business/detection/` — 4-tier detection: facade (orchestrator), tier1 (project membership), tier2 (name pattern), tier3 (parent inference), tier4 (structure inspection), types, config
-- `business/matching/` — Fellegi-Sunter probabilistic matching: engine, blocking, comparators (exact/fuzzy/TF-adjuster), normalizers, config, models
-- `contracts/` — `phone_vertical.py`
-
-**`observability/`** (3 files) — context, correlation, decorators.
-
-**`patterns/`** (2 files) — `async_method.py`, `error_classification.py`.
-
-**`persistence/`** (~16 files) — Entity write pipeline:
-- `pipeline.py` (`SavePipeline`) — 4/5-phase save: Validate → Prepare → Execute → Actions → Confirm
-- `session.py` (`SaveSession`) — user-facing entry
-- executor (BatchExecutor), graph (DependencyGraph), actions, action_executor, action_ordering, cache_invalidator, cascade, errors, events, healing, holder_concurrency, holder_construction, holder_ensurer, models (AutomationResult), reorder, tracker, validation
-
-**`protocols/`** (8 files) — Protocol (structural typing) interfaces; pure leaf:
-- auth (AuthProvider), cache (CacheProvider, DataFrameCacheProtocol, WarmResult), dataframe_provider (DataFrameProvider), insights (InsightsProvider), item_loader (ItemLoader), log (LogProvider), metrics (MetricsEmitter), observability (ObservabilityHook)
-
-**`query/`** (~15 files) — Composable query engine (S2S):
-- `models.py` — `Op` StrEnum (13 operators incl. BETWEEN, DATE_GTE, DATE_LTE), `PredicateNode` discriminated union, `RowsRequest`, `AggregateRequest`, `RowsResponse`, `AggregateResponse`, `JoinSpec`
-- `engine.py` (`QueryEngine`) — orchestrates cache access → schema validation → predicate compilation → section scoping → response shaping
-- `compiler.py` (`PredicateCompiler`) — `OPERATOR_MATRIX`, `_compile_node`; P1-C-04 frozen
-- fetcher, aggregator, join (P1-C-04 frozen), introspection, hierarchy, guards (`QueryLimits`, `predicate_depth`), errors, saved, temporal, timeline_provider, offline_provider, data_service_entities, formatters
-- `__main__.py` — CLI dispatcher (10 subcommands: rows, aggregate, entities, fields, relations, sections, data-sources, timeline, list-queries, run); migrated to `autom8y_log` in `20ef7952`
-
-**`reconciliation/`** (5 files) — engine, executor, processor, report, section_registry.
-
-**`resolution/`** (7 files) — result (ResolutionResult), context (ResolutionContext), field_resolver, strategies, selection, write_registry (EntityWriteRegistry), budget.
-
-**`search/`** (2 files) — models, service (SearchService).
-
-**`services/`** (~22 files) — Business-logic services:
-- `query_service.py` (`EntityQueryService`)
-- `universal_strategy.py` (`UniversalResolutionStrategy`) — schema-driven O(1) resolution via `DynamicIndex`; replaces 4 per-entity strategies
-- dataframe_service, entity_service, entity_context, discovery, dynamic_index (DynamicIndex, DynamicIndexCache)
-- resolver, resolution_result, intake_resolve_service, intake_create_service, intake_custom_field_service
-- section_service, section_timeline_service, task_service
-- field_write_service, gid_lookup, gid_push, matching_service, vertical_backfill
-- `errors.py` (`CacheNotWarmError`, `InvalidFieldError`, `ServiceError`)
-
-**`transport/`** (5 files) — HTTP transport:
-- `asana_http.py` (`AsanaHttpClient`) — wraps `autom8y_http.Autom8yHttpClient` with Asana-specific response unwrapping
-- adaptive_semaphore (AIMD), config_translator, response_handler, sync
-
-**`src/autom8_query_cli.py`** — Standalone CLI (`autom8-query` entrypoint) using direct httpx (TID251-exempt).
-
-## MCP Sidecar Surfaces (asana-mcp-v1) — merged state at `f6a72824` (2026-07-20, refresh pass 2)
-
-v1 SHIPPED 2026-07-20 (GATE-FELT closed by the operator; felt verdict verbatim at
-`.sos/wip/asana-mcp-v1.felt-gate-envelope.md:503-526`). The MCP additions on main are a
-REFERENCE-POSTURE POC island (charter §5.3: throwaway, never promoted; production
-reimplements post-probe — see `.know/design-constraints.md` MCP-REFERENCE-POSTURE-001).
-**#242 MERGED `beaf3344` (s6 assembly)**: the island is now UNIFIED under ONE root —
-`mcp/` (FORK-D/D3 package-root ruling). `src/asana_mcp/` and `tests/asana_mcp/` no longer
-exist on main; the pass-1 two-root description below is superseded by this unified layout
-(landing history preserved inline).
-
-**`mcp/asana_mcp/` — the unified sidecar island** (read surface #239 `23440991`; composite
-write #238 `a0b7142d`; observability floor #240 `edaa9ddd`; unification + assembly #242
-`beaf3344`; all line anchors re-verified at `f6a72824`):
-
-- `mcp/asana_mcp/server.py:33` `create_server()` — FastMCP server factory; read tools 1-5
-  (`list_entity_types`, `describe_entity`, `query_rows`, `query_aggregate`, `resolve_entity`)
-  + `tools/_match_business_stub.py`. Tool schemas are hand-authored from the satellite's
-  same-commit Pydantic models (the B1-O1 schema-drift posture).
-- `mcp/asana_mcp/assembly.py` (#242) — `build_instrumented_server()`: `create_server()` →
-  `composite_write.register` (self-gated OFF) → `instrument()` — the frozen assembly order.
-- `mcp/asana_mcp/bridge.py` — S2S JWT token-provider seam (autom8y-core TokenManager side,
-  dossier B2-O1).
-- `mcp/asana_mcp/errors.py` — typed error mapping incl. the MCP-1 cure: `_upstream_suffix`
-  (`errors.py:110`) passes upstream code/message/details through, incl. the 404
-  `available_types` recovery hint (`errors.py:127`) whose loss cost the n=0 witness four
-  blind guesses (digest §2 MCP-1). C3 invariant held: the 503-warming branch carries curated
-  warming-not-auth text and takes no upstream suffix.
-- `mcp/asana_mcp/observability.py` — `instrument()` (`observability.py:781`) span decoration
-  + budget-partition guardrails: `validate_partition` (`observability.py:265`) enforces the
-  fail-loud config-time invariants `ΣSHARE ≤ 1.0` and `RATE_RPS×60 ≤ SHARE_MCP×PAT_TOTAL_RPM`
-  via `BudgetPartitionError` (`observability.py:179`); defaults 0.60/0.32/0.08 of the
-  1500/min shared-PAT bucket (`observability.py:151-157`), env-overridable
-  (`ASANA_MCP_PAT_SHARE_*`, `observability.py:162-164`).
-- `mcp/asana_mcp/tools/composite_write.py` — the ONE ratified composite write tool
-  `asana_complete_tagged_task` (add_tag → push(PUT-save) → mark_complete), exposure-gated
-  OFF: `WRITE_SURFACE_ENV = "ASANA_MCP_ENABLE_WRITE_SURFACE"` (`composite_write.py:82`),
-  `write_surface_enabled` (`composite_write.py:86`); `register()` self-gates and attaches
-  NOTHING when OFF (`composite_write.py:277`).
-- `mcp/asana_mcp/settings.py` — `ASANA_MCP_*` env contract; `mcp/asana_mcp/timeouts.py` —
-  single timeout source-of-truth (fence-tested `mcp/tests/test_fences.py:50`).
-- `mcp/serve_stdio.py` — operator stdio launcher; `mcp/probes/` — C2 sandbox probe harness
-  (standalone operator tool); `mcp/README.md` + `mcp/pyproject.toml` — island-local
-  packaging (`name = "asana-mcp"`) with its OWN `testpaths = ["tests"]` → `mcp/tests/`.
-- `mcp/tests/` (21 files) — the UNIFIED suite: assembly floor F1-F4, budget partition +
-  rate cap, cold-frame mapping, composite two-sided pair, fences, import-safety (+obs),
-  honesty passthrough, readiness gate, schema canary, seam conformance, span/traceparent,
-  timeout cascade. **Root CI collects NONE of it** (root `testpaths = ["tests"]`,
-  `pyproject.toml:113`; no workflow references `mcp/`) — see `.know/test-coverage.md`
-  §MCP Island Test Topology.
-- **Not in the shipped wheel**: root `[tool.hatch.build.targets.wheel]` packages carry only
-  `src/autom8_asana` + `src/autom8_query_cli.py` (`pyproject.toml:109`).
-
-**Satellite-side additions (in `src/autom8_asana/`, root-CI-gated)**:
-
-- **#245 (squash `2eb830ca` — SAT-1 cure)**: `get_resolvable_entities`
-  (`src/autom8_asana/services/resolver.py:290`) is descriptor-driven from EntityRegistry:
-  an entity is resolvable iff its descriptor's schema key is registered AND it has a
-  resolvable project GID (or is body-parameterized). Cured execution vocabulary = 17 names
-  (all NINE process_* pipelines + `project`/`section` body-parameterized addressing).
-  Parity contract test `tests/unit/services/test_entity_vocabulary_parity.py` (parity
-  `:73`, teeth `:113,:126`) is the regression guard. See SCAR-VOCAB-PARITY-001.
-- **#248 (squash `6edc83d5` — fail-closed four-state `/ready`)**: preload failure now
-  fail-closes readiness (`src/autom8_asana/api/preload/progressive.py` +
-  `api/routes/health.py`; regression suite `tests/unit/api/preload/test_ready_fail_closed.py`,
-  root-CI-gated). The satellite half of WS-A deploy-invisibility.
-- **#246 (squash `2ee3391c` — TAG-1 cure, WS-B1)**: `GET /api/v1/tags` name-resolution
-  read surface (`src/autom8_asana/api/routes/tags.py:41` router; `:60` `list_tags`;
-  `?name=` exact-name → GID resolution per `:10`) — the surface the WS-B2 sidecar
-  dual-key tag addressing consumes.
-
-**Lint scoping** — `pyproject.toml:237-254`: `"mcp/**"` per-file-ignores (TID251 httpx =
-the ratified constraint-5 transport, TC001-003, ERA001, SIM105) with the design-anchored
-comment in place, plus #242's operator-CLI extensions below it.
-
-**Constraint-5 fence (standing)**: the MCP process NEVER imports the domain SDK and makes
-ZERO direct Asana calls — the sidecar speaks raw httpx to the satellite REST surface only.
-Enforced two-sided by `mcp/tests/test_fences.py:30,:36,:42` and
-`mcp/tests/test_import_safety.py` (island suite — local gate).
+`mcp/tests/` is ~24 files (`test_confirm_gate_rb1.py`, `test_bridge_401_fail_clean.py`, `test_workflows_disclosure.py`, `test_errors_c3.py`, etc.). Root CI collects none of it.
 
 ## Layer Boundaries
 
 ```
-ENTRY POINTS ─ entrypoint.py, api/main.py, lambda_handlers/, query/__main__.py, autom8_query_cli.py
+ENTRY POINTS ─ entrypoint.py, api/main.py, lambda_handlers/, query/__main__.py, autom8_query_cli.py, mcp/serve_stdio.py
         ↓
 API LAYER (api/) ─ Routes, middleware, DI, OpenAPI enrichment
         ↓
 SERVICE LAYER (services/) ─ Business logic; lifecycle/, automation/, query/, persistence/
         ↓
-DOMAIN LAYER (models/, dataframes/, resolution/, reconciliation/)
+DOMAIN LAYER (models/, dataframes/, resolution/ incl. gfr/, reconciliation/, domain/ [pure])
         ↓
-INFRASTRUCTURE (clients/, transport/, cache/, batch/)
+INFRASTRUCTURE (clients/, transport/, cache/, batch/, normalizer/ [extractor half])
         ↓
-CROSS-CUTTING (core/, protocols/, observability/, patterns/)
+CROSS-CUTTING (core/, protocols/, observability/, patterns/, contracts/, auth/)
+        ⟂  mcp/ (out-of-tree sidecar; HTTP-only consumer of the API layer, zero domain-SDK coupling)
 ```
 
-**Import direction**: `api/routes/*` → `services/*` → `clients/*` → `transport/*`. `services/*` → `models/`, `resolution/`, `dataframes/`. `cache/*` imported by clients, services, dataframes, api/lifespan. `protocols/` is a pure leaf.
+**Import direction**: `api/routes/*` → `services/*` → `clients/*` → `transport/*`. `resolution/gfr/` is a leaf-facing sub-layer within `resolution/`; `normalizer/scheduling_extractor.py` → `resolution/gfr/resolve_async` is the only cross-package consumer found. `domain/` packages are pure (zero infrastructure imports, the purest leaves). The semgrep layer rules (`.semgrep.yml`) enforce this only for 19 of 26 non-`api` packages — `auth/`, `contracts/`, `domain/`, `lambda_handlers/`, `normalizer/`, `reconciliation/` are NOT in the include list (see Design Constraints TENSION-014).
 
-**Layer boundary violation (TENSION-002, documented)**: Services import request/response models from `api/routes/*_models.py`:
-- `services/intake_resolve_service.py` → `api/routes/intake_resolve_models.py`
-- `services/intake_create_service.py` → `api/routes/intake_create_models.py`
-- `services/intake_custom_field_service.py` → `api/routes/intake_custom_fields_models.py`
-- `services/matching_service.py` → `api/routes/matching_models.py`
+**Layer boundary violation (TENSION-002)**: services import request/response models from `api/routes/*_models.py` — now **5 files** (added `services/receipts_service.py:40`).
 
-**Hub packages**: `core/entity_registry.py`, `protocols/cache.py`, `settings.py`, `models/task.py`, `api/models.py`, `cache/integration/factory.py`.
+**Structural-invariant enforcement**: `tests/arch/test_namespace_contract.py` (t1-t5, StorageNamespaceContract) makes the S3-prefix layering a compile-time-adjacent invariant.
 
-**Leaf packages**: `core/` utilities (timing, string_utils, datetime_utils, errors), `protocols/*`, `models/base.py`, `patterns/async_method.py`.
+**Hub packages**: `core/entity_registry.py`, `protocols/cache.py`, `settings.py`, `models/task.py`, `api/models.py`, `cache/integration/factory.py`, `storage_namespace.py`. **Leaf packages**: `core/` utilities, `protocols/*`, `models/base.py`, `resolution/gfr/` public surface, `normalizer/scheduling_stratum.py` (import-pure), `domain/*`.
 
 ## Entry Points and API Surface
 
 ### Primary Entry Points
+- **ECS (uvicorn)**: `entrypoint.py:main()` → `run_ecs_mode()` → `_bootstrap.bootstrap()` → `uvicorn.run("autom8_asana.api.main:create_app", factory=True)`.
+- **Lambda (awslambdaric)**: `entrypoint.py:main()` → `run_lambda_mode(handler)`.
+- **MCP stdio**: `mcp/serve_stdio.py` (stdio launcher, `--smoke` inventory).
 
-**ECS mode (uvicorn)**:
-```
-entrypoint.py:main()
-  → run_ecs_mode()
-  → models/business/_bootstrap.bootstrap()
-  → uvicorn.run("autom8_asana.api.main:create_app", factory=True)
-```
+### Router Inventory (26 routers, 4 dual-mounted) [CORRECTED — was 24]
+The prior 24-row table plus two rows: `tags_router` (PAT, `/api/v1/tags`, list + `?name=` resolve to GID, #246) and `receipts_router` (S2S, `POST /v1/receipts`, EBI OI-2 forwarding-receipt threading a lifecycle receipt as an Asana comment on the Business task). CRITICAL mount order unchanged: `fleet_query_router_*` and `exports_router_*` before `query_router`'s wildcard (`_assert_fleet_query_mount_order`, `api/main.py:316`).
 
-**Lambda mode (awslambdaric)**:
-```
-entrypoint.py:main()
-  → run_lambda_mode(handler)
-  → awslambdaric.main()
-```
-
-**FastAPI app factory** (`api/main.py:create_app`): builds idempotency store (DynamoDB/memory/noop, env-selected) → CORS config → JWTAuthConfig → `create_fleet_app()` → `register_exception_handlers()` → `register_validation_handler(service_code_prefix="ASANA")` → `SecurityHeadersMiddleware` → `fleet_error_handler` → `custom_openapi()` (injects security schemes, OAuth2 pilot, QUERY method candidates, Task schema, registry types, webhook definition).
-
-### Router Inventory (22 routers, 4 dual-mounted)
-
-| Router | Auth | Namespace |
-|--------|------|-----------|
-| `health_router` | none | `/health`, `/ready`, `/health/deps` |
-| `users_router` | PAT | `/api/v1/users` |
-| `workspaces_router` | PAT | `/api/v1/workspaces` |
-| `dataframes_router` | PAT | `/api/v1/dataframes` |
-| `tasks_router` | PAT | `/api/v1/tasks` |
-| `projects_router` | PAT | `/api/v1/projects` |
-| `sections_router` | PAT | `/api/v1/sections` |
-| `section_timelines_router` | PAT | `/api/v1/offers` |
-| `webhooks_router` | URL token | `/api/v1/webhooks` |
-| `workflows_router` | PAT | `/api/v1/workflows` |
-| `exports_router_v1` | PAT | `/v1/exports` (dual-mount) |
-| `exports_router_api_v1` | PAT | `/api/v1/exports` (dual-mount) |
-| `fleet_query_router_v1` | S2S | `/v1/query/entities` (dual-mount) |
-| `fleet_query_router_api_v1` | S2S | `/api/v1/query/entities` (dual-mount) |
-| `intake_resolve_router` | S2S | `/v1/intake/resolve/*` (must mount BEFORE resolver) |
-| `resolver_router` | S2S | `/v1/resolve/{entity_type}` (wildcard) |
-| `query_introspection_router` | S2S | `/v1/query` |
-| `query_router` | S2S | `/v1/query/{entity_type}` (must mount AFTER fleet+exports) |
-| `admin_router` | S2S | `/v1/admin` |
-| `internal_router` | S2S | `/v1/internal` |
-| `entity_write_router` | S2S | `/v1/entity-write` |
-| `intake_custom_fields_router` | S2S | `/v1/intake/custom-fields` |
-| `intake_create_router` | S2S | `/v1/intake/create` |
-| `matching_router` | S2S | `/v1/matching` |
-
-**CRITICAL mount order**: `fleet_query_router_*` and `exports_router_*` MUST mount BEFORE `query_router` because `query_router` uses wildcard `/v1/query/{entity_type}` that would shadow `/v1/exports` and `/v1/query/entities`. FastAPI matches in registration order.
-
-### Lambda Handlers (13)
-
-cache_warmer, cache_invalidate, workflow_handler, insights_export, conversation_audit, payment_reconciliation, reconciliation_runner, push_orchestrator, pipeline_stage_aggregator, story_warmer, checkpoint, cloudwatch, timeout.
-
-### CLI Entrypoints
-
-**`python -m autom8_asana.query`** (`query/__main__.py`) — 10 subcommands: rows, aggregate, entities, fields, relations, sections, data-sources, timeline, list-queries, run. `--live` flag uses `autom8y_core.TokenManager` for S2S JWT then hits HTTP API; offline default uses `OfflineDataFrameProvider`.
-
-**`autom8-query`** (`src/autom8_query_cli.py`) — Standalone CLI using direct httpx (TID251-exempt).
+### Lambda Handlers (17): cache_warmer, cache_invalidate, workflow_handler, insights_export, conversation_audit, payment_reconciliation, reconciliation_runner, push_orchestrator, pipeline_stage_aggregator, story_warmer, checkpoint, cloudwatch, timeout, leads_consumer, offer_warm_amp, onboarding_walkthrough, scheduling_stratum_snapshot.
 
 ## Key Abstractions
 
-**`AsanaClient`** (`client.py`) — Main SDK facade. Aggregates all sub-clients, `BatchClient`, `SaveSession`, cache. Async context manager.
+**`AsanaClient`**, **`EntityDescriptor`** (frozen dataclass; `body_parameterized`, `default_projection` fields), **`ResolutionResult`**, **`DataFrameBuilder`**, **`CacheProvider`**, **`SavePipeline`**, **`LifecycleEngine`**, **`UniversalResolutionStrategy`**, **`PredicateNode`** — carried forward, all accurate.
 
-**`EntityDescriptor`** (`core/entity_registry.py`) — Frozen dataclass. `EntityRegistry` singleton: O(1) lookup by name/project GID/`EntityType`. Auto-discovers schemas via `schema_module_path`.
+**`StorageNamespaceContract`** (`storage_namespace.py`) — the 12-namespace S3 SSOT (`REGISTRY_NAMESPACE_COUNT=12`), the closest thing to a schema catalog; every S3 prefix in `src/` must route through it (t3-enforced). See db domain.
 
-**`ResolutionResult`** (`services/resolution_result.py`) — Frozen dataclass: `gids`, `match_count`, `status_annotations`, `total_match_count`. Factories: `not_found()`, `from_gids()`, `from_gids_with_status()`, `error_result()`.
+**`resolve_async` / GFR facade** (`resolution/gfr/__init__.py`) — one-verb read facade hiding entity-tree topology.
 
-**`DataFrameBuilder`** (`dataframes/builders/base.py`) — Abstract base. `gather_with_limit()` for bounded parallel extraction (max 25 concurrent).
+**`ForwardingStage`** (`domain/forwarding_stage.py`) — pure StrEnum vocabulary + `StageTransitionValidator`; the reconciliation contract between human Asana custom-field language and EBI's `ReceiptKind` lifecycle.
 
-**`DataFrameSchema`** (`dataframes/models/schema.py`) — Defines column types, extractors, cascade configuration. Consumed by `SchemaRegistry`.
+**Two-phase confirmation-token gate** (`mcp/asana_mcp/tools/confirm_gate.py`) — unconfirmed call → zero-side-effect `confirmation_required` envelope with TTL-bound intent-fingerprinted token → confirmed call with byte-identical intent → execute. In-process, restart-safe (fails closed).
 
-**`CacheProvider` protocol** (`protocols/cache.py`) — `get/set/delete`, `get_versioned/set_versioned`, `get_batch/set_batch`, `warm()`, `check_freshness()`, `invalidate()`, `is_healthy()`. Implemented by `S3CacheProvider`, `RedisCacheProvider`, `EnhancedInMemoryCacheProvider`, `TieredCacheProvider`.
-
-**`SavePipeline`** (`persistence/pipeline.py`) — 4/5-phase save: Validate → Prepare → Execute → Actions → Confirm.
-
-**`LifecycleEngine`** (`lifecycle/engine.py`) — 4-phase pipeline: Create → Configure → Actions → Wire. Routes DNC transitions. Fail-forward; hard fail only on Phase 1 creation failure.
-
-**`UniversalResolutionStrategy`** (`services/universal_strategy.py`) — Schema-driven via `DynamicIndex`. Replaces 4 per-entity strategies. Status-aware (`AccountActivity`).
-
-**`PredicateNode`** (`query/models.py`) — Pydantic v2 discriminated union over `Comparison | AndGroup | OrGroup | NotGroup`. `Op` StrEnum with 13 operators including BETWEEN, DATE_GTE, DATE_LTE.
-
-**`CascadeViewPlugin`** (`dataframes/views/cascade_view.py`) — Cross-project field inheritance. `cascade_validator.py` enforces 5%/20% null thresholds.
-
-**`ExportsSuccessResponse`** (`api/models.py`) — Typed `SuccessResponse[list[dict[str, Any]]]` variant with field-level examples for OpenAPI M-02_field_example metric. Added in `20ef7952`.
-
-**`SystemContext`** (`core/system_context.py`) — Singleton reset coordination. `_reset_registry` is `dict[str, list[...]]` keyed by `PYTEST_XDIST_WORKER` for parallel xdist worker isolation (updated `20ef7952`).
-
-**Design Patterns**:
-- Protocol-based DI (`protocols/` as leaf)
-- Discriminated union (`PredicateNode`)
-- Singleton registry (`EntityRegistry`, `get_settings`, `SchemaRegistry`)
-- Factory + environment detection (`CacheProviderFactory`)
-- Dual-mount routers (exports, fleet_query)
-- Co-located contract models (`api/routes/*_models.py`)
-- Progressive/tiered caching (memory → S3 → None)
-- Template method base class (`CacheBackendBase`)
-- `_walk_predicate` generic recursive predicate visitor
-
-### `_walk_predicate` — Recursive Predicate Visitor
-
-**Location**: `src/autom8_asana/api/routes/_exports_helpers.py`
-
-```python
-def _walk_predicate(
-    node: PredicateNode | None,
-    *,
-    on_comparison: Callable[[Comparison], _T],
-    default: _T,
-    combine: Callable[[list[_T]], _T],
-) -> _T:
-```
-
-Consumers: `predicate_references_field`, `_contains_date_op`, `validate_section_values`. `_split_date_predicates` does NOT use it because it requires structural mutation.
-
-### Frozen-Range Importers (P1-C-04)
-
-Frozen modules per `exports.py` docstring:
-- `query/engine.py:139-178,181` — `execute_rows` steps 6-9, aggregate logic
-- `query/join.py` — full module
-- `query/compiler.py:53-63,192-241` — `OPERATOR_MATRIX`, `_compile_node`, `_compile_comparison`
-
-Importers verified at `20ef7952`:
-- `api/routes/exports.py:66`
-- `api/routes/query.py:38`
-- `query/__init__.py` — re-exports
-- `query/__main__.py:513,669` — lazy imports
-- `services/query_service.py:236` — lazy import
+**`VocabularySyncRequest`** (`contracts/vocabulary_sync.py`), **`BusinessTokenMinter`/`PerBusinessTokenProvider`** (`auth/`), **`OperatorClaims` mint** (`clients/data/_operator_mint.py`), **`DurableTaskCacheReader`** (`cache/durable_task_cache.py`) — carried forward.
 
 ## Data Flow
 
-### 1. API Request Pipeline
+Pipelines carried forward: (1) API Request, (2) DataFrame Build (+3 post-build stages: null_number_recovery, post_build_population_receipt, fail_closed_write), (3) Entity Resolution (S2S), (4) Exports, (5) Startup Initialization, (6) Cache Invalidation.
 
+### 7. GFR Resolution Pipeline
 ```
-HTTP request
-  → SecurityHeadersMiddleware
-  → JWTAuthMiddleware (excludes PAT routes, webhooks, health, docs)
-  → IdempotencyMiddleware
-  → RequestLoggingMiddleware
-  → SlowAPI rate limiter
-  → FastAPI route handler
-  → DI: get_auth_context() [PAT or JWT dual-mode]
-  → DI: get_*_service()
-  → Service layer → Client layer → AsanaHttpClient → Asana API
+normalizer/scheduling_extractor.py (I/O boundary)
+  → resolution.gfr.resolve_async(gid, fields)
+    → plan → entry (single accounted Asana-API read; hydrate + parent-walk to Business gid)
+    → guard (identity-path purity) → identity-read (GID-EXACT RowsRequest, join=None)
+    → posture (per-field provenance) → optional tier-2 → cardinality check
+  → ResolvedFields (per-field provenance)
 ```
 
-### 2. DataFrame Build Pipeline
-
+### 8. RB-1 Confirm-Before-Firing Flow (MCP composite write)
 ```
-GET /api/v1/dataframes/{schema}
-  → DataFrameService.get_dataframe(entity_type, project_gid)
-  → DataFrameCache.get_async() [Memory → S3 progressive → None]
-  → On miss: DataFrameBuilder
-    → parallel_fetch (semaphore-limited, max 25 concurrent)
-    → extractor chain (schema-dispatched)
-    → cascade_validator.validate_cascade_fields_async()
-    → safe_dataframe_construct()
-    → post_build_validation
-  → DataFrameCache.put_async()
-  → Response (JSON or Polars-serialized, Accept negotiation)
-```
-
-### 3. Entity Resolution Pipeline (S2S)
-
-```
-POST /v1/resolve/{entity_type}
-  → UniversalResolutionStrategy.resolve_batch(criteria, entity_type)
-  → DynamicIndexCache.get_or_build(entity_type, project_gid)
-  → On miss: DataFrameBuilder
-  → DynamicIndex.lookup(criteria) → O(1)
-  → ResolutionResult(gids, status_annotations, total_match_count)
-  → AccountActivity filter (active_only=True)
-  → Sort by ACTIVITY_PRIORITY
-```
-
-### 4. Exports Pipeline (Phase 1)
-
-```
-POST /v1/exports or /api/v1/exports
-  → exports handler
-  → apply_active_default_section_predicate(predicate)
-  → validate_section_values(predicate)
-  → translate_date_predicates(predicate) [splits BETWEEN/DATE_GTE/DATE_LTE]
-  → PredicateCompiler(cleaned_predicate).compile() [P1-C-04 frozen]
-  → DataFrameBuilder → fetch + extract
-  → attach_identity_complete(df) [P1-C-05]
-  → filter_incomplete_identity(df, include=...)
-  → dedupe_by_key(df, keys=...)
-  → apply date_filter_expr (from ESC-1 split)
-  → Response (Polars-serialized; json/csv/parquet)
-```
-
-### 5. Startup Initialization Sequence (`api/lifespan.py`)
-
-1. `models/business/_bootstrap.bootstrap()` — registers entity types
-2. `configure_logging()` — structured logging with OTel processors
-3. `HTTPXClientInstrumentor().instrument()` — W3C traceparent on all httpx clients
-4. `create_cache_provider()` → `app.state.cache_provider`
-5. `ClientPool()` → `app.state.client_pool` (per-token resilience; DEF-005)
-6. `_discover_entity_projects(app)` — workspace discovery; **fail-fast**
-7. `validate_cross_registry_consistency()` — EntityRegistry vs EntityProjectRegistry divergence check
-8. `_initialize_dataframe_cache(app)` — tiered cache setup
-9. `_register_schema_providers()` — bridges SchemaRegistry to SDK registry
-10. `_initialize_mutation_invalidator(app)` — wires cache invalidation into REST routes
-11. `EntityWriteRegistry()` → `app.state.entity_write_registry`
-12. `register_workflow_config()` ×2 (insights-export, conversation-audit)
-13. `validate_cascade_ordering()` — fails fast on warm_priority graph conflicts
-14. `asyncio.create_task(_preload_dataframe_cache_progressive)` — **background** cache warm (non-blocking)
-
-`/health` returns 200 immediately; `/ready` returns 503 until cache warm.
-
-### 6. Cache Invalidation Flow
-
-```
-POST /api/v1/webhooks/inbound
-  → verify URL token (timing-safe vs ASANA_WEBHOOK_INBOUND_TOKEN)
-  → background task: cache.invalidate(task_gid)
-  → MutationInvalidator.invalidate_task(task_gid)
-  → CacheProvider.invalidate(key, entry_types)
-  → DataFrameCache.invalidate_project(project_gid)
-  → DynamicIndexCache eviction
-```
-
-### Configuration Merge Points
-
-```
-pyproject.toml deps
-  → env vars (~50 ASANA_* and AUTOM8Y_* vars)
-  → Settings singleton (@lru_cache)
-  → AsanaConfig (per-client)
-  → DataServiceConfig
-  → Lambda secrets via resolve_secret_from_env() [autom8y_config.lambda_extension]
+asana_complete_tagged_task(no confirmation_token)
+  → zero backend calls → confirmation_required envelope (TTL-bound, intent-fingerprinted, single-use)
+asana_complete_tagged_task(confirmation_token, byte-identical intent)
+  → composite chain: add_tag → push(PUT-save) → mark_complete
 ```
 
 ## External Dependencies
 
-| SDK | Package | Role |
-|-----|---------|------|
-| `autom8y_api_middleware` | `autom8y-api-middleware[rate-limit]>=0.3.0` | `create_fleet_app()`, CORS, JWT auth, rate limit |
-| `autom8y_api_schemas` | `autom8y-api-schemas>=1.9.0` | Fleet envelope types: SuccessResponse, ErrorResponse, FleetQuery, OfficePhone |
-| `autom8y_auth` | `autom8y-auth[observability]>=3.3.0` | JWT validation, exclude paths |
-| `autom8y_config` | `autom8y-config>=2.0.1` | `resolve_secret_from_env()` (Lambda extension), `Config.from_env()` |
-| `autom8y_http` | `autom8y-http[otel]>=0.6.0` | `Autom8yHttpClient`, `CircuitBreaker`, `ExponentialBackoffRetry` |
-| `autom8y_cache` | `autom8y-cache>=0.4.0` | SDK cache protocol, schema versioning |
-| `autom8y_log` | `autom8y-log>=0.5.6` | `get_logger()`, `configure_logging()`, `add_otel_trace_ids` |
-| `autom8y_telemetry` | `autom8y-telemetry[aws,fastapi,otlp]>=0.6.1` | `trace_computation()`, `get_tracer()` |
-| `autom8y_core` | `autom8y-core>=4.2.0,<5.0.0` | `TokenManager`, `Config` (query CLI live mode) |
-| `autom8y_events` | `autom8y-events>=1.2.0,<2.0.0` | Optional; automation event transport |
-| Asana API | Direct HTTP | All Asana resource operations via `AsanaHttpClient` |
-| autom8y-data service | `DataServiceClient` | Insights, exports, reconciliation, batch |
+`autom8y-api-middleware[rate-limit]`, `autom8y-config`, `autom8y-http[otel]`, `autom8y-cache`, `autom8y-log`, `autom8y-guid`, `opentelemetry-instrumentation-httpx`, `autom8y-core>=4.2.0,<5.0.0`, `autom8y-telemetry[aws,fastapi,otlp,remote-write]`, `boto3`, `pyyaml`, `openpyxl`, `phonenumbers`. The `mcp/` island imports `httpx` directly (sanctioned TID251 exception).
 
-## Defer-Watch Active Entries
+## Experiential Observations (from `.sos/land/initiative-history.md`)
 
-> This table is a stale 2026-04-29 snapshot. The CANONICAL registry is
-> `.know/defer-watch.yaml` (now 17 entries, incl. the 2026-07-20 MCP entries
-> `mcp-tag2-tag-only-play-verb-2026-07-20`,
-> `mcp-play3-automation-fire-confirmation-2026-07-20`, and
-> `mcp-preload-duration-reduce-or-persist-2026-07-20`). Consult the yaml, not this table.
-
-| Entry | Scope | Status | Deadline |
-|-------|-------|--------|----------|
-| `DEFER-WS4-T3-2026-04-29` | `_defaults/log.py` stdlib logging migration; blocked on autom8y_log lacking stdlib `logging.Logger` compat | DEFERRED-pending-upstream | 2026-Q3 |
-| `lockfile-propagator-prod-ci-confirmation` | Lockfile propagator path-resolution fix CI confirmation | DEFERRED-pending-natural-trigger | 2026-07-29 |
-
-## Experiential Observations (from session history)
-
-Cross-session corpus: 18 sessions (2026-03-02 to 2026-04-28), 15 initiative clusters. project-asana-pipeline-extraction Phase 0/1 carries the first explicit telos discipline (telos_deadline 2026-05-11). Cross-rite handoff patterns: review→10x-dev→sre (offer-data-gaps), hygiene↔10x-dev (project-crucible), rnd→10x-dev (asana-pipeline-extraction). Hot path artifacts cluster around `api/{models.py, routes/tasks.py}`, `clients/data/{client.py, config.py}`, `services/{gid_push.py, resolution_result.py, universal_strategy.py}`, `dataframes/builders/cascade_validator.py`.
-
-The 13-step startup sequence in `lifespan.py` deliberately moves cache warm-up to a background task (step 14) to avoid blocking ECS health checks. The `validate_cascade_ordering()` call at step 13 is a fail-fast guard added post-hoc after misconfiguration caused silent warm-up ordering bugs.
-
-The `autom8y_log` SDK migration (`20ef7952`) progresses two modules: `query/__main__.py` and `models/business/fields.py`. The `_defaults/log.py` migration remains blocked (DEFER-WS4-T3-2026-04-29). The `core/system_context.py` xdist isolation (`20ef7952`) enables true parallel test worker isolation without singleton state contamination. The `autom8y-core` lower bound was lifted from `>=4.0.0` to `>=4.2.0` (Path γ dep bump, `8980bcd7`). Test distribution topology shifted from `--dist=load` to `--dist=loadgroup` (`8980bcd7`); rationale lives at `tests/unit/lambda_handlers/test_workflow_handler.py:25-46` and `tests/test_openapi_fuzz.py:64-72`.
+Cross-session corpus (18 sessions, dominant rite 10x-dev). Confirmed against code this pass: GFR procession → the materialized `resolution/gfr/` package; grain-bridge/operator-plane → `auth/business_token.py` + `clients/data/_operator_mint.py`; dyn-enum-contract → `contracts/vocabulary_sync.py`; onboarding-walkthrough → `automation/workflows/onboarding_walkthrough/`; the MCP arc → the `mcp/` island. F1a floor-gate now has real production call sites (`d11ae574`) — treat as GO-LIVE wiring (see Design Constraints LBC-017).
 
 ## Knowledge Gaps
 
-- `clients/data/_endpoints/` — 5 endpoint sub-modules (`batch.py`, `export.py`, `insights.py`, `reconciliation.py`, `simple.py`) not individually read; request/response patterns, PII handling (`_pii.py`), retry logic unknown
-- `automation/polling/` — APScheduler integration patterns, trigger evaluator logic, config schema structure not traced
-- `autom8_query_cli.py` — standalone CLI argument structure and exact behavior not read
-- `reconciliation/` — processor and executor logic not read in depth
-- `cache/dataframe/` — full `DataFrameCache` internal build/coalescing/circuit-breaker logic not deeply traced
-- `models/business/matching/` — `comparators.py`/`normalizers.py` algorithm detail unknown
+- `resolution/gfr/dynvocab.py`/`dynvocab_overrides.py` by-name resolution algorithm not read in depth.
+- `mcp/asana_mcp/tools/tag_resolve.py` (429 lines) dual-key logic not read beyond purpose.
+- `mcp/tests/` exact per-file diff not individually re-verified (count-only).
+- `automation/forwarding_stage_backfill/` (backfill.py, cli.py, config.py, evidence_source.py) infrastructure half not read.
+- Carried gaps: `clients/data/_endpoints/*`, `automation/polling/` internals, `autom8_query_cli.py`, `reconciliation/` depth, `cache/dataframe/` build/coalescing internals, `models/business/matching/` algorithm detail.
