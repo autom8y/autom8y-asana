@@ -1,18 +1,17 @@
 ---
 domain: test-coverage
-generated_at: "2026-07-20T00:00:00Z"
+generated_at: "2026-07-23T14:56:44Z"
 expires_after: "7d"
 source_scope:
-  - "./tests/**/*.py"
-  - "./mcp/tests/**/*.py"
+  - "./src/**/*.py"
+  - "./mcp/**/*.py"
   - "./pyproject.toml"
-  - "./.github/workflows/test.yml"
 generator: theoros
-source_hash: "f6a72824"
-confidence: 0.92
+source_hash: "70d45434e1e79ce7bc380936e47a4e265447ffd4db88dc37cd8b37edc70b862f"
+confidence: 0.90
 format_version: "1.0"
-update_mode: "incremental"
-incremental_cycle: 2
+update_mode: "full"
+incremental_cycle: 0
 max_incremental_cycles: 3
 land_sources:
   - ".sos/land/workflow-patterns.md"
@@ -21,483 +20,96 @@ land_hash: "9db9c6f33d48f5c2fce398de7d3359fef30a0a0bd809044f7259f792ee6c4b9e"
 
 # Codebase Test Coverage
 
-> **WITNESS-ARC REFRESH 2026-07-20 (source_hash `793e670b`; targeted WS-D s5 pass by
-> docs/tech-writer, asana-mcp-postfelt-hardening — NOT a theoros full regen).** Adds the
-> §"MCP Island Test Topology" section (which suites CI collects vs skips, which lint/type
-> gates scope the island, the SAT-1 parity regression guard) + Knowledge Gaps 7-9. Prior
-> counts (files, markers, asserts) were NOT re-censused this pass and remain pinned at
-> their stated hashes.
-> REFRESH PASS 2 (2026-07-20, same seat; §MCP re-verified at `f6a72824`): #242 `beaf3344`
-> unified the island — `tests/asana_mcp/` is GONE; the §MCP section is restated and
-> Knowledge Gap 7 updated (island CI-gap now total). #248's `/ready` fail-closed suite
-> added to the CI-gated satellite list.
+> Fresh full re-census at synced HEAD `d0c8b662` (2026-07-23), direct grep/find verified. Volume growth since the last census: test files 502→**655**, test functions ~12,842→**14,603**, asserts 23,881→**28,488**, `pytest.raises` 1,249→**1,538**, xdist_group 3→**6** groups, parametrize sites 148→**205**, scar marks 35→**46**, schemathesis xfail 47→**55**. Root `tests/` and the disjoint `mcp/tests/` island mapped separately.
 
 ## Coverage Gaps
 
-### Package-Level Coverage Map
+### Package-Level Map
+Source: 26 top-level packages (501 non-`__init__.py` .py). `tests/unit/` has 26 matching subdirs + 3 cross-cutting (`canary/`, `packaging/`, `knowledge/`). **Packages with zero dedicated `tests/unit/` subdir** (unchanged): `_defaults/` (indirect only), `batch/` (indirect across 8 files), `observability/` (indirect via `test_observability.py` + scattered span asserts), `protocols/` (no conformance-test suite).
 
-The test suite contains 502 `test_*.py` files under `tests/` (505 in `tests/unit/` alone as of prior cycle; revised per current count). Source tree has 24 top-level packages under `src/autom8_asana/`. 22 of 24 source packages have dedicated test directories or direct flat test files.
-
-**Packages with zero dedicated test directories** (partial indirect coverage):
-
-| Source Package | Source Files | Assessment |
-|---|---|---|
-| `_defaults/` | 4 | Indirect coverage via client/config tests; thin adapter wrappers |
-| `batch/` | 2 | Covered indirectly via `tests/unit/test_batch_adversarial.py`, `tests/unit/clients/test_batch.py` |
-| `observability/` | 3 | Covered via `tests/unit/test_observability.py` and span assertion tests in services |
-| `protocols/` | 9 | Protocol types validated only by satisfying-class tests |
-
-**Single-module source files with no dedicated tests**: `errors.py` (tested indirectly), `settings.py` (covered in `tests/unit/test_settings.py`).
-
-### Module-Level Gaps Within Covered Packages
-
-**lifecycle** — 2 of 17 modules unmatched:
-- `lifecycle/loop_detector.py` — no `test_loop_detector.py`; safety mechanism for lifecycle engine; highest-risk gap (unguarded safety path)
-- `lifecycle/observation_store.py` — no `test_observation_store.py`; persistence for lifecycle observations
-
-**services** — intake services lack direct unit tests:
-- `services/intake_create_service.py` — tested only through route layer
-- `services/intake_resolve_service.py` — same pattern
-- `services/intake_custom_field_service.py` — same pattern
-- `services/entity_context.py` — context carrier used across service layer; no direct unit test
-
-**models (top-level)**: 15 Asana resource model files (`task.py`, `project.py`, etc.) have no dedicated test files. Covered indirectly through all tests that instantiate them; `tests/unit/models/test_models.py` covers basic import/instantiation.
-
-**models/business** — 4 modules without dedicated tests: `dna.py`, `mixins.py`, `videography.py`, `reconciliation.py`. Detection tier files (`tier1`–`tier4`) covered via detection_cache and adversarial tests.
+### Module-Level Gaps
+- `lifecycle/loop_detector.py` — **no `test_loop_detector.py`**, BUT `LoopDetector` IS behaviorally tested (`TestLoopDetector` in `test_webhook_dispatcher.py:230`, `TestLO15…` in `test_lifecycle_observation_contracts.py:547`). **File-organization gap, not a coverage gap** — corrects the prior doc's "unguarded safety path" characterization.
+- `lifecycle/observation_store.py` — no dedicated test; indirect contract coverage only.
+- `services/intake_create_service.py`/`intake_resolve_service.py`/`intake_custom_field_service.py` — tested ONLY through the HTTP route layer; service-layer error/boundary paths unverified in isolation.
+- `services/entity_context.py` — no direct unit test.
+- `models/` top-level (15 resource models) — indirect + `test_models.py` instantiation checks.
 
 ### Schemathesis / OpenAPI Fuzz
+`tests/test_openapi_fuzz.py` `KNOWN_VIOLATIONS` = **55 entries** (45 violation `xfail` + 10 conforming-pinned XPASS), up from 47. `xfail(strict=False)`; `fuzz` CI job is `continue-on-error` (non-blocking).
 
-`tests/test_openapi_fuzz.py` has 47 pre-existing xfail markers (`xfail(strict=False)`) representing known schemathesis violations. These are pending triage — they represent known OpenAPI contract gaps that have not been resolved.
-
-### Exports Feature Test Cluster (post-PR #38, commit `80256049`)
-
-Six committed test files in `tests/unit/api/` cover `api/routes/exports.py` and `api/routes/_exports_helpers.py`:
-
-| File | Focus |
-|---|---|
-| `test_exports_contract.py` | `ExportRequest`/`ExportOptions` Pydantic contract (AC-12, AC-13, AC-15, AC-16) |
-| `test_exports_auth_exclusion.py` | JWT middleware PAT-exclusion regression (DEF-08 SCAR-WS8) |
-| `test_exports_format_negotiation.py` | Content-type format negotiation behavior |
-| `test_exports_handler.py` | `export_handler` function behavior |
-| `test_exports_helpers.py` | `_exports_helpers.py` date-predicate translation (ESC-1) |
-| `test_exports_helpers_walk_predicate_property.py` | Behavior-preservation class-based tests for `_walk_predicate` refactor (T-04a, commit `f4fd18f6`) |
-
-**CHANGE-001** (commit `321909c1`): Removed 2 silent test-method overwrites in `test_exports_helpers_walk_predicate_property.py` — post-CHANGE-001: 36 effective test functions, 0 silent overwrites. Closes FLAG-1 and FLAG-3.
-
-### Prioritized Gap List (Highest-Risk First)
-
-1. **`services/intake_*_service.py` (3 modules)** — critical production path. Tested only through HTTP route layer; service-layer error paths and boundary conditions unverified in isolation.
-2. **`lifecycle/loop_detector.py`** — loop detection in lifecycle engine is a safety mechanism; no direct test. [KNOW-CANDIDATE] Unguarded safety path — regression risk not previously flagged at highest priority.
-3. **`lifecycle/observation_store.py`** — persistence for lifecycle observations; no direct test.
-4. **`services/entity_context.py`** — context carrier used across service layer with no direct unit test.
-5. **`_defaults/` auth and observability** — thin adapter wrappers; indirect coverage exists but no dedicated test.
-6. **`protocols/`** — 9 Protocol class definitions; no explicit protocol-conformance tests.
-7. **Schemathesis 47 xfails** — pre-existing OpenAPI contract violations pending triage.
-
-### Integration Test Coverage
-
-`@pytest.mark.integration` appears across 6 files in `tests/integration/`:
-- `tests/integration/automation/polling/test_end_to_end.py` (7 marks)
-- `tests/integration/automation/polling/test_action_executor_integration.py`
-- `tests/integration/automation/polling/test_trigger_evaluator_integration.py`
-- `tests/integration/test_composite_verification.py`
-- `tests/integration/test_e2e_offer_write_proof.py`
-- `tests/integration/test_batch_api.py`
-
-Most `tests/integration/` files (25 of 33) do NOT carry `@pytest.mark.integration` — they use real component wiring with mocked I/O but do not require live Asana API.
-
-Packages with no integration or validation tests: `auth`, `core`, `models`, `metrics`, `query`, `patterns`, `transport`, `search`, `reconciliation`.
+### Prioritized Gaps
+1. `services/intake_*_service.py` (3) — critical write path, HTTP-layer-only coverage.
+2. `lifecycle/observation_store.py` — no direct test.
+3. `services/entity_context.py` — no direct test.
+4. `lifecycle/loop_detector.py` — naming/discoverability gap only (downgraded from "unguarded").
+5. `_defaults/` + `protocols/` — no dedicated dirs.
+6. Schemathesis 55 xfail — pending endpoint-by-endpoint triage.
 
 ### Coverage Infrastructure
-
-- `fail_under = 80` in `pyproject.toml` (`[tool.coverage.report]`); branch coverage enabled (`branch = true`); source scoped to `src/autom8_asana`
-- Coverage exclusion lines: `pragma: no cover`, `if TYPE_CHECKING:`, `@abstractmethod`, `raise NotImplementedError`, `if __name__ == "__main__":`
-- **Coverage gate (SRE-004 / ADR-011 — ENFORCED post-merge)**: `pyproject.toml:127` declares `fail_under = 80`. `.github/workflows/test.yml` sets `coverage_threshold: 0` for the 4-shard PR matrix job (per-shard coverage is meaningless with `test_splits=4`; each shard covers ~25%). Aggregate coverage gate runs at `.github/workflows/post-merge-coverage.yml` (single-shard `pytest --cov-fail-under=80` on push to main), enforcing the declared 80% floor post-merge. Project-crucible achieved 87.59% coverage baseline.
+`[coverage.run] source=["src/autom8_asana"]`, `branch=true`; `[coverage.report] fail_under=80`. PR gate: `coverage_threshold: 0` per-shard (meaningless at 4-way split), `coverage_threshold_aggregate: 80` (combines 4 `.coverage`), `mypy_targets: 'src/autom8_asana'`. Post-merge: `post-merge-coverage.yml` single-shard `pytest --cov-fail-under=80` on push to main. No fresh %-run this cycle (Knowledge Gap).
 
 ## Testing Conventions
 
-### Test Runner and Configuration
+- Runner: `pytest`, `asyncio_mode="auto"`, `testpaths=["tests"]`, `addopts="--dist=loadgroup"`, `timeout=60`. PR CI: `test_maxprocesses: 2`, `test_splits: 4` (pytest-split, `.test_durations`, weekly `durations-refresh.yml`). PR marker exclusion drops `not slow` on push (`run_integration` on `push`).
 
-- **Runner**: `pytest` with `asyncio_mode = "auto"` (all `async def test_*` execute without `@pytest.mark.asyncio`)
-- **Test command**: `pytest` from project root; `testpaths = ["tests"]`
-- **Parallel execution**: `pytest-xdist` with `--dist=loadgroup` (current `addopts` in `pyproject.toml`, commit `149d3673`). The `loadgroup` strategy ACTIVATES `xdist_group` markers — all tests carrying the same `xdist_group` value are pinned to the same worker. Prior doc drift (comment describing `--dist=loadfile` / R5-FIX rationale) is now resolved; `pyproject.toml:103-105` carries a forward-pointer to the substantive rationale in `test_workflow_handler.py` and `test_openapi_fuzz.py`.
-- **Timeout**: 60 seconds per test; `timeout_method = "thread"`
-- **Coverage**: `pytest --cov`; `fail_under = 80`, branch coverage, source `src/autom8_asana`
-
-**xdist history**: disabled → re-enabled (commit `affbf5a5`) → `--dist=load` → `--dist=loadfile` (commit `8fd0aefb`) → `--dist=load` (commit `8f99a801`) → `--dist=loadgroup` (commit `149d3673`; current).
-
-**xdist_group markers inventory** (3 active groups):
-
-| Group | File | Purpose |
-|---|---|---|
-| `xdist_group("fuzz")` | `tests/test_openapi_fuzz.py` | Pins schemathesis/hypothesis fuzz tests to a single worker; prevents cross-worker state corruption |
-| `xdist_group("workflow_handler")` | `tests/unit/lambda_handlers/test_workflow_handler.py` | Pins tests sharing `AsyncMock(spec=DataServiceClient)` teardown patterns executed inside `asyncio.run` event loops; was FORWARD-COMPATIBLE no-op under `--dist=load`, now ACTIVE under `--dist=loadgroup` (commit `149d3673`) |
-| `xdist_group("query_routes")` | `tests/unit/api/test_routes_query.py` | Pins tests with heavy `AsyncMock` + `dependency_overrides` isolation that produced contention under `--dist=loadgroup` without co-location (DW-W1E-LOADGROUP-FALLOUT-001) |
-
-### Test Naming
-
-- Function-based tests dominant; subset use `class Test*` organization (e.g., `test_exports_contract.py` uses `class TestExportRequestForbiddenFields`, `test_exports_helpers_walk_predicate_property.py` uses 4 `class Test*` groups)
-- Naming pattern: `test_{thing_being_tested}_{condition}` — e.g., `test_cascade_validator_corrects_business_name_from_task_name`, `test_tier2_get_async_returns_model`
-- Async tests: `async def test_*` used broadly
-- Class-based pattern used for grouping related contract assertions and behavior-preservation clusters
-
-#### Async-native migration pattern (B7 Sprint-1, 2026-06-01)
-
-Canonical mechanical transform for `def test_X(self) -> None: asyncio.run(coro)` sites whose production target is `async def`:
-
-1. `def test_X(self, ...) -> None:` -> `async def test_X(self, ...) -> None:`
-2. `asyncio.run(<expr>)` -> `await <expr>`
-3. `with pytest.raises(...): asyncio.run(coro)` -> `with pytest.raises(...): await coro`
-4. Drop orphaned `import asyncio` to satisfy ruff F401.
-5. Do NOT add `@pytest.mark.asyncio` — auto-mode (`pyproject.toml:99`) is the standard.
-6. Production source MUST remain untouched; any `src/` diff signals scope drift.
-
-First landed at `tests/unit/lifecycle/test_observation.py:235` and `tests/unit/lifecycle/test_observation.py:244` (TestStageTransitionEmitter); production target `src/autom8_asana/lifecycle/observation.py:160` (`async def emit`) is unchanged. Exit-gate evidence: test ID parity (18 collected pre/post), `git diff main..HEAD -- src/` = 0 bytes, ruff/mypy clean.
-
-Intentional `asyncio.run` pins (DO NOT MIGRATE — they exercise specific guard behavior or sit in docstrings/comments):
-
-- `tests/unit/dataframes/test_freshness_verification_recency.py:736-760` (sync-context guard semantic test)
-- `tests/unit/patterns/test_async_method.py:92` (`test_sync_in_async_context_raises` — deliberately invokes sync API inside a running loop)
-- `tests/unit/dataframes/test_public_api.py:278` (docstring reference only — describes async wrapper behavior)
-- `tests/unit/models/business/test_resolution.py:777,786` (docstring references in `TestBatchResolutionSyncWrappers` — text-only descriptions of `asyncio.run` usage in production sync wrappers)
-- `tests/unit/models/business/test_resolution.py:780-782` (inline `# Note:` comment explaining why the sync wrapper cannot be exercised inside an event loop)
-
-#### Dual-surface anti-pattern (DO-NOT-MIGRATE class)
-
-When a test method exercises BOTH the sync wrapper AND the async variant of an `@async_method`-decorated function within the same body, the canonical 6-rule transform is mechanically inapplicable. The sync wrapper raises `SyncInAsyncContextError` (production guard at `src/autom8_asana/patterns/async_method.py:132-137`) when invoked from a running event loop. Migrating `def test_X` → `async def test_X` puts the entire body in a running loop, so any sync-wrapper call would trigger the guard and invert the test's semantic intent.
-
-**Detection heuristic**: grep the body of each `def test_X` for both `*_async(` (async variant) AND a corresponding sync invocation. If both present, the site is DO-NOT-MIGRATE.
-
-Known dual-surface pins (10 sites in `tests/unit/patterns/test_async_method.py`):
-
-- `test_with_kwargs:141` + sync call at L145
-- `test_with_multiple_args:159` + sync call at L162
-- `test_void_return:180` + sync call at L184
-- `test_exception_propagation:203` + sync call at L207
-- `test_stacked_with_mock_error_handler:272` + sync call at L280
-- `test_client_pattern_simulation:346,355,360` + sync calls at L351,L363
-- `test_inheritance_works:383,387` + sync calls at L384,L388
-
-See `.sos/wip/10x-dev/B7-INVENTORY-FILE-5-REVISED-2026-06-01.md` for the full per-site SVR-grade audit. Sprint-3 originally HALTED on this defect; the revised inventory landed alongside the single safely-migrable site (`test_async_behavior_correct:58`).
+### xdist_group Inventory — GROWN (3→6 groups, 32 files)
+`fuzz` (1), `workflow_handler` (4), `query_routes` (4), **`scheduling_normalizer` (8, NEW)**, **`gfr_resolver` (11, NEW)**, **`gfr_drift_gate` (1, NEW)**. xdist history: disabled → re-enabled → load → loadfile → load → **loadgroup** (current).
 
 ### Markers
+`parametrize` 205 sites/91 files (was 148/63); `integration` 44/8 files; `slow` 23/14; `scar` **46/17** (was 35/11); `benchmark` 3; `fuzz` 1 module; `worker_isolated` 4 (`test_workflow_handler*.py` — SIGKILL-under-xdist scar, run single-process non-blocking); `skip` 16; `skipif` (subset — `FAKEREDIS_AVAILABLE`/`MOTO_AVAILABLE`/`_HAS_HYPOTHESIS`).
 
-| Marker | Count | Meaning |
-|---|---|---|
-| `@pytest.mark.parametrize` | 148 call-sites (63 files) | Parameterized test cases; 12.4% parametrize rate |
-| `@pytest.mark.integration` | ~42 usages | Live API tests |
-| `@pytest.mark.usefixtures` | ~38 usages | Fixture injection via decorator |
-| `@pytest.mark.slow` | ~23 usages | Deselectable: `-m "not slow"` |
-| `@pytest.mark.scar` | 35 usages (11 files) | SCAR regression tests (HYG-001); selectable via `pytest -m scar`; registered in `pyproject.toml` |
-| `@pytest.mark.skip` | ~10 usages | Explicit skips with reason strings |
-| `@pytest.mark.skipif` | ~4 usages | Conditional: `not FAKEREDIS_AVAILABLE`, `not MOTO_AVAILABLE`, `not _HAS_HYPOTHESIS` |
-| `@pytest.mark.benchmark` | ~3 usages | Performance benchmarks |
-| `@pytest.mark.fuzz` | 1 module | OpenAPI hypothesis fuzz |
-| `@pytest.mark.xfail` | 1 module (`test_openapi_fuzz.py`) | 47 pre-existing schemathesis violations |
-
-**Parametrize adoption (HYG-004)**: 148 call-sites across 63 files (verified at HEAD `8980bcd7`). Unchanged from prior cycle. Rate: 12.4%.
-
-**SCAR marker (HYG-001)**: `@pytest.mark.scar` registered in `pyproject.toml` with 35 invocations across 11 test files (verified at HEAD `8980bcd7`; unchanged from prior cycle). Enables `pytest -m scar` selection of the inviolable regression cluster.
-
-### Property Tests (Hypothesis)
-
-Only **1 `@hypothesis.given` decorator** in `tests/unit/` — `tests/unit/persistence/test_reorder.py:288` (`test_property_moves_produce_desired_order`), stabilized by TRIAGE-005 (commit `ec7c7f10`): `@settings(max_examples=100, deadline=None, derandomize=True)`.
-
-`tests/test_openapi_fuzz.py` is the other hypothesis consumer: schemathesis-driven OpenAPI fuzz with `max_examples` capped and `derandomize=True` (FR-10). Hypothesis DB write channel disabled in CI.
-
-Note: `test_exports_helpers_walk_predicate_property.py` uses "property" in its name but is a class-based pytest test — it does NOT use `@hypothesis.given`.
-
-### Mocking Conventions
-
-- **`AsyncMock`** (stdlib `unittest.mock`): all async method mocking; dominant pattern
-- **`MagicMock`**: sync objects (services, clients, config)
-- **`MagicMock(spec=)`** (HYG-002): 136 call-sites across 33 files — interface-enforcing mocks that fail fast on attribute typos. This is the canonical spec-enforcing mock pattern adopted post-HYG-002 campaign. Count verified at HEAD `8980bcd7`.
-- **`patch`** (`unittest.mock.patch`): context manager and decorator in 96+ files
-- **`respx`**: httpx mocking; ~16 files for HTTP call interception
-- **`fakeredis`**: Redis mocking; conditionally available
-- **`moto`**: AWS/S3 mocking; conditionally available
-- **SDK testing doubles**: `autom8y_log.testing.MockLogger`, `autom8y_cache.testing.MockCacheProvider`
-- **`schemathesis` + `hypothesis`**: OpenAPI property-based fuzzing
-
-### MockTask Canonicalization (HYG-003 — COMPLETE)
-
-`MockTask` is fully canonicalized: **1 definition** in `tests/_shared/mocks.py`, **0 bespoke** class-level redefinitions remaining (verified at HEAD `8980bcd7`; `grep -rn "class MockTask" tests/` returns only the canonical definition). `MockTasksClient` (2 remaining occurrences in `tests/unit/automation/test_waiter.py` and `tests/integration/test_unit_cascade_resolution.py`) is a distinct class, not a `MockTask` variant.
-
-**Convention**: New tests that require a `MockTask` MUST import from `tests/_shared/mocks`. Bespoke redefinitions are prohibited.
-
-**SDK testing doubles utilization**: `autom8y_log.testing`/`autom8y_cache.testing` imported in 5 of 502 non-conftest test files (~1% adoption). Doubles are funneled through root conftest fixtures (`MockLogger`, `MockCacheProvider`); direct per-test imports are rare.
+### Other
+- Hypothesis: exactly **1** `@given` in `tests/unit/` (`test_reorder.py:274`, `derandomize=True`); `test_openapi_fuzz.py` is the schemathesis consumer.
+- Mocking: `AsyncMock`/`MagicMock` dominant; `MagicMock(spec=)` **147/38 files** (was 136/33); `respx` for httpx; `fakeredis`/`moto` conditional; SDK doubles funneled through conftest.
+- MockTask canonicalization intact: `tests/_shared/mocks.py:12` the single `class MockTask` ("SUPERSET of all 11 prior variants per HYG-003"). `MockTasksClient` is a distinct class.
 
 ## Fixture Patterns
 
-### Fixture Infrastructure
-
-- 687 `@pytest.fixture` definitions; 15 `conftest.py` files
-- Fixture scopes: `function` (default), `session` (`_bootstrap_session`), `module` (API conftest `app` fixture)
-
-### Root Conftest (`tests/conftest.py`)
-
-| Fixture | Scope | Purpose |
-|---|---|---|
-| `mock_http` | function | `MockHTTPClient` with `AsyncMock` for 8 HTTP methods |
-| `config` | function | `AsanaConfig()` |
-| `auth_provider` | function | `MockAuthProvider` returning `"test-token"` |
-| `logger` | function | `MockLogger` from `autom8y_log.testing` |
-| `_bootstrap_session` | session (autouse) | Bootstraps `ProjectTypeRegistry` + rebuilds Pydantic `NameGid` forward refs once per session |
-| `reset_all_singletons` | function (autouse) | `SystemContext.reset_all()` before/after every test — complete isolation |
-
-**Environment setup**: Root conftest force-sets `AUTOM8Y_ENV=test` (relaxes GID pattern) and `AUTH__JWKS_URL=http://localhost:8000/...`. Patches `schemathesis.pytest.xdist.XdistReportingPlugin.pytest_testnodedown` at class-method level inside `pytest_configure` (R4-FIX-002).
-
-### Canonical Shared Mocks (`tests/_shared/mocks.py`)
-
-The `_shared/mocks.py` module is the canonical source for `MockTask` (automation/polling). Any test requiring `MockTask` must import from here. `MagicMock(spec=)` adoption (HYG-002 — 136 call-sites across 33 files) complements this by enforcing interface contracts on inline mock objects.
-
-### Sub-Package Conftests
-
-Domain-specific fixtures provided by: `api/`, `clients/`, `clients/data/`, `cache/`, `dataframes/`, `automation/polling/`, `automation/workflows/`, `lifecycle/`, `persistence/`, `resolution/`, `reconciliation/`.
-
-### Test Isolation Pattern
-
-- `SystemContext.reset_all()` via autouse fixture resets all registries, caches, singletons between every test
-- Per-test resets for `EntityProjectRegistry`, `reset_auth_client`, `clear_bot_pat_cache`
-- Environment variables controlled via `os.environ` in conftest (session-scoped)
-
-### No File-Based Test Data
-
-No `fixtures/`, `testdata/`, or `data/` directories in `tests/`. All test data inline via `MockTask`, fixture functions, builder/helper patterns. No golden files or YAML/JSON fixture files.
-
-**Test data factory patterns**: 160 helper functions named `make_*`/`create_*`/`build_*`.
-
-## CI Test Topology
-
-### xdist Configuration
-
-- **Runtime**: `--dist=loadgroup` (current `addopts`, commit `149d3673`). Under `loadgroup`, `xdist_group` markers are ACTIVE — tests in the same group are routed to the same worker.
-- **xdist_group markers**: 3 active groups (`fuzz`, `workflow_handler`, `query_routes`) — see Markers table above.
-- **Resolved doc drift**: Prior knowledge noted a stale `--dist=loadfile` comment in `pyproject.toml`. That drift is fully resolved at `8980bcd7`: `pyproject.toml:103-105` now carries a minimal forward-pointer comment ("--dist=loadgroup activates xdist_group markers; substantive rationale lives at tests/unit/lambda_handlers/test_workflow_handler.py:25-46 + tests/test_openapi_fuzz.py:64-72") with no stale R5-FIX text.
-- **Hypothesis DB**: Write channel disabled in CI to prevent cross-worker database corruption
-
-### PR Sharding
-
-- 4-shard matrix using `pytest-split` with `coverage_threshold: 0` per shard (per-shard coverage meaningless at 25% each)
-- `tests/unit/lambda_handlers/test_workflow_handler.py` and `tests/test_openapi_fuzz.py` historically caused worker crashes (commits `d0a6335b` context); `xdist_group` + `--dist=loadgroup` is the current mitigation
-- **`.test_durations` refresh** (commit `e7698907`): retrained from trailing main n>=10. Affects pytest-split shard balance across the 4-shard PR matrix. Automated weekly refresh via `.github/workflows/durations-refresh.yml` (weekly cron; opens a `chore/durations-refresh-{run_id}` PR when durations change).
-
-### Post-Merge Coverage Gate
-
-- `.github/workflows/post-merge-coverage.yml` enforces `pytest --cov-fail-under=80` on push to main (SRE-004 / ADR-011)
-- Project-crucible 6-sprint run achieved 87.59% coverage baseline (36+ commits, 13,072→12,320 tests post-dedup campaigns)
-- Consumer-gate poll timeout raised 900s→2400s due to autom8y-asana wall-clock constraints
-
-### Performance Budgets
-
-- `TestAC006PerformanceTolerance` (`tests/unit/persistence/test_session_concurrency.py`):
-  - `test_lock_overhead_track`: < 1ms per operation
-  - `test_lock_overhead_state_read`: < 100µs (well under 1ms)
-  - `test_lock_overhead_under_contention`: < 2ms (widened from 1ms, commit `f37802f2` / B-3 — accommodates scheduler jitter under contention without false failures)
-
-### Assertion Density
-
-- 23,881 `assert` statements across ~11,922 unit test functions: ~2.00 asserts per test
-- 1,249 `pytest.raises` usages: strong negative-test culture (10%+ of test functions exercise error paths explicitly)
+- **752** `@pytest.fixture` (was 687), **17** `conftest.py` (+ a disjoint `mcp/tests/conftest.py`). Root conftest: `_bootstrap_session` (session autouse), `reset_all_singletons` (function autouse, `SystemContext.reset_all()`), forces `AUTOM8Y_ENV=test`/`AUTH__JWKS_URL`, patches schemathesis xdist reporting.
+- **Golden files DO exist [correction]**: prior doc said "no file-based test data" — FALSE. `tests/fixtures/scheduling_posture_golden_entries.json` (consumed by `test_scheduling_posture_golden.py`) and `tests/unit/knowledge/fixtures/drift/` both exist. Golden-file testing IS present, narrowly scoped.
+- Dominant inline construction: `make_*`/`create_*`/`build_*` helpers.
 
 ## Test Structure Summary
 
-### Directory Layout
-
 ```
-tests/
-  conftest.py                    # Root fixtures, env setup, schemathesis xdist patch
-  _shared/
-    mocks.py                     # MockTask canonical (automation/polling) — HYG-003 complete
-  unit/                          # ~490 test_*.py files
-    api/                         # ~51 files: routes, middleware, preload, health, exports (6 committed post-PR38)
-    auth/                        # ~6: bot_pat, audit, jwt, dual_mode
-    automation/                  # ~47: events, polling, workflows, engine
-    cache/                       # ~56: backends, dataframe, policies, circuit breaker
-    clients/                     # ~36: data client, name resolver, task/section/user
-    core/                        # ~10: registry, concurrency, retry
-    dataframes/                  # ~49: builders, views, schemas, extractors
-    detection/                   # 1: detection_cache
-    lambda_handlers/             # ~16: warmer, checkpoint, workflow, reconciliation
-    lifecycle/                   # ~15: engine, creation, completion, webhook
-    metrics/                     # ~10: compute, registry, definitions, expr
-    models/                      # ~40: business models, matching, contracts
-    patterns/                    # 2
-    persistence/                 # ~34: session, cascade, executor, graph, healing
-    query/                       # ~21: engine, compiler, hierarchy, join
-    reconciliation/              # ~5
-    resolution/                  # ~7: strategies, field_resolver, budget
-    search/                      # ~3
-    services/                    # 22: universal_strategy split (4 files)
-    transport/                   # ~7
-    (flat)                       # 9: auth_providers, batch_adversarial, settings, etc.
-  integration/                   # 33 test_*.py files
-  validation/persistence/        # 5: concurrency, functional, error handling, performance
-  synthetic/                     # 1: test_synthetic_coverage.py
-  benchmarks/                    # 1: insights benchmark
-  test_openapi_endpoint.py       # OpenAPI smoke
-  test_openapi_fuzz.py           # Schemathesis property-based fuzz; xdist_group("fuzz")
-  test_computation_spans.py      # Computation span assertions
+tests/                              655 test_*.py
+  conftest.py, _shared/mocks.py (canonical MockTask)
+  arch/            2   # StorageNamespaceContract t1-t5, discriminating-canary RED/GREEN
+  unit/          604   # api 86 · automation 70 · dataframes 66 · cache 60 · clients 47 ·
+                       #   models 41 · services 33 · persistence 28 · lambda_handlers 28 ·
+                       #   query 23 · resolution 20 · metrics 15 · lifecycle 15 · transport 13 ·
+                       #   core 12 · auth 9 · reconciliation 8 · normalizer 6 · search 3 ·
+                       #   canary 3 · patterns 2 · domain 2 · packaging 1 · knowledge 1 · contracts 1 · detection 1
+  integration/    38   # 8 carry @pytest.mark.integration (44 marks); 30 wire real components w/ mocked I/O
+  contracts/       1 · validation/persistence/ 5 · synthetic/ 1 · benchmarks/ 1 · fixtures/ 1 golden JSON
 ```
+Distribution: 655 files / 14,603 functions / 28,488 asserts / 1,538 `pytest.raises`. Packages with ZERO `tests/integration/`: auth, core, models, metrics, query, patterns, transport, search, reconciliation.
 
-### Test Distribution
+- **`tests/arch/`** (previously undocumented category): `test_namespace_contract.py` + `test_namespace_gen.py` — StorageNamespaceContract t1-t5 via the discriminating-canary doctrine (each test paired with a deliberately-broken registry COPY proving it fires RED — guards "G-THEATER").
+- **`tests/synthetic/test_synthetic_coverage.py`** (purpose resolved): full-surface OpenAPI harness ("Project Aegis") — a parametrized invocation exercising every operation across 44 paths / ~54 ops, NOT a coverage-gap detector.
 
-| Suite | Files | Test Functions |
-|---|---|---|
-| unit/ | ~490 | ~11,922 |
-| integration/ | 33 | ~500 |
-| validation/ | 5 | ~80 |
-| synthetic/ | 1 | ~10 |
-| benchmarks/ | 1 | ~10 |
-| root level | 3 | ~320 |
-| **Total** | **~502** | **~12,842** |
+## MCP Island Test Topology (`mcp/tests/`) — DISJOINT ISLAND, NOT COLLECTED
 
-Total assert statements: 23,881+. Total `pytest.raises`: 1,249.
+**The single highest-priority structural finding.** 24 `test_*.py` + 1 `conftest.py` (158 test functions, 422 asserts). Its own `mcp/pyproject.toml` (`name="asana-mcp"`, own `[tool.pytest.ini_options]`, `pythonpath=["."]`); `mcp/tests/conftest.py` builds a faked-HTTP fixture set (`httpx.MockTransport`).
 
-### Heavily Tested Areas (High Test Density)
+- **NOT collected by root pytest**: root `testpaths=["tests"]` excludes `mcp/`; bare `pytest` from root never discovers it.
+- **NOT in any CI workflow**: `grep -rn "mcp" .github/workflows/*.yml` → **zero** matches across all 12 workflows.
+- **No justfile target** references `mcp/` test execution.
+- **NOT in coverage source** (`coverage_package: 'autom8_asana'`, `source=["src/autom8_asana"]`; `mcp/pyproject.toml` has no `[tool.coverage]`).
+- **NOT type-checked** (`mypy_targets: 'src/autom8_asana'`; `mcp/pyproject.toml` has no `[tool.mypy]`).
+- **Ruff DOES reach it** (repo-wide) with a `mcp/**` carve-out (`TID251`, `TC001-3`, `ERA001`, `SIM105`) — the only quality gate touching `mcp/`.
 
-1. **cache/** — ~56 test files; circuit breaker, coalescer, backend drivers, dataframe tiers
-2. **api/** — ~51 test files (including 6 committed exports cluster post-PR #38)
-3. **dataframes/** — ~49 test files; cascade validator (highest-churn: 6 sessions)
-4. **automation/** — ~47 test files; events pipeline, polling engine, workflow handlers
-5. **services/** — 22 files; `test_universal_strategy*.py` (split across 4 files) is highest-churn hotspot (8 sessions)
-
-### High-Churn Hotspot Files
-
-| File | History |
-|---|---|
-| `tests/unit/services/test_universal_strategy.py` (+ 3 split files) | 8 sessions |
-| `tests/unit/dataframes/builders/test_cascade_validator.py` | 6 sessions |
-| `tests/unit/dataframes/views/test_cascade_view.py` | 4 sessions |
-| `tests/unit/api/routes/test_resolver_status.py` | 3 sessions |
-| `tests/test_openapi_fuzz.py` | 2 sessions; pass rate 5%→66%, now stabilized at xfail |
-
-### Test Package Style
-
-External tree style (separate `tests/` directory, not co-located with source). Tests import via `from autom8_asana...`. No `autom8_asana_test` package.
-
-### Integration vs Unit Distinction
-
-- **Unit tests**: Mock all external dependencies; `AsyncMock`, `MagicMock(spec=)` (HYG-002), SDK testing doubles; `SystemContext.reset_all()` enforces isolation
-- **Integration-style** (most of `tests/integration/`): Wire real components together with mocked I/O
-- **Live-API integration** (`@pytest.mark.integration`): Only 6 files marked
-- **Validation tests** (`tests/validation/persistence/`): Persistence behavioral contracts (concurrency, ordering, error handling, performance)
-- **Synthetic** (`tests/synthetic/`): Coverage gap detection
-- **Benchmarks** (`tests/benchmarks/`): Performance benchmarks marked `@pytest.mark.benchmark`
-
-### Special Test Types
-
-- **Adversarial tests**: `test_*_adversarial.py` — failure cases, race conditions, boundary violations
-- **Contract tests**: `test_*_contract.py` — behavioral guarantees (e.g., `test_idempotency_contracts.py`, `test_exports_contract.py`)
-- **Span tests**: `test_*_spans.py` — OpenTelemetry instrumentation assertions
-- **OpenAPI fuzz**: `tests/test_openapi_fuzz.py` — schemathesis/hypothesis (marked `fuzz`, `xfail(strict=False)`)
-- **SCAR regression tests**: 35 invocations across 11 files (HYG-001), selectable via `pytest -m scar`; registered marker. Inviolable regression cluster: SCAR-001/005/006/010/010b/020/026/027, SCAR-WS8, S3-LOOP, TENSION-001.
-- **Behavior-preservation tests**: `test_*_walk_predicate_property.py` — class-based tests anchoring behavior before/after refactors (T-04 pattern)
-
-### SCAR Test Cluster
-
-35 `@pytest.mark.scar` invocations across 11 test files (HYG-001 — verified at HEAD `8980bcd7`). The `scar` marker is registered in `pyproject.toml` and enables `pytest -m scar` selection. Files include `tests/unit/api/test_exports_auth_exclusion.py` (SCAR-WS8), `tests/unit/api/middleware/test_idempotency_finalize_scar.py`, `tests/unit/reconciliation/test_section_registry.py`.
-
-## MCP Island Test Topology (asana-mcp-v1) — verified at `f6a72824` (2026-07-20, refresh pass 2)
-
-> Pass-1 of this section (authored at `793e670b`) described a TWO-root split with
-> `tests/asana_mcp/` CI-collected. **#242 MERGED `beaf3344` superseded that**: the island is
-> unified under `mcp/` and `tests/asana_mcp/` NO LONGER EXISTS on main. Restated below
-> against direct reads at `f6a72824`.
-
-**The island suite — `mcp/tests/` (21 files; unified by #242) — root CI collects NONE of it**:
-- Root `testpaths = ["tests"]` (`pyproject.toml:113`) excludes `mcp/`; NO workflow in
-  `.github/workflows/` references `mcp/` (grep-verified at `f6a72824`). The island carries
-  its OWN `mcp/pyproject.toml` (`name = "asana-mcp"`, its own `testpaths = ["tests"]` →
-  `mcp/tests/` when run from `mcp/`) — a LOCAL/venv gate (lineage receipts: s2 29-passed;
-  unified 92/92 then 98-passed on the assembly branch; adversary re-ran both).
-- Contents: assembly floor F1-F4 (`test_assembly_floor.py` — traceparent, budget partition
-  fail-loud + burst+1 single refusal, import-safety, honesty ×4 + hiding-unwrapper
-  rejection), `test_budget_partition_and_rate_cap.py` (`:33` oversubscription, `:40`
-  RPS-exceeds-share), `test_cold_frame_mapping.py` (warming-not-auth two-sided),
-  `test_fences.py` (`:30` no domain-SDK import, `:36` no direct Asana endpoint, `:42`
-  scanner teeth, `:50` one timeout SoT, `:67` env-prefix discipline),
-  `test_composite_write_s3.py` (refusal RED / convergence GREEN pair),
-  `test_import_safety.py` + `test_import_safety_obs.py`, errors passthrough (MCP-1) + C3,
-  honesty passthrough, instrument seam, postures, readiness gate, schema canary, seam
-  conformance, span/traceparent, timeout cascade.
-- **The formerly-CI-collected floor tests moved OUT of the root gate with the
-  unification** — the pass-1 partial CI-gap is now a TOTAL island CI-gap (see Knowledge
-  Gap 7). Reference-posture context: the island is a throwaway POC
-  (MCP-REFERENCE-POSTURE-001), so a local-only gate is a NAMED trade, not an accident —
-  but it is now the whole island, not half of it.
-
-**Satellite-side MCP-adjacent suites that ARE root-CI-gated** (inside `tests/`):
-- `tests/unit/services/test_entity_vocabulary_parity.py` — the SAT-1 guard (below).
-- `tests/unit/api/preload/test_ready_fail_closed.py` (#248 `6edc83d5`) — the four-state
-  fail-closed `/ready` regression suite (the WS-A satellite half; 323 lines).
-
-**Lint/type gates scoping the island (re-verified at `f6a72824`)**:
-- ruff runs repo-wide with the `"mcp/**"` per-file-ignores carve-out (`pyproject.toml:237-254`
-  — TID251 httpx is the ratified constraint-5 transport) + #242's operator-CLI extensions.
-- mypy gates `src/autom8_asana` ONLY (`.github/workflows/test.yml:53` `mypy_targets`) —
-  `mcp/` is not type-gated in CI.
-- The RUF100 dead-noqa drift-guard covers `src/` only (`test.yml:420`) — `mcp/` excluded.
-- CodeQL runs at the org level (no repo workflow file); the assembly branch absorbed one
-  HIGH pre-merge (fence scanner reshaped to regex).
-
-**SAT-1 regression guard (the parity contract test — CI-gated)**:
-`tests/unit/services/test_entity_vocabulary_parity.py` (#245 `2eb830ca`) is the standing
-guard for the SCAR-VOCAB-PARITY-001 class: parity side (introspection vocabulary ⊆ execution
-vocabulary, `TestIntrospectionExecutionParity:73`) + teeth side (unknown entity rejected AND
-the rejection carries the full execution vocabulary, `TestUnknownEntityTeeth:113`, `:126`).
-Route-level 404 shape pinned by `tests/unit/api/test_routes_query_aggregate.py:125-142`
-(tc_ra002). Open flag (adversary D1-F4): no route-level POSITIVE test drives
-`POST /v1/query/process_sales/rows|aggregate` through the HTTP surface.
+Reference posture is explicit (charter §5.3 "NOT production code, NOT to be promoted before the §4 probe rules COMMIT") — but the ENTIRE 158-function suite is local-only-gated: a contributor can break every one and merge to `main` with zero CI signal. Satellite-side tests that ARE CI-gated: `tests/unit/services/test_entity_vocabulary_parity.py`, `tests/unit/api/preload/test_ready_fail_closed.py` (root `tests/`, not part of the island).
 
 ## Knowledge Gaps
 
-1. **Actual runtime coverage percentage** — `fail_under = 80` configured and enforced; project-crucible baseline was 87.59%, but no coverage report run during this audit cycle to confirm current state
-2. **`tests/validation/persistence/` CI inclusion** — unknown whether this suite runs in the 4-shard PR matrix or only post-merge
-3. **Whether `@pytest.mark.integration` gating is enforced in CI** — marker defined; CI config not examined for deselection enforcement
-4. **`tests/synthetic/test_synthetic_coverage.py` purpose** — contents not read; filename suggests coverage gap detection
-5. **`services/intake_*_service.py` service-layer isolation** — tested only through route tests; direct service error path coverage unknown
-6. **Schemathesis 47 xfails pending triage** — pre-existing OpenAPI contract violations in `test_openapi_fuzz.py` that have not been resolved or categorized
-7. **The ENTIRE mcp island suite is a local-only gate** (updated refresh pass 2, 2026-07-20) — #242 `beaf3344` unified all island tests (21 files, incl. the formerly-CI-collected s4 floor suite) under `mcp/tests/`, outside root `testpaths` (`pyproject.toml:113`); no workflow references `mcp/`. The pass-1 partial gap is now total. Candidate resolutions: a dedicated CI lane over `mcp/` (running `pytest` from `mcp/` against `mcp/pyproject.toml`), or an explicit reference-posture acceptance recorded until the GATE-PROBE ruling (island is throwaway per charter §5.3).
-8. **D1-F3 vacuous adversarial test on main** (2026-07-20) — `tests/unit/services/test_query_service.py:753`: mock truthiness defeats the `entity_service.py:114` guard; the test passes vacuously and fails when run honestly (proven main-identical, cure-wave adversary D1-F3). Deserves its own fix; not a witness-arc regression.
-9. **Adversary-DELTA sidecar test recommendations, ledgered** (2026-07-20) — D2-F1: cap `_upstream_suffix` interpolation length (~2KB defense-in-depth; production reimplementation); D2-F2: assert the auth-branch suffix never matches the warming lexicon (mirror the existing disjointness test); D1-F4 flag: add a route-level positive process_* rows/aggregate test.
+1. Actual runtime coverage % — `fail_under=80` enforced; no report run this cycle.
+2. `tests/validation/persistence/` — whether it runs in the 4-shard PR matrix or only post-merge, unverified.
+3. `services/intake_*_service.py` + `entity_context.py` — direct unit-test isolation still unresolved.
+4. Schemathesis 55 xfail — endpoint-by-endpoint triage pending.
+5. `mcp/tests/` island CI-gap — confirmed total (no workflow/justfile/coverage/mypy); resolution (dedicated `pytest`-from-`mcp/` lane vs recorded reference-posture acceptance) unexplored.
+6. `xdist_group` growth — the commits introducing `scheduling_normalizer`/`gfr_resolver`/`gfr_drift_gate` not traced this cycle.
 
-```metadata
-criteria_grades:
-  coverage_gaps:
-    grade: A
-    pct: 92
-    weight: 0.40
-    notes: >
-      All untested packages identified with criticality assessment. Critical paths assessed.
-      Prioritized gap list produced. Lifecycle safety gap (loop_detector) flagged at #2.
-      Incremental cycle: no new gaps introduced; all prior gaps unchanged at HEAD 8980bcd7.
-  testing_conventions:
-    grade: A
-    pct: 93
-    weight: 0.30
-    notes: >
-      xdist topology fully documented including new --dist=loadgroup switch and 3 xdist_group
-      markers. MockTask HYG-003 complete verified. MagicMock(spec=) count confirmed 136.
-      Performance budget widening (2ms contention) documented. Stale doc drift resolved.
-  test_structure_summary:
-    grade: A
-    pct: 92
-    weight: 0.30
-    notes: >
-      Distribution summary, heavily tested areas, directory layout, integration vs unit
-      distinction all current. .test_durations refresh cadence documented under CI topology.
-overall_grade: A
-overall_pct: 92.3
-confidence: 0.92
-source_hash: "8980bcd7"
-incremental_notes: >
-  Major change: xdist topology switched from --dist=load to --dist=loadgroup (commit 149d3673).
-  xdist_group markers inventory expanded from 1 to 3 groups (added workflow_handler, query_routes).
-  Prior doc-drift (stale loadfile comment) confirmed resolved in pyproject.toml.
-  .test_durations refresh cadence documented via durations-refresh.yml weekly cron.
-  Performance budget: TestAC006 contention budget widened 1ms->2ms (commit f37802f2).
-  Marker counts (parametrize=148, scar=35, MagicMock(spec=)=136) verified at HEAD.
-  Import-order ruff fixes across 4 test files: no semantic test changes.
-  Knowledge gap #7 (stale loadfile comment) removed — resolved.
-```
+## Experiential Observations (from `.sos/land/workflow-patterns.md`)
+
+Cross-session: test execution present in multiple sessions; the corpus has grown ~13% past the project-crucible campaign floor (13,072→12,320 dedup / 87.59% baseline are experiential, not re-measured — current live function count 14,603 exceeds both). Parametrize discipline (≥8% target) met and climbing. [Numbers attributed as experiential where not directly re-derived.]

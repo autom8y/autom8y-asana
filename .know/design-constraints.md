@@ -1,19 +1,17 @@
 ---
 domain: design-constraints
-generated_at: "2026-07-20T00:00:00Z"
+generated_at: "2026-07-23T14:56:44Z"
 expires_after: "7d"
 source_scope:
   - "./src/**/*.py"
   - "./mcp/**/*.py"
   - "./pyproject.toml"
-  - "./.github/workflows/*.yml"
-  - "./.ci/semantic-baseline.json"
 generator: theoros
-source_hash: "f6a72824"
-confidence: 0.93
+source_hash: "70d45434e1e79ce7bc380936e47a4e265447ffd4db88dc37cd8b37edc70b862f"
+confidence: 0.86
 format_version: "1.0"
-update_mode: "incremental"
-incremental_cycle: 2
+update_mode: "full"
+incremental_cycle: 0
 max_incremental_cycles: 3
 land_sources:
   - ".sos/land/initiative-history.md"
@@ -22,374 +20,84 @@ land_hash: "62e88f60226e924b7fc0298605ce934fc6c36a3b4090ed524a4ef0d3cc4a05ff"
 
 # Codebase Design Constraints
 
-> **WITNESS-ARC REFRESH 2026-07-20 (source_hash `793e670b`; targeted WS-D s5 pass by
-> docs/tech-writer, asana-mcp-postfelt-hardening — NOT a theoros full regen).**
-> Four MCP constraint entries added to §Operational Constraints from the shipped
-> asana-mcp-v1 surface (GATE-FELT closed 2026-07-20): MCP-BUDGET-PARTITION-001 (ΣSHARE ≤
-> 1.0 + RATE_RPS×60 ≤ SHARE_MCP×1500, fail-loud), MCP-WRITE-FLAG-001
-> (ASANA_MCP_ENABLE_WRITE_SURFACE discipline), MCP-B1O1-COUPLING-001 (parent_service
-> atomic co-deploy reverse-coupling), MCP-REFERENCE-POSTURE-001 (throwaway island until
-> GATE-PROBE COMMIT). Prior entries preserved unrevised; dated countdowns in the 2026-05-08
-> banner below are historical.
-> REFRESH PASS 2 (2026-07-20, same seat): #242 MERGED `beaf3344` unified the island under
-> `mcp/` — the four MCP entries' anchors re-verified and re-pointed at origin/main
-> `f6a72824` (`src/asana_mcp/*` and `tests/asana_mcp/*` no longer exist on main).
-> SCAR-TG-LIVENESS-001 referenced in MCP-B1O1-COUPLING-001 is now CURED (WS-A live,
-> PT-04 receipt) — the reverse-coupling entry's deploy-cost note reads accordingly.
-
-> Incremental update 2026-05-08 (commits `20ef7952`..`8980bcd7`). Prior source hash: `20ef7952` (FULL mode, 2026-05-04).
->
-> **KEY UPDATES vs `20ef7952`**:
-> - TENSION-012 stale ruff suppression re-verified: UP046/UP047 comments at `pyproject.toml:219-220` still cite `>=3.11`; `requires-python = ">=3.12"` — stale comment confirmed UNCHANGED
-> - autom8y-core lower bound lifted `>=4.0.0` → `>=4.2.0` (`pyproject.toml:25`, commit `f6864435`)
-> - xdist topology: `--dist=load` → `--dist=loadgroup` (`pyproject.toml:105`, commit `149d3673`) — new **CI-XDIST-LOADGROUP-001**
-> - Consumer-gate fail-loud guard added to `.github/workflows/test.yml` (commit `9cbdb13e`) — new **CONSUMER-GATE-FAILSAFE-001**
-> - zizmor artipacked credential-leak mitigation: `persist-credentials: false` + `actions: read` permission added to `test.yml` fuzz checkout (commit `8980bcd7`) — note appended to **FLEET-SHA-SKEW-001**
-> - New durations-refresh workflow: `.github/workflows/durations-refresh.yml` (CIMS Phase 2 Sprint 2 CHANGE-002) — **CI-CONCURRENCY-001** updated
-> - Scorecard push-to-main trigger removed (CHANGE-001 SM-1A-4) — **CI-CONCURRENCY-001** updated
-> - Lock-overhead contention budget widened 1ms → 2ms (commit `f37802f2`) — new **PERF-BUDGET-REGRESSION-001**
-> - EC-013 telos deadline: 3 days remaining (2026-05-11; today 2026-05-08) — CRITICALLY URGENT
+> Fresh full refresh at synced HEAD `d0c8b662` (2026-07-23). Re-verified prior anchors against current code. Headline deltas vs the prior 2026-07-20 pass: StorageNamespaceContract fully documented (was absent); TENSION-002 grew 4→5 files; a semgrep layer-coverage gap identified; SCAR cluster 35→93 collected tests; FLEET-SHA-SKEW-001 RESOLVED; M-07 floor still breached; RB-1 gate + fail-clean-401 auth + redis-warmer fixes newly landed.
 
 ## Tension Catalog
 
-**TENSION-001: Dual Config System — Domain Dataclasses vs Platform Primitives**
-Location: `src/autom8_asana/config.py:22-65`, `src/autom8_asana/transport/config_translator.py`.
-The `ConfigTranslator` translates between domain dataclasses (`RateLimitConfig`, `RetryConfig`, `ConcurrencyConfig`, `TimeoutConfig`, `ConnectionPoolConfig`, `CircuitBreakerConfig`) and platform equivalents. Do not consolidate without phased migration; 200+ callers depend on domain dataclasses.
-Trade-off: Current state persists because the platform primitives predate the domain model — migrating all callers is an initiative-scale effort (EC-001 TDD-PRIMITIVE-MIGRATION-001 Phase 3 not started). Resolution cost: High.
+**TENSION-001: Dual Config System** — `config.py:22-65`, `transport/config_translator.py`. Unchanged. High cost.
 
-**TENSION-002: Services Layer Imports from API Layer (Intentional Violation)**
-Location: `src/autom8_asana/services/intake_create_service.py:23`, `matching_service.py:21`, `intake_resolve_service.py:18`, `intake_custom_field_service.py:16`. Confirmed at runtime (bare imports, no TYPE_CHECKING guard, no nosemgrep annotation on the actual import lines). Semgrep likely flags these 4 files on every CI run. Models are co-located in `api/routes/` because they were initially handler-local; extraction requires a coordinated models migration.
-Trade-off: Model extraction would require touching multiple service and route files simultaneously. No planned migration. Resolution cost: Medium.
+**TENSION-002: Services→API Layer Imports — NOW 5 FILES** — `services/intake_create_service.py:23`, `matching_service.py:21`, `intake_resolve_service.py:18`, `intake_custom_field_service.py:16`, **NEW** `services/receipts_service.py:40`. All bare, no `TYPE_CHECKING`/`nosemgrep`. Medium cost.
 
-**TENSION-003: Models Layer Importing from Persistence Layer**
-Location: `src/autom8_asana/models/task.py:406-409`, `models/custom_field_accessor.py:421`. Confirmed TYPE_CHECKING-guarded imports with `nosemgrep: autom8y.no-models-import-upper`. Load-bearing for SaveSession pattern.
-Trade-off: SaveSession requires both model and persistence types at the call site; the TYPE_CHECKING guard avoids runtime circularity while satisfying mypy. Resolution cost: Medium (requires redesigning SaveSession signature).
+**TENSION-003: Models→Persistence Import** — `models/task.py:414,417`, `custom_field_accessor.py:421`; `nosemgrep: autom8y.no-models-import-upper` present + correctly spelled. Medium.
 
-**TENSION-004: Lambda Handlers as Service-Layer Overflow**
-Location: `src/autom8_asana/lambda_handlers/pipeline_stage_aggregator.py:15`, `reconciliation_runner.py:11`. Both docstrings confirm placement to avoid circular dependencies.
-Trade-off: Lambda handlers import from services and models layers; placing them in `lambda_handlers/` breaks the circular dependency that would arise if they lived in `services/`. Resolution cost: Low to medium (requires clear service boundary definition).
+**TENSION-004..007** — Lambda-handlers-as-service-overflow; entity GID duplication; autom8y_interop protocol gap; Polars-primary + pandas bridge. Carried forward, not re-verified.
 
-**TENSION-005: Entity Classes Duplicate Project GIDs from Registry**
-Location: `src/autom8_asana/core/project_registry.py`, `src/autom8_asana/models/business/*.py`. 15+ entity classes with hardcoded `PRIMARY_PROJECT_GID`. Parity enforced by `tests/unit/core/test_project_registry.py:313`.
-Trade-off: Duplication is acknowledged but removal would break backward-compat facades. Test guard prevents divergence but does not eliminate the dual-source-of-truth. Resolution cost: Medium (EC-002 documented but not started).
+**TENSION-008: Auth→API Import — NOW STRUCTURALLY INVISIBLE TO SEMGREP** — `auth/dual_mode.py:24` (unguarded); `cache/dataframe/decorator.py:147,192,212,247` (function-body, in-scope, live unsuppressed hit). `auth/` is NOT in the semgrep include list (TENSION-014). Fix: move `ApiAuthError` to `core/`.
 
-**TENSION-006: autom8y_interop Protocol Gap — DataServiceClient Coverage Only 30%**
-Location: `src/autom8_asana/automation/workflows/protocols.py:32-61`, `bridge_base.py:29-38`. `get_reconciliation_async()` at `clients/data/client.py:1209` and `get_export_csv_async()` at `clients/data/client.py:1145` have no interop analogues. Both documented as bridge-specific gaps requiring upstream PRs.
-Trade-off: `autom8y_interop` is an external dependency; adding methods requires upstream PRs in another repository. Current state persists because upstream prioritization is external. Resolution cost: High (cross-repo coordination, EC-005).
+**TENSION-009: Fleet /v1/query Mount-Order** — `api/main.py:316` (`_assert_fleet_query_mount_order`), called `:517`. Re-verified present.
 
-**TENSION-007: Polars-Primary DataFrame Layer with Pandas Backward-Compat Bridge**
-Location: `src/autom8_asana/clients/data/models.py`. `.to_pandas()` backward-compat bridge documented.
-Trade-off: Migration to Polars was intentional for performance. Bridge exists for callers that predate the migration. Resolution cost: Low (bridge can be removed when all callers migrate).
+**TENSION-010: ExportOptions extra="allow"** — `exports.py:150`, P1-C-02 BINDING. **TENSION-011: ExportsSuccessResponse extra="ignore"** — carried. **TENSION-012: UP046/UP047 stale ruff comments** — `pyproject.toml:233-234`, still say `>=3.11` while `:10` is `>=3.12` (3rd consecutive confirmation — permanent low-priority drift).
 
-**TENSION-008: Auth Layer Importing from API Layer at Runtime**
-Location: `src/autom8_asana/auth/dual_mode.py:24`. Imports `ApiAuthError` directly from `api/exception_types.py` at module load time — not TYPE_CHECKING-guarded, no nosemgrep suppression. `cache/dataframe/decorator.py:147,184,204,223` contains four inline function-body imports from `api/exception_types`. Both `auth/` and `cache/` layers have undocumented runtime dependencies on the `api/` layer.
-Resolution path: Move `ApiAuthError` to public exception hierarchy in `core/exceptions.py` or root `exceptions.py`. Resolution cost: Medium. Cross-reference: GAP-008.
+**TENSION-013: StorageNamespaceContract — 12-Namespace SSOT with Discriminating-Canary Suite [NEW, was undocumented for multiple prior passes]** — `storage_namespace.py` (630 lines, `REGISTRY_NAMESPACE_COUNT=12`), `tests/arch/test_namespace_contract.py` (t1-t5), `test_namespace_gen.py`. The declared SSOT for every autom8-s3 namespace; t3 forbids any S3 prefix literal in `src/` outside it, t2 forbids IAM grants on unregistered namespaces. Minted to dissolve the "triple-defect saga" (phantom cold tier, overloaded `ASANA_CACHE_S3_PREFIX`, IAM drift). Intentional, not debt.
 
-**TENSION-009: Fleet /v1/query Mount-Order Load-Bearing Constraint**
-Location: `src/autom8_asana/api/main.py` `create_app()` RouterMount sequence. `fleet_query_router_v1` (POST `/v1/query/entities`) MUST mount BEFORE `query_router`, which registers the wildcard POST `/v1/query/{entity_type}` on the same `/v1/query` prefix; mounting the wildcard first shadows `/v1/query/entities` (matched as entity_type="entities") and 422s the fleet body.
-Exports note: the `exports_router_*` mounts also precede `query_router`, but only for dual-mount consistency; `/v1/exports` cannot be matched by the legacy query wildcard (distinct first path segment), so exports ordering is not load-bearing. The earlier framing asserting the wildcard would match the exports path was mechanically incorrect (corrected 2026-06-01; empirically verified — the exports path routes to its handler even when the wildcard registers first).
-Resolution: now structurally enforced at startup by `_assert_fleet_query_mount_order(app)` in `create_app()` (raises on fleet-ordering regression). Previously comment-only discipline.
+**TENSION-014: Semgrep Layer-Model Coverage Gap [NEW]** — `.semgrep.yml:29-49`. The `no-lower-imports-api` include list covers 19 packages; **6 non-api packages are absent**: `auth/`, `contracts/`, `domain/`, `lambda_handlers/`, `normalizer/`, `reconciliation/`. Any `autom8_asana.api` import from these is invisible to CI. Secondary: two `nosemgrep` comments (`auth/__init__.py:14`, `auth/audit.py:31`) cite the WRONG rule ID (`autom8y.no-lower-imports-api` vs the real `autom8y.asana-no-lower-imports-api`) — dead/misleading (harmless only because `auth/` isn't scanned anyway). Fix: add 6 paths + fix 2 IDs (then triage the `auth/dual_mode.py` hit that surfaces).
 
-**TENSION-010: ExportOptions extra="allow" — Phase 2 Forward-Binding Contract Lock**
-Location: `src/autom8_asana/api/routes/exports.py:141`. `ExportOptions.model_config = ConfigDict(extra="allow")` is explicitly marked P1-C-02 BINDING. Must NOT be changed to `extra="forbid"` — would foreclose Phase 2 `predicate_join_semantics` field per LEFT-PRESERVATION GUARD ADR (mechanism (b) escape valve at `ADR-engine-left-preservation-guard.md §4.1`). Documented in code comments and confirmed at `exports.py:141` at `20ef7952`.
-Resolution cost: Nil for Phase 1. Phase 2: promote `predicate_join_semantics` to typed `Literal` field, tension dissolves.
+**TENSION-015 / MCP-RB1-CONFIRM-GATE-001: MCP Composite-Write Two-Phase Gated [NEW]** — `mcp/asana_mcp/tools/confirm_gate.py` (#263), `composite_write.py:82-118`. Every `add_tag` needs two round-trips (token issue → confirm). Trigger-classification allowlist ownership DELIBERATELY UNASSIGNED (ruling R5) — v1 treats ALL tags trigger-capable. In-process store, restart clears (fails safe).
 
-**TENSION-011: ExportsSuccessResponse extra="ignore" vs Fleet SuccessResponse Convention** [NEW at `20ef7952`]
-Location: `src/autom8_asana/api/models.py:121`. `ExportsSuccessResponse` overrides `SuccessResponse` with `extra="ignore"` rather than the fleet default. This is intentional (schema-only typing over wire payload) but deviates from the parent class's open policy.
-Trade-off: The override prevents mypy/Pydantic complaints when the exports handler wraps a `list[dict]` in the standard envelope. Tightening or relaxing the parent `SuccessResponse` would require re-examining this subclass. Resolution cost: Low.
+## Operational Constraints
 
-**TENSION-012: UP046/UP047 Ruff Suppression Comments Stale**
-Location: `pyproject.toml:219-220`. Comments say `"requires-python still >=3.11"` but `pyproject.toml:10` now reads `requires-python = ">=3.12"`. The suppressions are harmless but misleading — they cite a Python version constraint that no longer exists. Re-verified at `8980bcd7`: stale comments unchanged (lines shifted from 227-228 to 219-220 due to unrelated edits; content unchanged).
-Resolution cost: Trivial (comment update only).
-
-## Operational Constraints (process and platform)
-
-These constraints are out-of-tree (rite-platform) or CI-enforced, not code-anchored. They govern process behavior affecting codebase integrity.
-
-**HYG-001: Pre-S4 Hygiene Gate Must Verify Untracked Test Files**
-Type: Operational constraint (rite-platform)
-Anchor: Incident-of-record: Sprint-3 hygiene rite issued APPROVED on PR-38 branch when 5 test files (`tests/unit/api/test_exports_*.py`) were untracked. Post-PR38, 6 files are committed. The hygiene rite audit-lead rendered APPROVED against a substrate-blind ground truth.
-Constraint: Hygiene S4 audit-lead pre-gate MUST run `git ls-files --others --exclude-standard tests/` and if non-empty halt with `RITE-SUBSTRATE-REFUSED: untracked test files present` before issuing APPROVED verdict.
-Owner-rite: knossos platform / hygiene-pass-2
-Severity: P1 (recurrence risk confirmed)
-Cross-reference: RITE-SUBSTRATE-INTEGRITY-001
-
-**RITE-SUBSTRATE-INTEGRITY-001: Pre-S0 Dirty-Tree Halt for ari sync**
-Type: Meta-constraint (rite-platform)
-Anchor: IC SEV-2 incident 2026-04-28. `ari sync --rite X` on a dirty working tree permitted multi-rite verdicts to render against substrate-blind ground truth.
-Constraint: `ari sync` pre-flight MUST run `git status --porcelain` and emit `RITE-SUBSTRATE-REFUSED: working tree dirty` + halt when dirty.
-Owner-rite: knossos platform / forge eval-specialist
-Severity: P1
-Operational consequence: Any `ari sync` verdict issued against a dirty tree is unreliable and must be treated as invalid.
-
-**M02-MONITOR-001: M-02 Score CI Tripwire — DISCHARGED 2026-04-29**
-Type: Observability constraint (CI)
-Status: **DISCHARGED via HYG-T1 commit `7dd9aa5d`** (2026-04-29). Empirical recompute at `20ef7952`: M-02 = 99/188 = 0.5266 (above 0.5 floor, pass: true). Confirmed in `.ci/semantic-baseline.json:12-19`.
-Residual concern (carry-forward): `aegis-check.py` does NOT enforce `examples=` count. Future PRs removing `examples=` declarations will not be caught until a manual baseline refresh.
-Severity: P3 (was P1 — downgraded; no active breach)
-Deadline: Sprint-4 (advisory)
-
-**M07-MONITOR-001: M-07 Constraint Coverage CI Tripwire — ACTIVE BREACH** [NEW at `20ef7952`]
-Type: Observability constraint (CI)
-Anchor: `.ci/semantic-baseline.json:52-59`
-Status: **FAILING**. M-07 score = 0.5714 (numerator: 4/7, floor: 0.6, pass: false). `regression_safe: true` flag set — the baseline marks this as a known floor violation but not a regression blocker.
-Evidence: `floor_violations: ["M-07_constraint_coverage"]`. `aegis-check.py` reports this but CI is set `regression_safe: true` (does not block PRs). The 3 uncovered constraint slots are unknown without re-running `aegis-check.py` against the spec.
-Severity: P2 (active floor violation; CI not blocking due to `regression_safe: true`)
-Deadline: Sprint-4 (before re-baselining)
-Cross-reference: RISK-013
-
-**WORKTREE-001: Parallel-Worktree Contamination Protocol Absent**
-Type: Operational constraint (development hygiene)
-Anchor: `.worktrees/` directory (gitignored). Uncommitted Sprint-3 wiring on a hygiene branch contributed to the IC SEV-2 dirty-tree incident.
-Constraint: Apply `parallel-wave-close-consolidation-protocol` at each session-wrap; audit `.worktrees/` for stale checkouts older than 7 days.
-Owner-rite: naxos / Sprint-4 cleanup
-Severity: P2
-Cross-reference: RITE-SUBSTRATE-INTEGRITY-001
-
-**FROZEN-RANGE-IMPORTERS-001: Frozen-Range Importer Catalog**
-Type: Structural constraint (blast-radius mapping)
-Frozen modules (P1-C-04 per `api/routes/exports.py:14`):
-- `src/autom8_asana/query/engine.py:139-178,181` (execute_rows steps 6-9, aggregate logic)
-- `src/autom8_asana/query/join.py` (full module)
-- `src/autom8_asana/query/compiler.py:53-63,192-241` (OPERATOR_MATRIX + _compile_node + _compile_comparison)
-
-Importer catalog (verified at `20ef7952`):
-- `src/autom8_asana/api/routes/exports.py:66` — imports `PredicateCompiler` from `query.compiler`
-- `src/autom8_asana/api/routes/query.py:38` — imports `QueryEngine` from `query.engine`
-- `src/autom8_asana/query/__init__.py:17-18,38` — re-exports `PredicateCompiler`, `QueryEngine`, `execute_join`
-- `src/autom8_asana/query/__main__.py:513,669,1025` — lazy-imports `QueryEngine` in CLI subcommands (3 sites)
-- `src/autom8_asana/services/query_service.py:238` — lazy-imports `strip_section_predicates` from `query.compiler`
-
-Constraint: Any modification to P1-C-04 frozen ranges must be cross-referenced against this importer list to assess blast radius.
-Severity: Structural — permanent design constraint
-Cross-reference: EC-011, SCAR-DISCRIMINATOR-001
-
-**FLEET-SHA-SKEW-001: autom8y-workflows Security SHA Skew Across Fleet**
-Type: Operational constraint (fleet security posture)
-Anchor: `.github/workflows/gitleaks.yml`, `trufflehog-scan.yml`, `dependency-review.yml`, `zizmor.yml` in autom8y-asana — all four pin `autom8y/autom8y-workflows/...@44b771e516a49a0d964782e4bbd0f0e39b2f97a1`. Scorecard workflow pins `c77acb0cf9e48b17f08180d54e24086016706856`.
-Skew surface: 4-of-5 security workflows trail the fleet SHA.
-Constraint: Fleet should converge on a single autom8y-workflows SHA. SHA bump must be atomic across affected repos.
-Severity: P2 (security workflow versions diverge; no CI enforcement)
-Owner-rite: /arch (cadence) or /sre (direct execution)
-**Update at `8980bcd7`**: `test.yml` fuzz checkout now sets `persist-credentials: false` (zizmor artipacked credential-leak mitigation, commit `8980bcd7`). This is a targeted per-checkout hardening — it does not change the overall fleet SHA skew status but adds a per-step credential isolation guard. The fuzz job also gained `actions: read` permission to support cross-workflow `download-artifact` for consumer-gate. See CONSUMER-GATE-FAILSAFE-001.
-
-**DEFER-WATCH-REGISTRY-001: Active Defer-Watch Entries — Cross-Reference**
-Type: Informational constraint (deferred-scope registry)
-See `.know/architecture.md` §Defer-Watch Active Entries for canonical cross-reference.
-Active entries as of 2026-04-29 close (2 total, both KEEP-OPEN per EUN-005 audit):
-- `DEFER-WS4-T3-2026-04-29`: autom8y_log SDK stdlib interface gap; watch_trigger 2026-05-29; escalation: rnd-rite
-- `lockfile-propagator-prod-ci-confirmation`: Notify-Satellite-Repos green pending; watch_trigger 2026-05-29; deadline 2026-07-29; escalation: 10x-dev rite
-
-**CI-CONCURRENCY-001: CI Concurrency Controls** [UPDATED at `8980bcd7`]
-Type: Operational constraint (CI)
-State at `20ef7952`: Only `gitleaks.yml` had concurrency control (`group: gitleaks-${{ github.ref }}, cancel-in-progress: true`). `trufflehog-scan.yml`, `dependency-review.yml`, and `zizmor.yml` lacked equivalent guards. Scorecard had `push: branches: [main]` trigger active.
-
-Updates at `8980bcd7`:
-- **Scorecard push trigger removed** (CHANGE-001 SM-1A-4, commit `9cbdb13e`): `.github/workflows/scorecard.yml` no longer triggers on `push: branches: [main]`. Triggers are now `schedule` (Monday 06:00 UTC) + `workflow_dispatch` only.
-- **durations-refresh workflow added** (CIMS Phase 2 Sprint 2 CHANGE-002, commit `9cbdb13e`): `.github/workflows/durations-refresh.yml` runs weekly Monday 09:00 UTC. Opens auto-PR labeled `ci-maintenance` when `.test_durations` changes. Includes concurrency control: `group: durations-refresh-${{ github.ref }}, cancel-in-progress: true`.
-
-Current posture: `gitleaks.yml` and `durations-refresh.yml` have concurrency guards; `scorecard.yml`, `trufflehog-scan.yml`, `dependency-review.yml`, `zizmor.yml` do not.
-Severity: P3 (informational; no active incident)
-Cross-reference: FLEET-SHA-SKEW-001
-
-**CI-XDIST-LOADGROUP-001: xdist Topology Shift to --dist=loadgroup** [NEW at `8980bcd7`]
-Type: Operational/testing constraint (CI + local test execution)
-Anchor: `pyproject.toml:105`, commit `149d3673` (Sprint W1-E close).
-Change: `addopts` shifted from `--dist=load` to `--dist=loadgroup`. The R5-FIX rationale comment block previously in `pyproject.toml` was removed; rationale now lives in per-test-file comments:
-- `tests/unit/lambda_handlers/test_workflow_handler.py:25-46` — xdist_group("workflow_handler") rationale; cross-worker AsyncMock teardown corruption documented (CI runs 25258237857, 25188629600)
-- `tests/test_openapi_fuzz.py:64-72` — xdist_group("fuzz") rationale; module-level `app/schema` state co-locality
-
-Files pinned via `xdist_group` markers at Sprint W1-E close (DW-W1E-LOADGROUP-FALLOUT-001):
-- `tests/unit/lambda_handlers/test_workflow_handler.py` — `pytestmark = [pytest.mark.xdist_group("workflow_handler")]`
-- `tests/unit/api/test_routes_query.py` — `pytestmark = [pytest.mark.xdist_group("query_routes")]`
-- `tests/test_openapi_fuzz.py` — `pytest.mark.xdist_group("fuzz")` (pre-existing, landed earlier)
-
-**Structural implication**: Any new test that has cross-test state (singletons, async-mock teardown, `dependency_overrides`, module-level app fixtures) MUST adopt an `xdist_group` marker. Without it, `--dist=loadgroup` may still interleave the test with unrelated tests, but tests within a group are guaranteed co-locality. The `xdist_group` marker is forward-compatible: it is a no-op under `--dist=load` and activates under `--dist=loadgroup`.
-Severity: Structural — affects all new test authoring
-Cross-reference: LBC-014 (see Load-Bearing Code)
-
-**CONSUMER-GATE-FAILSAFE-001: Consumer-Gate Fail-Loud Guard** [NEW at `8980bcd7`]
-Type: Operational constraint (CI cross-fleet safety)
-Anchor: `.github/workflows/test.yml:135-150`, commit `9cbdb13e`.
-Context: Cross-fleet consumer-gate silent-bypass survey AP-CANDIDATE-cross-fleet-consumer-gate-silent-bypass-survey N=2 — autom8y-ads PR #34 (Path β remediation, commits 5080898/596db166) identified that when `candidate_wheel_run_id` is set but the wheel artifact download fails silently, the test suite runs against the wrong package version. autom8y-asana is the second fleet member to receive this remediation.
-Guard: Step "Verify candidate wheel present (consumer-gate fail-loud)" at `test.yml:135-150`. When `candidate_wheel_run_id` is non-empty and no `.whl` file is found at `/tmp/candidate-wheel/`, CI exits with an error:
-```
-::error::Consumer-gate test-purpose violation: candidate_wheel_run_id was set (...) but no .whl file found at /tmp/candidate-wheel/. Cross-workflow actions/download-artifact likely failed...
-```
-The `actions: read` permission added at `test.yml:85` supports `actions/download-artifact` cross-workflow artifact access (required for consumer-gate dispatch from `autom8y/sdk-publish-v2.yml`).
-Severity: P2 (cross-fleet test-purpose integrity; silent bypass was a silent failure mode)
-Cross-reference: FLEET-SHA-SKEW-001, RITE-SUBSTRATE-INTEGRITY-001
-
-**PERF-BUDGET-REGRESSION-001: Lock-Overhead Contention Budget Widened 1ms → 2ms** [NEW at `8980bcd7`]
-Type: Performance budget lever-loosening
-Anchor: `tests/unit/persistence/test_session_concurrency.py:596-599`, commit `f37802f2` (B-3).
-Change: `test_lock_overhead_under_contention` budget widened from `< 1ms` to `< 2ms` per operation under contention. The non-contention budgets (`test_lock_overhead_track`: `< 1ms`; `test_lock_overhead_state_read`: `< 100us`) are unchanged.
-Classification: This is a deliberate budget relaxation, not a performance improvement. The test was intermittently flapping on CI runners under load. The 2ms ceiling is still performant for the expected workload, but it is a regression relative to the original 1ms SLA.
-Severity: P3 — no active incident, but represents reduced performance assertion coverage for the contended path. Any optimization work on `DeferredSessionStore` locking should target returning the ceiling to 1ms.
-Cross-reference: RISK-015
-
-**MCP-BUDGET-PARTITION-001: Shared-PAT Budget-Partition Invariants — Fail-Loud, Ratified** [NEW at `793e670b`, 2026-07-20]
-Type: Structural constraint (ratified doctrine — dossier B4, GATE-BW PASS 2026-07-17)
-Anchor (re-verified at `f6a72824`, post-#242 unification): `mcp/asana_mcp/observability.py:265` (`validate_partition`), `:179` (`BudgetPartitionError`), defaults `:151-157`, env overrides `ASANA_MCP_PAT_SHARE_*` `:162-164`.
-The two config-time invariants are RATIFIED substance (dossier B4, `.ledge/decisions/DECISION-asana-mcp-v1-rulings-B1-B5-W5.md:409-427`): **`ΣSHARE ≤ 1.0`** (warmers + api + mcp never oversubscribe the shared PAT) and **`RATE_RPS × 60 ≤ SHARE_MCP × 1500`** (the MCP RPS cap is consistent with its declared share of the 1500/min bucket). Violation raises `BudgetPartitionError` at `instrument()` time — never at import, never silently. The numeric VALUES (0.60/0.32/0.08; RPS 2.0 / burst 10) are build-time-tunable within the invariants; the DOCTRINE (partition-precedes-exposure: the write-exposed surface never rides an unpartitioned PAT) is not. Scar basis: the attributed 429 storm (CHARGE P-1/P-4; cross-consumer arbitration CONFIRMED ABSENT; AIMD-concurrency-first is the NAMED backfire).
-Guard: `mcp/tests/test_budget_partition_and_rate_cap.py:33,:40` (oversubscription + RPS-exceeds-share rejected; burst+1 → exactly one typed `MCP_RATE_BUDGET_EXHAUSTED` refusal). NOTE post-#242: the island suite is a LOCAL gate — root CI does not collect `mcp/tests/` (see `.know/test-coverage.md` §MCP Island Test Topology).
-Severity: Structural — permanent for every consumer of the shared Asana PAT.
-
-**MCP-WRITE-FLAG-001: Write-Surface Exposure Flag Discipline** [NEW at `793e670b`, 2026-07-20]
-Type: Structural constraint (exposure gating)
-Anchor (re-verified at `f6a72824`, post-#242 unification): `mcp/asana_mcp/tools/composite_write.py:82` (`WRITE_SURFACE_ENV = "ASANA_MCP_ENABLE_WRITE_SURFACE"`), `:86` (`write_surface_enabled`), `:277` (`register()` self-gates — attaches NOTHING when OFF).
-The flag defaults OFF and MUST NEVER persist anywhere (no dotenv, no config file, no committed truthy value — the only truthy occurrences are per-process subprocess envs and auto-reverted `monkeypatch.setenv` in tests). Flipping it on an operator-witnessed surface is a guided-session act. The C2 sandbox probe harness REFUSES to run when the flag is set (`mcp/probes/c2_sandbox_reput_probe.py` guard) — sequencing is self-enforcing. Build ≠ expose: the composite may be BUILT freely; presenting it as a ratified surface required GATE-BW W-5 PASS (granted 2026-07-17, with the C1 idempotency posture surfaced).
-Severity: Structural — the exposure boundary for every current and future write verb.
-
-**MCP-B1O1-COUPLING-001: parent_service Atomic Co-Deploy — Reverse Coupling Named** [NEW at `793e670b`, 2026-07-20]
-Type: Deployment-topology constraint (ratified with recorded cost — dossier B1-O1)
-Anchor: `.ledge/decisions/DECISION-asana-mcp-v1-rulings-B1-B5-W5.md:83-116` (B1-O1 FOR/AGAINST incl. the AMENDMENT-1 reverse-coupling paragraph); a8 `pkg/manifest/types.go:635-642` ("shares the parent's ECR image and deploys atomically").
-The ratified v1 placement is `parent_service: asana` + `command_override`. The coupling cuts BOTH ways and both are ACCEPTED AND NAMED: (a) a bad asana image downs the MCP with it (no independent rollback); (b) **every MCP-only iteration atomically redeploys PRODUCTION asana**. Refresh-2 update: WS-A's `/ready` traffic gate is LIVE (SCAR-TG-LIVENESS-001 CURED — PT-04 receipt), so those deploys are now client-INVISIBLE; each iteration still consumes a full production deploy cycle whose warming phase measured ≈29.5 min (PT-04). UV-P #5 (a8 service-stateless rolling-deploy/paired-rollback behavior) bounds the reverse cost and remains frozen to deployment-PR time. Placement is RE-SCORED at MCP #2 scoping — B1-O1 is a v1 ruling, not a fleet pattern.
-Severity: P2 operational — plan MCP-side iterations as production asana deploys.
-
-**MCP-REFERENCE-POSTURE-001: The MCP Island Is a Throwaway Reference POC Until GATE-PROBE COMMIT** [NEW at `793e670b`, 2026-07-20]
-Type: Structural constraint (charter-bound horizon)
-Anchor: charter §5.3/§7 (`repos/.ledge/decisions/DECISION-fleet-mcp-program-alignment-2026-07-17.md`); probe entry `repos/.ledge/decisions/PROBE-fleet-mcp-second-leg-2026-07-20.md` (SCHEDULED, probe_due **2026-08-03**, ruling operator-only: COMMIT / PARK / KILL); lint carve-out `pyproject.toml:237-254`; wheel exclusion `pyproject.toml:109`.
-The `mcp/` island (post-#242 unified root — `src/asana_mcp/` no longer exists) is REFERENCE posture: throwaway, never promoted; production reimplements post-probe (reference-then-promote, V-4). Consequences that BIND now: (1) NO fleet code promotion before the probe rules COMMIT (constraint 8); (2) NO production sidecar reimplementation and NO identity species migration now (option-B dedicated MCP SA = deployment-PR trigger; "Do NOT deploy the production sidecar on the option-A identity" — incident §7); (3) production-reimplementation riders (MCP-1 SC-3 wire-error envelope, tool-description guidance, D2-F1 suffix cap, composite empty-push guard, P1 SDK detail-carry, P3 env-name mapping) stay LEDGERED at their horizon — do not build them into the island; (4) the constraint-5 fence (MCP process never imports the domain SDK, zero direct Asana calls) is enforced by `mcp/tests/test_fences.py:30,:36,:42` + `mcp/tests/test_import_safety.py` (island suite, local gate) and is non-negotiable at every horizon.
-Severity: Structural — governs the entire MCP surface until the operator's probe ruling.
+- **M07-MONITOR-001: M-07 Constraint Coverage — ACTIVE BREACH, UNCHANGED** — `.ci/semantic-baseline.json` M-07 = 0.5714 (4/7, floor 0.6, `pass: false`), `regression_safe: true` (non-blocking). Identical across 3 audit cycles / ~2.5 months. P2.
+- **FLEET-SHA-SKEW-001 — RESOLVED** — all 5 security workflows now pin `f5601acbe3905270dfcb9069854c78c0f940ad05` (was 4-of-5 skew). `test.yml` consumes a different pin lineage (`satellite-ci-reusable.yml@c824da59`), never part of the claim.
+- **Branch Protection Posture [NEW]** — `main` requires: `gitleaks`, `dependency-review`, `ci / Test (shard 1..4/4)`, `ci / Lint & Type Check`, `ci / Fleet Conformance Gate`, `CodeQL`. `enforce_admins: true`, `required_linear_history: true`, `allow_force_pushes: false`, `allow_deletions: false`, `required_conversation_resolution: false`. `trufflehog`/`zizmor`/`scorecard`/`dockerfile-lint`/`aegis`/`con2-freeze`/`durations-refresh`/`post-merge-coverage`/`nightly-live-smoke`/`satellite-dispatch` run but are NOT required checks (cannot block a merge). **Direct pushes to main are rejected — landing requires a PR + passing required checks.**
+- **MCP-BUDGET-PARTITION-001** (`observability.py:265` `validate_partition`, `:179` `BudgetPartitionError`) — re-verified. **MCP-WRITE-FLAG-001** re-anchored: `WRITE_SURFACE_ENV` now `composite_write.py:98`, `write_surface_enabled()` `:102`, `register()` `:458` (grew from RB-1/#249 landings; flag defaults OFF, never persists). **MCP-REFERENCE-POSTURE-001** — probe due 2026-08-03; `mcp/` absent from ALL CI (semgrep/mypy/coverage/test-collection); carries its own `mcp/pyproject.toml`.
+- **AUTH-FAIL-CLEAN-VALIDATIONERROR-001 [NEW, ruling R21 Lane-1, #262]** — `api/dependencies.py` new `except ValidationError` in `get_auth_context`: a bearer JWT clearing JWKS/signature/expiry but with claims that don't fit `ServiceClaims` (pydantic `ValidationError`, a `ValueError` not an `AuthError`) previously escaped as a 500; now refused as 401 `INVALID_TOKEN`. Rejection-only; detail not logged.
+- HYG-001, RITE-SUBSTRATE-INTEGRITY-001, CI-CONCURRENCY/XDIST/CONSUMER-GATE/PERF-BUDGET — carried forward (no touching commits in range), MODERATE confidence. WORKTREE-001: `.knossos/worktrees/` holds 20+ stale checkouts.
 
 ## Trade-off Documentation
 
-- **TRADE-001**: `raw=True` dual-return type on all 12 `*Client` classes. 115 occurrences of `raw: bool` or `raw=True` across `src/autom8_asana/clients/`. Current state: convenience API that returns either raw JSON or domain objects. Ideal: separate methods. Why current persists: legacy callers throughout automation layer. ADR: none.
-- **TRADE-002**: `CircuitBreakerConfig.enabled = False` opt-in. Confirmed at `config.py:291-297`. Current state: circuit breaker off by default. Ideal: default-on resilience. Why: avoiding circuit breaker complexity during build-out phase.
-- **TRADE-003**: `ConcurrencyConfig.aimd_cooldown_duration_seconds` unused; adaptive semaphore logs `"cooldown_not_active_in_v1"`. Confirmed at `transport/adaptive_semaphore.py:60,339`. Why: Phase 1 of adaptive semaphore doesn't implement full AIMD cooling.
-- **TRADE-004**: Broad-except sites in lambda handlers annotated `# BROAD-CATCH`. Current count: 22 BROAD-CATCH annotations in `lambda_handlers/`; 158 total codebase-wide (up from 152). Why: Lambda handlers serve as blast-radius isolation; broad catches prevent unhandled exceptions from crashing the handler host.
-- **TRADE-005**: ADR-0025 big-bang S3 cutover, no fallback. Referenced but ADR-0025 not in `.ledge/decisions/` (21 ADRs present, none numbered ADR-0025). May live in `.claude/agent-memory/`.
-- **TRADE-006**: `DataServiceConfig.max_batch_size >= 500` constraint documented in `query/fetcher.py:8-10`. Current code at `clients/data/config.py:256-263` validates `>=1` and `<=1000`. The 500-threshold concern is real but code validation is at `>= 1`.
-- **TRADE-007**: `DynamoDBIdempotencyStore` degrades silently to passthrough on connectivity failures. `api/main.py:339-344` emits `idempotency_store_degraded` warning and falls back to `NoopIdempotencyStore`.
-- **TRADE-008: Deprecated Query Endpoint Kept Until Sunset Date.** `api/routes/query.py:7,541,561,669`. `POST /v1/query/{entity_type}` deprecated with sunset `2026-06-01`. Today (2026-05-08) leaves ~24 days. Metric `deprecated_query_endpoint_used` (line 669) tracks usage. Legacy model classes preserved until sunset.
-- **TRADE-009: LEFT-PRESERVATION GUARD as NO-OP Structural Seam in Phase 1.** `api/routes/exports.py:236-284` (`_engine_call_with_left_preservation_guard`). Phase 1 ships single-entity exports — no LEFT JOIN fires, the GUARD is a structural NO-OP. Seam exists for Sprint 4 qa-adversary verification + Phase 2 architect inheritance. Per `ADR-engine-left-preservation-guard.md §4`.
-- **TRADE-010: ESC-1 Date Predicates Under OR/NOT Unsupported in Phase 1.** `api/routes/_exports_helpers.py:369-417`. Date operators (`BETWEEN`, `DATE_GTE`, `DATE_LTE`) inside `OrGroup` or `NotGroup` rejected with `ValueError` in Phase 1. Restriction: extracting date Comparisons from OR/NOT semantics would alter boolean meaning.
-- **TRADE-011: ExportsSuccessResponse Typed Schema Over Wire Envelope.** [NEW at `20ef7952`] `api/models.py:98-127`. The `ExportsSuccessResponse` subclass of `SuccessResponse[list[dict[str, Any]]]` exists purely to inject `examples=` for the M-02 semantic score metric. It uses `extra="ignore"` to avoid Pydantic validation failures when the wire response includes untyped dict fields. No runtime behavior change — schema-generation only. The `_exports_schema_extra` callable patches the `meta` property in the generated JSON schema. Why: M-02 score recovery after typed schema introduction in BLOCKING-1 amendment.
-- **TRADE-012: autom8y-core Lower Bound Lifted to >=4.2.0.** [NEW at `8980bcd7`] `pyproject.toml:25`. Lower bound raised from `>=4.0.0` to `>=4.2.0` (commit `f6864435`, Path γ). Environments with autom8y-core 4.0.x or 4.1.x will now fail dependency resolution. Rationale lives in commit message. Upper bound `<5.0.0` unchanged. Consumers of autom8y-asana as a library must carry autom8y-core `>=4.2.0`.
+- **TRADE-008 / EC-008 (deprecated `POST /v1/query/{entity_type}`) — CORRECTED: REMOVED** — retired in `5e31bb48` (2026-06-24), a full month BEFORE the prior doc's own source_hash. The prior "witness-arc refresh" patched MCP entries but didn't re-verify this pre-existing claim. No longer live.
+- **TRADE-012** — `autom8y-core>=4.2.0,<5.0.0` re-verified.
+- **TRADE-013: Redis Prod-Image Packaging Single-Line Omission [NEW]** — `Dockerfile:100` built `uv sync … --extra api --extra auth --extra lambda`, omitting `--extra redis`. `RedisCacheProvider` fails open on `ImportError` → silent NO-OP warmer cache. Fixed (`b3da9d8c`, `--extra redis` + loud `cache_degraded_mode` ERROR), guarded by `tests/unit/packaging/test_dockerfile_prod_extras.py` (two-sided).
+- TRADE-001..007/009..011 — carried, not re-verified.
 
 ## Abstraction Gap Mapping
 
-- **GAP-001**: Missing `CONSULTATION` variant in `ProcessType` enum. `services/intake_create_service.py:46-48`. Blocks Consultation flow until enum extended.
-- **GAP-002**: ~~Reconciliation section GIDs are unverified placeholders. `reconciliation/section_registry.py:57,79,94,128` with `VERIFY-BEFORE-PROD (SCAR-REG-001)` annotations. 4 locations confirmed.~~ **RESOLVED** `2d7d39d9` #190 (SCAR-REG-001): 19 fabricated placeholder GIDs replaced with live W-IRIS receipt values; 17 live sections wired; `SectionRegistryError` fail-closed gate added; `VERIFY-BEFORE-PROD` annotations removed.
-- **GAP-003**: `TieredCacheProvider` S3 cold tier is Phase 3 — not implemented. Redis-only in factory. EC-003.
-- **GAP-004**: `DataServiceClient` / `autom8y_interop` protocol gaps for reconciliation and export. `automation/workflows/protocols.py:32-61`. TENSION-006.
-- **GAP-005**: Metrics layer Phase 1, section scoping for "offer" only. `metrics/metric.py:28-30`.
-- **GAP-006**: `EntityDescriptor` frozen dataclass mutated at module load via `object.__setattr__()`. `core/entity_registry.py:851-890`. Order-dependent; test relies on stable import order.
-- **GAP-007**: `EntityDescriptor.entity_type` typed as `Any = None` to break `core → models` circular import. `core/entity_registry.py:140,851-853`.
-- **GAP-008: api/exception_types.py Used as Cross-Cutting Exception Registry.** Callers: `auth/dual_mode.py:24`, `cache/dataframe/decorator.py:147,184,204,223`, `api/dependencies.py:37`, `api/routes/internal.py:20`. Renaming requires coordinated updates across four files in three packages. Cross-reference TENSION-008.
-- **GAP-009: Op Enum Has Date Operators Not Supported by PredicateCompiler.** `query/models.py:52-56` (`Op.BETWEEN`, `Op.DATE_GTE`, `Op.DATE_LTE`) exist in AST vocabulary but `PredicateCompiler` (P1-C-04 FORBIDDEN at `compiler.py:53-63,192-241`) does not handle them. The `/exports` handler explicitly strips date ops before calling `PredicateCompiler`.
-- **GAP-010: SystemContext._reset_registry Per-Worker Isolation Carries Invisible State Risk.** [NEW at `20ef7952`] `core/system_context.py:33`. The registry is now a `dict[str, list[Callable]]` keyed by xdist worker ID. Outside xdist, all registrations go to key `"main"`. In xdist, each worker gets its own list. If a module is imported in the main process before workers fork, its `register_reset` call lands on `"main"` but workers won't inherit it (they run fresh). Registration-before-fork creates a silent gap. No test currently exercises this boundary.
+- **GAP-011: RedisConnectionPool Kwarg-Forwarding Lazy-Fail [NEW]** — `cache/backends/redis.py`. `redis.ConnectionPool(ssl=…, ssl_cert_reqs=…)` accepted kwargs at construction but forwarded them to `Connection.__init__` only at first checkout → `TypeError`, misclassified as transport failure, leaking a pool slot per op until `MaxConnectionsError`. Fix (`bfa4aedb`): select `connection_class=SSLConnection` explicitly; eager boot-time tripwire fails loud on kwarg drift. See LBC-016.
+- GAP-001..010 — carried, GAP-002 RESOLVED per prior pass.
 
-## Load-Bearing Code Identification
+## Load-Bearing Code
 
-- **LBC-001**: `EntityRegistry` singleton built at import time with 7 integrity checks. Import failure = startup failure. Dependents: all entity-typed routes, all dataframe strategies.
-- **LBC-002**: `ENTITY_DESCRIPTORS` tuple — all entity metadata in one declaration; all backward-compat facades delegate to it. Safe refactor requires: replacing with registry factory + migration of all descriptor references.
-- **LBC-003**: `DEFAULT_ENTITY_TTLS` in `config.py` — backward-compat import shim. Dependents: any caller using the old import path.
-- **LBC-004**: `EXCLUDED_SECTION_NAMES` at `reconciliation/section_registry.py:109-120` — "DO NOT use `UNIT_CLASSIFIER.ignored`" warning. Naive "fix" to use classifier directly changes reconciliation logic.
-- **LBC-005**: `SWR_GRACE_MULTIPLIER = 3.0` and `LKG_MAX_STALENESS_MULTIPLIER = 0.0` at `config.py:93-102`. Cache behavior semantics depend on these exact values; changing them is a behavioral regression risk.
-- **LBC-006**: `DataServiceConfig.max_batch_size >= 500` for join fetcher. `query/fetcher.py:8-10`. Values below 500 cause join fetch failures; enforcement is only in docstring, not validation.
-- **LBC-007**: `cascade_warm_phases()` topological ordering at `api/lifespan.py:242`. Wrong ordering causes cache warming failures at startup.
-- **LBC-008**: BROAD-CATCH isolation pattern in lambda handlers. 22 annotated in `lambda_handlers/`; 158 total codebase-wide. Naive narrowing breaks handler isolation.
-- **LBC-009: DynamoDBIdempotencyStore Degradation-to-Passthrough.** `api/middleware/idempotency.py:278,340,385,405` (corrected from stale `:277,:339,:384,:404`). Four `except Exception` blocks load-bearing; each annotated `ADVISORY`. ~~SCAR-IDEM-001 carries double-execution risk at line 384 (finalize).~~ **SCAR-IDEM-001 RESOLVED** `f795d7dc` #149 (W-IDEM, 2026-06-24): finalize try-block at `:762-780`; S2S hard 500 at `:803-830` (R-IDEM-2). Naive narrowing to `botocore.exceptions.ClientError` would break on connection timeout exceptions — the ADVISORY pattern remains load-bearing for the three degradation blocks (:278,:340,:405).
-- **LBC-010: ExportOptions extra="allow" Contract Lock.** `api/routes/exports.py:141`. Tightening to `"forbid"`/`"ignore"` would silently break Phase 2 callers passing `predicate_join_semantics` as untyped extra. Dependents: `ADR-engine-left-preservation-guard.md §4`, `exports.py:292-304`.
-- **LBC-011: Fleet /v1/query Registration Order in api/main.py.** `create_app()` RouterMount sequence. `fleet_query_router_v1`/`fleet_query_router_api_v1` (POST `/v1/query/entities`) MUST register BEFORE `query_router` (wildcard `/v1/query/{entity_type}`, same prefix) or the fleet route is shadowed (silent at startup; manifests as 422 on first request). The `exports_router_*` mounts also precede `query_router` for dual-mount consistency but are not matchable by the query wildcard (distinct first segment). Now enforced at startup by `_assert_fleet_query_mount_order` (TENSION-009).
-- **LBC-012: SystemContext._reset_registry is now Per-Worker Dict.** [NEW at `20ef7952`] `core/system_context.py:33`. Changed from `list[Callable]` to `dict[str, list[Callable]]`. Callers invoking `SystemContext.reset_all()` outside xdist continue to work (key `"main"` is used). Any code that previously held a reference to the list or read `_reset_registry` directly is now broken. No known external callers access `_reset_registry` directly (private name), but this is load-bearing for test isolation across the full suite. Safe-refactor requirement: maintain `_worker_key()` contract if xdist environment detection logic changes.
-- **LBC-013: ExportsSuccessResponse as Typed Schema Surface.** [NEW at `20ef7952`] `api/models.py:98-127`. `ExportsSuccessResponse` is now the `response_model=` for both `/v1/exports` and `/api/v1/exports` mounts (confirmed at `exports.py:515,547`). Changing the `data` field type or the `json_schema_extra` callable affects the generated OpenAPI spec and M-02 semantic score baseline. Dependents: `exports.py:515`, `exports.py:547`, `aegis-synthetic-coverage.yml`, `.ci/semantic-baseline.json`.
-- **LBC-014: xdist_group Markers as Test Co-Locality Contract.** [NEW at `8980bcd7`] `tests/unit/lambda_handlers/test_workflow_handler.py`, `tests/unit/api/test_routes_query.py`, `tests/test_openapi_fuzz.py`. Under `--dist=loadgroup`, these markers guarantee co-locality of tests with shared state. Removing or changing `xdist_group` group names without auditing cross-test state dependencies will cause worker crashes or silent test-isolation failures (the exact failure mode documented in CI runs 25258237857, 25188629600). Cross-reference: CI-XDIST-LOADGROUP-001.
+- **LBC-015: StorageNamespaceContract REGISTRY is a Frozen Gateway [NEW]** — adding a raw S3 prefix in `src/` fails t3; an unregistered IAM grant fails t2; a 13th namespace without registration fails t1. Any new namespace MUST be added to `REGISTRY` (with `WriterOwner`, `Lifecycle`, IAM matrix) first.
+- **LBC-016: Redis Pool Boot Tripwire [NEW]** — the eager unconnected-connection construction converts a future kwarg regression from "silent slot leak" to "loud `cache_degraded_mode` at boot." Removing it reintroduces the cured defect.
+- **LBC-017: F1a Floor-Gate Now on the Production Warmer Path [NEW]** — `transport/budget_allocator.py`, `dataframes/builders/hierarchy_warmer.py` (`d11ae574`). `WarmerFloorGate.admit`/`observe_admission` now have real call sites (previously inert). Keys on `AWS_LAMBDA_FUNCTION_NAME` so ECS can't accidentally throttle. Per-chunk banking bounds truncation loss to one chunk under the 900s Lambda wall (truncation GUARANTEED for large gap sets).
+- LBC-001..014 — carried, LBC-011 mount-order re-confirmed.
 
 ## Evolution Constraints
 
-- **EC-001**: TDD-PRIMITIVE-MIGRATION-001 Phase 3 (config consolidation) not started.
-- **EC-002**: Project GID migration (entity classes to registry) documented but not started.
-- **EC-003**: Cache architecture Phase 1 (Redis hot tier only); Phase 3 (S3 cold tier) planned.
-- **EC-004**: Consultation ProcessType blocked model landing.
-- **EC-005**: `autom8y_interop` partial migration blocked on upstream PRs.
-- **EC-006**: Exception narrowing in preload (I6 backlog) not yet run.
-- **EC-007**: ~~Reconciliation section GIDs require production API verification before deployment.~~ **RESOLVED** `2d7d39d9` #190 (SCAR-REG-001 / W-REG): live W-IRIS GIDs wired (receipt: `.ledge/reviews/W-IRIS-section-gid-receipt-2026-07-02.md`); `SectionRegistryError` fail-closed gate replaces all `VERIFY-BEFORE-PROD` annotations; production API verification complete.
-- **EC-008: Deprecated Query Endpoint Frozen Until 2026-06-01.** `api/routes/query.py:7,541`. Today (2026-05-08) leaves ~24 days. Callers tracked via `deprecated_query_endpoint_used` metric.
-- **EC-009: ADR-0001 secretspec Profile Split — Implemented.** `metrics/__main__.py:19-49` references `[profiles.cli]`. Test `tests/unit/metrics/test_main.py::TestPreflightParity::test_inline_and_secretspec_enforce_same_required_vars` enforces parity.
-- **EC-010: Python Version Constraint — No Upper Bound.** `pyproject.toml:10`: `requires-python = ">=3.12"` (upper bound `<3.14` removed earlier). Linter config suppresses UP046/UP047 with stale comments citing `>=3.11` at `pyproject.toml:219-220`.
-- **EC-011: query/engine.py:139-178,:181 and query/join.py — P1-C-04 Frozen.** `query/engine.py:139-178,181`, `query/join.py`, `query/compiler.py:53-63,192-241`. Explicitly P1-C-04 FORBIDDEN per `api/routes/exports.py:14` docstring. Phase 2 may modify under LEFT-PRESERVATION GUARD ADR architecture. See FROZEN-RANGE-IMPORTERS-001.
-- **EC-012: ExportOptions extra="allow" — Do Not Tighten Until Phase 2.** `api/routes/exports.py:141`. Bound by `ADR-engine-left-preservation-guard.md §4.1`.
-- **EC-013: project-asana-pipeline-extraction Telos Deadline — CRITICALLY URGENT.** Phase 0/1 carries `telos_deadline: 2026-05-11`. Today (2026-05-08) leaves **3 days**. Primary deliverable is Phase 1 exports route. Agents must not restructure the exports surface without confirming sprint scope. [KNOW-CANDIDATE] Telos deadline at 3 days remaining — all exports constraints are at maximum criticality.
-- **EC-014: SCAR Test Cluster Now pytest.mark.scar Tagged.** [NEW at `20ef7952`] 35 tests across 11 files bear `@pytest.mark.scar` (HYG-001 sprint, commit `36eaec6c`). These tests are inviolable regression guards. The `scar` marker is registered in `pyproject.toml` (via `7cd7ffd6`). Running `pytest -m scar` isolates this cluster. Do not modify or delete `@pytest.mark.scar` tests without an ADR.
-- **EC-015: Post-Merge Coverage CI Job Added.** [NEW at `20ef7952`] `.github/workflows/post-merge-coverage.yml` introduced (SRE-004, commit `29fdaad1`). `cancel-in-progress: false` — post-merge gates must run to completion. This is a new persistent CI surface; any refactor that changes test pass/fail distribution will affect post-merge coverage reporting.
-- **EC-016: Hadolint Dockerfile Lint Gate Added.** [NEW at `20ef7952`] `.github/workflows/dockerfile-lint.yml` introduced (SRE-005, per ADR-013). Any Dockerfile changes must pass hadolint with config `.hadolint.yaml`. The gate is authoritative per ADR-013-sre-005-hadolint-2026-04-30.md.
-- **EC-017: autom8y-core Lower Bound Now >=4.2.0.** [NEW at `8980bcd7`] `pyproject.toml:25`. Environments carrying autom8y-core 4.0.x or 4.1.x are now excluded. Any package consuming autom8y-asana as a library must ensure autom8y-core `>=4.2.0` in their own dependency graph. Path γ commit `f6864435`.
-- **EC-018: xdist Topology Fixed at --dist=loadgroup.** [NEW at `8980bcd7`] `pyproject.toml:105`. Tests with shared state MUST use `xdist_group` markers (see CI-XDIST-LOADGROUP-001). Any reversion to `--dist=load` must audit the three pinned groups first to determine whether loadgroup-specific state isolation assumptions would be broken.
-- **EC-019: Durations Refresh Auto-PR Cadence.** [NEW at `8980bcd7`] `.github/workflows/durations-refresh.yml`. `.test_durations` is now auto-refreshed weekly. PRs from `chore/durations-refresh-*` branches labeled `ci-maintenance` are machine-generated. Do not hand-edit `.test_durations` mid-sprint; wait for the weekly auto-PR or manually trigger `workflow_dispatch`.
+- **EC-008 — REMOVED** (see TRADE-008). **EC-010** — `>=3.12` no upper bound; stale UP046/UP047 comments. **EC-017/018** — `autom8y-core>=4.2.0`, `--dist=loadgroup` re-verified.
+- **EC-020: WS-7 Actor-Attribution Seam Constrains Future Cross-Repo Schema [NEW]** — `ADR-ws7-actor-attribution-seam.md` (design-only, VISIONARY/Phase-2 precondition, in the AUTH repo). Any future event-woken (SQS/polling/webhook) write path in THIS repo wanting delegated-human attribution cannot assume a bearer token in the envelope — must plan for a durable delegation-grant reference re-exchanged at action time. No code implements this yet.
+- **EC-021: Two ADRs Describe Not-Yet-Implemented Architecture [NEW]** — `ADR-entity-resolution-primitive-2026-07-08.md` (`HierarchyFirstOfficeResolver`) and `ADR-taskcache-projection-coverage-2026-07-08.md` landed via `1a3a3023` as documentation ONLY ("no src/ or tests/ touched"). Direct grep confirms neither symbol exists in `src/` at this HEAD. Aspirational, not current state.
+- **EC-013** — telos deadline 2026-05-11 long passed; status not re-verified this pass (likely stale).
 
 ## Risk Zone Mapping
 
-- **RISK-001**: ~~Reconciliation placeholder GIDs (SCAR-REG-001). 4 VERIFY-BEFORE-PROD annotations at `section_registry.py:57,79,94,128`. Severity: High.~~ **RESOLVED** `2d7d39d9` #190 (SCAR-REG-001): live W-IRIS GIDs wired; `SectionRegistryError` fail-closed guard replaces all `VERIFY-BEFORE-PROD` annotations. Risk class closed.
-- **RISK-002**: Phantom exclusion rate in reconciliation (TC-4). Severity: Medium.
-- **RISK-003**: Circular import structure — 3 misplaced `lambda_handlers/` modules + TYPE_CHECKING-guarded lazy imports. Severity: Medium.
-- **RISK-004**: `config.py` module-level computation at import time. Severity: Medium.
-- **RISK-005**: `DataServiceConfig.max_batch_size` has no 500-minimum enforcement (only `>= 1`). Severity: Low-Medium.
-- **RISK-006**: `object.__setattr__()` on frozen `EntityDescriptors` is order-dependent. Severity: Low.
-- **RISK-007**: ~10 broad-except sites in preload (`legacy.py: 5`, `progressive.py: 5`). Severity: Low.
-- ~~**RISK-008: SCAR-IDEM-001 — Idempotency Finalize Failure Causes Double-Execution.** `api/middleware/idempotency.py:719`. If `finalize()` raises, idempotency key not persisted; client retry re-executes mutation. No metric specifically for finalize failure. Recommended guard: add `metrics.increment("idempotency_finalize_failure")` and promote logging level to explicit warning.~~ **RESOLVED** `f795d7dc` #149 (W-IDEM, 2026-06-24): finalize bool is now READ; raise coerced to `finalized=False`; `emit_metric("IdempotencyFinalizeFailure")` fires at `idempotency.py:787-792`; S2S strict-once callers receive hard 500 (`X-Idempotent-Not-Persisted`, `IDEMPOTENCY_KEY_NOT_PERSISTED` body) at `:803-830` (R-IDEM-2). Double-execution risk for S2S callers is closed. Stale anchor `:719` was replay-header code at tip; finalize try-block is at `:762-780`.
-- **RISK-009: Cache Backends — STRICT Freshness Caller-Responsibility Assumption.** `cache/backends/redis.py:432`, `cache/backends/s3.py:505`. Both document "For STRICT freshness, caller must validate against source." No enforcement. Silent responsibility handoff. Cross-references RISK-002.
-- **RISK-010: Op Enum Date Operators Not Compilable.** `query/models.py:52-56`, `compiler.py:53-63,192-241`. Date operators exist in `Op` StrEnum but not handled by `PredicateCompiler`. Failure mode is implicit. Only valid consumer is `/exports` handler (strips date ops before compile).
-- **RISK-011: LEFT-PRESERVATION GUARD Seam Not Test-Covered in Phase 1.** `api/routes/exports.py:236-284`. NO-OP in Phase 1; correctness in Phase 2 depends on architect's mechanism (a) per `ADR §4.1`. Phase 2 MUST include integration test exercising C5-PATH LEFT request.
-- **RISK-012: M-02 Score Floor — RESOLVED, PROSPECTIVE RISK REMAINS.** `.ci/semantic-baseline.json:12-18`. M-02 score = 0.5266 (floor: 0.50) at `20ef7952` — now PASSING. Original breach (0.4743) was discharged via HYG-T1. Prospective risk: `aegis-check.py` does not enforce `examples=` count; a future PR removing `examples=` from Pydantic source will not be caught until a manual baseline refresh. Severity: P3 (downgraded from P1 — no active breach).
-- **RISK-013: M-07 Constraint Coverage Floor Actively Breached.** [NEW at `20ef7952`] `.ci/semantic-baseline.json:52-59`. M-07 score = 0.5714 (floor: 0.6, pass: false). `regression_safe: true` prevents CI blocking. The 3 missing constraint coverage slots are unknown without re-running `aegis-check.py` against the spec. Every PR that adds endpoints without `x-constraint` annotations widens the gap. Cross-reference: M07-MONITOR-001. Recommended guard: add constraint-annotation discipline to PR review checklist.
-- **RISK-014: SystemContext Per-Worker Registration Gap Under xdist.** [NEW at `20ef7952`] `core/system_context.py:33,48-51`. If a module registers its reset function in the main process before xdist forks workers, that registration lands on key `"main"` — which workers never consult. Singletons imported only in the main process would not reset between worker tests. No test currently covers this boundary. Cross-reference: LBC-012, GAP-010.
-- **RISK-015: Lock-Overhead Contention Assertion Loosened — Reduced Performance Coverage.** [NEW at `8980bcd7`] `tests/unit/persistence/test_session_concurrency.py:596-599`. The `test_lock_overhead_under_contention` budget was widened from `< 1ms` to `< 2ms` to address CI flapping (commit `f37802f2`, B-3). The non-contention paths remain at 1ms and 100us respectively. This is a performance assertion regression: the codebase no longer guarantees sub-1ms contended lock overhead. Cross-reference: PERF-BUDGET-REGRESSION-001.
+- **RISK-013: M-07 floor — active breach, unchanged** (3rd confirmation).
+- **RISK-016: `required_conversation_resolution: false` [NEW]** — unresolved PR review threads don't block merge; a blocking comment can be merged past if the reviewer doesn't also withhold approval. Structural gap (not an evidenced incident).
+- **RISK-017: 6 Packages Invisible to the API Layer-Violation Rule [NEW]** — see TENSION-014; `auth/dual_mode.py:24` is a live confirmed instance.
+- **RISK-018: Redis Cache Degradation Was Silent Pre-Fix [NEW]** — TRADE-013 + GAP-011 stacked two independent root causes for the same NO-OP-warmer symptom (CurrItems=0), neither loud enough to alarm before this pass's fixes. No metric counter exists for this class; a CloudWatch Logs metric filter on `cache_degraded_mode` is recommended (not confirmed provisioned).
 
-## Experiential Observations (from session history)
+## Experiential Observations (from `.sos/land/initiative-history.md`)
 
-The 18-session corpus surfaces frozen/sacred areas:
-- **SCAR test cluster**: 35 tests now formally tagged `@pytest.mark.scar` (HYG-001). These are inviolable regression guards. Prior documentation cited 33 — actual count at `20ef7952` is 35.
-- **Coverage floor**: `>=80%` non-negotiable per project-crucible sprint-6
-- **Cascade-spike sessions** (session-20260303-173218, 134822): explicit "do not unpark or interfere" constraint from project-asana-pipeline-extraction
-- **Telos deadline pressure**: project-asana-pipeline-extraction Phase 1 telos_deadline is 2026-05-11. Today (2026-05-08) leaves **3 days** — highest-urgency active constraint in the codebase. [KNOW-CANDIDATE] 3 days to telos; all exports changes require explicit sprint scope confirmation.
-
-Recurring tensions documented across sessions:
-- CascadingFieldResolver null rates (~30% on units, 30-40% on Offer office) manifested in 3 distinct sessions
-- Cascade-contract bypass on fast-paths (S3 fast-path + Offer source=None)
-- Test-suite scale/speed (13,072→12,320 reduction, xdist disabled then re-enabled, CI <60s target)
-- autom8y-asana identified as fleet's binding CI constraint (consumer-gate timeout 900s→2400s)
-- Sprint W1-E xdist worker-crash signature documented (CI runs 25258237857, 25188629600) — resolved by loadgroup topology shift
-
-Architecture review for Data Attachment Bridge (session-20260318) parked at requirements with no follow-up — load-bearing risk that hasn't been addressed.
+- SCAR cluster: prior sessions documented 35/11; direct `pytest -m scar --collect-only` at `d0c8b662` = **93 tests / 17 files** (~2.7x growth, consistent with the high commit volume: redis/warmer, auth fail-clean, MCP RB-1/S2S hardening).
+- F1a advisory-floor allocator: was MERGED-INERT + CANARY + LIVE-LEG-PROVEN (2026-07-20), HALTED at operator GO-LIVE; `d11ae574` (2026-07-21) appears to be the GO-LIVE wiring (LBC-017). [KNOW-CANDIDATE?] no explicit operator GO-LIVE record cited this pass.
+- MCP write-surface: PT-09 eunomia FLAG-ADVISORY/MODERATE (2026-07-20); this window added RB-1/#263, S2S-401-fail-clean/#264, workflow disclosure/#268 (all post-PT-09). Next disposition: MCP-REFERENCE-POSTURE-001 probe due 2026-08-03.
 
 ## Knowledge Gaps
 
-1. Lifecycle YAML files: not found. YAML-based automation config schema unlocated.
-2. autom8y_http and autom8y_log internal contracts: external packages, not observable.
-3. INTEGRATE-ecosystem-dispatch Section 1.4: not found in repository.
-4. Actual section GID values: require live Asana API verification via `GET /projects/1201081073731555/sections`.
-5. ADRs partial: `.ledge/decisions/` contains 21 ADRs (ADR-001–013, plus domain-specific ADRs). ADR-0025 (S3 cutover), ADR-I6-001, ADR-omniscience-idempotency, ADR-S2S-001/002 referenced in code but not in `.ledge/decisions/` — may live in `.claude/agent-memory/`.
-6. TENSION-002 nosemgrep annotation absence: four services-layer imports from API layer lack suppression — semgrep likely flags in CI.
-7. M-07 gap detail: the 3 uncovered constraint slots are not determinable without running `aegis-check.py` against the live spec.
-8. Phase 2 exports implementation scope: `ADR §4.1` describes mechanism (a) territory but no Phase 2 TDD or architectural spec filed yet.
-9. `query/engine.py` P1-C-04 boundary exact scope: lines 139-178 and 181 frozen but full module structure / what changes are permitted in Phase 1 not independently documented outside exports route docstring.
-10. HYG-001 and RITE-SUBSTRATE-INTEGRITY-001 gate logic: out-of-tree (knossos/ari platform), not expressible as code anchor.
-11. RISK-014 (xdist per-worker registration gap): no test exercises main-process-vs-worker singleton registration boundary; actual exposure unquantified.
-12. autom8y-core 4.2.0 changelog: the specific APIs or behaviors introduced in 4.2.0 that motivated the lower bound lift are not documented in-repo (commit message is the only source).
-
-```metadata
-confidence: 0.93
-generated_at: "2026-05-08T00:00Z"
-source_hash: "8980bcd7"
-criteria_grades:
-  tension_catalog: "A"
-  trade_off_documentation: "A"
-  abstraction_gap_mapping: "B"
-  load_bearing_code: "A"
-  evolution_constraints: "A"
-  risk_zone_mapping: "A"
-overall_grade: "A"
-notes: >
-  INCREMENTAL update (cycle 1 of 3). Prior: FULL at 20ef7952 (2026-05-04).
-  New entries: CI-XDIST-LOADGROUP-001, CONSUMER-GATE-FAILSAFE-001,
-  PERF-BUDGET-REGRESSION-001, TRADE-012, EC-017..EC-019, LBC-014, RISK-015.
-  Updated entries: CI-CONCURRENCY-001 (scorecard push trigger removed,
-  durations-refresh added), FLEET-SHA-SKEW-001 (zizmor artipacked note),
-  TENSION-012 (line numbers shifted, stale comment re-verified unchanged),
-  EC-013 urgency updated to 3 days, EC-008 TRADE-008 sunset countdown updated.
-  All prior TENSIONs/LBCs/ECs/RISKs preserved.
-  Telos deadline: 3 days remaining at generation time.
-```
+1. EC-013 telos status post-deadline not re-verified (likely stale).
+2. The bulk of TRADE-001..007/009..012, GAP-001..010, LBC-001..014, RISK-001..015, EC-001..019 carried forward WITHOUT direct re-inspection (no touching commits in the `f6a72824..d0c8b662` range) — MODERATE confidence, not STRONG.
+3. `bridge.py` #264 and `tools/workflows.py` #268 identified via commit log + file existence, not deep-read for constraint extraction.
+4. RISK-016 has no evidenced incident (structural-gap observation).
+5. `.sos/wip/defer-watch/DEFER-2026-050/051*.md` (gitignored) summarized from the landing commit only.
+6. `ADR-entity-resolution-primitive` / `ADR-taskcache-projection-coverage` full content not deep-read beyond the "documentation-only, not implemented" fact.
+7. `.knossos/worktrees/` staleness not assessed at file-timestamp granularity.
