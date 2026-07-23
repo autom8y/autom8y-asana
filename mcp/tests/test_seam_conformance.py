@@ -12,7 +12,7 @@ import httpx
 import pytest
 from asana_mcp.context import SidecarContext, build_context
 from asana_mcp.settings import Settings
-from asana_mcp.tools import discovery, query, resolve
+from asana_mcp.tools import discovery, query, resolve, workflows
 
 
 def test_create_server_signature_frozen():
@@ -25,7 +25,7 @@ def test_create_server_signature_frozen():
 
 
 def test_register_signatures_frozen():
-    for mod in (discovery, query, resolve):
+    for mod in (discovery, query, resolve, workflows):
         assert list(inspect.signature(mod.register).parameters) == ["mcp", "ctx"]
 
 
@@ -58,7 +58,7 @@ def test_instrument_hook_point_left_for_sprint4():
     assert not hasattr(server, "instrument")
 
 
-async def test_create_server_registers_exactly_the_five_read_tools(monkeypatch):
+async def test_create_server_registers_exactly_the_read_tools(monkeypatch):
     pytest.importorskip("fastmcp")
     import asana_mcp.bridge as bridge
 
@@ -79,5 +79,8 @@ async def test_create_server_registers_exactly_the_five_read_tools(monkeypatch):
         "query_rows",
         "query_aggregate",
         "resolve_entity",
+        "list_report_workflows",  # WS-5b disclosure tier (pure read; write-verb NOT disclosed)
     }
     assert "match_business" not in names  # surface-not-POC (shape §0)
+    # The write-verb (POST .../invoke) is NEVER exposed as a tool (R7 / §5 boundary).
+    assert not any("invoke" in n for n in names)
