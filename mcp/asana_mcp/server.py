@@ -40,11 +40,12 @@ def create_server(settings: Settings | None = None) -> FastMCP:
     mcp = FastMCP(name="asana-mcp")
 
     # Register the sprint-2 read tools (1-5) via the frozen register(mcp, ctx) seam.
-    from asana_mcp.tools import discovery, query, resolve
+    from asana_mcp.tools import discovery, query, resolve, workflows
 
     discovery.register(mcp, ctx)  # list_entity_types, describe_entity (thin tier)
     query.register(mcp, ctx)  # query_rows, query_aggregate (rich native tier)
     resolve.register(mcp, ctx)  # resolve_entity (native)
+    workflows.register(mcp, ctx)  # list_report_workflows (WS-5b disclosure tier — pure read)
     # tool 6 match_business is surface-not-POC — deliberately NOT registered.
 
     # Expose ctx for downstream assembly (sprint-3 write tools, sprint-6 instrument).

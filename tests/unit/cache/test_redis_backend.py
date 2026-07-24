@@ -137,6 +137,128 @@ class TestRedisCacheProviderInit:
             assert provider._config.db == 1
 
 
+class TestRedisPoolConstruction:
+    """Pool construction against the REAL installed redis-py (F1a root cause).
+
+    The dead-warmer-cache signature: ``ssl``/``ssl_cert_reqs`` forwarded as
+    plain connection kwargs are rejected by redis-py's ``Connection.__init__``
+    with a TypeError at CHECKOUT time -- pool construction itself is lazy and
+    succeeds silently. ``make_connection()`` counts the connection BEFORE
+    constructing it, so each failed construction permanently leaked one pool
+    slot until the cap was reached and every subsequent op raised
+    ``MaxConnectionsError("Too many connections")`` -> sticky degraded mode ->
+    silent no-op writes. Zero commands ever reached the ElastiCache server
+    (SetTypeCmds absent, CurrItems 0, CurrConnections flat at baseline).
+    """
+
+    def test_ssl_pool_uses_ssl_connection_class_and_kwargs_construct(self) -> None:
+        """TLS selects SSLConnection; checkout-time construction succeeds.
+
+        RED on the broken construction: connection_class stayed the plain
+        ``Connection`` and constructing it with the pool's own kwargs raised
+        ``TypeError: unexpected keyword argument 'ssl'``.
+        """
+        import redis as real_redis
+
+        from autom8_asana.cache.backends.redis import RedisCacheProvider, RedisConfig
+
+        provider = RedisCacheProvider(config=RedisConfig(host="localhost", ssl=True))
+
+        assert provider._degraded is False
+        pool = provider._pool
+        assert pool is not None
+        assert pool.connection_class is real_redis.SSLConnection
+        # EXACTLY what make_connection() performs at first checkout. No I/O:
+        # the socket is opened only by connection.connect() at first command.
+        conn = pool.connection_class(**pool.connection_kwargs)
+        assert conn is not None
+
+    def test_plain_pool_uses_connection_class_without_ssl_kwargs(self) -> None:
+        """Non-TLS pool carries NO ssl kwargs; construction succeeds."""
+        import redis as real_redis
+
+        from autom8_asana.cache.backends.redis import RedisCacheProvider, RedisConfig
+
+        provider = RedisCacheProvider(config=RedisConfig(host="localhost", ssl=False))
+
+        assert provider._degraded is False
+        pool = provider._pool
+        assert pool is not None
+        assert pool.connection_class is real_redis.Connection
+        assert "ssl" not in pool.connection_kwargs
+        assert "ssl_cert_reqs" not in pool.connection_kwargs
+        conn = pool.connection_class(**pool.connection_kwargs)
+        assert conn is not None
+
+    def test_pool_is_blocking_with_bounded_timeout(self) -> None:
+        """A burst wider than the cap QUEUES (bounded) instead of throwing.
+
+        ``BlockingConnectionPool`` waits up to ``pool_timeout`` for a free
+        pooled connection; sustained exhaustion still fails loudly into the
+        degraded-mode WARNING rather than silently.
+        """
+        import redis as real_redis
+
+        from autom8_asana.cache.backends.redis import RedisCacheProvider, RedisConfig
+
+        provider = RedisCacheProvider(
+            config=RedisConfig(host="localhost", ssl=False, max_connections=7, pool_timeout=3.5)
+        )
+
+        pool = provider._pool
+        assert isinstance(pool, real_redis.BlockingConnectionPool)
+        assert pool.max_connections == 7
+        assert pool.timeout == 3.5
+
+    def test_kwarg_drift_announces_degraded_loudly(self) -> None:
+        """Never-silent guard on the connection-kwargs incompatibility class.
+
+        A kwarg the installed redis-py connection class rejects must (a) fail
+        OPEN into degraded mode at boot -- never raise out of construction --
+        and (b) emit the alarmed ERROR-level ``cache_degraded_mode`` event with
+        a distinct reason, instead of leaking pool slots op-by-op into a
+        misleading "Too many connections" N ops later.
+        """
+        from autom8y_log.testing import MockLogger
+
+        from autom8_asana.cache.backends import redis as redis_backend
+
+        class _RejectingConnection:
+            def __init__(self, **kwargs: object) -> None:
+                raise TypeError("__init__() got an unexpected keyword argument 'ssl'")
+
+        class _StubPool:
+            def __init__(self, **kwargs: object) -> None:
+                self.connection_class = kwargs["connection_class"]
+                self.connection_kwargs = {"ssl": True}
+
+        fake_redis = MagicMock()
+        fake_redis.Connection = _RejectingConnection
+        fake_redis.SSLConnection = _RejectingConnection
+        fake_redis.BlockingConnectionPool = _StubPool
+
+        with patch.object(redis_backend.RedisCacheProvider, "_initialize_pool"):
+            provider = redis_backend.RedisCacheProvider(
+                config=redis_backend.RedisConfig(host="localhost", ssl=True)
+            )
+        provider._redis_module = fake_redis
+
+        mock_logger = MockLogger()
+        with patch.object(redis_backend, "logger", mock_logger):
+            provider._initialize_pool()  # (a) fail-open: must not raise
+
+        assert provider._degraded is True
+        # (b) LOUD: distinct ERROR-level cache_degraded_mode event
+        mock_logger.assert_logged("error", "cache_degraded_mode")
+        entry = next(
+            e
+            for e in mock_logger.entries
+            if e.event == "cache_degraded_mode" and e.level == "error"
+        )
+        assert entry.kwargs["extra"]["reason"] == "redis_connection_kwargs_invalid"
+        assert entry.kwargs["extra"]["fail_open"] is True
+
+
 class TestRedisCacheProviderDegraded:
     """Tests for RedisCacheProvider in degraded mode."""
 

@@ -117,6 +117,7 @@ def create_autom8_cache_provider(
     - REDIS_PORT (default: 6379)
     - REDIS_PASSWORD (optional)
     - REDIS_SSL (default: true)
+    - ASANA_CACHE_REDIS_MAX_CONNECTIONS (pool cap, default: 20)
 
     Args:
         redis_host: Redis host (or from REDIS_HOST env var).
@@ -176,7 +177,9 @@ def create_autom8_cache_provider(
         # Use Pydantic Settings for timeout configuration
         socket_timeout=redis_settings.socket_timeout,
         socket_connect_timeout=redis_settings.connect_timeout,
-        max_connections=20,
+        # Env-tunable pool cap (ASANA_CACHE_REDIS_MAX_CONNECTIONS); was a
+        # hardcoded 20 that left settings.cache.redis_max_connections dead.
+        max_connections=sdk_settings.cache.redis_max_connections,
         retry_on_timeout=True,
     )
 

@@ -45,6 +45,10 @@ class RedisConfig:
         socket_timeout: Operation timeout in seconds.
         socket_connect_timeout: Connection timeout in seconds.
         max_connections: Maximum connections in pool.
+        pool_timeout: Seconds a checkout waits for a free pooled connection
+            before failing when all ``max_connections`` are in use. Bursty
+            fan-out QUEUES for up to this long instead of throwing instantly
+            (redis-py ``BlockingConnectionPool`` semantics).
         retry_on_timeout: Whether to retry on timeout.
         health_check_interval: Seconds between health checks.
         decode_responses: Whether to decode responses to strings.
@@ -59,6 +63,7 @@ class RedisConfig:
     socket_timeout: float = 1.0
     socket_connect_timeout: float = 5.0
     max_connections: int = 10
+    pool_timeout: float = 10.0
     retry_on_timeout: bool = True
     health_check_interval: int = 30
     decode_responses: bool = True
@@ -179,30 +184,90 @@ class RedisCacheProvider(CacheBackendBase):
             self._degraded = True
 
     def _initialize_pool(self) -> None:
-        """Initialize Redis connection pool."""
+        """Initialize Redis connection pool.
+
+        TLS is selected via ``connection_class`` (``SSLConnection``), NEVER via
+        an ``ssl=`` kwarg: redis-py's pools forward every unknown kwarg to the
+        connection class at CHECKOUT time (not at pool construction), and
+        ``Connection.__init__`` rejects ``ssl``/``ssl_cert_reqs`` with a
+        TypeError. Because ``ConnectionPool.make_connection()`` counts the
+        connection BEFORE constructing it, each such failure permanently leaked
+        one pool slot until the cap was reached and every subsequent op raised
+        ``MaxConnectionsError("Too many connections")`` -> sticky degraded mode
+        -> silent no-op writes. That was the F1a warmer dead-cache signature:
+        zero commands ever reached the ElastiCache server (SetTypeCmds absent,
+        CurrItems 0, CurrConnections flat at the engine baseline).
+
+        Uses ``BlockingConnectionPool`` with a bounded ``pool_timeout`` so a
+        burst wider than ``max_connections`` QUEUES briefly for a free
+        connection instead of throwing instantly; sustained exhaustion still
+        fails loudly (``ConnectionError("No connection available.")`` -> the
+        degraded-mode WARNING) rather than silently.
+        """
         if self._redis_module is None:
             return
 
         try:
-            self._pool = self._redis_module.ConnectionPool(
-                host=self._config.host,
-                port=self._config.port,
-                db=self._config.db,
-                password=self._config.password,
-                socket_timeout=self._config.socket_timeout,
-                socket_connect_timeout=self._config.socket_connect_timeout,
-                max_connections=self._config.max_connections,
-                retry_on_timeout=self._config.retry_on_timeout,
-                decode_responses=self._config.decode_responses,
-                # SSL configuration
-                ssl=self._config.ssl,
-                ssl_cert_reqs=self._config.ssl_cert_reqs if self._config.ssl else None,
+            connection_class = (
+                self._redis_module.SSLConnection
+                if self._config.ssl
+                else self._redis_module.Connection
             )
+            pool_kwargs: dict[str, Any] = {
+                "host": self._config.host,
+                "port": self._config.port,
+                "db": self._config.db,
+                "password": self._config.password,
+                "socket_timeout": self._config.socket_timeout,
+                "socket_connect_timeout": self._config.socket_connect_timeout,
+                "max_connections": self._config.max_connections,
+                "timeout": self._config.pool_timeout,
+                "retry_on_timeout": self._config.retry_on_timeout,
+                "health_check_interval": self._config.health_check_interval,
+                "decode_responses": self._config.decode_responses,
+                "connection_class": connection_class,
+            }
+            if self._config.ssl:
+                # SSLConnection-only kwarg; plain Connection rejects it.
+                pool_kwargs["ssl_cert_reqs"] = self._config.ssl_cert_reqs
+            pool = self._redis_module.BlockingConnectionPool(**pool_kwargs)
+
+            # Boot tripwire (never-silent): eagerly construct ONE unconnected
+            # connection with the pool's own kwargs -- exactly what
+            # make_connection() does at first checkout -- so a kwarg drift on a
+            # future redis-py bump degrades LOUDLY here at boot instead of
+            # leaking pool slots op-by-op into a misleading "Too many
+            # connections" N ops later. No I/O: the socket is opened only by
+            # ``connection.connect()`` at first command.
+            pool.connection_class(**pool.connection_kwargs)
+
+            self._pool = pool
             self._degraded = False
         except REDIS_TRANSPORT_ERRORS as e:
             logger.error(
                 "redis_pool_init_failed",
                 extra={"error": str(e), "error_type": type(e).__name__},
+            )
+            self._degraded = True
+        except (TypeError, ValueError) as e:
+            # Structural connection-kwargs incompatibility (the class of the
+            # F1a dead-write-path bug). Announce on the alarmed
+            # `cache_degraded_mode` channel -- same never-silent contract as
+            # the redis_package_not_installed boot announcement. Fail open.
+            logger.error(
+                "cache_degraded_mode",
+                extra={
+                    "backend": type(self).__name__,
+                    "reason": "redis_connection_kwargs_invalid",
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "impact": "no_op_cache",
+                    "fail_open": True,
+                    "remediation": (
+                        "reconcile RedisCacheProvider._initialize_pool kwargs "
+                        "with the installed redis-py connection_class signature"
+                    ),
+                },
             )
             self._degraded = True
 
