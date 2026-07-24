@@ -419,3 +419,116 @@ jobs:
         # ruff@0.15.4 == uv.lock resolved version (uv.lock:2438); keep in sync on bumps.
         run: uvx ruff@0.15.4 check src/ --extend-select RUF100
     # NOTE: gate ruff pin (0.15.4) is independent of the uv-managed project ruff — bump in lockstep to avoid local/CI RUF100 divergence.
+
+  mcp-island:
+    name: MCP Island Suite (mcp/ own pyproject + teeth canary)
+    # FL-4 (fleet-delegation-phase2 WAVE-1): cures the mcp/-island CI-coverage
+    # gap. The 24-file suite at mcp/tests/ (own pyproject at mcp/pyproject.toml)
+    # was wired OUT of all workflows — the reusable satellite gate scopes to
+    # src/autom8_asana and root pytest testpaths = ["tests"] never collects
+    # mcp/tests. This job installs mcp/'s OWN pyproject (fastmcp from PyPI;
+    # autom8y-core from CodeArtifact — hence the OIDC + token-retry block,
+    # copied verbatim from the fuzz/isolated jobs) and runs the suite with
+    # mcp/'s own pytest config (cwd=mcp → rootdir=mcp, asyncio_mode=auto).
+    #
+    # HARD GATE by design (no continue-on-error): the guard must BITE on any
+    # future mcp/ edit. The throwaway write-path tests (composite_write /
+    # confirm_gate RB-1) are INCLUDED — guard-until-replaced (flagged at CP-1):
+    # the RB-1 confirm-before-firing gate is a safety property whose silent
+    # rot is the worst failure class; when the prototype is replaced its tests
+    # leave the tree and this job follows automatically.
+    #
+    # Teeth canary (discriminating-canary-doctrine, Mode 1): the canary step
+    # runs mcp/canary/ — a deliberately-broken INPUT (rows envelope with the
+    # SVR-5 honesty attestations stripped) that the real judging battery
+    # CORRECTLY rejects. POLARITY: pytest rc==1 is the GREEN receipt (broken
+    # fixture tripped); rc==0 = no teeth; rc==5 = vacuous collection; both
+    # fail this job. This guards the gate itself against CI-theater (a
+    # collection/config drift that silently turns the suite run always-green).
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1 (node24)
+        with:
+          persist-credentials: false   # zizmor artipacked hardening (mirrors fuzz/isolated jobs)
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0 (node24)
+        with:
+          python-version: '3.12'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0 (node24)
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/github-actions-deploy
+          aws-region: us-east-1
+
+      - name: Login to CodeArtifact
+        run: |
+          # Retry the token fetch (CodeArtifact connect-timeout flake class, FINDING-3):
+          # 3 attempts × 5s backoff with explicit CLI connect/read timeouts; the `if`
+          # guard keeps the loop alive under `set -e`; final non-empty assertion
+          # HARD-FAILS so a genuinely unreachable CodeArtifact still blocks.
+          # (Needed here: mcp/pyproject.toml depends on autom8y-core>=4.2.0 — a
+          # private CodeArtifact package; everything else resolves from PyPI.)
+          CODEARTIFACT_AUTH_TOKEN=""
+          for attempt in 1 2 3; do
+            if CODEARTIFACT_AUTH_TOKEN=$(aws codeartifact get-authorization-token \
+              --domain autom8y --domain-owner 696318035277 \
+              --query authorizationToken --output text \
+              --cli-connect-timeout 15 --cli-read-timeout 30) && [ -n "$CODEARTIFACT_AUTH_TOKEN" ]; then
+              break
+            fi
+            echo "::warning::CodeArtifact get-authorization-token attempt ${attempt}/3 failed (connect/read timeout or empty token) — retrying in 5s"
+            CODEARTIFACT_AUTH_TOKEN=""
+            [ "$attempt" -lt 3 ] && sleep 5
+          done
+          if [ -z "$CODEARTIFACT_AUTH_TOKEN" ]; then
+            echo "::error::CodeArtifact get-authorization-token FAILED after 3 attempts — CodeArtifact unreachable or token empty"
+            exit 1
+          fi
+          export CODEARTIFACT_AUTH_TOKEN
+          echo "UV_EXTRA_INDEX_URL=https://aws:${CODEARTIFACT_AUTH_TOKEN}@autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" >> "$GITHUB_ENV"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: true
+
+      - name: Install mcp island (its OWN pyproject, dev extra)
+        # --no-sources: ignore any [tool.uv.sources] path overrides; resolve
+        # autom8y-core from CodeArtifact, fastmcp/httpx/pydantic/otel from PyPI.
+        run: uv pip install --system --no-sources './mcp[dev]'
+
+      - name: Run mcp island suite (24-file suite, mcp's own pytest config)
+        working-directory: mcp
+        run: |
+          # cwd=mcp → pytest rootdir=mcp → mcp/pyproject.toml config applies
+          # (pythonpath=["."], asyncio_mode=auto). Exit 5 (vacuous collection)
+          # is non-zero and fails the gate naturally.
+          python -m pytest tests -q
+        env:
+          AUTOM8Y_ENV: test
+
+      - name: Canary — broken fixture must trip (teeth proof, rc==1 EXACTLY)
+        working-directory: mcp
+        run: |
+          # POLARITY: rc==1 == "tests collected AND the broken-input test
+          # failed" == the guard correctly rejected the defective envelope ==
+          # GREEN receipt. rc==0 → NO TEETH (battery accepted a defective
+          # envelope). rc==5 → vacuous collection. rc==2/3/4 → harness defect.
+          # All non-1 outcomes FAIL this job.
+          set +e
+          python -m pytest canary -q --tb=line
+          rc=$?
+          set -e
+          if [ "$rc" -eq 1 ]; then
+            echo "Canary correctly tripped on the broken fixture (rc=1) — the mcp-island gate has teeth."
+          else
+            echo "::error::Canary polarity violation: pytest exited rc=${rc} (expected exactly 1). rc=0 means the gate has NO TEETH; rc=5 means vacuous collection; rc=2/3/4 means a harness defect. The mcp-island gate cannot be trusted — failing."
+            exit 1
+          fi
+        env:
+          AUTOM8Y_ENV: test

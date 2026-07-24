@@ -136,6 +136,28 @@ fitness:
     uv run pytest tests/unit/dataframes/test_concurrency_invariants_guard.py \
         -p no:xdist -o addopts="" -v --no-header
 
+# Uses the ROOT project env (--project ..): mcp tests need only httpx/pydantic/
+# pytest/pytest-asyncio (fastmcp test self-skips; autom8y-core faked — README).
+# Canary POLARITY: pytest rc==1 on canary/ == broken fixture correctly tripped
+# == GREEN receipt; rc==0 (no teeth) or rc==5 (vacuous) FAIL this recipe.
+# Run the mcp/ island suite + teeth canary (CI parity: test.yml mcp-island job)
+[group('test')]
+test-mcp:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd mcp
+    uv run --project .. python -m pytest tests -q
+    set +e
+    uv run --project .. python -m pytest canary -q --tb=line
+    rc=$?
+    set -e
+    if [ "$rc" -eq 1 ]; then
+        echo "Canary correctly tripped (rc=1) — mcp-island gate has teeth."
+    else
+        echo "Canary polarity violation: rc=${rc} (expected exactly 1)." >&2
+        exit 1
+    fi
+
 # === Combined Checks ===
 
 # Full CI-equivalent check
