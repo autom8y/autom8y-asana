@@ -17,7 +17,7 @@ while the platform client handles generic HTTP concerns.
 from __future__ import annotations
 
 import asyncio
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from typing import TYPE_CHECKING, Any
 
 from autom8y_http import (
@@ -54,6 +54,7 @@ if TYPE_CHECKING:
     from autom8_asana.config import AsanaConfig
     from autom8_asana.protocols.auth import AuthProvider
     from autom8_asana.protocols.log import LogProvider
+    from autom8_asana.transport.budget_allocator import WarmerFloorGate
 
 __all__ = ["AsanaHttpClient"]
 
@@ -585,6 +586,91 @@ class AsanaHttpClient:
         """
         return await self._request(method, path, params=params, json=json, data=data)
 
+    def _resolve_fair_share_gate(self, method: str) -> WarmerFloorGate | None:
+        """Resolve the process-singleton fair-share gate for a GET on the FAIR_SHARE lane.
+
+        In-path mirror of ``HierarchyWarmer._floor_paced`` for the ECS 1390/60s self-cap.
+        Returns the shared fair-share gate to admit through when ALL THREE hold:
+
+        * the method is a GET (the read path -- write-side arbitration is out of scope);
+        * the process is NOT the warmer lane (the warmer self-paces its own 110/60s floor
+          via ``_floor_paced``, so the two reservations never double-count one request);
+        * the process-singleton allocator is ARMED (operator flip, F-a).
+
+        Returns None otherwise -- a byte-identical no-op: the ECS GET path is identical to
+        the pre-allocator 57-site baseline, no interposition, decided ONCE per request
+        with no partial state (the ITEM-D dead-knob discipline). Fail-OPEN (pythia PC-3 /
+        C-4): any allocator-internal fault returns None (the GET PROCEEDS un-arbitrated)
+        and emits ``budget_lane_failopen`` -- a fail-closed cap would worsen the storm the
+        node-4 gate defeated.
+        """
+        if method.upper() != "GET":
+            return None
+        try:
+            from autom8_asana.transport.budget_allocator import (
+                get_budget_allocator,
+                running_in_warmer_lane,
+            )
+
+            if running_in_warmer_lane():
+                return None
+            allocator = get_budget_allocator()
+            if not allocator.enabled:
+                return None
+            return allocator.fair_share_gate()
+        except Exception as exc:  # noqa: BLE001 -- fail-OPEN (C-4); never fail-closed
+            self._note_fair_share_failopen(exc)
+            return None
+
+    async def _fair_share_admit(self, method: str) -> None:
+        """Admit one ECS fair-share GET through the 1390/60s self-cap (in-path).
+
+        Resolves the process-singleton gate (:meth:`_resolve_fair_share_gate`) and, when
+        the FAIR_SHARE lane is armed, waits for one earned token at the fair-share rate
+        BEFORE the outbound GET is issued -- the mechanism that stops the ECS service
+        starving the other fleet writers on the shared Asana 1500/60s budget. Each
+        admitted passage is recorded via ``observe_admission`` (the AC-2 admitted-vs-
+        outbound denominator). Byte-identical no-op when INERT / off the fair-share lane;
+        fail-OPEN on any gate fault (a GET is NEVER blocked by the cap).
+        """
+        gate = self._resolve_fair_share_gate(method)
+        if gate is None:
+            return
+        try:
+            await gate.admit()  # earned-token admission at the 1390/60s fair-share rate
+        except Exception as exc:  # noqa: BLE001 -- never fail-closed on the gate
+            self._note_fair_share_failopen(exc)
+            return
+        # One admitted gate passage == exactly one logical outbound GET. Advisory only
+        # and suppressed so it can never fail-close the request (C-4); establishes the
+        # live FAIR_SHARE admission-observation site (AC-2) symmetric with the warmer.
+        with suppress(Exception):
+            from autom8_asana.transport.budget_allocator import Lane, get_budget_allocator
+
+            get_budget_allocator().observe_admission(Lane.FAIR_SHARE)
+
+    def _note_fair_share_failopen(self, error: BaseException) -> None:
+        """Emit ``budget_lane_failopen`` for a fair-share gate fault (PC-3 / C-4).
+
+        Best-effort and self-contained: the ECS GET proceeds un-capped regardless
+        (fail-OPEN). Mirrors ``HierarchyWarmer._note_floor_failopen`` -- the emission can
+        never re-raise and fail-close the request path.
+        """
+        try:
+            from autom8_asana.transport.budget_allocator import Lane, get_budget_allocator
+
+            get_budget_allocator().note_lane_failopen(Lane.FAIR_SHARE, error)
+        except Exception:  # noqa: BLE001 -- never let the tripwire fail-close the GET
+            if self._logger:
+                self._logger.warning(
+                    "budget_lane_failopen",
+                    extra={
+                        "lane": "fair_share",
+                        "error": str(error),
+                        "error_type": type(error).__name__,
+                    },
+                )
+
     async def _request(
         self,
         method: str,
@@ -600,6 +686,14 @@ class AsanaHttpClient:
         # Circuit breaker check
         if self._circuit_breaker:
             await self._circuit_breaker.check()
+
+        # F1a ECS fair-share self-cap (1390/60s). In-path admission for the FAIR_SHARE
+        # GET lane, resolved ONCE per request; byte-identical no-op when INERT (default)
+        # or off the fair-share lane. Mirrors the warmer floor gate
+        # (HierarchyWarmer._floor_paced). Placed after the circuit-breaker check so an
+        # open breaker never consumes a fair-share token. Write-side arbitration is out
+        # of scope (owed by clause (c)).
+        await self._fair_share_admit(method)
 
         # Select semaphore based on method
         semaphore = self._read_semaphore if method.upper() == "GET" else self._write_semaphore
