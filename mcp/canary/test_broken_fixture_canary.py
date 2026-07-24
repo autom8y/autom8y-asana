@@ -131,9 +131,7 @@ async def test_positive_control_clean_envelope_passes(ctx_factory):
     """POSITIVE control: the clean envelope satisfies the battery (proves the
     battery is satisfiable — a canary that can only fail proves nothing)."""
     ctx = ctx_factory(CLEAN_ROWS_ENVELOPE)
-    result = await query_rows_handler(
-        ctx, "offer", RowsArgs(select=["office_phone", "vertical"])
-    )
+    result = await query_rows_handler(ctx, "offer", RowsArgs(select=["office_phone", "vertical"]))
     _svr5_battery(result)
 
 
@@ -147,7 +145,5 @@ async def test_broken_fixture_is_rejected_EXPECT_FAIL(ctx_factory):
     through and MUST itself fail CI.
     """
     ctx = ctx_factory(BROKEN_ROWS_ENVELOPE)
-    result = await query_rows_handler(
-        ctx, "offer", RowsArgs(select=["office_phone", "vertical"])
-    )
+    result = await query_rows_handler(ctx, "offer", RowsArgs(select=["office_phone", "vertical"]))
     _svr5_battery(result)
