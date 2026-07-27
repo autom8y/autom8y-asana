@@ -656,6 +656,29 @@ def format_warning(report: FreshnessReport) -> str:
     return f"WARNING: data older than {threshold_human} (max_age={observed_human})"
 
 
+def format_verification_warning(report: FreshnessReport, verification: VerificationAge) -> str:
+    """Return the stderr WARNING keyed to verification-recency (P4).
+
+    ADR-006 §Decision-4 makes ``verification_age`` the alarmable SLI; the
+    ``--strict`` exit gates on it. This warning MUST key on the SAME axis so
+    the human stderr line and the exit code never point in opposite
+    directions. Both axes are printed so "current-but-unchanged" (fresh
+    verification, old mutation) reads clearly.
+
+    Format:
+        "WARNING: verification age {v} exceeds {threshold} (N in-scope
+        sections; mutation age {m})"
+    """
+    threshold_human = format_duration(verification.threshold_seconds)
+    verification_human = format_duration(verification.max_age_seconds)
+    mutation_human = format_duration(report.max_age_seconds)
+    return (
+        f"WARNING: verification age {verification_human} exceeds "
+        f"{threshold_human} ({verification.in_scope_count} in-scope sections; "
+        f"mutation age {mutation_human})"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Verification-age sync bridge (ADR-006 §Decision-8 / TDD §2.3.1)
 # ---------------------------------------------------------------------------

@@ -300,10 +300,15 @@ class _FakePersistence:
     warm.
     """
 
-    def __init__(self, manifest: SectionManifest) -> None:
+    def __init__(
+        self, manifest: SectionManifest, section_dfs: dict[str, Any] | None = None
+    ) -> None:
         self.manifest = manifest
         self.save_count = 0
         self.save_should_raise = False
+        # {section_gid: polars.DataFrame} served by read_section_async — used by
+        # the P3 null-watermark heal path (progressive._heal_null_watermark).
+        self.section_dfs: dict[str, Any] = section_dfs or {}
 
     async def get_manifest_async(
         self, project_gid: str, entity_type: str | None = None
@@ -311,6 +316,13 @@ class _FakePersistence:
         # SEAM-1: the builder now threads entity_type; accept it (the fake
         # ignores it -- it holds a single shared manifest reference).
         return self.manifest
+
+    async def read_section_async(
+        self, project_gid: str, section_gid: str, entity_type: str | None = None
+    ) -> Any:
+        # SEAM-1: entity_type threaded (P1); the fake serves from its in-memory
+        # section-df map, mirroring the entity-keyed read the heal path performs.
+        return self.section_dfs.get(section_gid)
 
     async def _save_manifest_async(self, manifest: SectionManifest) -> bool:
         if self.save_should_raise:
@@ -329,6 +341,7 @@ def _make_progressive_builder_with_fakes(
     probe_results: list[SectionProbeResult] | None = None,
     applied_gids: frozenset[str] = frozenset(),
     save_should_raise: bool = False,
+    section_dfs: dict[str, Any] | None = None,
 ) -> tuple[Any, _FakePersistence, MagicMock]:
     """Construct a ProgressiveProjectBuilder shim wired to call into the
     real ``_probe_freshness`` via test fakes.
@@ -344,7 +357,7 @@ def _make_progressive_builder_with_fakes(
         ProgressiveProjectBuilder,
     )
 
-    persistence = _FakePersistence(manifest)
+    persistence = _FakePersistence(manifest, section_dfs=section_dfs)
     builder = ProgressiveProjectBuilder.__new__(ProgressiveProjectBuilder)
     builder._persistence = persistence
     builder._project_gid = manifest.project_gid
@@ -432,6 +445,76 @@ class TestStampReseedIntegration:
             "T14 FAIL: a delta-requiring verdict whose delta-apply "
             "FAILED was stamped anyway. Stamp must gate on "
             "applied_gids membership (ADR-006 §Decision-5c / TDD §2.2 D4)."
+        )
+
+    async def test_p3_null_watermark_clean_not_stamped_but_healed(self) -> None:
+        """P3 (ADR-006 D8 closure): a CLEAN verdict on a NULL-WATERMARK section
+        is NOT stamped (its probe was hash-only — structurally unable to confirm
+        content), and its watermark is HEALED from the cached parquet so a future
+        warm can content-verify. A sibling watermark-bearing CLEAN section IS
+        stamped as before.
+
+        This closes the false-fresh channel that produced the observed prod state
+        (20/34 sections null-watermark, all bulk-stamped 'verified 1m ago' while
+        14 days stale).
+        """
+        import polars as pl
+
+        wm = datetime(2026, 5, 27, 0, 0, tzinfo=UTC)
+        healed_from = datetime(2026, 7, 27, 9, 0, tzinfo=UTC)
+        manifest = _make_manifest(
+            {
+                "sec_wm": SectionInfo(
+                    status=SectionStatus.COMPLETE,
+                    rows=5,
+                    name="Active",
+                    watermark=wm,  # watermark-bearing -> genuine content probe
+                    gid_hash="abc",
+                ),
+                "sec_nowm": SectionInfo(
+                    status=SectionStatus.COMPLETE,
+                    rows=3,
+                    name="ONE-OFF",
+                    watermark=None,  # the D8 blind-spot state
+                    gid_hash="def",
+                ),
+            }
+        )
+        # The cached parquet the heal path reads for the null-watermark section.
+        section_dfs = {
+            "sec_nowm": pl.DataFrame(
+                {"gid": ["t1", "t2"], "last_modified": [wm, healed_from]}
+            )
+        }
+        probe_results = [
+            SectionProbeResult("sec_wm", ProbeVerdict.CLEAN),
+            SectionProbeResult("sec_nowm", ProbeVerdict.CLEAN),
+        ]
+        builder, persistence, fake_prober = _make_progressive_builder_with_fakes(
+            manifest,
+            probe_results=probe_results,
+            applied_gids=frozenset(),
+            section_dfs=section_dfs,
+        )
+        manifest.completed_sections = 2
+        await self._invoke_probe(builder, manifest, section_names={}, fake_prober=fake_prober)
+
+        out_wm = persistence.manifest.sections["sec_wm"]
+        out_nowm = persistence.manifest.sections["sec_nowm"]
+
+        assert out_wm.last_verified_at is not None, (
+            "P3 FAIL: a watermark-bearing CLEAN section (genuinely content-"
+            "verified) should still be stamped."
+        )
+        assert out_nowm.last_verified_at is None, (
+            "P3 FAIL: a NULL-WATERMARK CLEAN section was stamped 'verified' "
+            "despite a hash-only probe that cannot confirm content — this is the "
+            "false-fresh channel (ADR-006 D8) the fix must close."
+        )
+        assert out_nowm.watermark == healed_from, (
+            "P3 FAIL: the null-watermark section's watermark was not healed from "
+            "the cached parquet's last_modified.max(); it would remain "
+            "permanently unverifiable (self-perpetuating hash-only CLEAN)."
         )
 
     async def test_t10_stamp_phase_failure_emits_metric(self) -> None:

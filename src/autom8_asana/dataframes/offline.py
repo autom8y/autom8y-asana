@@ -32,6 +32,31 @@ if TYPE_CHECKING:
 
 import boto3
 import polars as pl
+from autom8y_log import get_logger
+
+logger = get_logger(__name__)
+
+# SEAM-1 plane-divergence guard (P2 / SCAR-FRESH-001).
+#
+# When the v2 entity plane (``{entity_type}/sections/``) is PRESENT but the
+# legacy entity-agnostic plane (``sections/``) is meaningfully FRESHER, the v2
+# read-plane is an orphaned/stale source (the exact split-brain from the
+# entity-blind-prober defect). Neither plane is trustworthy in that state — v2
+# is stale, and the legacy plane is typically fragmentary (only the sections
+# the incremental writer touched) — so serving either silently yields a wrong
+# financial number. We REFUSE loudly instead, forcing a re-baseline. The skew
+# tolerance defaults to the ``active`` SLA class (6h); a small positive skew is
+# normal write ordering, not divergence. Env override:
+# ``ASANA_PLANE_DIVERGENCE_SKEW_SECONDS``.
+_PLANE_DIVERGENCE_SKEW_SECONDS = int(os.environ.get("ASANA_PLANE_DIVERGENCE_SKEW_SECONDS", "21600"))
+
+
+class PlaneDivergenceError(RuntimeError):
+    """The v2 entity plane is present but staler than the legacy plane beyond
+    the SLA skew — a SEAM-1 split-brain that must not be served silently.
+
+    See .ledge/reviews/DEFECT-seam1-entity-blind-prober-plane-split-2026-07-27.md.
+    """
 
 
 def load_project_dataframe(
@@ -138,6 +163,9 @@ def _resolve_section_keys(
         v2_prefix = f"dataframes/{project_gid}/{entity_type}/sections/"
         keys, max_mtime = _list_parquet_keys(client, bucket, v2_prefix)
         if keys:
+            # P2: before serving the v2 plane, verify it is not an orphaned
+            # stale read-source shadowed by a fresher legacy plane.
+            _guard_plane_divergence(client, bucket, project_gid, entity_type, v2_prefix, max_mtime)
             return keys, max_mtime, v2_prefix
         legacy_prefix = f"dataframes/{project_gid}/sections/"
         keys, max_mtime = _list_parquet_keys(client, bucket, legacy_prefix)
@@ -150,6 +178,55 @@ def _resolve_section_keys(
         client, bucket, project_prefix, require_sections_segment=True
     )
     return keys, max_mtime, project_prefix
+
+
+def _guard_plane_divergence(
+    client: Any,
+    bucket: str,
+    project_gid: str,
+    entity_type: str,
+    v2_prefix: str,
+    v2_max_mtime: datetime | None,
+) -> None:
+    """Refuse to serve an orphaned/stale v2 plane shadowed by a fresher legacy plane.
+
+    Raises:
+        PlaneDivergenceError: when the legacy plane is newer than the v2 plane
+            by more than ``_PLANE_DIVERGENCE_SKEW_SECONDS``.
+    """
+    legacy_prefix = f"dataframes/{project_gid}/sections/"
+    legacy_keys, legacy_max_mtime = _list_parquet_keys(client, bucket, legacy_prefix)
+    if not legacy_keys or legacy_max_mtime is None or v2_max_mtime is None:
+        # No legacy plane (post-migration steady state) or missing mtimes:
+        # nothing to compare against — v2 stands on its own.
+        return
+
+    skew_seconds = (legacy_max_mtime - v2_max_mtime).total_seconds()
+    if skew_seconds <= _PLANE_DIVERGENCE_SKEW_SECONDS:
+        return
+
+    logger.error(
+        "plane_divergence_detected",
+        extra={
+            "project_gid": project_gid,
+            "entity_type": entity_type,
+            "v2_prefix": v2_prefix,
+            "v2_newest": v2_max_mtime.isoformat(),
+            "legacy_prefix": legacy_prefix,
+            "legacy_newest": legacy_max_mtime.isoformat(),
+            "skew_seconds": skew_seconds,
+            "skew_threshold_seconds": _PLANE_DIVERGENCE_SKEW_SECONDS,
+        },
+    )
+    raise PlaneDivergenceError(
+        f"SEAM-1 plane divergence for project {project_gid} entity '{entity_type}': "
+        f"the v2 read-plane ({v2_prefix}) newest={v2_max_mtime.isoformat()} is "
+        f"{skew_seconds / 3600:.1f}h STALER than the legacy plane "
+        f"({legacy_prefix}) newest={legacy_max_mtime.isoformat()}. The v2 plane is "
+        f"orphaned/stale — refusing to serve a stale number. Re-baseline the v2 "
+        f"plane (force a full rebuild) before trusting this metric. See "
+        f"DEFECT-seam1-entity-blind-prober-plane-split-2026-07-27."
+    )
 
 
 def _list_parquet_keys(

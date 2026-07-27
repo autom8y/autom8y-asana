@@ -509,7 +509,10 @@ def _execute_force_warm(
 
 
 def main() -> None:
-    from autom8_asana.dataframes.offline import load_project_dataframe
+    from autom8_asana.dataframes.offline import (
+        PlaneDivergenceError,
+        load_project_dataframe,
+    )
     from autom8_asana.metrics.compute import compute_metric
     from autom8_asana.metrics.freshness import (
         FreshnessError,
@@ -518,6 +521,7 @@ def main() -> None:
         format_human_lines,
         format_json_envelope,
         format_verification_human_line,
+        format_verification_warning,
         format_warning,
         parse_duration_spec,
         read_manifest_sync,
@@ -780,6 +784,12 @@ def main() -> None:
     read_entity_type = args.entity_type or metric.scope.entity_type
     try:
         df = load_project_dataframe(project_gid, entity_type=read_entity_type)
+    except PlaneDivergenceError as pde:
+        # P2 / SCAR-FRESH-001: the v2 read-plane is orphaned/stale behind a
+        # fresher legacy plane. Fail loud rather than emit a stale financial
+        # number — this is a data-integrity refusal, not a transient error.
+        print(f"ERROR: DATA-INTEGRITY — {pde}", file=sys.stderr)
+        sys.exit(1)
     except (ValueError, FileNotFoundError) as e:
         print(f"ERROR: {e}", file=sys.stderr)
         sys.exit(1)
@@ -974,7 +984,21 @@ def main() -> None:
                 print(v_line)
 
     # WARNING line (stderr) for stale data — both default and JSON modes.
-    if report.stale:
+    # P4: key the human WARNING on the SAME axis as the --strict exit code
+    # (ADR-006 §Decision-4: verification_age is the alarmable SLI). Before this
+    # fix the WARNING quoted mutation_age while --strict gated on
+    # verification_age, so a current-but-unchanged project printed a scary
+    # 14-day WARNING yet exited 0, and a verification-stale project could exit
+    # 1 with no WARNING. Now they agree; both axes are printed for context.
+    if report.verification is not None and report.verification.available:
+        if report.verification.stale:
+            print(
+                format_verification_warning(report, report.verification),
+                file=sys.stderr,
+            )
+    elif report.stale:
+        # Verification unavailable → fall back to the mutation axis, matching
+        # the --strict fallback (ADR-006 §Decision-6 conservative degrade).
         print(format_warning(report), file=sys.stderr)
 
     # Zero-result-set warning (stderr) — both default and JSON modes.

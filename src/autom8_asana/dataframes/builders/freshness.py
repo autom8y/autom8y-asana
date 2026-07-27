@@ -155,6 +155,7 @@ class SectionFreshnessProber:
         dataframe_view: DataFrameViewPlugin | None = None,
         max_concurrent: int = 8,
         section_names: Mapping[str, str | None] | None = None,
+        entity_type: str | None = None,
     ) -> None:
         self._client = client
         self._persistence = persistence
@@ -163,6 +164,18 @@ class SectionFreshnessProber:
         self._schema = schema
         self._dataframe_view = dataframe_view
         self._max_concurrent = max_concurrent
+        # SEAM-1 (ADR-seam1-entity-identity-key): the entity plane this
+        # prober reads its baseline from and writes fresh deltas to. This
+        # class was omitted from the SEAM-1 threading (commit 7fa56d19,
+        # #111), so it defaulted every S3 read/write to ``entity_type=None``
+        # -> the legacy entity-agnostic ``dataframes/{gid}/sections/`` plane,
+        # while the full builder + offline reader moved to the v2
+        # ``dataframes/{gid}/{entity_type}/sections/`` plane. That split-brain
+        # froze the v2 plane (metric read-path) while fresh warm writes landed
+        # on legacy. Threading ``entity_type`` here keeps the incremental
+        # writer on the SAME plane as the reader. See
+        # .ledge/reviews/DEFECT-seam1-entity-blind-prober-plane-split-2026-07-27.md.
+        self._entity_type = entity_type
         # ``section_names``: ``{gid: name}`` map sourced from the warm-entry
         # ``_list_sections()`` call (threaded through
         # ``progressive._probe_freshness``). Same source the stamp + re-seed
@@ -220,11 +233,18 @@ class SectionFreshnessProber:
         1. Fetch GIDs only → compute hash
         2. If stored gid_hash is None → NO_BASELINE
         3. If hash differs → STRUCTURE_CHANGED
-        4. If hash matches → modified_since check
-           - Per POC: modified_since is inclusive (>=), so boundary task always returned
-           - >1 result → CONTENT_CHANGED (real changes beyond false-positive)
-           - <=1 result → CLEAN
-        5. API errors → PROBE_FAILED (treated as clean)
+        4. If hash matches AND a watermark exists → watermark-task-identity
+           check (ADR-006 §Decision-5b): fetch ``modified_at`` and flag
+           CONTENT_CHANGED when ANY returned task has ``modified_at >
+           watermark`` (strict). ``modified_since`` is inclusive (``>=``), so
+           an unchanged boundary task has ``modified_at == watermark`` → CLEAN.
+           (The retired ``len(modified_tasks) > 1`` count gate missed
+           single-task-section and watermark-task edits.)
+        5. If hash matches AND watermark is None → hash-only CLEAN. Content
+           edits that preserve the GID set are INVISIBLE here (D8 residual);
+           the stamp pass (progressive._probe_freshness) does NOT stamp such a
+           section and heals its watermark so a future warm can content-verify.
+        6. API errors → PROBE_FAILED (NOT treated as verified; never stamps).
         """
         section_info = self._manifest.sections.get(section_gid)
         if section_info is None:
@@ -402,7 +422,9 @@ class SectionFreshnessProber:
         section_info = self._manifest.sections.get(section_gid)
 
         # For NO_BASELINE or missing parquet, do a full re-fetch
-        existing_df = await self._persistence.read_section_async(self._project_gid, section_gid)
+        existing_df = await self._persistence.read_section_async(
+            self._project_gid, section_gid, entity_type=self._entity_type
+        )
 
         if existing_df is None or result.verdict == ProbeVerdict.NO_BASELINE:
             return await self._full_section_refetch(section_gid, result, view)
@@ -535,6 +557,7 @@ class SectionFreshnessProber:
             watermark=new_watermark,
             gid_hash=new_gid_hash,
             name=self._section_names.get(section_gid),
+            entity_type=self._entity_type,
         )
 
         logger.info(
@@ -588,6 +611,7 @@ class SectionFreshnessProber:
                 watermark=None,
                 gid_hash=compute_gid_hash([]),
                 name=self._section_names.get(section_gid),
+                entity_type=self._entity_type,
             )
             return True
 
@@ -633,6 +657,7 @@ class SectionFreshnessProber:
             watermark=watermark,
             gid_hash=gid_hash,
             name=self._section_names.get(section_gid),
+            entity_type=self._entity_type,
         )
 
         logger.info(

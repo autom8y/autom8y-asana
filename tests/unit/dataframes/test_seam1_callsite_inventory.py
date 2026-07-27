@@ -93,6 +93,19 @@ _SUBSTRATE_CALLEES: frozenset[str] = frozenset(
         "load_project_dataframe_with_meta",
         "from_manifest_async",
         "read_manifest_sync",
+        # SectionPersistence WRAPPER surface (added post-DEFECT-seam1-entity-
+        # blind-prober-plane-split-2026-07-27). The original inventory only
+        # named the STORAGE-layer methods (load_section/save_section/...), so
+        # the SectionFreshnessProber's entity-blind calls to these PERSISTENCE
+        # wrappers were invisible — the guard passed while the incremental
+        # writer wrote to the legacy entity-agnostic plane. Every src/ call-site
+        # of these now threads entity_type; enumerating them here means a future
+        # entity-blind wrapper call FAILS the guard (the miss that let #111
+        # ship).
+        "read_section_async",
+        "write_section_async",
+        "update_manifest_section_async",
+        "read_all_sections_async",
     }
 )
 
@@ -835,6 +848,40 @@ class TestSeam1CallSiteInventory:
         )
         green_violations, _ = _scan_source(green, "synthetic_writer_green.py")
         assert green_violations == []
+
+    def test_inventory_catches_entity_blind_prober_wrapper_call(self) -> None:
+        """REGRESSION LOCK (DEFECT-seam1-entity-blind-prober-plane-split): an
+        entity-blind ``write_section_async`` — the EXACT shape the
+        SectionFreshnessProber shipped with in #111 — is now flagged.
+
+        Before this defect, ``write_section_async`` was not in the substrate
+        inventory (only the storage-layer ``save_section`` was), so the prober's
+        legacy-plane writes were invisible and the guard passed. This test proves
+        the persistence-wrapper surface is now covered: the entity-blind form is a
+        violation, the threaded form is guarded.
+        """
+        red = (
+            "async def _apply_section_delta(self, section_gid, merged_df):\n"
+            "    await self._persistence.write_section_async(\n"
+            "        self._project_gid, section_gid, merged_df)\n"
+        )
+        red_violations, _ = _scan_source(red, "dataframes/builders/freshness.py")
+        assert len(red_violations) == 1, (
+            "REGRESSION LOCK FAILED: an entity-blind write_section_async (the "
+            "entity-blind-prober defect shape) was NOT flagged — the persistence "
+            "wrapper surface is not covered."
+        )
+        assert red_violations[0].callee == "write_section_async"
+
+        green = (
+            "async def _apply_section_delta(self, section_gid, merged_df):\n"
+            "    await self._persistence.write_section_async(\n"
+            "        self._project_gid, section_gid, merged_df,\n"
+            "        entity_type=self._entity_type)\n"
+        )
+        green_violations, green_guarded = _scan_source(green, "dataframes/builders/freshness.py")
+        assert green_violations == []
+        assert green_guarded == 1
 
     def test_api_delete_section_collision_is_not_flagged(self) -> None:
         """The Asana-SDK SectionService.delete_section is NOT the substrate variant.
