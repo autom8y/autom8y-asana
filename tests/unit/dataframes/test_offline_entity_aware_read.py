@@ -38,11 +38,13 @@ assertion would collapse to $8,775 and FAIL.
 from __future__ import annotations
 
 import io
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import polars as pl
+import pytest
 
-from autom8_asana.dataframes.offline import load_project_dataframe
+from autom8_asana.dataframes.offline import PlaneDivergenceError, load_project_dataframe
 from autom8_asana.metrics.registry import MetricRegistry
 
 # The canonical legacy-root project GID from the entity-blind-reader receipt.
@@ -220,3 +222,74 @@ class TestEntityAwareReadExcludesFossil:
         df = load_project_dataframe(_PROJECT_GID, bucket="test-bucket", entity_type="offer")
         # v2 was empty -> fell back to legacy -> the legacy frame is returned.
         assert df["mrr"].sum() == _FOSSIL_SUM
+
+
+class TestPlaneDivergenceGuard:
+    """P2: refuse to serve a present-but-STALE v2 plane shadowed by a fresher legacy plane.
+
+    This is the exact scar the entity-blind prober produced: fresh warm writes
+    land on the legacy ``sections/`` plane while the metric reads a frozen v2
+    ``offer/sections/`` plane. The offline loader must NOT silently return the
+    stale v2 number — it fails loud (PlaneDivergenceError) so the operator
+    re-baselines rather than banking a 2-week-old MRR.
+    """
+
+    _V2_STALE = datetime(2026, 7, 13, 16, 2, tzinfo=UTC)
+    _LEGACY_FRESH = datetime(2026, 7, 27, 13, 0, tzinfo=UTC)  # ~14d newer
+
+    def _dated_client(self, v2_mtime: datetime, legacy_mtime: datetime) -> MagicMock:
+        client = MagicMock()
+        paginator = MagicMock()
+        client.get_paginator.return_value = paginator
+
+        def paginate(*, Bucket: str, Prefix: str) -> list[dict]:  # noqa: N803
+            if Prefix == _OFFER_V2_PREFIX:
+                return [{"Contents": [{"Key": _OFFER_V2_KEY, "LastModified": v2_mtime}]}]
+            if Prefix == _FOSSIL_PREFIX:
+                return [{"Contents": [{"Key": _FOSSIL_KEY, "LastModified": legacy_mtime}]}]
+            return [{"Contents": []}]
+
+        paginator.paginate.side_effect = paginate
+
+        def get_object(*, Bucket: str, Key: str) -> dict:  # noqa: N803
+            body = MagicMock()
+            body.read.return_value = _parquet_bytes(
+                _OFFER_V2_DF if Key == _OFFER_V2_KEY else _FOSSIL_DF
+            )
+            return {"Body": body}
+
+        client.get_object.side_effect = get_object
+        return client
+
+    @patch("autom8_asana.dataframes.offline.boto3")
+    def test_stale_v2_behind_fresh_legacy_refuses(self, mock_boto3: MagicMock) -> None:
+        """v2 plane ~14d STALER than legacy -> PlaneDivergenceError (fail loud)."""
+        mock_boto3.client.return_value = self._dated_client(self._V2_STALE, self._LEGACY_FRESH)
+
+        with pytest.raises(PlaneDivergenceError) as exc:
+            load_project_dataframe(_PROJECT_GID, bucket="test-bucket", entity_type="offer")
+
+        msg = str(exc.value)
+        assert "plane divergence" in msg.lower()
+        assert _OFFER_V2_PREFIX in msg and _FOSSIL_PREFIX in msg
+
+    @patch("autom8_asana.dataframes.offline.boto3")
+    def test_fresh_v2_ahead_of_legacy_serves(self, mock_boto3: MagicMock) -> None:
+        """DISCRIMINATION (G-THEATER): v2 NEWER than legacy is the healthy state —
+        it must NOT raise, and returns the v2 frame. Proves the guard fires on the
+        divergence direction only, not on any two-plane coexistence.
+        """
+        mock_boto3.client.return_value = self._dated_client(self._LEGACY_FRESH, self._V2_STALE)
+
+        df = load_project_dataframe(_PROJECT_GID, bucket="test-bucket", entity_type="offer")
+        assert df["mrr"].sum() == _HEALTHY_SUM
+
+    @patch("autom8_asana.dataframes.offline.boto3")
+    def test_small_skew_within_sla_serves(self, mock_boto3: MagicMock) -> None:
+        """A small legacy-ahead skew (write ordering, < 6h) is NOT divergence."""
+        v2 = datetime(2026, 7, 27, 13, 0, tzinfo=UTC)
+        legacy_slightly_ahead = datetime(2026, 7, 27, 14, 0, tzinfo=UTC)  # +1h < 6h
+        mock_boto3.client.return_value = self._dated_client(v2, legacy_slightly_ahead)
+
+        df = load_project_dataframe(_PROJECT_GID, bucket="test-bucket", entity_type="offer")
+        assert df["mrr"].sum() == _HEALTHY_SUM

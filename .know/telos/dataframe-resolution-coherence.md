@@ -101,10 +101,23 @@ telos:
 > **Receiver-side heal = REALIZED.** Full telos still needs SEAM-2 (autom8 monolith consumers) +
 > the population/telos observability metric (absent) + the eunomia STRONG critic.
 
+> **REALIZATION REVISED 2026-07-27 (DEFECT-seam1-entity-blind-prober-plane-split) — the "$79,485/62
+> HEALED + LIVE" claim above is FALSIFIED as a *durable* result.** The write path shipped in #111 was
+> incomplete: `SectionFreshnessProber` (`dataframes/builders/freshness.py`) was NOT threaded with
+> `entity_type`, so the daily incremental warm wrote fresh deltas to the LEGACY `sections/` plane while
+> the metric kept reading the v2 `offer/sections/` plane. The v2 plane FROZE at its last full-fetch
+> (2026-07-13); by 2026-07-27 `active_mrr` was serving 14-day-stale data — the `$79,485/62` figure is
+> now itself the frozen artifact, and the live `ACTIVE` section had moved to `$60,585`/48. The
+> `[[seam1-entity-blind-reader-gap]]` was a READER gap; this is its WRITER twin. Fix P1–P5 landed on
+> `fix/seam1-entity-blind-prober-plane-split`; durable heal now also requires P0 (full v2 re-baseline)
+> and P7 (complete the migration — delete legacy, flip `legacy_fallback_enabled=False`), without which
+> the split can recur. `verified_realized` must NOT be attested until a post-fix warm is observed to
+> keep `offer/sections/*` advancing across ≥2 cycles. See the DEFECT report + SCAR-SEAM1-PROBER-001.
+
 | Item | Rung | Status |
 |---|---|---|
 | FM-1 entity-identity key contract | **live** | #111 merged `7fa56d19` → deployed `e686ba0`; entity-keyed write + read both live |
-| active_mrr receiver/CLI heal | **realized-live** | first-party `$79,485`/62 over offer prefix (2026-06-09); auto-routes via `_ACTIVE_OFFER_SCOPE` |
+| active_mrr receiver/CLI heal | **FALSIFIED-2026-07-27** | was `realized-live`; DEFECT-seam1-entity-blind-prober-plane-split showed the v2 plane froze 2026-07-13 (entity-blind prober wrote legacy) → served 14-day-stale. Fix P1–P5 landed; durable heal needs P0 re-baseline + P7 migration close |
 | FM-1 entity-identity key contract (orig) | proven-merged-PENDING | PR #111 open, HEAD dbb50ab5, 3 commits, mergeable_state=clean |
 | FM-4 population receipt | proven-merged-PENDING | PR #111, `post_build_population_receipt.py:121` |
 | NFR-2 call-site-inventory guard | proven-merged-PENDING | PR #111, `test_seam1_callsite_inventory.py` |

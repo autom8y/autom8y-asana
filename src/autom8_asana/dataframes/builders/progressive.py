@@ -416,6 +416,15 @@ class ProgressiveProjectBuilder:
                 # manifests. Single source of truth for section names
                 # across the warm.
                 section_names=names_map,
+                # SEAM-1: the incremental prober MUST read/write the same
+                # entity plane as the reader + full builder. Omitting this
+                # (the original defect, #111) sent every fresh delta write
+                # to the legacy ``sections/`` plane while the metric read the
+                # frozen v2 ``{entity_type}/sections/`` plane. The in-memory
+                # ``manifest`` gid_hash/watermark baselines are the v2
+                # manifest, so reads MUST come from v2 too — this keeps the
+                # probe baseline and the write target on one plane.
+                entity_type=self._entity_type,
             )
             probe_results = await prober.probe_all_async()
             sections_probed = len(probe_results)
@@ -496,6 +505,7 @@ class ProgressiveProjectBuilder:
 
                     # Stamp pass.
                     stamped = 0
+                    healed_watermarks = 0
                     for r in probe_results:
                         if r.verdict == ProbeVerdict.PROBE_FAILED:
                             continue
@@ -504,11 +514,31 @@ class ProgressiveProjectBuilder:
                             # apply — not stamp-eligible (ADR §Decision-5c).
                             continue
                         stamp_info = fresh_manifest.sections.get(r.section_gid)
-                        if stamp_info is not None:
-                            stamp_info.last_verified_at = now
-                            stamped += 1
+                        if stamp_info is None:
+                            continue
+                        # P3 (ADR-006 D8 closure): a CLEAN verdict on a
+                        # null-watermark section is a HASH-ONLY clean — the
+                        # prober's content check (``modified_at > watermark``,
+                        # freshness.py) could not run, so we cannot honestly
+                        # assert the content was verified against Asana. Do
+                        # NOT stamp it (its verification_age then climbs off
+                        # ``written_at`` per compute_verification_age's
+                        # §Decision-6 backfill, surfacing it as UNVERIFIED
+                        # rather than false-fresh). Instead HEAL its watermark
+                        # from the cached parquet's ``last_modified`` so the
+                        # NEXT warm can content-verify and stamp it
+                        # legitimately. Delta/refetch verdicts already wrote a
+                        # fresh watermark, so they fall through and stamp.
+                        if r.verdict == ProbeVerdict.CLEAN and stamp_info.watermark is None:
+                            healed = await self._heal_null_watermark(r.section_gid)
+                            if healed is not None:
+                                stamp_info.watermark = healed
+                                healed_watermarks += 1
+                            continue
+                        stamp_info.last_verified_at = now
+                        stamped += 1
 
-                    if stamped or reseeded:
+                    if stamped or reseeded or healed_watermarks:
                         await self._persistence._save_manifest_async(fresh_manifest)
                         logger.info(
                             "section_last_verified_stamped",
@@ -516,6 +546,7 @@ class ProgressiveProjectBuilder:
                                 "project_gid": self._project_gid,
                                 "stamped": stamped,
                                 "reseeded": reseeded,
+                                "healed_watermarks": healed_watermarks,
                             },
                         )
 
@@ -587,6 +618,32 @@ class ProgressiveProjectBuilder:
                 },
             )
             return 0, 0
+
+    async def _heal_null_watermark(self, section_gid: str) -> datetime | None:
+        """Derive a watermark for a null-watermark section from its cached
+        parquet's ``last_modified`` column (ADR-006 D8 closure, P3).
+
+        A section with ``watermark=None`` can only ever be probed hash-only, so
+        content edits that preserve the GID set are invisible (false-CLEAN) and
+        the section never re-enters a write path to acquire a watermark — a
+        self-perpetuating blind spot. Seeding a watermark from the already-cached
+        ``last_modified`` breaks that loop: the next warm runs the content check
+        (``modified_at > watermark``) and can stamp legitimately.
+
+        Best-effort: returns None (leaving the section null-watermark, hence
+        unstamped and surfaced as unverified) if the parquet is missing or lacks
+        a usable ``last_modified``. Never raises into the stamp pass.
+        """
+        try:
+            df = await self._persistence.read_section_async(
+                self._project_gid, section_gid, entity_type=self._entity_type
+            )
+        except Exception:  # BROAD-CATCH: best-effort heal, never fail the warm  # noqa: BLE001
+            return None
+        if df is None or "last_modified" not in df.columns or len(df) == 0:
+            return None
+        max_val = df["last_modified"].max()
+        return max_val if isinstance(max_val, datetime) else None
 
     async def _ensure_manifest(
         self,
