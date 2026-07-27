@@ -452,3 +452,43 @@ explicit OPERATOR action outside this change's scope.
    produce a non-null `status` (was: null).
 4. Each proven via `uv run pytest -n0` with exit codes + before/after counts, plus a
    live re-derived offer count (`metrics/__main__.py --entity-type offer`).
+
+---
+
+## AMENDMENT 2026-07-27 — entity-blind incremental-writer failure class + recency-fail-loud
+
+**Trigger:** `DEFECT-seam1-entity-blind-prober-plane-split-2026-07-27`. This ADR's Decision 1
+threaded `entity_type` through the READER (`offline.py`), the full BUILDER
+(`ProgressiveProjectBuilder`), and the storage/persistence surface — but the INCREMENTAL writer
+`SectionFreshnessProber` (`dataframes/builders/freshness.py`) was missed in #111 (`7fa56d19`). It
+wrote fresh deltas to the legacy entity-agnostic plane while the reader read the v2 entity plane,
+so the v2 plane FROZE and `active_mrr` served 14-day-stale data. The NFR-2 call-site guard did not
+catch it because the guard enumerated the storage-layer methods but not the persistence-layer
+wrappers the prober used.
+
+**Amendments:**
+
+1. **NFR-2 surface widened.** The call-site inventory (`test_seam1_callsite_inventory.py`) now
+   covers the persistence wrappers `write_section_async` / `read_section_async` /
+   `update_manifest_section_async` / `read_all_sections_async`, not only the storage methods.
+   Invariant restated: **EVERY reader OR writer of `dataframes/{gid}/…` — including incremental /
+   freshness / delta-merge writers — threads `entity_type`.** "Writer" includes anything that
+   persists a section, manifest, or dataframe, at any altitude.
+
+2. **Decision 2 (dual-read) is INSUFFICIENT alone — add recency-fail-loud.** The `legacy_fallback_enabled`
+   dual-read falls back to legacy only on a v2 **miss (empty prefix)**, never on a v2 that is
+   **present but stale** behind a fresher legacy plane. That gap let an orphaned/stale v2 plane be
+   served silently. New guard (`offline._guard_plane_divergence` + `PlaneDivergenceError`): when v2
+   is present but the legacy plane is fresher than v2 by more than the active-SLA skew (6h,
+   `ASANA_PLANE_DIVERGENCE_SKEW_SECONDS`), REFUSE (fail loud) rather than serve stale. Prefer-fresher
+   is rejected because the legacy plane in this state is fragmentary (would under-count). This
+   discipline is the SEAM-1 companion to SCAR-FRESH-001.
+
+3. **Migration completion (Decision 2 operator lever) is re-prioritized from "safe to defer" to
+   "recurrence-preventing".** While both planes are live, this failure class can recur. Completing
+   the migration (copy/rebuild v2, delete legacy, flip `legacy_fallback_enabled=False`) makes the
+   split-brain structurally impossible and should be scheduled after the P1 prober fix is deployed
+   fleet-wide and a full v2 re-baseline is confirmed.
+
+**Status:** proposed (amendment). Code P1–P5 on `fix/seam1-entity-blind-prober-plane-split`; operator
+levers P0/P6/P7 open. See the DEFECT report and SCAR-SEAM1-PROBER-001.
