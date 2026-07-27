@@ -482,9 +482,7 @@ class TestStampReseedIntegration:
         )
         # The cached parquet the heal path reads for the null-watermark section.
         section_dfs = {
-            "sec_nowm": pl.DataFrame(
-                {"gid": ["t1", "t2"], "last_modified": [wm, healed_from]}
-            )
+            "sec_nowm": pl.DataFrame({"gid": ["t1", "t2"], "last_modified": [wm, healed_from]})
         }
         probe_results = [
             SectionProbeResult("sec_wm", ProbeVerdict.CLEAN),
