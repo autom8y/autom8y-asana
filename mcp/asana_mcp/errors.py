@@ -190,6 +190,29 @@ def map_http_error(response: httpx.Response) -> McpToolError:
             status=404,
             code=code,
         )
+    if status == 424:
+        # Substrate-v2 data-integrity refusal (DP-3 §Ratification sequencing, 2026-07-29).
+        # A 424 Failed Dependency means the substrate refused to serve an UNPROVABLE
+        # number (stale/corrupt/missing/divergent) — the request is well-formed and the
+        # caller is not at fault, so this is NOT the generic `client` (fix-your-request)
+        # class. It is non-retryable AS A HOT LOOP (the 429-scar-tissue concern: a stale
+        # plane is not retry-clearable within a retry window) BUT it honors Retry-After,
+        # which points the consumer at the rebuild schedule. ADDITIVE + INERT: no current
+        # satellite surface returns 424 (v2 is dark), so this branch is dead until v2
+        # flips — landing it now satisfies the DP-3 HARD sequencing (consumer-side
+        # classification lands WITH or BEFORE the server flip). Placed before the generic
+        # 4xx branch so a 424 is classified here, not as `client`.
+        return McpToolError(
+            "The asana substrate refused to serve an unprovable number (stale/corrupt/"
+            "missing/divergent data). This is a data-integrity refusal — NOT an auth or "
+            "cache-warming condition. Do NOT hot-retry; wait for the rebuild (Retry-After)."
+            + _upstream_suffix(response, code=code),
+            kind="data-integrity-refusal",
+            retryable=False,
+            status=424,
+            retry_after=_retry_after(response),
+            code=code,
+        )
     if 400 <= status < 500:
         return McpToolError(
             "The request was rejected as invalid (bad predicate, unknown field, "
