@@ -13,7 +13,7 @@ rite: 10x-dev
 initiative: substrate-v2-epoch
 sprint: S1
 phase: "FINALIZED (Phase-3 of the S1 three-phase DAG) — adversary PASS-WITH-CONDITIONS + PE BUILDABLE folded; PT-01 flips status to ratified"
-seams_frozen: "v1.0-frozen-2026-07-29 (Seams 1-5; the S2-S7 build contract)"
+seams_frozen: "Seams 1,3,4,5 = v1.0-frozen-2026-07-29; Seam 2 = v1.1 (F1/C15 amendment 2026-07-29 — swap_pointer gains proof param; routed for adversary DELTA)"
 evidence_grade: MODERATE
 evidence_grade_rationale: >
   Self-authored corridor design; caps at MODERATE per self-ref-evidence-grade-rule.
@@ -302,10 +302,10 @@ uses (PE [H19]) and emits `provable=1/0`.
 | RC | Mode | One-line construction (conditions folded) |
 |----|------|-------------------------------------------|
 | RC-A | impossible-by-construction + CAS backstop | one ArtifactId → one artifact → one CAS pointer; collision-free version-IDs; ArtifactMissing on absence (C3, [H5]) |
-| RC-B | construction + fail-loud | freshness = MIN-over-section-fetch-instants + value-digest; probe cannot freshen; refuse past SLA / on mismatch (C1, C2) |
+| RC-B | construction + fail-loud | freshness = MIN-over-section-fetch-instants + value-digest; probe cannot freshen; proof from the validated path only, never version metadata; refuse past SLA / on mismatch (C1, C2, C15) |
 | RC-C | construction (omission) + fail-loud-at-construction (member) | entity_type required + registry-derived servable guard; omission unconstructable, explicit-UNKNOWN raises (C6/OQ-2) |
 | RC-D | construction + CI sunset (+ operator ruling on extension) | no dual-read bridge; harness bridges fail CI past SUNSET_AFTER (C11) |
-| RC-E | construction + fail-loud | staging-only writes; reader has no write method; validate-then-swap-LAST; partial ≠ corrupt (C9) |
+| RC-E | construction + fail-loud | staging-only writes; reader has no write method; validate-then-swap-LAST; partial fetch → FETCH_REFUSED (completeness-by-construction); partial ≠ corrupt (C9, C16) |
 | RC-F | construction + fail-loud | scheduled evaluator on the shared predicate; two-sided expected-set; absence + incompleteness + heartbeat fire (C7, C10) |
 
 ## 4. The five FROZEN seams (v1.0-frozen-2026-07-29 — the S2-S7 build contract)
@@ -347,7 +347,7 @@ def canonical_digest(frame) -> str:  # [H1] the ONE digest function; every produ
   fetch-instant advances only on a real content fetch; `is_provable` is consumed identically by
   serving (Seam 4) and observability (Seam 5).
 
-### Seam 2 — STORAGE+KEYS (`substrate.identity` + `substrate.store`) — RC-A/RC-E — FROZEN v1.0
+### Seam 2 — STORAGE+KEYS (`substrate.identity` + `substrate.store`) — RC-A/RC-E — FROZEN v1.1 (F1/C15 amendment 2026-07-29: `swap_pointer` gains a `proof` param; `stage_version` drops it)
 
 ```python
 @dataclass(frozen=True, slots=True)
@@ -364,25 +364,31 @@ def artifact_key(aid: ArtifactId) -> str:  # pure; the ONLY key-builder; no None
 
 class ArtifactStore(Protocol):
     async def read_current(self, aid: ArtifactId) -> tuple[bytes, FreshnessProof]: ...   # [H5] raises ArtifactMissing on absence — NEVER (None, None)
-    async def stage_version(self, aid: ArtifactId, frame_bytes: bytes, proof: FreshnessProof) -> VersionId: ...  # never touches the pointer; collision-free VersionId (C3)
-    async def swap_pointer(self, aid: ArtifactId, to: VersionId, *, if_match: ETag) -> None: ...  # [H6]/C3 true CAS (If-Match); sole, atomic, monotonic mutation
+    async def stage_version(self, aid: ArtifactId, frame_bytes: bytes) -> VersionId: ...  # C15: BYTES ONLY — persists NO proof to immutable version metadata; collision-free VersionId (C3); never touches the pointer
+    async def swap_pointer(self, aid: ArtifactId, to: VersionId, proof: FreshnessProof, *, if_match: ETag) -> None: ...  # [H6]/C3/C15 true CAS (If-Match); publishes the VALIDATED in-memory proof (never read-back from version metadata); sole atomic monotonic mutation
     async def list_versions(self, aid: ArtifactId) -> list[VersionId]: ...
     async def gc_versions(self, aid: ArtifactId, keep_after: datetime) -> int: ...       # never deletes current/current-1; age > SLA+grace only
 ```
 - **[H4]/C6** guard is registry-derived (single source, no drift); the non-servable set ⊇ `{UNKNOWN}`.
 - **[H5] `read_current` HARD v1 break:** resolves pointer → named immutable version in ONE logical
   read and returns `(bytes, proof)`, or **raises `ArtifactMissing`** (contrast v1 `(None, None)`).
-- **[H6]/C3** `swap_pointer` is the ONLY writer of the pointer, a **true CAS** (`If-Match` ETag — not
-  read-check-PUT), monotonic (reject a swap to a version older than current unless via an explicit
+- **[H6]/C3/C15** `swap_pointer` is the ONLY writer of the pointer, a **true CAS** (`If-Match` ETag —
+  not read-check-PUT), monotonic (reject a swap to a version older than current unless via an explicit
   rollback capability). **VersionId is collision-free** (UUID/timestamp/digest-addressed — not
-  `max+1`; digest-addressing also makes identical rebuilds idempotent).
-- **[H7]** `stage_version` NEVER touches the pointer and never overwrites a pointed-to version.
-- **[H8] the store is POLICY-FREE** — returns bytes+proof, does not apply the SLA/refuse gate (that
-  is Seam 4; preserves the rebuilder + parity-harness raw-read need). This is the F5-3 rejection made
-  structural.
-- **Frozen invariant:** `entity_type` required + registry-servable; exactly one key-builder, no
-  legacy path; `stage_version` never mutates the pointer; `swap_pointer` is the sole atomic monotonic
-  CAS mutation; reads resolve current → named immutable version or raise.
+  `max+1`; digest-addressing also makes identical rebuilds idempotent). **C15: `swap_pointer` takes the
+  VALIDATED `proof` as an explicit param and publishes IT** — the pointer proof is NEVER read-back from
+  the version's (possibly stale/idempotent/poisoned) immutable metadata.
+- **[H7]/C15** `stage_version` NEVER touches the pointer, never overwrites a pointed-to version, and
+  **persists NO proof into the immutable version metadata (bytes only)** — so a validate-REJECTED
+  staging cannot poison a version, and an idempotent re-stage of identical bytes has no frozen proof to
+  republish (this structurally kills F1/P1/P3/P4; see §11 C15).
+- **[H8] the store is POLICY-FREE** — returns bytes+proof (proof from the pointer, not version
+  metadata), does not apply the SLA/refuse gate (Seam 4). This is the F5-3 rejection made structural.
+- **Frozen invariant (v1.1):** `entity_type` required + registry-servable; exactly one key-builder, no
+  legacy path; `stage_version` never mutates the pointer AND persists no proof to immutable metadata
+  (bytes only); `swap_pointer` is the sole atomic monotonic CAS mutation AND publishes the validated
+  caller-supplied proof (never a metadata read-back); reads resolve current → named immutable version
+  or raise.
 
 > **DP-2 (operator door #2):** the PHYSICAL version layout (app-level `v{N}/` + pointer vs S3-native
 > versioning vs single-object + proof-in-metadata) is the operator's ruling. The seam is
@@ -628,6 +634,141 @@ sprint and deliberately NOT designed into the S1 frozen contract (P7 — do not 
   alarm-action void; SNS-gap precedent on record in this fleet).
 - **C11 → S3 / S11 (extinction).** One doctrine line at S9/S11: a `SUNSET_AFTER` extension requires an
   operator-visible ruling — a serial date-bump is the immortal bridge re-entering with receipts.
+- **C12 → S4 (rebuild) [SEAM-2/3 reconciliation, PR #284 finding; no signature change].** Seam-2
+  [H6]'s prose "monotonic (reject a swap to a version older than current unless via an explicit
+  rollback capability)" **over-specified the store**: with C3's content-digest-addressed VersionIds
+  (collision-free + idempotent, carrying NO inherent order) and the frozen
+  `swap_pointer(aid, to, *, if_match)` signature (no rollback discriminator), a store-level
+  age-monotonic guard is both **un-expressible** AND would **forbid rollback** (a ratified Option-C
+  capability). **RECONCILED: CAS (`If-Match`) is the store's sole concurrency invariant — the
+  mechanism C3 actually required ([H8] policy-free store); advance-vs-rollback is Seam-3 REBUILD
+  POLICY.** The store just CASes; it does not judge freshness or intent. **S4 obligation (carry
+  verbatim into the S4 brief):** the rebuilder reads the current pointer's `proof.built_from_live_at`
+  and swaps its staged version ONLY IF `staged.built_from_live_at >= current` (a forward/idempotent
+  advance); a staged version strictly older than current is **DISCARDED, not swapped** (a staler
+  build that lost a concurrent race must never regress the pointer) — the SOLE exception being an
+  explicit, logged/receipted rollback path. On a CAS (`If-Match`) failure the rebuilder RE-READS the
+  current pointer and re-applies this monotonicity check before retrying, so a staler build correctly
+  declines on retry. The store docstring (PR #284) documents the policy-free CAS-only store; this
+  build-note is the durable TDD home for the reconciliation and the S4 obligation.
+- **C13 → S5/S6/S7 [RC-D sunset-breach reason mapping; RefuseReason CLOSED grammar STANDS — no seam
+  amendment].** S7 surfaced that a runtime sunset-breach refusal maps to `RefuseReason.STALE` because
+  the CLOSED grammar {STALE, CORRUPT, MISSING, DIVERGENT} has no EXPIRED member. **RULING: option (a)
+  STANDS for the epoch.** `RefuseReason` is a CONSUMER-facing grammar (four content/serving axes: age /
+  consistency / absence / coherence); a sunset-breach's consumer-facing face IS the staleness-class
+  answer ("this number is not trustworthy-servable"). The ORTHOGONAL axis — surface-lifecycle-governance
+  ("this bridge should be dead: DELETE it, do NOT re-warm") — is an OPERATOR concern that rides the
+  `RefusePayload` + the RC-D CI tooth + RC-F, NOT the consumer reason enum; the two axes are separated
+  **by altitude, not fused** (contrast the `ai_cloud` anti-pattern, which fused two axes at ONE
+  altitude). **MANDATORY payload obligation (S5):** the `RefusePayload` MUST carry a named, field-level
+  sunset marker (e.g. `sunset_breach: {surface, sunset_after, observed_at}`) so RC-D-2's observable
+  stays distinguishable at the payload level — without it, (a) WOULD be a lossy fusion. This is an
+  ADDITIVE payload-observable extension within the OQ-1 "rich, do-NOT-narrow" mandate — NOT a
+  reason-enum change, NOT a signature change, NO version bump (the coordinator classes the payload
+  marker inside (a)'s no-seam-change envelope). RC-D's forcing function is UNAFFECTED: the sunset
+  primary enforcement is the CI tooth (RC-D-2) + enumeration detectability (RC-D-3), neither of which is
+  a `RefuseReason`; the runtime reason is only a defense-in-depth backstop for the near-unconstructable
+  bridge-survives-to-runtime case. **Rot-trigger for (b) [promote EXPIRED to the closed enum via a
+  proper frozen-seam amendment + adversary DELTA]:** a CONSUMER (not just the operator) must
+  programmatically branch on sunset-breach-vs-age-staleness AND the payload marker proves insufficient
+  for that branch. S7 corpus: encode sunset → `STALE` reason + a POPULATED `sunset_breach` payload field
+  (upgrades the interim "STALE-with-comment" to a structured, machine-distinguishable marker).
+- **C14 → S4 (rebuild) primary + S2/S3 (store) conditional [F1 HIGH; freshness cannot advance for
+  byte-stable content — resolves an Option-C composition wound, refines RC-B/C1].** QA PROBE-P5
+  (`.ledge/reviews/QA-s3-storage-pr284-2026-07-29.md §F1`, WOUND-CONFIRMED) found: with
+  content-digest-addressed VersionIds, byte-stable content re-fetched at t1 mints the SAME version_id;
+  `stage_version`'s 412-idempotency returns without rewriting metadata, and `swap_pointer` publishes the
+  read-back staged-metadata proof (frozen t0), NOT the rebuild's fresh proof — so a healthy artifact
+  that is live-re-verified every warm freezes its `built_from_live_at` at the first build and
+  STALE-refuses FOREVER. Direction is UNDERSTATEMENT (over-refuse, never false-serve — correctness-safe)
+  but a permanent-availability wound that INVERTS the mission for the most-provably-current (stable)
+  artifacts. **ROOT (the design error to name):** the freshness proof is a TIME-of-live-confirmation
+  fact that is ORTHOGONAL to byte-identity; it was coupled to the immutable digest-addressed byte-object
+  (via version metadata), so it cannot advance when bytes are stable. **RULING — the proof lives in the
+  MUTABLE pointer and advances forward-only, decoupled from the immutable byte-address.** Options
+  dispositioned: (A) mutate the version's metadata on 412 — **REJECT** (breaks version immutability;
+  wrong layer). (D) accept-and-refuse — **REJECT** (the availability outage). (E) de-couple VersionId
+  from content-digest (timestamp/UUID) — **REJECT** (throws away C3's collision-free + idempotent
+  property; re-bloats storage with a new object per warm for identical bytes). **CHOSEN: (C) S4 policy
+  primary** — on an idempotent stage (staged `version_id` == current pointer's `version_id`), S4
+  performs a pointer-only proof refresh via the store's CAS pointer-write (the existing beyond-Protocol
+  `read_pointer` + PointerState CAS path), publishing the rebuild's fresh proof for the SAME version;
+  else the normal `swap_pointer` path (byte-changed / first publish) is correct as-is (staged metadata
+  IS the rebuild proof there). **CONDITIONAL (B) store addendum** — IF the S3 builder finds PointerState
+  does NOT expose a proof-carrying CAS-write callable by S4 (i.e. the frozen `swap_pointer` is the only
+  pointer-writer and takes no proof param), add the narrow ADDITIVE op `refresh_pointer_proof(aid,
+  proof, *, if_match)` — additive, NO frozen-signature change — which S4 then composes. **Invariant (one
+  sentence):** *a pointer-proof refresh may only move `built_from_live_at` FORWARD (monotonic
+  non-decreasing) for the SAME `version_id`, under CAS (`If-Match`), and MUST NOT mutate the immutable
+  version object's bytes or metadata.* This is distinct from the [H6]/C12 advance-vs-rollback question
+  (do NOT conflate); it unifies WITH C12 as S4 freshness-monotonicity policy. Shape-agnostic: the wound
+  + fix apply identically if the operator ratifies A-prime (proof-in-metadata) instead of C — so this
+  CONFIRMS (does not reverse) Option C's "pointer carries the CURRENT proof" rationale and does NOT
+  reopen DP-2; it is a build-constraint on whatever shape is ratified. Refines RC-B/C1: the C1-advanced
+  `built_from_live_at` must REACH the served pointer even when the digest-addressed bytes are unchanged.
+- **C15 → S2/S3 (store, FROZEN-SEAM AMENDMENT) + S4 (rebuild) [F1 HIGH WOUND-CONFIRMED; SUPERSEDES
+  C14's remediation; Seam 2 → v1.1 → adversary DELTA].** The S4 qa-adversary rendered NO-GO: C14's
+  post-swap refresh is a PARTIAL fix — it cures the byte-stable availability wound but NOT the
+  byte-CHANGED false-serve (QA `.ledge/reviews/QA-s4-rebuild-pr285-2026-07-29.md §F1`, PROBE-P1/P3/P4).
+  **Deeper root (one sentence):** validation runs on the in-memory staged proof while `swap_pointer`
+  PUBLISHES the proof read-back from the version's IMMUTABLE metadata — two different objects, and the
+  metadata is write-once (frozen at first-stage; digest-idempotent re-stage never rewrites it).
+  Exploits: P1 (A→B→A recurrence republishes A's frozen T0 proof → pointer regresses → over-refuse,
+  C14-curable); **P3 (UNCURABLE, false-serve/WOUND-CLASS): a validate-REJECTED clock-skewed staging
+  ALREADY wrote a FUTURE-dated proof into version X's immutable metadata (stage precedes validate); a
+  later HONEST rebuild of X's bytes is idempotent (poison unchanged), validate passes on the honest
+  in-memory proof, but swap publishes X's POISONED FUTURE metadata proof → `is_provable` at NEGATIVE
+  age → PROVABLE FOREVER (the F8/[H13]-check-3 future-guard is bypassed because stage writes metadata
+  before validate); the C14 monotonic guard then REFUSES the honest-now proof forever (honest-now <
+  poisoned-future).** **RULING — option (C) `don't-persist-proof-in-immutable-metadata`, the root fix
+  that structurally kills P1/P3/P4:** the freshness proof lives ONLY in the mutable pointer, written
+  ONLY by the validated path. Realized via a **frozen-signature amendment** (Seam 2, v1.0 → v1.1):
+  `stage_version(aid, frame_bytes) -> VersionId` writes **bytes only** (drops the `proof` param;
+  persists no proof to version metadata); `swap_pointer(aid, to, proof, *, if_match)` **takes the
+  VALIDATED in-memory proof as an explicit param and publishes IT** atomically with the version
+  pointer, never a metadata read-back. **(B) reject-future-proof-at-construction is NOT required** —
+  under (C) a future proof is rejected by the EXISTING F8/[H13] validate-guard (now un-bypassed, since
+  nothing persists between stage and validate), so no new clock-skew constant is minted (avoids the
+  AV-3 ungoverned-constant disease). **(D) monotonic-guard "never-published" exception — REJECT**
+  (reopens the guard; the clean fix is upstream). **C12 stands** (S4 still applies forward-only
+  monotonicity before calling swap, now passing the validated proof); **C14's WOUND diagnosis stands
+  but its FIX is SUPERSEDED** — swap now carries the validated proof for every path (byte-stable and
+  byte-changed alike), so the C14 same-version S4-refresh is no longer needed. Regression corpus:
+  encode P1/P3/P4 as two-sided teeth (S7/S8). **Frozen-signature impact: YES — Seam 2 `swap_pointer`
+  + `stage_version` amended → route an adversary DELTA + seam bump v1.0→v1.1 (Seams 1/3/4/5 unchanged).**
+  **Coherence-layer placement (S4 builder realization 2026-07-29, CONFIRMED):** C15's proof-provenance
+  invariant (proof from the validated path, never a metadata read-back) is HONORED at the store — but the
+  DISTINCT frame↔proof digest-coherence (graft) guard CANNOT live in `swap_pointer`: the bytes-only
+  policy-free store ([H8]) can compute the ADDRESS digest `sha256(bytes)` but NOT the `proof.content_digest`
+  ([H1] parquet-independent canonical form) without deserializing parquet + importing polars + the registry
+  — a DIP layer violation. So the coherence guard lives where the materialized frame + validated proof
+  coexist: **S4 `_publish` (raises `ProofDigestMismatch` before swap — fast-fail write guard, composed with
+  the C9 receipt binding) AND Seam-4 serve INGRESS (per-read `canonical_digest` re-derivation per [H16]/C2 —
+  the fail-safe terminal: any incoherent published pair → `Refused(CORRUPT)`, so no false-serve is reachable
+  regardless of which writer published).** The store stays correctness-strict on what it CAN check (version
+  existence, CAS/`If-Match`, byte-address). Correct DIP; the adversary DELTA empirically tests the
+  serve-ingress false-serve-unreachability.
+- **C16 → S4 (rebuild) [F3/F4 MEDIUM; fetch-completeness-by-construction; NO frozen-signature change].**
+  QA PROBE-P5 (`§F3`): the default population floor `min_rows=1` is ABSOLUTE, so a silently-partial
+  1-of-500-section fetch produces a 1-row frame that PASSES validate (the 1 row is populated +
+  digest-self-consistent) and SWAPS over the healthy 500-row incumbent — destroying good data; F4: the
+  MIN-fold folds over fetcher-REPORTED instants only, so under-coverage also inflates freshness. Root:
+  the rebuild trusts partial fetcher results without a COMPLETENESS assertion. **RULING —
+  completeness-by-construction, NOT a shrink-guard.** The fetch step MUST account for EVERY requested
+  section as fetched-OR-explicitly-failed; a requested section that is neither (a silent omission) makes
+  the rebuild **`FETCH_REFUSED`** — it never reaches validate or swap (RC-E "partial ≠ corrupt = a
+  REFUSED rebuild, not a swapped one"; the incumbent is left untouched). Assertion (no ungoverned
+  constant): `requested_sections == fetched_sections ∪ explicitly_failed_sections`; any gap →
+  `FETCH_REFUSED`. This ALSO closes F4 (the MIN-fold now folds over the complete requested set — an
+  incomplete fetch is refused before the fold). **REJECT the relative shrink-guard** (an
+  ungoverned row-count-delta threshold — the AV-3 disease — and a fallible heuristic that both
+  false-refuses legitimate large shrinks and false-passes a partial fetch that happens to approximate
+  the incumbent count). Fold in the cheap constructor guard QA flagged: `min_rows >= 1` at the
+  `AcceptancePredicates` constructor (reject `min_rows=0`/negative caller-misconfig — a construction
+  guard, not a threshold). Layer: S4 rebuild (the completeness assertion between fetch and validate) +
+  the build-drawn `PacedAsanaFetcher` composition (per-section fetched/failed accounting, SEAM-0b). No
+  frozen-signature change; refines Seam 3 REBUILD + [H13]. Regression: encode the 500→1 partial as a
+  two-sided tooth (partial → REFUSED; complete → SWAPPED).
 
 ---
 
