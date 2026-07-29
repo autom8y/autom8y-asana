@@ -80,10 +80,17 @@ Every merged sprint: green CI + rite-appropriate adversarial review (qa-adversar
   `tests/harness/substrate_gate/parity.py::PacedLiveParitySource` (merged #283) **never calls
   `slot.reject()`** — a 429 is invisible to AIMD (window grows, never shrinks), unlike the true
   v1 path (`asana_http.py::_request`). FIX before arming any live fetcher (capacity condition 1).
-- **UV-P-1:** prod warmer Lambda image contains the #276 P1 entity-aware prober fix —
-  deploy-dispatch receipt + ECR digest probe. **DEFERRED this wave: AWS creds EXPIRED** (see §6).
-- **UV-P-2 baseline:** >=1 observed post-#276 warm cycle writing the v2 plane (feeds the S8
-  parity baseline; >=2 fully at PT-04 for LEG-2).
+- **UV-P-1: DISCHARGED 2026-07-29** (operator re-authed AWS post-close; read-only probe). Prod
+  warmer image `696318035277.dkr.ecr.us-east-1.amazonaws.com/autom8y/asana:2201db2` = git
+  `2201db21` (S5 merge, a descendant of #276 `bdbf86cb`), ECR-pushed 15:19 UTC, Lambda
+  `autom8-asana-cache-warmer{,-bulk,-section}` deployed 15:24 UTC — **the prod warmer contains the
+  #276 P1 entity-aware prober fix** (and S2/S3/S5/S6/S7 of the dark build). No live parity residual.
+- **UV-P-2 baseline: DISCHARGED 2026-07-29** (read-only S3 probe). The v2 offer plane
+  `s3://autom8-s3/dataframes/1143843662099250/offer/sections/` received **fresh warm writes today
+  at 15:08 / 15:25 / 15:50 UTC** (+ `watermark.json` 15:26 UTC) — **the #276 write-path split is
+  CLOSED in prod: the v2 entity plane is no longer frozen; the entity-aware prober writes to it
+  live.** This is the S8 parity BASELINE; the full **>=2-warm-cycle LEG-2** is still eunomia's
+  own-hands re-derivation at S12 (do NOT treat this as LEG-2 satisfied).
 - **Process-singleton `PacedAsanaFetcher`** (not fresh-per-call) before any K>1 concurrent
   rebuild (capacity condition 2). In-flight ceiling = `K × min(S_aid, G, C_aimd)` (G=gather
   width 10, C_aimd=read_limit 12); [H12] single-flight dedupes same-ArtifactId only.
@@ -148,10 +155,14 @@ S8 gate:** the per-entity SLA values + the "provably ≤ SLA-old, not 'current'"
 
 ## 6. Infra + SVR/UV-P deltas
 
-- **AWS creds EXPIRED this session** (`aws sts get-caller-identity` → session expired; the
-  recorded secretspec/botocore breakage). Blocked UV-P-1 (ECR), UV-P-2 (S3 warm-cycle probe), and
-  the S2 DuckDB value-stability probe — all carried, none discharged live. **Re-auth is an S8
-  precondition.** No prod was touched this wave (dark build; P10 honored).
+- **AWS creds RE-AUTHED by operator 2026-07-29 (post-close).** The dark build itself touched NO
+  prod (P10 honored). After re-auth, **UV-P-1 and UV-P-2-baseline were DISCHARGED live** via
+  read-only, P10-safe probes ONLY — AWS control-plane (`lambda get-function`, `ecr describe-images`)
+  + S3 LIST (`aws s3 ls`); NO Asana pull, NO warm trigger, NO write, NO terraform. Receipts in §4a.
+  Bonus finding: the prod warmer is **live and healthy** — image `2201db21` (contains #276) running,
+  and the v2 offer plane is receiving fresh warm writes today (the wound's frozen-plane condition is
+  gone). **REMAINING deferred:** the S2 DuckDB value-stability probe (MCP server not connected this
+  session) → S8; and the full >=2-warm-cycle LEG-2 → eunomia S12 (own-hands, not inheritable).
 - **UV-P-3** (sibling substrate surfaces): refined last session (autom8y/autom8y-data/autom8y-ads
   + the `autom8y-cache` SDK); full census at S10.
 - **UV-P-4** (constitution path): resolved-model = in-repo `autom8y-asana/.ledge/decisions/` of
