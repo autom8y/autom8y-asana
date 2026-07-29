@@ -25,8 +25,6 @@ from autom8_asana.substrate import (
     RefuseReason,
     ServedNumber,
     artifact_key,
-    canonical_digest,
-    is_provable,
     is_servable,
 )
 
@@ -60,11 +58,12 @@ def test_closed_enums_have_frozen_members() -> None:
 
 
 def test_owned_stubs_raise_with_owner_tag() -> None:
-    """The four owned-function stubs stay contract-only until their owner sprint fills them."""
-    with pytest.raises(NotImplementedError, match="owned by S2"):
-        is_provable(_a_proof(), "digest", datetime.now(tz=UTC))
-    with pytest.raises(NotImplementedError, match="owned by S2"):
-        canonical_digest(object())
+    """The S3 owned-function stubs stay contract-only until S3 fills them.
+
+    The S2 bodies (``is_provable`` / ``canonical_digest``) are now IMPLEMENTED —
+    their behaviour is exercised in ``test_freshness.py`` — so only the two S3
+    stubs (``artifact_key`` / ``is_servable``) still raise their owner tag here.
+    """
     with pytest.raises(NotImplementedError, match="owned by S3"):
         artifact_key(ArtifactId(project_gid="1", entity_type=EntityType.OFFER))
     with pytest.raises(NotImplementedError, match="owned by S3"):
