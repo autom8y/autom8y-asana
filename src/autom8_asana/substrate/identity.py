@@ -15,12 +15,19 @@ construction time, cached once.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from autom8_asana.core.types import EntityType
+
+# Asana GIDs are ASCII-digit strings (v1 convention: reconciliation/section_registry
+# ``^\d{10,20}$``, persistence/validation ``gid.isdigit()``). Enforcing digits-only
+# forbids a ``/`` / whitespace / empty gid from nesting one artifact's key inside
+# another's version keyspace — the cross-artifact traversal QA F3 confirmed.
+_PROJECT_GID_PATTERN = re.compile(r"[0-9]+")
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,11 +39,18 @@ class ArtifactId:
     omits the discriminator is a mypy error, not a runtime fallback. The [H4]
     guard content is FROZEN by the seam and transcribed verbatim below:
 
-    * empty ``project_gid`` is refused;
+    * empty or non-numeric ``project_gid`` is refused — a ``/`` / whitespace /
+      non-digit gid could otherwise nest this artifact's key inside another's
+      version keyspace (the cross-artifact gc-reap traversal, QA F3);
     * a non-servable ``entity_type`` (``UNKNOWN``, structural ``PROJECT`` /
       ``SECTION``, any non-warmable member) is refused **at construction**
       (C6 posture: omission impossible-by-type, explicit non-servable
       FAIL-LOUD-at-construction — never a silent legacy default).
+
+    Honest-floor: the guard runs at ``__init__`` and ``dataclasses.replace``;
+    ``object.__new__`` / ``pickle`` / ``copy`` bypass ``__post_init__`` and can
+    forge an unguarded instance — the same bypass posture as S2's F7, accepted as
+    a floor, not an absolute.
     """
 
     project_gid: str
@@ -45,6 +59,8 @@ class ArtifactId:
     def __post_init__(self) -> None:
         if not self.project_gid:
             raise ValueError("empty project_gid")
+        if not _PROJECT_GID_PATTERN.fullmatch(self.project_gid):
+            raise ValueError(f"non-numeric project_gid: {self.project_gid!r}")
         if not is_servable(self.entity_type):
             raise ValueError(f"non-servable entity_type: {self.entity_type!r}")
 

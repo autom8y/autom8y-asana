@@ -109,3 +109,23 @@ def test_non_warmable_holder_refused() -> None:
     assert not is_servable(EntityType.OFFER_HOLDER)
     with pytest.raises(ValueError, match="non-servable entity_type"):
         ArtifactId(project_gid="1", entity_type=EntityType.OFFER_HOLDER)
+
+
+# ------------------------------------------------- project_gid charset (F3) ---
+def test_slash_bearing_project_gid_refused() -> None:
+    """F3: a slash-bearing gid cannot nest this artifact's key into another's keyspace."""
+    with pytest.raises(ValueError, match="non-numeric project_gid"):
+        ArtifactId(project_gid="1200/offer/versions/deadbeef", entity_type=EntityType.OFFER)
+
+
+def test_non_numeric_project_gids_refused() -> None:
+    """F3: whitespace / letters / traversal segments in a gid are refused (digits-only)."""
+    for bad in ("12 34", " 12", "12a", "abc", "12/34", "../12", "12\n"):
+        with pytest.raises(ValueError, match="non-numeric project_gid"):
+            ArtifactId(project_gid=bad, entity_type=EntityType.OFFER)
+
+
+def test_numeric_project_gid_constructs() -> None:
+    """F3 complement: a genuine numeric Asana gid constructs (the guard is two-sided)."""
+    aid = ArtifactId(project_gid="1200000000000042", entity_type=EntityType.OFFER)
+    assert aid.project_gid == "1200000000000042"

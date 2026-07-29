@@ -27,8 +27,11 @@ from autom8_asana.substrate.store import (
     ArtifactStore,
     CASLost,
     ConcurrentPointerDelete,
+    ETag,
     PointerAbsent,
+    PointerCorrupt,
     S3ArtifactStore,
+    StaleProofRefused,
 )
 
 try:
@@ -361,3 +364,187 @@ def test_s3_store_satisfies_frozen_protocol() -> None:
     """The concrete store structurally satisfies the frozen ArtifactStore Protocol."""
     accepted: ArtifactStore = S3ArtifactStore(_BUCKET)
     assert accepted is not None
+
+
+# ------------------------------------------------- F2: blank if_match guard ---
+async def test_blank_if_match_refused_before_clobber(
+    store: S3ArtifactStore, aid: ArtifactId
+) -> None:
+    """F2: a blank/whitespace if_match is refused LOUD before any S3 call.
+
+    Emitting ``IfMatch=""`` degrades to an unconditional overwrite (the clobber CAS
+    forbids). Two-sided: the live pointer never moves when the guard fires; a real
+    ETag swaps fine (the complement, proven throughout the CAS suite).
+    """
+    vid_a = await store.stage_version(aid, b"A", _proof(digest="a" * 64))
+    await store.swap_pointer(aid, vid_a, if_match=CREATE_IF_ABSENT)
+    vid_b = await store.stage_version(aid, b"B", _proof(digest="b" * 64))
+    for blank in (ETag(""), ETag("   "), ETag("\t")):
+        with pytest.raises(ValueError, match="blank/whitespace if_match"):
+            await store.swap_pointer(aid, vid_b, if_match=blank)
+    # the pointer NEVER moved — the unconditional clobber was prevented
+    got_bytes, _ = await store.read_current(aid)
+    assert got_bytes == b"A"
+
+
+# ---------------------------------------------------- F4: list/gc pagination ---
+async def test_list_versions_paginates_beyond_one_page(aid: ArtifactId) -> None:
+    """F4: >1 page of versions are ALL enumerated (continuation-token loop)."""
+    with mock_aws():
+        client = boto3.client("s3", region_name="us-east-1")
+        client.create_bucket(Bucket=_BUCKET)
+        paged = S3ArtifactStore(_BUCKET, client=client, page_size=1)  # 1 key/page → forces loop
+        vids = {
+            await paged.stage_version(aid, f"frame-{i}".encode(), _proof(digest=str(i) * 64))
+            for i in range(5)
+        }
+        listed = set(await paged.list_versions(aid))
+        assert listed == vids
+        assert len(listed) == 5  # nothing lost past page 1
+
+
+async def test_gc_paginates_beyond_one_page(aid: ArtifactId) -> None:
+    """F4: gc reaps the tail beyond page 1 (paginated enumeration, not a 1000-cap head)."""
+    with mock_aws():
+        client = boto3.client("s3", region_name="us-east-1")
+        client.create_bucket(Bucket=_BUCKET)
+        paged = S3ArtifactStore(_BUCKET, client=client, page_size=1)
+        vids = [
+            await paged.stage_version(aid, f"f{i}".encode(), _proof(digest=str(i) * 64))
+            for i in range(5)
+        ]
+        await paged.swap_pointer(aid, vids[-1], if_match=CREATE_IF_ABSENT)  # current = last
+        reaped = await paged.gc_versions(aid, keep_after=datetime.now(tz=UTC) + timedelta(days=1))
+        assert reaped == 3  # 5 staged − (current + current-1) = 3 reaped across pages
+        assert len(await paged.list_versions(aid)) == 2
+
+
+# ------------------------------------------------ F5: corrupt-pointer taxonomy ---
+async def test_corrupt_pointer_raises_pointer_corrupt(
+    store: S3ArtifactStore, aid: ArtifactId
+) -> None:
+    """F5: an unparseable current.json raises PointerCorrupt, not a bare JSONDecodeError."""
+    vid = await store.stage_version(aid, b"A", _proof(digest="a" * 64))
+    await store.swap_pointer(aid, vid, if_match=CREATE_IF_ABSENT)
+    store._s3().put_object(
+        Bucket=_BUCKET,
+        Key="dataframes-v2/1200000000000042/offer/current.json",
+        Body=b"not json{",
+    )
+    with pytest.raises(PointerCorrupt):
+        await store.read_current(aid)
+    with pytest.raises(PointerCorrupt):
+        await store.read_pointer(aid)
+
+
+async def test_schema_incomplete_pointer_raises_pointer_corrupt(
+    store: S3ArtifactStore, aid: ArtifactId
+) -> None:
+    """F5: valid JSON missing the required 'proof' key → PointerCorrupt (two-sided vs roundtrip)."""
+    vid = await store.stage_version(aid, b"A", _proof(digest="a" * 64))
+    await store.swap_pointer(aid, vid, if_match=CREATE_IF_ABSENT)
+    store._s3().put_object(
+        Bucket=_BUCKET,
+        Key="dataframes-v2/1200000000000042/offer/current.json",
+        Body=json.dumps({"version_id": vid}).encode(),  # 'proof' absent
+    )
+    with pytest.raises(PointerCorrupt):
+        await store.read_current(aid)
+
+
+# ------------------------------------- C14 (architect F1): pointer proof-refresh ---
+async def test_refresh_pointer_proof_advances_byte_stable_freshness(
+    store: S3ArtifactStore, aid: ArtifactId
+) -> None:
+    """C14/F1: byte-stable content advances served freshness via pointer-only refresh — no new version."""
+    frame = b"byte-stable-content"
+    vid = await store.stage_version(aid, frame, _proof(digest="c" * 64, minutes_ago=120))
+    await store.swap_pointer(aid, vid, if_match=CREATE_IF_ABSENT)
+
+    state = await store.read_pointer(aid)
+    assert state is not None
+    fresher = _proof(digest="c" * 64, minutes_ago=0)  # same content, later instant
+    await store.refresh_pointer_proof(aid, fresher, if_match=state.etag)
+
+    got_bytes, got_proof = await store.read_current(aid)
+    assert got_bytes == frame  # same bytes served
+    assert got_proof.built_from_live_at == fresher.built_from_live_at  # freshness advanced
+    assert set(await store.list_versions(aid)) == {vid}  # NO new version minted
+
+
+async def test_refresh_pointer_proof_rejects_strictly_backward(
+    store: S3ArtifactStore, aid: ArtifactId
+) -> None:
+    """C14: a strictly-earlier built_from_live_at is refused loud (StaleProofRefused)."""
+    vid = await store.stage_version(aid, b"x", _proof(digest="a" * 64, minutes_ago=0))
+    await store.swap_pointer(aid, vid, if_match=CREATE_IF_ABSENT)
+    state = await store.read_pointer(aid)
+    assert state is not None
+    with pytest.raises(StaleProofRefused):
+        await store.refresh_pointer_proof(
+            aid, _proof(digest="a" * 64, minutes_ago=60), if_match=state.etag
+        )
+
+
+async def test_refresh_pointer_proof_allows_equal_instant(
+    store: S3ArtifactStore, aid: ArtifactId
+) -> None:
+    """C14: non-decreasing means an EQUAL instant republishes (not rejected)."""
+    same = _proof(digest="a" * 64, minutes_ago=0)
+    vid = await store.stage_version(aid, b"x", same)
+    await store.swap_pointer(aid, vid, if_match=CREATE_IF_ABSENT)
+    state = await store.read_pointer(aid)
+    assert state is not None
+    await store.refresh_pointer_proof(aid, same, if_match=state.etag)  # equal → allowed
+    _, got = await store.read_current(aid)
+    assert got.built_from_live_at == same.built_from_live_at
+
+
+async def test_refresh_pointer_proof_cas_lost_on_stale_etag(
+    store: S3ArtifactStore, aid: ArtifactId
+) -> None:
+    """C14: a losing CAS on refresh raises CASLost (the 412 tooth bites here too)."""
+    vid = await store.stage_version(aid, b"x", _proof(digest="a" * 64, minutes_ago=120))
+    await store.swap_pointer(aid, vid, if_match=CREATE_IF_ABSENT)
+    stale = await store.read_pointer(aid)
+    assert stale is not None
+    # first refresh consumes the etag (11:00 >= 10:00, CAS ok)
+    await store.refresh_pointer_proof(
+        aid, _proof(digest="a" * 64, minutes_ago=60), if_match=stale.etag
+    )
+    # second refresh with the now-stale etag → CASLost (12:00 >= 11:00, so not stale-rejected first)
+    with pytest.raises(CASLost):
+        await store.refresh_pointer_proof(
+            aid, _proof(digest="a" * 64, minutes_ago=0), if_match=stale.etag
+        )
+
+
+async def test_refresh_pointer_proof_leaves_version_object_untouched(
+    store: S3ArtifactStore, aid: ArtifactId
+) -> None:
+    """C14: the immutable version object's bytes + metadata are byte-identical after a refresh."""
+    frame = b"immutable-body"
+    vid = await store.stage_version(aid, frame, _proof(digest="a" * 64, minutes_ago=120))
+    await store.swap_pointer(aid, vid, if_match=CREATE_IF_ABSENT)
+    frame_key = f"dataframes-v2/1200000000000042/offer/versions/{vid}/frame"
+    before = store._s3().head_object(Bucket=_BUCKET, Key=frame_key)
+
+    state = await store.read_pointer(aid)
+    assert state is not None
+    await store.refresh_pointer_proof(
+        aid, _proof(digest="a" * 64, minutes_ago=0), if_match=state.etag
+    )
+
+    after = store._s3().head_object(Bucket=_BUCKET, Key=frame_key)
+    assert before["ETag"] == after["ETag"]  # frame bytes untouched
+    assert before["Metadata"] == after["Metadata"]  # frozen proof metadata untouched
+
+
+async def test_refresh_pointer_proof_blank_if_match_refused(
+    store: S3ArtifactStore, aid: ArtifactId
+) -> None:
+    """C14 inherits the F2 blank-if_match guard."""
+    vid = await store.stage_version(aid, b"x", _proof(digest="a" * 64))
+    await store.swap_pointer(aid, vid, if_match=CREATE_IF_ABSENT)
+    with pytest.raises(ValueError, match="blank/whitespace if_match"):
+        await store.refresh_pointer_proof(aid, _proof(digest="a" * 64), if_match=ETag(""))

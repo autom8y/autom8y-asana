@@ -19,6 +19,16 @@ are collision-free (C3: no ``max+1`` race) AND identical rebuilds are idempotent
 construction: the key is a pure function of content, and the stage PUT is
 ``If-None-Match: *`` (write-once).
 
+**Two distinct 64-hex digests coexist (P13) — do NOT conflate.** ``version_id``
+above is a physical ADDRESS digest = ``sha256(frame_bytes)`` over the STORED bytes.
+It is NOT ``FreshnessProof.content_digest``, which is the parquet-INDEPENDENT
+freshness digest (Seam-1 ``canonical_digest`` — "never GIDs, never parquet bytes").
+The store is policy-free ([H8]) and accepts arbitrary divergence between them; a
+consumer must never use the address digest as the freshness digest. Because the
+address digest is over PHYSICAL bytes, C3 idempotency (identical rebuild → same
+version) HOLDS ONLY IF frame serialization is byte-deterministic — that determinism
+is Seam-3's ``materialize`` job, carried to the S8 gate, not the store's.
+
 CAS state table (swap_pointer) — DP-2 build notes, SigV4 required:
 
     outcome         S3 signal                     code path
@@ -43,6 +53,11 @@ Build notes (S3 owner):
 * **C11 — no SUNSET_AFTER bridge.** No bounded dual-read / legacy-fallback path is
   added; RC-A/RC-D hold by subtraction. A future temptation to add one requires an
   operator-visible ruling, never a serial date-bump.
+* **C14 (architect F1 ruling) — byte-stable proof-advance is S4 policy on the
+  mutable pointer.** ``refresh_pointer_proof`` is its store-side write path: it
+  republishes ``current.json`` (same version_id, caller-supplied fresher proof)
+  under CAS, enforcing a monotonic-non-decreasing ``built_from_live_at`` floor and
+  NEVER mutating the immutable version object. Additive beyond the frozen Protocol.
 """
 
 from __future__ import annotations
@@ -94,6 +109,17 @@ class ArtifactMissing(Exception):
     """
 
 
+class PointerCorrupt(Exception):
+    """Raised when ``current.json`` is present but unparseable / schema-incomplete (QA F5).
+
+    A READ-side corruption (parallel to ``ArtifactMissing``), distinct from the
+    write-side ``PointerCASError`` family. Seam-4 maps it to ``Refused(CORRUPT)``
+    (as ``ArtifactMissing`` maps to ``Refused(MISSING)``) instead of letting a bare
+    ``JSONDecodeError`` / ``KeyError`` escape as a 500. S3 single-object writes are
+    atomic, so this needs external tampering — but the read-path taxonomy is closed.
+    """
+
+
 class PointerCASError(Exception):
     """Base — ``swap_pointer`` could not complete the conditional pointer write.
 
@@ -123,6 +149,16 @@ class PointerAbsent(PointerCASError):
 
 class ConcurrentPointerDelete(PointerCASError):
     """409 Conflict — S3 signalled a concurrent-delete race on the conditional write."""
+
+
+class StaleProofRefused(ValueError):
+    """Raised by ``refresh_pointer_proof`` when the supplied proof would move
+    ``built_from_live_at`` strictly BACKWARD for the same version (C14 / architect F1).
+
+    The F1 ruling makes byte-stable proof-advance an S4 policy on the mutable
+    pointer; the store enforces the monotonic-non-decreasing floor — equal instants
+    republish, strictly-earlier instants are refused loud.
+    """
 
 
 class ArtifactStore(Protocol):
@@ -186,10 +222,14 @@ class S3ArtifactStore:
         *,
         client: S3Client | None = None,
         region: str = "us-east-1",
+        page_size: int | None = None,
     ) -> None:
         self._bucket = bucket
         self._region = region
         self._client: S3Client | None = client
+        # None => S3's native 1000-key page; a small value forces the pagination
+        # loop with few objects (F4 test seam). list/gc paginate regardless.
+        self._page_size = page_size
 
     # ------------------------------------------------------------------ keys ---
     @staticmethod
@@ -255,9 +295,14 @@ class S3ArtifactStore:
             raise
         body: bytes = resp["Body"].read()
         etag = ETag(str(resp["ETag"]))
-        obj = json.loads(body)
-        version_id = VersionId(str(obj["version_id"]))
-        proof = _proof_from_json(obj["proof"])
+        try:
+            obj = json.loads(body)
+            version_id = VersionId(str(obj["version_id"]))
+            proof = _proof_from_json(obj["proof"])
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+            raise PointerCorrupt(
+                f"current.json for {aid!r} is present but unparseable/malformed"
+            ) from exc
         return PointerState(version_id=version_id, etag=etag, proof=proof)
 
     # ----------------------------------------------------------- write paths ---
@@ -295,7 +340,18 @@ class S3ArtifactStore:
         published into the pointer is read back from the staged version's
         immutable S3 metadata — so the pointer atomically carries {version_id,
         proof} in ONE object (DP-2 Option C: no serve-time torn window).
+
+        A blank/whitespace ``if_match`` is refused LOUD before any S3 call (QA F2):
+        emitting ``IfMatch=""`` degrades to an UNCONDITIONAL overwrite (moto proved
+        the clobber; real-S3 ``If-Match:""`` is an S8 integration carry) — the exact
+        concurrent-clobber the CAS exists to forbid.
         """
+        if if_match != CREATE_IF_ABSENT and not if_match.strip():
+            raise ValueError(
+                "blank/whitespace if_match would degrade to an UNCONDITIONAL pointer "
+                "overwrite (the concurrent-clobber CAS forbids); pass a real ETag from "
+                "read_pointer, or CREATE_IF_ABSENT to create the first pointer"
+            )
         proof = await self._staged_proof(aid, to)
         body = json.dumps(
             {"version_id": str(to), "proof": _proof_to_json(proof)},
@@ -330,6 +386,66 @@ class S3ArtifactStore:
                 ) from exc
             raise
 
+    async def refresh_pointer_proof(
+        self, aid: ArtifactId, proof: FreshnessProof, *, if_match: ETag
+    ) -> None:
+        """Republish current.json with the SAME version_id but a FRESHER proof, under CAS (C14/F1).
+
+        The architect's F1/C14 ruling: byte-stable-content proof-advance is S4
+        POLICY on the mutable pointer. This is its store-side write path — an
+        idempotent rebuild that re-verified identical bytes at a later instant
+        advances the served ``built_from_live_at`` WITHOUT minting a new version and
+        WITHOUT touching the immutable version object (Option-C decoupling: proof
+        lives in the pointer, not the version metadata). Additive beyond the frozen
+        Protocol; ``swap_pointer`` is unchanged.
+
+        Enforced invariants: (a) ``built_from_live_at`` is monotonic NON-DECREASING
+        for the same version_id — a strictly-backward refresh raises
+        ``StaleProofRefused``; (b) only current.json is written under ``If-Match``
+        (a lost race raises ``CASLost``); (c) ``versions/{id}/frame`` bytes+metadata
+        are NEVER mutated.
+        """
+        if not if_match.strip():
+            raise ValueError(
+                "blank/whitespace if_match would degrade to an UNCONDITIONAL pointer "
+                "overwrite (QA F2); pass the ETag from read_pointer"
+            )
+        current = await self.read_pointer(aid)
+        if current is None:
+            raise ArtifactMissing(f"no current pointer to refresh for {aid!r}")
+        if proof.built_from_live_at < current.proof.built_from_live_at:
+            raise StaleProofRefused(
+                f"refresh_pointer_proof for {aid!r} would move built_from_live_at backward "
+                f"({proof.built_from_live_at.isoformat()} < "
+                f"{current.proof.built_from_live_at.isoformat()})"
+            )
+        body = json.dumps(
+            {"version_id": str(current.version_id), "proof": _proof_to_json(proof)},
+            sort_keys=True,
+        ).encode("utf-8")
+        try:
+            await asyncio.to_thread(
+                self._s3().put_object,
+                Bucket=self._bucket,
+                Key=self._pointer_key(aid),
+                Body=body,
+                ContentType="application/json",
+                IfMatch=str(if_match),
+            )
+        except ClientError as exc:
+            status = _status(exc)
+            if status == 412:
+                raise CASLost(
+                    f"CAS lost refreshing proof for {aid!r} (if-match precondition failed)"
+                ) from exc
+            if status == 404:
+                raise PointerAbsent(f"proof refresh of {aid!r} but the pointer is absent") from exc
+            if status == 409:
+                raise ConcurrentPointerDelete(
+                    f"concurrent-delete race refreshing proof for {aid!r}"
+                ) from exc
+            raise
+
     async def _staged_proof(self, aid: ArtifactId, version_id: VersionId) -> FreshnessProof:
         try:
             head = await asyncio.to_thread(
@@ -348,22 +464,39 @@ class S3ArtifactStore:
         return _proof_from_metadata(metadata)
 
     # -------------------------------------------------------- enumerate / gc ---
+    async def _list_all_contents(self, prefix: str) -> list[Any]:
+        """Paginate list_objects_v2 over ALL Contents under ``prefix`` (F4: no 1000-key cap).
+
+        Loops on ``NextContinuationToken`` so a >1000-version tail cannot escape
+        enumeration (and therefore GC). ``page_size`` (test seam) forces the loop
+        with few objects; prod uses S3's native 1000-key page.
+        """
+        contents: list[Any] = []
+        token: str | None = None
+        while True:
+            kwargs: dict[str, Any] = {"Bucket": self._bucket, "Prefix": prefix}
+            if self._page_size is not None:
+                kwargs["MaxKeys"] = self._page_size
+            if token is not None:
+                kwargs["ContinuationToken"] = token
+            resp = await asyncio.to_thread(self._s3().list_objects_v2, **kwargs)
+            contents.extend(resp.get("Contents", []))
+            if not resp.get("IsTruncated"):
+                break
+            token = resp.get("NextContinuationToken")
+            if token is None:
+                break
+        return contents
+
     async def list_versions(self, aid: ArtifactId) -> list[VersionId]:
-        """Enumerate retained versions (the ``versions/{id}/`` sub-prefixes)."""
+        """Enumerate retained versions (PAGINATED — no 1000-key cap, F4)."""
         prefix = self._versions_prefix(aid)
-        resp = await asyncio.to_thread(
-            self._s3().list_objects_v2,
-            Bucket=self._bucket,
-            Prefix=prefix,
-            Delimiter="/",
-        )
-        out: list[VersionId] = []
-        for common in resp.get("CommonPrefixes", []):
-            sub = str(common["Prefix"])  # ".../versions/{id}/"
-            version_id = sub[len(prefix) :].rstrip("/")
+        vids: set[VersionId] = set()
+        for obj in await self._list_all_contents(prefix):
+            version_id = str(obj["Key"])[len(prefix) :].split("/", 1)[0]  # "{id}/frame" -> id
             if version_id:
-                out.append(VersionId(version_id))
-        return out
+                vids.add(VersionId(version_id))
+        return sorted(vids)
 
     async def gc_versions(self, aid: ArtifactId, keep_after: datetime) -> int:
         """Reap versions older than ``keep_after`` — NEVER current or current-1.
@@ -371,16 +504,13 @@ class S3ArtifactStore:
         ``current`` is the pointer's version; ``current-1`` is the most-recently
         created OTHER version (the rollback target). Both are protected regardless
         of age; every remaining version whose frame predates ``keep_after`` is
-        deleted. Returns the count reaped. Over-deletion / a reader holding a
-        reaped version fails loud downstream (``ArtifactMissing`` → refuse), never
-        silent.
+        deleted. Enumeration is PAGINATED (F4) so a >1000-version tail is still
+        reaped. Returns the count reaped. Over-deletion / a reader holding a reaped
+        version fails loud downstream (``ArtifactMissing`` → refuse), never silent.
         """
         prefix = self._versions_prefix(aid)
-        resp = await asyncio.to_thread(
-            self._s3().list_objects_v2, Bucket=self._bucket, Prefix=prefix
-        )
         frames: list[tuple[VersionId, str, datetime]] = []
-        for obj in resp.get("Contents", []):
+        for obj in await self._list_all_contents(prefix):
             key = str(obj["Key"])
             if not key.endswith(f"/{_FRAME_OBJECT}"):
                 continue
