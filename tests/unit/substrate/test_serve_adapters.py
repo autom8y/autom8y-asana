@@ -200,8 +200,37 @@ async def test_cp345_query_adapter_unknown_entity_is_a_422_client_error() -> Non
         "1200000000000001", "bogus", retry_after_seconds=90
     )
     assert result.status_code == HTTP_STATUS_UNSERVABLE_ENTITY == 422  # NOT the 424 data class
+    assert result.body["code"] == "SUBSTRATE_UNSERVABLE_ENTITY_TYPE"
+    assert result.body["entity_type"] == "bogus"  # echoes the entity input (the actual fault)
     assert reader.reads == []  # never reached the reader — refused at the boundary
     assert _DATA_SHAPED_KEYS.isdisjoint(result.body.keys())
+
+
+async def test_cp345_malformed_project_gid_has_a_distinct_code() -> None:
+    """F-1 two-sided: a malformed gid gets its OWN code (echoes the gid, not the entity_type).
+
+    The entity_type coerced fine; the fault is the project_gid, so the diagnostic must not be
+    misattributed to ``SUBSTRATE_UNSERVABLE_ENTITY_TYPE``.
+    """
+    reader = _FixedReader(_provable())
+    result = await QueryServeAdapter(reader).query(
+        "not-a-numeric-gid", "offer", retry_after_seconds=90
+    )
+    assert result.status_code == 422  # a client-input error, not the 424 data class
+    assert result.body["code"] == "SUBSTRATE_MALFORMED_PROJECT_GID"  # DISTINCT from the entity code
+    assert result.body["project_gid"] == "not-a-numeric-gid"  # echoes the gid (the actual fault)
+    assert "entity_type" not in result.body  # not misattributed to the (valid) entity_type
+    assert reader.reads == []  # refused at the boundary, reader untouched
+    assert _DATA_SHAPED_KEYS.isdisjoint(result.body.keys())
+
+
+async def test_adapters_do_not_cache_a_double_call() -> None:
+    """F-3 behavioral: adapters memoize nothing — every call re-drives the reader gate (C2)."""
+    reader = _FixedReader(_provable())
+    adapter = QueryServeAdapter(reader)
+    await adapter.query("1200000000000001", "offer", retry_after_seconds=90)
+    await adapter.query("1200000000000001", "offer", retry_after_seconds=90)
+    assert len(reader.reads) == 2  # two reads — no adapter-level result cache
 
 
 async def test_cp345_query_adapter_provable_maps_to_200() -> None:

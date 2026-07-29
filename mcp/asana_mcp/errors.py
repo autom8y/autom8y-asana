@@ -38,7 +38,7 @@ class McpToolError(Exception):
     ) -> None:
         super().__init__(message)
         self.message = message
-        # kind in {warming, auth, rate_limit, client, not_found, server}
+        # kind in {warming, auth, rate_limit, client, not_found, server, data-integrity-refusal}
         self.kind = kind
         self.retryable = retryable
         self.status = status
@@ -202,11 +202,24 @@ def map_http_error(response: httpx.Response) -> McpToolError:
         # flips — landing it now satisfies the DP-3 HARD sequencing (consumer-side
         # classification lands WITH or BEFORE the server flip). Placed before the generic
         # 4xx branch so a 424 is classified here, not as `client`.
-        return McpToolError(
+        #
+        # F-4 (qa): 424 Failed Dependency is a non-retryable dependency-unprovable state for
+        # ANY dependency, so the KIND/retryability classification applies to any 424 (safe
+        # default — no under-classification). But the substrate-ASSERTING message text is
+        # gated on the `SUBSTRATE_REFUSED_` marker: a hypothetical non-substrate 424 gets a
+        # generic message, not a false "asana substrate refused" claim (WEBDAV-probe fix).
+        is_substrate = bool(code and code.startswith("SUBSTRATE_REFUSED"))
+        detail = (
             "The asana substrate refused to serve an unprovable number (stale/corrupt/"
             "missing/divergent data). This is a data-integrity refusal — NOT an auth or "
             "cache-warming condition. Do NOT hot-retry; wait for the rebuild (Retry-After)."
-            + _upstream_suffix(response, code=code),
+            if is_substrate
+            else "An upstream dependency reported a failed-dependency (424) state; the request "
+            "is well-formed but a required dependency is unavailable. Do NOT hot-retry; "
+            "honor Retry-After."
+        )
+        return McpToolError(
+            detail + _upstream_suffix(response, code=code),
             kind="data-integrity-refusal",
             retryable=False,
             status=424,

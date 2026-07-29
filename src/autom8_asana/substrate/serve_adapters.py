@@ -277,25 +277,33 @@ class QueryServeAdapter:
         try:
             aid = ArtifactId(project_gid=project_gid, entity_type=entity_type)
         except ValueError:
-            # A malformed project_gid — a CLIENT input error, not a data refusal.
-            return self._unservable_entity(entity_type_raw)
+            # A malformed project_gid (the entity_type coerced fine) — a CLIENT input error,
+            # NOT a data refusal, and NOT an unservable-entity error (F-1: distinct code, so
+            # the diagnostic is not misattributed to the entity_type).
+            return self._malformed_identifier(project_gid)
         served = await self._reader.read(aid)
         return serve_result_to_http(served, retry_after_seconds=retry_after_seconds)
 
     @staticmethod
-    def _unservable_entity(entity_type_raw: str) -> HttpServeResult:
+    def _client_error(code: str, **echoed: str) -> HttpServeResult:
         # Shape-hostile client-error body (no data field). Echoes only the caller's own
         # input token — reveals no other resource (not an enumeration oracle).
         return HttpServeResult(
             status_code=HTTP_STATUS_UNSERVABLE_ENTITY,
-            body={
-                "substrate_refused": True,
-                "code": "SUBSTRATE_UNSERVABLE_ENTITY_TYPE",
-                "entity_type": entity_type_raw,
-            },
+            body={"substrate_refused": True, "code": code, **echoed},
             headers={},
             frame=None,
         )
+
+    @classmethod
+    def _unservable_entity(cls, entity_type_raw: str) -> HttpServeResult:
+        return cls._client_error("SUBSTRATE_UNSERVABLE_ENTITY_TYPE", entity_type=entity_type_raw)
+
+    @classmethod
+    def _malformed_identifier(cls, project_gid: str) -> HttpServeResult:
+        # F-1: a malformed project_gid gets its OWN code — echoes the gid (caller's own input),
+        # never the entity_type (which was valid), so the diagnostic points at the real fault.
+        return cls._client_error("SUBSTRATE_MALFORMED_PROJECT_GID", project_gid=project_gid)
 
 
 # ====================================== CP-6 — persistence-wrapper surface =====

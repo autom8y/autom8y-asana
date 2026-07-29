@@ -38,8 +38,23 @@ def test_424_is_a_non_retryable_data_integrity_refusal() -> None:
     # NOT mistaken for auth or warming — the disambiguation the C3 scar demands.
     assert "NOT an auth" in err.message
     assert "data-integrity refusal" in err.message
+    assert "asana substrate" in err.message  # F-4: substrate-marked → substrate-asserting text
     # the substrate's own diagnosis is carried through (not flattened).
     assert "plane v2/offer is 14d stale" in err.message
+
+
+def test_424_without_the_substrate_marker_gets_a_generic_message_not_a_false_substrate_claim() -> (
+    None
+):
+    """F-4: a NON-substrate 424 (no SUBSTRATE_REFUSED_ code) is still classified data-integrity-
+    refusal / non-retryable (424 = dependency-unprovable for ANY dependency — the safe default),
+    but the message does NOT falsely assert 'asana substrate refused' (the WEBDAV-probe fix)."""
+    err = map_http_error(httpx.Response(424, json={"error": {"code": "WEBDAV_LOCK_FAILED"}}))
+    assert err.kind == "data-integrity-refusal"  # classification stays (no under-classification)
+    assert err.retryable is False
+    assert "asana substrate" not in err.message  # no false substrate attribution
+    assert "upstream dependency" in err.message  # generic failed-dependency message
+    assert err.code == "WEBDAV_LOCK_FAILED"  # the true upstream code is still carried
 
 
 def test_424_honors_retry_after_header_bound_to_rebuild_schedule() -> None:

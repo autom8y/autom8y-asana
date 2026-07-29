@@ -154,11 +154,16 @@ type Clock = Callable[[], datetime]
 def missing_payload() -> RefusePayload:
     """Well-formed payload for a MISSING refusal — no copy exists, so no age.
 
-    Security (enumeration-oracle safe): a MISSING refusal reveals nothing beyond
-    "not currently provable" — an empty plane label and an empty age map, IDENTICAL
-    whether the artifact was never built or was reaped. Missing-vs-unknown are the
-    SAME shape, so the 424 surface is not an existence oracle (a non-servable
-    entity_type never reaches serving — it is refused at ArtifactId construction).
+    Security (enumeration-oracle safe — SEC A3(b), precise argument): within the 424
+    surface a MISSING refusal reveals nothing beyond "not currently provable" — an empty
+    plane label and an empty age map, BYTE-IDENTICAL whether the artifact was never built
+    or was reaped. The 424 surface is not an existence oracle because (1) an unknown /
+    non-servable entity_type is refused PRE-serving with a DIFFERENT status (422 client
+    error, the public product type-set), never reaching this 424 path, and (2) reaching
+    MISSING/STALE/200 at all requires a well-formed, auth-addressable project_gid. (Note:
+    MISSING(424, empty payload) IS distinguishable from STALE(424, populated payload) — but
+    that is per-artifact freshness state for a project the caller can already address, not
+    cross-resource enumeration.)
     """
     return RefusePayload(plane="", absolute_age={}, magnitude=0.0, per_section_delta={})
 

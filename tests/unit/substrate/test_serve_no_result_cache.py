@@ -5,7 +5,19 @@ only proof-validated bytes may be tiered." AV-2 was the "result-cache re-creates
 false-fresh from memory" finding; this tooth makes the memoization surface
 structurally absent, not merely absent-by-vigilance. The complementary BEHAVIORAL
 proof (is_provable re-runs every read) lives in
-``test_serve.test_gate_reruns_is_provable_every_read_no_result_cache``.
+``test_serve.test_gate_reruns_is_provable_every_read_no_result_cache`` and the
+adapter-level no-cache proof in
+``test_serve_adapters.test_adapters_do_not_cache_a_double_call`` (QA F-3).
+
+DEFENCE-IN-DEPTH (three complementary teeth; QA F-3 known-limitation): (1) the
+decorator-name scan catches ``@lru_cache``/``@cache`` by local name; an ALIASED
+functools memoizer (``from functools import lru_cache as _x``) evades that scan by
+local name but is caught by (2) the functools-import scan, which keys on
+``alias.name`` (the ORIGINAL name, not the ``as`` binding). A fully hand-rolled
+memoizer (no functools) evades both name scans but needs somewhere to STORE results —
+caught by (3) the reader-attribute allowlist (a result-cache attribute is forbidden)
+plus the behavioral double-call tests. A fully-dynamic obfuscated cache is out of
+scope (targets DRIFT, not sabotage).
 """
 
 from __future__ import annotations
