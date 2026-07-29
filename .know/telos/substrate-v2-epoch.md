@@ -55,7 +55,12 @@ telos:
       # anchors to Pythia's /shape + sprint landings. Gate B refuses wave-level
       # tokens without real {path}:{line} anchors (F-HYG-CF-A).
       - "(context-DONE, pre-epoch P6 floor) PR #276 v1-honesty guards MERGED bdbf86cb 2026-07-27T16:00:18Z — entity-aware prober, plane-divergence refusal, verification-axis warnings (gh probe this dispatch; charter :75-79: the floor, not the start of v1 investment)"
-      - "(planned) v2-core, cutover-gate-harness, v1-extinction, truthful-observability, doctrine-to-constitution, fleet-unblock-kit — per-item anchors minted at their sprint landings per the /shape decomposition"
+      - "(landed S1 2026-07-29) whole-design TDD RATIFIED at PT-01 (hard gate PASS, fresh-instance potnia) — .ledge/specs/TDD-substrate-v2.md:88; RC-A..F constructive scoreboard :302-309; five seams FROZEN v1.0-frozen-2026-07-29 :311; Phase-2 disposition ledger :581 (zero rebuttals)"
+      - "(landed S1 2026-07-29) fork register F1-F6 final states — .ledge/decisions/ADR-substrate-v2-fork-register.md:80 (F2/F4/F6 RATIFIED-AUTO post-challenge; F1+F3 -> DP-2, F5 -> DP-3 staged for operator)"
+      - "(landed S1 2026-07-29) RC acceptance predicates, 22 falsifiable + consumer-exhaustive RC-C (CP-1..6) — .ledge/specs/RC-acceptance-predicates-substrate-v2.md:204"
+      - "(landed S1 2026-07-29) rite-disjoint adversarial review PASS-WITH-CONDITIONS — .ledge/reviews/ADVERSARY-substrate-v2-design-s1.md:1; PE feasibility BUILDABLE-AS-DRAWN — .ledge/reviews/FEASIBILITY-substrate-v2-seams-s1.md:42"
+      - "(landed S1 2026-07-29) door packets ALL RATIFIED: DP-2 storage-shape .ledge/decisions/DP-2-v2-storage-shape.md:10 RATIFIED-BY-OPERATOR 2026-07-29 (shape C · entity-after-project; S3-atomicity SVR discharged at ratification) + DP-3 consumer-contracts .ledge/decisions/DP-3-consumer-contracts.md:10 RATIFIED-BY-OPERATOR 2026-07-29 (424+refusal-SLI · F5-5 P11 law · ADR-serve-stale-within-bound SUPERSEDED-executed) + DP-1F v1-live-path .ledge/decisions/DP-1F-v1-live-path-p6-boundary.md:10 RATIFIED-BY-OPERATOR (c-i HOLD P6, pre-ruling 2026-07-28)"
+      - "(planned) v2-core BUILD (S2-S5), cutover-gate-harness (S7/S8), v1-extinction (S11), truthful-observability (S6), doctrine-to-constitution (S9), fleet-unblock-kit (S10) — per-item anchors minted at their sprint landings; wave-2 staged specs at .ledge/handoffs/STAGED-wave2-dispatch-specs-2026-07-29.md"
     user_visible_surface: >
       A consumer (operator CLI `python -m autom8_asana.metrics active_mrr`,
       service reader, or MCP/delegated-fleet caller) asks the substrate for a
