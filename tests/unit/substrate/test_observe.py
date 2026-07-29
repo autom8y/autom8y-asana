@@ -15,7 +15,9 @@ from __future__ import annotations
 
 import hashlib
 import inspect
+import re
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -24,14 +26,22 @@ from autom8_asana.core.types import EntityType
 from autom8_asana.substrate.freshness import FreshnessProof, Provability
 from autom8_asana.substrate.identity import ArtifactId
 from autom8_asana.substrate.observe import (
+    DEFAULT_ENVIRONMENT,
+    DIMENSION_ENVIRONMENT,
     METRIC_ARTIFACT_PROVABLE,
     METRIC_COMPLETENESS,
+    METRIC_EVALUATION_FAILED,
     METRIC_EVALUATOR_HEARTBEAT,
+    METRIC_EXPECTED_COUNT,
     METRIC_EXPECTED_SET_MISMATCH_COUNT,
+    METRIC_FUTURE_DATED_PROOF_COUNT,
+    METRIC_MAX_STALENESS_AGE_SECONDS,
     METRIC_UNPROVABLE_COUNT,
+    SUBSTRATE_PROVABILITY_NAMESPACE,
     ArtifactVerdict,
     CloudWatchProvabilityEmitter,
     EvaluationRun,
+    ProvabilityEmitter,
     ProvabilityEvaluator,
     ScheduledProvabilityEvaluator,
 )
@@ -39,6 +49,15 @@ from autom8_asana.substrate.store import ArtifactMissing
 
 if TYPE_CHECKING:
     from autom8_asana.substrate.store import ETag, VersionId
+
+# The AUTHORED-NOT-APPLIED terraform this emitter must bind to (F-1 identity seam).
+_TF_ALARMS = (
+    Path(__file__).resolve().parents[3]
+    / "terraform/services/asana/substrate_v2_provability_alarms.tf"
+)
+_TF_SHARED = (
+    Path(__file__).resolve().parents[3] / "terraform/services/asana/observability_alarms.tf"
+)
 
 NOW = datetime(2026, 7, 29, 12, 0, 0, tzinfo=UTC)
 
@@ -177,21 +196,26 @@ def _build_evaluator(
     store: FakeStore,
     registry: set[ArtifactId],
     store_set: set[ArtifactId],
-    emitter: Any | None = None,
+    emitter: ProvabilityEmitter | None = None,
 ) -> ScheduledProvabilityEvaluator:
+    # No type: ignore — the fakes structurally satisfy the injected Protocols
+    # (F-4: the ports are honestly typed, not dodged via Any).
     return ScheduledProvabilityEvaluator(
-        store=store,  # type: ignore[arg-type]
-        expected_set=FakeExpectedSet(registry, store_set),  # type: ignore[arg-type]
+        store=store,
+        expected_set=FakeExpectedSet(registry, store_set),
         is_provable=_faithful_is_provable,
         digest_of_frame=_digest_of,
-        emitter=emitter or RecordingEmitter(),  # type: ignore[arg-type]
+        emitter=emitter or RecordingEmitter(),
     )
 
 
 def _run_metric(metric_data: list[dict[str, Any]], name: str) -> float:
-    """The run-level datum (no per-GID Dimensions) for ``name``."""
+    """The run-level datum (dimensioned {environment} only — not the per-artifact gauge)."""
     for datum in metric_data:
-        if datum["MetricName"] == name and "Dimensions" not in datum:
+        if datum["MetricName"] != name:
+            continue
+        dim_names = {d["Name"] for d in datum.get("Dimensions", [])}
+        if "project_gid" not in dim_names:  # exclude the per-artifact ArtifactProvable gauge
             return float(datum["Value"])
     raise AssertionError(f"run-level metric {name!r} not emitted")
 
@@ -281,11 +305,11 @@ async def test_evaluator_delegates_to_the_injected_predicate() -> None:
         return Provability.CORRUPT
 
     evaluator = ScheduledProvabilityEvaluator(
-        store=store,  # type: ignore[arg-type]
-        expected_set=FakeExpectedSet({aid}, {aid}),  # type: ignore[arg-type]
+        store=store,
+        expected_set=FakeExpectedSet({aid}, {aid}),
         is_provable=always_corrupt,
         digest_of_frame=_digest_of,
-        emitter=RecordingEmitter(),  # type: ignore[arg-type]
+        emitter=RecordingEmitter(),
     )
     run = await evaluator.evaluate_all(NOW)
     # A genuinely-fresh fixture reads CORRUPT ONLY because the injected predicate said so.
@@ -412,11 +436,11 @@ async def test_indeterminate_check_also_reads_incomplete() -> None:
         raise ValueError("frame parse exploded")
 
     evaluator = ScheduledProvabilityEvaluator(
-        store=store,  # type: ignore[arg-type]
-        expected_set=FakeExpectedSet({aid}, {aid}),  # type: ignore[arg-type]
+        store=store,
+        expected_set=FakeExpectedSet({aid}, {aid}),
         is_provable=_faithful_is_provable,
         digest_of_frame=exploding_digest,
-        emitter=RecordingEmitter(),  # type: ignore[arg-type]
+        emitter=RecordingEmitter(),
     )
     run = await evaluator.evaluate_all(NOW)
     assert aid in run.unevaluated
@@ -481,8 +505,8 @@ async def test_each_run_has_a_distinct_run_id() -> None:
 # ---------------------------------------------------------------------------
 
 
-async def test_per_artifact_gauge_carries_gid_and_entity_dimensions() -> None:
-    """Per-aid provable=1/0 gauge is emitted with {project_gid, entity_type} dimensions."""
+async def test_per_artifact_gauge_carries_env_gid_and_entity_dimensions() -> None:
+    """Per-aid provable=1/0 gauge is emitted with {environment, project_gid, entity_type}."""
     provable = _aid("1143843662099250", EntityType.OFFER)
     stale = _aid("2222222222222222", EntityType.UNIT)
     store = FakeStore(entries={provable: _provable_entry(), stale: _stale_entry()})
@@ -491,17 +515,18 @@ async def test_per_artifact_gauge_carries_gid_and_entity_dimensions() -> None:
     ).evaluate_all(NOW)
 
     metric_data = CloudWatchProvabilityEmitter.build_metric_data(run)
-    gauges = {
-        datum["Dimensions"][0]["Value"]: datum
-        for datum in metric_data
-        if datum["MetricName"] == METRIC_ARTIFACT_PROVABLE
-    }
-    assert gauges["1143843662099250"]["Value"] == 1.0
-    assert gauges["2222222222222222"]["Value"] == 0.0
-    assert gauges["2222222222222222"]["Dimensions"][1] == {
-        "Name": "entity_type",
-        "Value": "unit",
-    }
+    gauges: dict[str, tuple[float, dict[str, str]]] = {}
+    for datum in metric_data:
+        if datum["MetricName"] != METRIC_ARTIFACT_PROVABLE:
+            continue
+        dims = {d["Name"]: d["Value"] for d in datum["Dimensions"]}
+        gauges[dims["project_gid"]] = (float(datum["Value"]), dims)
+
+    assert gauges["1143843662099250"][0] == 1.0
+    assert gauges["2222222222222222"][0] == 0.0
+    assert gauges["2222222222222222"][1]["entity_type"] == "unit"
+    # The deployment-scope dimension rides the per-artifact gauge too (F-1 identity key).
+    assert gauges["2222222222222222"][1]["environment"] == "production"
 
 
 async def test_cloudwatch_emitter_sends_via_injected_client() -> None:
@@ -536,11 +561,11 @@ def test_cloudwatch_emitter_is_best_effort_on_failure() -> None:
     cw = RecordingCwClient(fail=True)
     emitter = CloudWatchProvabilityEmitter(cw_client=cw)
 
-    # Must NOT raise despite put_metric_data blowing up.
-    diagnostic = emitter.emit_run(run)
+    # emit_run returns None (ProvabilityEmitter port, mypy-checked) and must NOT raise
+    # despite put_metric_data blowing up.
+    emitter.emit_run(run)
     assert len(cw.calls) == 1  # the call was attempted
-    assert diagnostic["namespace"] == "Autom8y/SubstrateProvability"
-    assert diagnostic["run_id"] == "abc123"
+    assert cw.calls[0]["Namespace"] == "Autom8y/SubstrateProvability"
 
 
 def test_evaluation_run_derived_properties_are_consistent() -> None:
@@ -584,3 +609,220 @@ def test_evaluation_run_derived_properties_are_consistent() -> None:
     assert run.expected_set_mismatch_count == 1
     assert run.max_staleness_age_seconds == 120.0
     assert run.is_complete
+
+
+# ---------------------------------------------------------------------------
+# F-1 CURE — the tf ↔ emitter metric-identity binding tripwire
+# ---------------------------------------------------------------------------
+
+
+def _parse_tf_variable_default(tf_text: str, name: str) -> str:
+    """Extract a `variable "name" { … default = "VALUE" }` default from HCL text."""
+    block = re.search(rf'variable\s+"{re.escape(name)}"\s*\{{(.*?)\n\}}', tf_text, re.DOTALL)
+    assert block, f"variable {name!r} not found"
+    default = re.search(r'default\s*=\s*"([^"]*)"', block.group(1))
+    assert default, f"variable {name!r} has no string default"
+    return default.group(1)
+
+
+def _parse_tf_alarm_identities(tf_text: str) -> list[tuple[str, str, frozenset[str]]]:
+    """Per alarm: (metric_name, namespace_ref, dimension-key-set) — textual parse of the .tf."""
+    chunks = re.split(r'resource\s+"aws_cloudwatch_metric_alarm"\s+"[^"]+"\s*\{', tf_text)[1:]
+    identities: list[tuple[str, str, frozenset[str]]] = []
+    for chunk in chunks:
+        metric = re.search(r'metric_name\s*=\s*"([^"]+)"', chunk)
+        namespace = re.search(r"namespace\s*=\s*(\S+)", chunk)
+        dims = re.search(r"dimensions\s*=\s*\{([^}]*)\}", chunk)
+        assert metric and namespace, "alarm missing metric_name/namespace"
+        keys: set[str] = set()
+        if dims:
+            for pair in dims.group(1).split(","):
+                pair = pair.strip()
+                if pair:
+                    keys.add(pair.split("=")[0].strip())
+        identities.append((metric.group(1), namespace.group(1), frozenset(keys)))
+    return identities
+
+
+def _emitter_identities(metric_data: list[dict[str, Any]]) -> dict[str, frozenset[str]]:
+    """metric_name → the set of dimension KEYS the emitter stamps on it."""
+    out: dict[str, frozenset[str]] = {}
+    for datum in metric_data:
+        keys = frozenset(d["Name"] for d in datum.get("Dimensions", []))
+        out[datum["MetricName"]] = keys
+    return out
+
+
+def test_terraform_alarms_bind_to_emitted_metric_identities() -> None:
+    """SEAM TRIPWIRE (F-1 cure): every PROV alarm's (namespace, metric, dim-keys) MUST be an
+    identity the emitter actually emits. A rename/re-dimension on EITHER side goes RED here —
+    the discipline the tf header states for the NAME, now enforced as a test for the DIMENSIONS.
+    """
+    tf_text = _TF_ALARMS.read_text()
+
+    # namespace: the alarm var default must equal the emitter constant.
+    ns_default = _parse_tf_variable_default(tf_text, "substrate_provability_namespace")
+    assert ns_default == SUBSTRATE_PROVABILITY_NAMESPACE
+
+    # environment dimension VALUE: emitter default must equal the shared tf var default,
+    # else the alarm series (…{environment=production}) and the emitted series diverge.
+    env_default = _parse_tf_variable_default(_TF_SHARED.read_text(), "environment")
+    assert env_default == DEFAULT_ENVIRONMENT
+
+    # Build the emitter's emitted identities (a run WITH a verdict so ArtifactProvable exists too).
+    aid = _aid("1143843662099250")
+    verdict = ArtifactVerdict(
+        aid=aid,
+        provability=Provability.PROVABLE,
+        provable=True,
+        age_seconds=60.0,
+        missing=False,
+        in_registry=True,
+        in_store=True,
+    )
+    run = EvaluationRun(
+        run_id="r",
+        scheduled_at=NOW,
+        registry_targets=frozenset({aid}),
+        store_targets=frozenset({aid}),
+        verdicts=(verdict,),
+        unevaluated=frozenset(),
+    )
+    emitted = _emitter_identities(CloudWatchProvabilityEmitter.build_metric_data(run))
+
+    alarms = _parse_tf_alarm_identities(tf_text)
+    assert len(alarms) == 6, "expected PROV-1..6 alarm resources"
+    for metric_name, ns_ref, dim_keys in alarms:
+        resolved_ns = (
+            ns_default if ns_ref == "var.substrate_provability_namespace" else ns_ref.strip('"')
+        )
+        assert resolved_ns == SUBSTRATE_PROVABILITY_NAMESPACE, f"{metric_name}: namespace drift"
+        assert metric_name in emitted, f"alarm metric {metric_name} is NOT emitted (dead series)"
+        assert dim_keys == emitted[metric_name], (
+            f"{metric_name}: alarm queries dims {set(dim_keys)} but emitter emits "
+            f"{set(emitted[metric_name])} — CloudWatch identity mismatch (F-1 class)"
+        )
+    # Every alarm queries the environment key — the F-1 defect was its absence emitter-side.
+    assert all(DIMENSION_ENVIRONMENT in keys for _, _, keys in alarms)
+
+
+# ---------------------------------------------------------------------------
+# F-2 — expected-set fetch failure emits a LOUD failed run, never a silent no-run
+# ---------------------------------------------------------------------------
+
+
+class _ExplodingExpectedSet:
+    """An ExpectedSetSource whose enumeration raises (registry backend 500 / S3 AccessDenied)."""
+
+    async def registry_targets(self) -> set[ArtifactId]:
+        raise RuntimeError("registry backend 500")
+
+    async def store_enumeration(self) -> set[ArtifactId]:
+        raise RuntimeError("S3 ListObjectsV2 AccessDenied")
+
+
+async def test_expected_set_fetch_failure_emits_loud_run_not_silent_crash() -> None:
+    """F-2: a fetch failure still EMITS (heartbeat + ExpectedCount=0 + Completeness=0 +
+    EvaluationFailed=1) and returns — never raises out of evaluate_all pre-emission."""
+    emitter = RecordingEmitter()
+    evaluator = ScheduledProvabilityEvaluator(
+        store=FakeStore(),
+        expected_set=_ExplodingExpectedSet(),
+        is_provable=_faithful_is_provable,
+        digest_of_frame=_digest_of,
+        emitter=emitter,
+    )
+
+    run = await evaluator.evaluate_all(NOW)  # must NOT raise
+
+    assert run.evaluation_failed is True
+    assert emitter.runs == [run]  # emission happened despite the fetch failure
+    metric_data = CloudWatchProvabilityEmitter.build_metric_data(run)
+    assert _run_metric(metric_data, METRIC_EVALUATOR_HEARTBEAT) == 1.0  # evaluator RAN
+    assert _run_metric(metric_data, METRIC_EXPECTED_COUNT) == 0.0  # PROV-5 floor FIRES
+    assert _run_metric(metric_data, METRIC_COMPLETENESS) == 0.0  # PROV-3 FIRES (not vacuous 100)
+    assert _run_metric(metric_data, METRIC_EVALUATION_FAILED) == 1.0
+
+
+# ---------------------------------------------------------------------------
+# F-3 — empty expected-set fires the PROV-5 floor (evaluator watching nothing)
+# ---------------------------------------------------------------------------
+
+
+async def test_empty_expected_set_fires_the_floor() -> None:
+    """F-3: registry=∅ ∧ store=∅ → ExpectedCount=0 (PROV-5 floor FIRES), not vacuous green."""
+    run = await _build_evaluator(store=FakeStore(), registry=set(), store_set=set()).evaluate_all(
+        NOW
+    )
+    metric_data = CloudWatchProvabilityEmitter.build_metric_data(run)
+    assert _run_metric(metric_data, METRIC_EXPECTED_COUNT) == 0.0  # PROV-5 (< 1) FIRES
+    # The other four still read clean on an empty set — PROV-5 is the ONLY floor that catches it.
+    assert _run_metric(metric_data, METRIC_UNPROVABLE_COUNT) == 0.0
+    assert _run_metric(metric_data, METRIC_EXPECTED_SET_MISMATCH_COUNT) == 0.0
+
+
+# ---------------------------------------------------------------------------
+# F-4 — CloudWatchProvabilityEmitter honestly satisfies the ProvabilityEmitter port
+# ---------------------------------------------------------------------------
+
+
+def test_cloudwatch_emitter_conforms_to_the_emitter_port() -> None:
+    """F-4: the concrete emitter satisfies ProvabilityEmitter under mypy-strict (no Any-dodge)."""
+    # Inject a fake client so the port call stays offline (DARK — no AWS).
+    port: ProvabilityEmitter = CloudWatchProvabilityEmitter(cw_client=RecordingCwClient())
+    run = EvaluationRun(
+        run_id="p",
+        scheduled_at=NOW,
+        registry_targets=frozenset(),
+        store_targets=frozenset(),
+        verdicts=(),
+        unevaluated=frozenset(),
+    )
+    port.emit_run(run)  # the port's -> None signature is mypy-enforced by the assignment above
+
+
+# ---------------------------------------------------------------------------
+# Addendum — future-dated proof anomaly (S2-GO condition): disclosed, never smoothed
+# ---------------------------------------------------------------------------
+
+
+def _future_dated_entry(raw: bytes = b"frame-future") -> tuple[bytes, FreshnessProof]:
+    """A proof stamped 24h in the FUTURE → negative age (writer clock skew / bad stamp)."""
+    proof = FreshnessProof(
+        built_from_live_at=NOW + timedelta(hours=24),
+        content_digest=_digest_of(raw),
+        sla_seconds=3600,
+    )
+    return raw, proof
+
+
+async def test_future_dated_proof_fires_anomaly_and_never_emits_negative_gauge() -> None:
+    """Addendum RED side: a future-dated proof FIRES FutureDatedProofCount and the staleness
+    gauge is CLAMPED >= 0 — never the raw negative "super-fresh-while-broken" value."""
+    aid = _aid("1143843662099250")
+    store = FakeStore(entries={aid: _future_dated_entry()})
+    run = await _build_evaluator(store=store, registry={aid}, store_set={aid}).evaluate_all(NOW)
+
+    # is_provable is FOOLED (negative age <= sla → PROVABLE) — that is the S2 gap …
+    (verdict,) = run.verdicts
+    assert verdict.provable is True
+    assert verdict.age_seconds is not None and verdict.age_seconds < 0  # raw age is negative
+    # … but S6 DISCLOSES it: the anomaly count fires and the gauge is clamped.
+    assert run.future_dated_count == 1
+    assert run.max_staleness_age_seconds == 0.0  # clamped, NOT -86400
+
+    metric_data = CloudWatchProvabilityEmitter.build_metric_data(run)
+    assert _run_metric(metric_data, METRIC_FUTURE_DATED_PROOF_COUNT) == 1.0  # PROV-6 FIRES
+    assert _run_metric(metric_data, METRIC_MAX_STALENESS_AGE_SECONDS) >= 0.0  # never negative
+
+
+async def test_normal_proof_keeps_the_future_dated_anomaly_silent() -> None:
+    """Addendum GREEN side: an ordinary fresh proof → FutureDatedProofCount==0, gauge >= 0."""
+    aid = _aid("1143843662099250")
+    store = FakeStore(entries={aid: _provable_entry()})
+    run = await _build_evaluator(store=store, registry={aid}, store_set={aid}).evaluate_all(NOW)
+
+    assert run.future_dated_count == 0
+    metric_data = CloudWatchProvabilityEmitter.build_metric_data(run)
+    assert _run_metric(metric_data, METRIC_FUTURE_DATED_PROOF_COUNT) == 0.0  # PROV-6 SILENT
+    assert _run_metric(metric_data, METRIC_MAX_STALENESS_AGE_SECONDS) >= 0.0

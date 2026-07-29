@@ -114,6 +114,11 @@ class EvaluationRun:
     # Expected members that produced NO verdict — an indeterminate read/check was
     # SKIPPED ([H20]); recorded loudly (never dropped) so the run reads INCOMPLETE.
     unevaluated: frozenset[ArtifactId]
+    # True iff the expected-set FETCH itself failed (registry/store enumeration
+    # raised). A failed run still emits (heartbeat + loud failure signal), never a
+    # silent no-run — so an intermittent fetch failure fires PROV-3/PROV-5 at
+    # schedule granularity rather than hiding until the PROV-2 dead-man window.
+    evaluation_failed: bool = False
 
     @property
     def expected(self) -> frozenset[ArtifactId]:
@@ -130,12 +135,23 @@ class EvaluationRun:
 
     @property
     def is_complete(self) -> bool:
-        """True iff every expected artifact produced a verdict ([H20])."""
-        return not self.unevaluated and self.evaluated_count == self.expected_count
+        """True iff every expected artifact produced a verdict ([H20]); False on fetch failure."""
+        return (
+            not self.evaluation_failed
+            and not self.unevaluated
+            and self.evaluated_count == self.expected_count
+        )
 
     @property
     def completeness(self) -> float:
-        """Percent [0, 100]: evaluated / expected. 100 only when nothing was skipped."""
+        """Percent [0, 100]: evaluated / expected. 100 only when nothing was skipped.
+
+        A fetch failure reads 0.0 (coverage is UNKNOWN, not vacuously complete) so
+        PROV-3 (Completeness < 100) fires. A legitimately-empty expected-set reads
+        100.0 (0/0 covered) — the PROV-5 ExpectedCount floor catches that misconfig.
+        """
+        if self.evaluation_failed:
+            return 0.0
         if self.expected_count == 0:
             return 100.0
         return 100.0 * self.evaluated_count / self.expected_count
@@ -166,9 +182,27 @@ class EvaluationRun:
 
     @property
     def max_staleness_age_seconds(self) -> float:
-        """Refusal-relevant staleness: max artifact age (the is_provable SLA-comparison age)."""
+        """Refusal-relevant staleness: max artifact age, CLAMPED to >= 0.
+
+        A future-dated proof (clock skew / bad writer stamp) yields NEGATIVE age —
+        the exact "reads super-fresh while broken" shape RC-F kills. The raw
+        negative is NEVER emitted on this gauge (it would corrupt Max/percentile
+        math and read artificially fresh); the anomaly is disclosed LOUDLY and
+        separately by ``future_dated_count`` → the FutureDatedProofCount metric.
+        """
         ages = [v.age_seconds for v in self.verdicts if v.age_seconds is not None]
-        return max(ages) if ages else 0.0
+        return max(0.0, max(ages)) if ages else 0.0
+
+    @property
+    def future_dated_count(self) -> int:
+        """Verdicts whose proof is stamped in the FUTURE (negative age). >0 FIRES.
+
+        Discloses the S2 future-stamp gap (`is_provable` returns PROVABLE for a
+        negative age since it is <= sla) at the observability layer: even when the
+        predicate is fooled, the evaluator cannot read green while a proof is
+        future-dated — the anomaly is a distinct, alarm-bound signal (PROV-6).
+        """
+        return sum(1 for v in self.verdicts if v.age_seconds is not None and v.age_seconds < 0)
 
 
 # ---------------------------------------------------------------------------
@@ -241,12 +275,31 @@ class ScheduledProvabilityEvaluator:
 
         Per artifact: ``read_current`` → derive served digest → ``is_provable``.
         ``ArtifactMissing`` is a determinate ``provable=0`` verdict ([H21]); any
-        OTHER read/check failure is an indeterminate SKIP recorded in
-        ``unevaluated`` ([H20]) — never silently green, and never crashes the
-        sweep (the heartbeat must still emit).
+        OTHER per-artifact read/check failure is an indeterminate SKIP recorded in
+        ``unevaluated`` ([H20]) — never silently green.
+
+        The sweep NEVER produces a silent no-run: an expected-set FETCH failure
+        (registry/store enumeration raised) still emits — a LOUD failed run
+        (heartbeat + ExpectedCount=0 + Completeness=0 + EvaluationFailed=1) — so an
+        intermittent enumeration failure fires PROV-3/PROV-5 at schedule
+        granularity instead of hiding until the PROV-2 dead-man window.
         """
-        registry = frozenset(await self._expected_set.registry_targets())
-        store = frozenset(await self._expected_set.store_enumeration())
+        try:
+            registry = frozenset(await self._expected_set.registry_targets())
+            store = frozenset(await self._expected_set.store_enumeration())
+        except Exception:  # noqa: BLE001 — fetch failure → LOUD failed run, never a silent crash
+            logger.warning("substrate_provability_expected_set_failed", exc_info=True)
+            failed_run = EvaluationRun(
+                run_id=uuid.uuid4().hex,
+                scheduled_at=now,
+                registry_targets=frozenset(),
+                store_targets=frozenset(),
+                verdicts=(),
+                unevaluated=frozenset(),
+                evaluation_failed=True,
+            )
+            self._emitter.emit_run(failed_run)
+            return failed_run
         expected = registry | store
 
         verdicts: list[ArtifactVerdict] = []
@@ -350,7 +403,19 @@ class ProvabilityEvaluator(Protocol):
 # these verbatim names — a rename here is a seam change, not a silent edit.
 SUBSTRATE_PROVABILITY_NAMESPACE: str = "Autom8y/SubstrateProvability"
 
-# Run-level metrics — bounded cardinality (no per-GID dimension); the ALARMED set.
+# The deployment-scope dimension EVERY metric carries. This is the load-bearing
+# identity contract with the terraform alarms: CloudWatch identity =
+# (namespace, name, EXACT dimension set), and every PROV-* alarm queries
+# ``dimensions = { environment = var.environment }``. Emitting run-level metrics
+# WITHOUT this key would bind the alarms to series that never receive a datapoint
+# (the DMS-24h dead-metric class). ``tests/unit/substrate/test_observe.py`` string-
+# diffs the .tf against this emitter so the identity cannot drift silently.
+DIMENSION_ENVIRONMENT: str = "environment"
+# Matches the terraform ``variable "environment"`` default in observability_alarms.tf.
+DEFAULT_ENVIRONMENT: str = "production"
+
+# Run-level metrics — bounded cardinality (dimensioned {environment} only, 1-2
+# values); the ALARMED set.
 METRIC_UNPROVABLE_COUNT: str = "UnprovableCount"
 METRIC_PROVABLE_COUNT: str = "ProvableCount"
 METRIC_MAX_STALENESS_AGE_SECONDS: str = "MaxStalenessAgeSeconds"
@@ -359,8 +424,13 @@ METRIC_EVALUATOR_HEARTBEAT: str = "EvaluatorHeartbeat"
 METRIC_EXPECTED_SET_MISMATCH_COUNT: str = "ExpectedSetMismatchCount"
 METRIC_EXPECTED_COUNT: str = "ExpectedCount"
 METRIC_EVALUATED_COUNT: str = "EvaluatedCount"
-# Per-artifact gauge — dimensioned {project_gid, entity_type}; diagnostic, bounded
-# by the registered expected-set (same cardinality discipline as AL-5).
+# 1.0 iff the expected-set fetch itself failed (PROV-5 floor + PROV-3 fire).
+METRIC_EVALUATION_FAILED: str = "EvaluationFailed"
+# Count of future-dated proofs (negative age) — the "super-fresh-while-broken"
+# anomaly, disclosed distinctly rather than smoothed into the staleness gauge (PROV-6).
+METRIC_FUTURE_DATED_PROOF_COUNT: str = "FutureDatedProofCount"
+# Per-artifact gauge — dimensioned {environment, project_gid, entity_type};
+# diagnostic, bounded by the registered expected-set (same discipline as AL-5).
 METRIC_ARTIFACT_PROVABLE: str = "ArtifactProvable"
 
 # CloudWatch put_metric_data caps MetricData at 1000 items per call.
@@ -397,15 +467,23 @@ class CloudWatchProvabilityEmitter:
 
     DARK this sprint: no deploy, no live AWS call. ``cw_client`` is injectable so
     the shape is unit-provable with a fake; production passes ``None`` and the
-    lazy boto3 client is constructed on first emit.
+    lazy boto3 client is constructed on first emit. ``environment`` is the
+    deployment-scope dimension VALUE stamped on every metric — it MUST match the
+    terraform ``var.environment`` (both default ``"production"``) or the alarms
+    bind to a different series (identity contract, enforced by the binding test).
+    ``emit_run`` returns ``None`` to satisfy the ``ProvabilityEmitter`` port;
+    the wire payload is inspectable via ``build_metric_data`` (pure).
     """
 
-    def __init__(self, *, cw_client: Any | None = None) -> None:
+    def __init__(
+        self, *, environment: str = DEFAULT_ENVIRONMENT, cw_client: Any | None = None
+    ) -> None:
+        self._environment = environment
         self._cw_client = cw_client
 
-    def emit_run(self, run: EvaluationRun) -> dict[str, Any]:
-        """Build + send the run's metric data. Returns the diagnostic payload (for tests/logs)."""
-        metric_data = self.build_metric_data(run)
+    def emit_run(self, run: EvaluationRun) -> None:
+        """Build + send the run's metric data (best-effort). Conforms to ProvabilityEmitter."""
+        metric_data = self.build_metric_data(run, environment=self._environment)
 
         # The self-heartbeat identity — emitted on a metric that EXISTS every run
         # (the dead-man done right), carrying run-id + schedule stamp. Greppable as
@@ -442,16 +520,16 @@ class CloudWatchProvabilityEmitter:
                     },
                 )
 
-        return {
-            "namespace": SUBSTRATE_PROVABILITY_NAMESPACE,
-            "run_id": run.run_id,
-            "scheduled_at": run.scheduled_at,
-            "metric_data": metric_data,
-        }
-
     @staticmethod
-    def build_metric_data(run: EvaluationRun) -> list[dict[str, Any]]:
-        """Translate an ``EvaluationRun`` into CloudWatch ``MetricData`` (pure; no I/O)."""
+    def build_metric_data(
+        run: EvaluationRun, *, environment: str = DEFAULT_ENVIRONMENT
+    ) -> list[dict[str, Any]]:
+        """Translate an ``EvaluationRun`` into CloudWatch ``MetricData`` (pure; no I/O).
+
+        Every datum carries the ``{environment}`` dimension the PROV-* alarms query
+        — that shared identity is the F-1 cure and is string-diffed by the binding
+        test against the terraform.
+        """
         stamp = run.scheduled_at
 
         def _run_metric(name: str, value: float, unit: str) -> dict[str, Any]:
@@ -460,25 +538,31 @@ class CloudWatchProvabilityEmitter:
                 "Value": value,
                 "Unit": unit,
                 "Timestamp": stamp,
+                "Dimensions": [{"Name": DIMENSION_ENVIRONMENT, "Value": environment}],
             }
 
         metric_data: list[dict[str, Any]] = [
-            # ALARMED (a): fires on unprovability; silent on an all-provable run.
+            # ALARMED PROV-1: fires on unprovability; silent on an all-provable run.
             _run_metric(METRIC_UNPROVABLE_COUNT, float(run.unprovable_count), "Count"),
-            # ALARMED (b): the dead-man — a metric that EXISTS every run.
+            # ALARMED PROV-2: the dead-man — a metric that EXISTS every run.
             _run_metric(METRIC_EVALUATOR_HEARTBEAT, 1.0, "Count"),
-            # ALARMED (c): fires when a broken artifact was skipped ([H20]).
+            # ALARMED PROV-3: fires when a broken artifact was skipped OR fetch failed ([H20]/F-2).
             _run_metric(METRIC_COMPLETENESS, run.completeness, "Percent"),
-            # ALARMED (d): C7 — fires on a one-sided (registry △ store) member.
+            # ALARMED PROV-4: C7 — fires on a one-sided (registry △ store) member.
             _run_metric(
                 METRIC_EXPECTED_SET_MISMATCH_COUNT,
                 float(run.expected_set_mismatch_count),
                 "Count",
             ),
-            # Refusal-relevant staleness age (the is_provable SLA-comparison age).
+            # ALARMED PROV-5 floor: empty/failed expected-set (evaluator watching nothing).
+            _run_metric(METRIC_EXPECTED_COUNT, float(run.expected_count), "Count"),
+            # ALARMED PROV-6: future-dated proof anomaly (negative age; super-fresh-while-broken).
+            _run_metric(METRIC_FUTURE_DATED_PROOF_COUNT, float(run.future_dated_count), "Count"),
+            # Diagnostic: 1 iff the expected-set fetch itself failed (F-2).
+            _run_metric(METRIC_EVALUATION_FAILED, 1.0 if run.evaluation_failed else 0.0, "Count"),
+            # Refusal-relevant staleness age, CLAMPED >= 0 (never a raw negative gauge).
             _run_metric(METRIC_MAX_STALENESS_AGE_SECONDS, run.max_staleness_age_seconds, "Seconds"),
             _run_metric(METRIC_PROVABLE_COUNT, float(run.provable_count), "Count"),
-            _run_metric(METRIC_EXPECTED_COUNT, float(run.expected_count), "Count"),
             _run_metric(METRIC_EVALUATED_COUNT, float(run.evaluated_count), "Count"),
         ]
 
@@ -491,6 +575,7 @@ class CloudWatchProvabilityEmitter:
                     "Unit": "Count",
                     "Timestamp": stamp,
                     "Dimensions": [
+                        {"Name": DIMENSION_ENVIRONMENT, "Value": environment},
                         {"Name": "project_gid", "Value": verdict.aid.project_gid},
                         {"Name": "entity_type", "Value": verdict.aid.entity_type.value},
                     ],

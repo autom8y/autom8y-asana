@@ -1,5 +1,5 @@
 # ============================================================================
-# substrate-v2 provability alarm suite (PROV-1 .. PROV-4) — RC-F
+# substrate-v2 provability alarm suite (PROV-1 .. PROV-6) — RC-F
 # ============================================================================
 #
 # AUTHORED wave-2; APPLY = DP-4a (operator door); this repo has no apply
@@ -14,7 +14,7 @@
 # `paging_armed_alarms`, `page_sns_topic_arn`, `ticket_sns_topic_arn`,
 # `environment`) and its `local.page_action` / `local.ticket_action` wiring — so
 # ONE master switch governs both suites. This file ADDS only substrate-v2
-# variables, the PROV-1..4 alarms, their action locals, and their outputs.
+# variables, the PROV-1..6 alarms, their action locals, and their outputs.
 # Operators arm a PROV alarm by adding e.g. "PROV-1" to `paging_armed_alarms`.
 #
 # WHAT THIS CURES (vs the AL-5 precedent one file over):
@@ -96,6 +96,8 @@ locals {
   prov2_actions = contains(var.paging_armed_alarms, "PROV-2") ? local.page_action : local.ticket_action
   prov3_actions = contains(var.paging_armed_alarms, "PROV-3") ? local.page_action : local.ticket_action
   prov4_actions = contains(var.paging_armed_alarms, "PROV-4") ? local.page_action : local.ticket_action
+  prov5_actions = contains(var.paging_armed_alarms, "PROV-5") ? local.page_action : local.ticket_action
+  prov6_actions = contains(var.paging_armed_alarms, "PROV-6") ? local.page_action : local.ticket_action
 }
 
 # ----------------------------------------------------------------------------
@@ -213,6 +215,67 @@ resource "aws_cloudwatch_metric_alarm" "prov4_expected_set_mismatch" {
 }
 
 # ----------------------------------------------------------------------------
+# PROV-5 -- ExpectedCount < 1  (expected-set FLOOR; the "watching nothing" cure).
+#
+# expected-set = registry UNION store. Production ALWAYS expects >= 1 artifact, so
+# ExpectedCount < 1 means the evaluator is watching NOTHING: either a common-mode
+# ExpectedSetSource misconfiguration (wrong prefix/env, an impl that swallows its
+# own errors into empty sets) reads registry=∅ ∧ store=∅, OR the expected-set fetch
+# raised and the evaluator emitted a LOUD failed run (ExpectedCount=0). Without this
+# floor an empty union reads vacuously green on PROV-1/3/4 (counts of nothing are all
+# zero/100). Minimum over the window catches an intermittent empty/failed sweep at
+# schedule granularity (the F-2/F-3 cure).
+# ----------------------------------------------------------------------------
+
+resource "aws_cloudwatch_metric_alarm" "prov5_expected_floor" {
+  alarm_name          = "asana-PROV-5-expected-floor"
+  alarm_description   = "substrate-v2 provability sweep expected-set FLOOR breached: ExpectedCount < 1 -- the evaluator is watching NOTHING (empty registry ∧ empty store, or an expected-set fetch failure that emitted a loud failed run). RB-SUBSTRATE-EMPTY-EXPECTED. Production always expects >= 1 artifact; an empty union is a misconfiguration, not vacuous green."
+  namespace           = var.substrate_provability_namespace
+  metric_name         = "ExpectedCount"
+  dimensions          = { environment = var.environment }
+  statistic           = "Minimum"
+  comparison_operator = "LessThanThreshold"
+  threshold           = 1
+  period              = var.evaluation_schedule_seconds
+  evaluation_periods  = 1
+  datapoints_to_alarm = 1
+  treat_missing_data  = "notBreaching" # evaluator absence -> PROV-2, not here
+
+  alarm_actions = local.prov5_actions
+  ok_actions    = local.prov5_actions
+}
+
+# ----------------------------------------------------------------------------
+# PROV-6 -- FutureDatedProofCount > 0  (the "super-fresh-while-broken" anomaly).
+#
+# A proof stamped in the FUTURE (writer clock skew / bad-stamp bug) yields NEGATIVE
+# age. The frozen is_provable returns PROVABLE for it (negative age <= sla), so the
+# provability axis is FOOLED -- but S6 discloses the anomaly rather than smoothing it
+# away: MaxStalenessAgeSeconds is clamped >= 0 (never a raw negative "fresh" gauge)
+# and this DISTINCT count FIRES. Discharges the S2-GO ledger condition (negative-age
+# disclosure is Seam-5/Seam-6 charter per the S2 adversary F8 ruling); the full S5
+# serving-side refusal obligation rides the handoff, not this alarm.
+# ----------------------------------------------------------------------------
+
+resource "aws_cloudwatch_metric_alarm" "prov6_future_dated_proof" {
+  alarm_name          = "asana-PROV-6-future-dated-proof"
+  alarm_description   = "substrate-v2 provability sweep found >= 1 FUTURE-DATED proof (built_from_live_at in the future -> negative age). RB-SUBSTRATE-FUTURE-STAMP. is_provable reads PROVABLE (age <= sla) so provability is fooled; this discloses the writer clock-skew / bad-stamp anomaly that would otherwise read super-fresh. The staleness gauge is clamped >= 0; this count is the loud signal."
+  namespace           = var.substrate_provability_namespace
+  metric_name         = "FutureDatedProofCount"
+  dimensions          = { environment = var.environment }
+  statistic           = "Maximum"
+  comparison_operator = "GreaterThanThreshold"
+  threshold           = 0
+  period              = var.evaluation_schedule_seconds
+  evaluation_periods  = 1
+  datapoints_to_alarm = 1
+  treat_missing_data  = "notBreaching" # evaluator absence -> PROV-2, not here
+
+  alarm_actions = local.prov6_actions
+  ok_actions    = local.prov6_actions
+}
+
+# ----------------------------------------------------------------------------
 # STAGED (DO NOT AUTHOR ITS DELETION HERE) -- DMS-24h retirement note.
 #
 # The orphaned `autom8-asana-cache-warmer-DMS-24h` (watches LastSuccessTimestamp
@@ -241,6 +304,8 @@ output "authored_provability_alarm_names" {
     aws_cloudwatch_metric_alarm.prov2_heartbeat_absence.alarm_name,
     aws_cloudwatch_metric_alarm.prov3_incomplete.alarm_name,
     aws_cloudwatch_metric_alarm.prov4_expected_set_mismatch.alarm_name,
+    aws_cloudwatch_metric_alarm.prov5_expected_floor.alarm_name,
+    aws_cloudwatch_metric_alarm.prov6_future_dated_proof.alarm_name,
   ]
 }
 
