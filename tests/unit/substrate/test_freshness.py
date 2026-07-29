@@ -5,12 +5,15 @@ These prove the freshness-law bodies S2 fills in ``substrate.freshness``:
 - ``canonical_digest`` five [H1] pins: value-column set, row order, parquet-
   independent encoding, null canonicalization, float canonicalization — proven
   BOTH ways (a value change moves the digest; a GID/layout change does not).
-- The v1 **D8** class is UNCONSTRUCTABLE: a GID-set-preserving value edit (v1's
-  blind spot) changes the digest, AND there is no public API that advances
-  freshness without a content fetch (the falsifying construction is asserted
-  absent).
+  Plus the DELTA fixes: F1 missing-column fail-loud, F2 thread-context-independence,
+  F3 Decimal non-finite fail-loud, F4 the deliberate type-erasure pin, and a
+  known-good byte-identity regression proving the fix touched no valid output.
+- The v1 **D8** false-CLEAN pattern has no probe-stamp home on the S2 surface: a
+  GID-set-preserving value edit changes the digest, no S2 verb advances freshness
+  without a content fetch, and the honest floor (``dataclasses.replace`` re-stamp,
+  [H2] holds through it) is documented (F7).
 - ``is_provable`` verdicts + the [H2] naive-``now`` guard.
-- ``FreshnessProof.__post_init__`` [H2] tz-reject + the frozen no-restamp property.
+- ``FreshnessProof.__post_init__`` [H2] tz-reject + the frozen in-place-mutation block.
 - ``fold_built_from_live_at`` MIN-fold incl. the AV-1 reused-stale-section
   regression (a reused old section honestly drags the artifact age back).
 - ``sla_seconds_for`` (C8) reads the per-entity SLA from the entity registry.
@@ -18,7 +21,9 @@ These prove the freshness-law bodies S2 fills in ``substrate.freshness``:
 
 from __future__ import annotations
 
+import decimal
 import inspect
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta, timezone
 from decimal import Decimal
 
@@ -31,6 +36,7 @@ from autom8_asana.dataframes.schemas.offer import OFFER_SCHEMA
 from autom8_asana.substrate.freshness import (
     _VALUE_COLUMNS,
     FreshnessProof,
+    MissingValueColumnsError,
     Provability,
     canonical_digest,
     fold_built_from_live_at,
@@ -43,7 +49,7 @@ _T0 = datetime(2026, 7, 29, 12, 0, 0, tzinfo=UTC)
 
 def _offer_row(
     *,
-    cost: str | None = "500",
+    cost: object = "500",
     mrr: object = 1000.0,
     offer_id: str = "OF-1",
     weekly_ad_spend: object = 200.0,
@@ -174,24 +180,149 @@ def test_float_and_decimal_columns_agree() -> None:
     assert canonical_digest(as_float) == canonical_digest(as_decimal)
 
 
-def test_non_finite_number_in_value_column_fails_loud() -> None:
-    """A NaN/inf in a value column is corruption — fail loud, never a silent digest."""
-    with pytest.raises(ValueError, match="non-finite"):
-        canonical_digest(_frame([_offer_row(mrr=float("nan"))]))
+def test_non_finite_float_in_value_column_fails_loud() -> None:
+    """A NaN/inf float (a Float64 column CAN hold these) reaches the digest and fails loud."""
+    for value in (float("nan"), float("inf")):
+        with pytest.raises(ValueError, match="non-finite"):
+            canonical_digest(_frame([_offer_row(mrr=value)]))
+
+
+def test_non_finite_decimal_fails_loud_at_canonicalizer() -> None:
+    """F3: Decimal NaN/Inf/sNaN is corruption — the guard rejects it at the canonicalizer.
+
+    A polars Decimal column cannot physically hold a non-finite value (construction
+    panics), so the F3 pin is asserted at ``_canon_number`` directly — the same locus
+    the qa-adversary probed via object dtype. Regression: before the fix the guard was
+    float-scoped, so Decimal NaN/Infinity canonicalized to strings colliding with the
+    literals "NaN"/"Infinity", and Decimal sNaN escaped as InvalidOperation.
+    """
+    for value in (Decimal("NaN"), Decimal("Infinity"), Decimal("sNaN")):
+        with pytest.raises(ValueError, match="non-finite"):
+            freshness._canon_number(value)
 
 
 # --------------------------------------------------------------------------- #
-# D8-unconstructable — the falsifying construction is ABSENT (both-ways closure)
+# DELTA fixes — F1 (missing columns), F2 (context), F4 (type-erasure), regression
 # --------------------------------------------------------------------------- #
 
 
-def test_no_public_api_advances_freshness_without_a_content_fetch() -> None:
-    """There is NO probe-stamp path: nothing here freshens without content.
+def test_missing_value_column_fails_loud() -> None:
+    """F1: a frame missing ANY pinned value column is refused, not silently digested.
 
-    The falsifying construction ("advance freshness without a fetch") is asserted
-    IMPOSSIBLE via the public surface — the module exposes no touch/refresh/stamp/
-    mark-fresh verb, and the sole producer of ``built_from_live_at`` is the fold,
-    whose only input is content-fetch instants.
+    Regression: before the fix, ``canonical_digest`` filtered pinned columns by
+    presence, so a foreign frame, a column-dropped frame, and even an empty frame
+    all shared ONE digest — yielding PROVABLE over changed content (RC-B-1
+    falsification). Now each goes loud.
+    """
+    foreign = pl.DataFrame([{"business_gid": "B-1", "active_mrr": 5000}])
+    with pytest.raises(MissingValueColumnsError, match="missing pinned value column"):
+        canonical_digest(foreign)
+    column_dropped = _frame([_offer_row()]).drop("cost")
+    with pytest.raises(MissingValueColumnsError, match="cost"):
+        canonical_digest(column_dropped)
+
+
+def test_empty_but_fully_columned_offer_frame_still_digests() -> None:
+    """F1 boundary: a zero-row frame that HAS all four value columns keeps a defined digest."""
+    empty_full = pl.DataFrame(
+        schema={
+            "cost": pl.Utf8,
+            "mrr": pl.Float64,
+            "offer_id": pl.Utf8,
+            "weekly_ad_spend": pl.Float64,
+        }
+    )
+    assert len(canonical_digest(empty_full)) == 64
+
+
+def test_missing_value_columns_error_is_a_value_error() -> None:
+    """The F1 named error subclasses ValueError so existing catch paths still work."""
+    assert issubclass(MissingValueColumnsError, ValueError)
+
+
+def test_digest_is_independent_of_ambient_decimal_context() -> None:
+    """F2: a hostile thread-local decimal precision does NOT change the digest.
+
+    Regression: ``Decimal.normalize()`` used the ambient thread-local context, so a
+    library setting ``getcontext().prec = 5`` elsewhere in the process silently
+    changed every digest. The fix pins a fixed local Context(prec=60).
+    """
+    frame = _frame([_offer_row(mrr=Decimal("1234.5678"), weekly_ad_spend=Decimal("99.99"))])
+    baseline = canonical_digest(frame)
+    with decimal.localcontext() as ctx:
+        ctx.prec = 5
+        under_hostile_context = canonical_digest(frame)
+    assert baseline == under_hostile_context
+
+
+def test_high_precision_decimal_neighbours_do_not_collide() -> None:
+    """F2: 30-significant-digit neighbours stay distinct (default prec=28 would collide)."""
+    a = canonical_digest(_frame([_offer_row(mrr=Decimal("1234567890123456789012345678.91"))]))
+    b = canonical_digest(_frame([_offer_row(mrr=Decimal("1234567890123456789012345678.92"))]))
+    assert a != b
+
+
+def test_number_string_type_erasure_is_a_deliberate_pin() -> None:
+    """F4: numeric 500 and string "500" (True vs "true") canonicalize identically.
+
+    A DELIBERATE, documented pin property — the digest compares values, not Python
+    types. Within one frozen schema a column's dtype is stable, so this is
+    cross-representation convenience, not a production collision. Pinned either way.
+    """
+    numeric = canonical_digest(_frame([_offer_row(cost=500)]))
+    string = canonical_digest(_frame([_offer_row(cost="500")]))
+    assert numeric == string
+
+
+def test_known_good_digests_are_byte_identical_regression() -> None:
+    """The DELTA fix touched NO currently-valid canonical output (no scheme bump).
+
+    These hex constants were captured from the pre-fix (536650d4) implementation.
+    They pin the FROZEN v1.0 canonical output: any future change to a pin MUST bump
+    ``_DIGEST_SCHEME`` and land these deliberately.
+    """
+    single = _frame(
+        [
+            _offer_row(
+                gid="G", name="Acme", cost="500", mrr=1000.0, offer_id="OF-1", weekly_ad_spend=200.0
+            )
+        ]
+    )
+    multi = _frame(
+        [
+            _offer_row(
+                gid="G1", name="A", cost="500", mrr=1000.0, offer_id="OF-1", weekly_ad_spend=200.0
+            ),
+            _offer_row(
+                gid="G2",
+                name="B",
+                cost="750",
+                mrr=Decimal("99.99"),
+                offer_id="OF-2",
+                weekly_ad_spend=0.0,
+            ),
+        ]
+    )
+    assert canonical_digest(single) == (
+        "295f7ffee5b013d335867a0ec90ce050f66543d0cd141f91abdf81580ae4d3d4"
+    )
+    assert canonical_digest(multi) == (
+        "1fabb37710022b0fcb27d429e8ae112109ef9aadb49504c6c04e947c482415fb"
+    )
+
+
+# --------------------------------------------------------------------------- #
+# D8 false-CLEAN pattern has no probe-stamp home on the S2 surface (honest floor)
+# --------------------------------------------------------------------------- #
+
+
+def test_no_s2_verb_advances_freshness_without_a_content_fetch() -> None:
+    """No probe-stamp verb on the S2 surface: nothing here freshens without content.
+
+    Scoped honestly to the S2 surface (W9 never-overclaim): the module exposes no
+    touch/refresh/stamp/mark-fresh verb, and the sole S2 producer of an instant is
+    the fold, whose only input is content-fetch instants. (Proof-minting custody is
+    an S3/S4 property — see the honest-floor ``dataclasses.replace`` test below.)
     """
     forbidden = {
         "touch",
@@ -215,11 +346,25 @@ def test_no_public_api_advances_freshness_without_a_content_fetch() -> None:
     )
 
 
-def test_freshness_proof_is_frozen_and_cannot_be_restamped() -> None:
-    """A built proof cannot be re-stamped fresh — the D8 re-stamp bridge is gone."""
+def test_freshness_proof_is_frozen_against_in_place_mutation() -> None:
+    """A built proof is not re-stamped in place — normal attribute assignment raises."""
     proof = _proof()
     with pytest.raises(AttributeError):
         proof.built_from_live_at = datetime.now(tz=UTC)  # type: ignore[misc]
+
+
+def test_dataclasses_replace_honest_floor_h2_holds() -> None:
+    """F7 honest floor: ``dataclasses.replace`` CAN mint a re-stamped proof — but [H2] re-fires.
+
+    S2 does not claim proof-minting is impossible (that custody is S3/S4). What it
+    guarantees is that the [H2] tz-guard runs through ``replace`` too, so a re-stamp
+    with a naive instant still fails loud.
+    """
+    proof = _proof(built=_T0)
+    restamped = replace(proof, built_from_live_at=_T0 + timedelta(days=365))
+    assert restamped.built_from_live_at == _T0 + timedelta(days=365)  # replace succeeds
+    with pytest.raises(ValueError, match="timezone-aware"):
+        replace(proof, built_from_live_at=datetime(2026, 7, 29, 12, 0, 0))  # naive -> [H2] fires
 
 
 # --------------------------------------------------------------------------- #
@@ -297,6 +442,16 @@ def test_real_content_change_is_not_provable_as_same() -> None:
     proof = _proof(built=_T0, digest=canonical_digest(frame_a), sla=3600)
     verdict = is_provable(proof, canonical_digest(frame_b), _T0 + timedelta(seconds=1))
     assert verdict is Provability.CORRUPT
+
+
+def test_future_dated_proof_is_provable_negative_age_carry_to_s5() -> None:
+    """F8: a future-dated proof (negative age) is PROVABLE under the frozen ``<= sla``.
+
+    S2 does not alter the frozen predicate; this pins the behavior and marks the
+    negative-age anomaly as a Seam-5 observability-emission carry.
+    """
+    proof = _proof(built=_T0 + timedelta(days=365), digest="abc", sla=100)
+    assert is_provable(proof, "abc", _T0) is Provability.PROVABLE
 
 
 # --------------------------------------------------------------------------- #
