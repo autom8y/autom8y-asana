@@ -33,8 +33,15 @@ tags: [substrate-v2, constitution, fleet-law, RC-invariants, by-construction, re
 > **DRAFT — LANDING-HELD-TO-S8-GREEN.** This is standing fleet law *in draft*. It does
 > NOT land in wave-2. Landing is checkpoint-gated on the S8 cutover gate rendering
 > green (P5): the fleet does not enshrine law the proving ground has not yet proven.
-> Authored by structure-evaluator; adversary review (arch-adversary) follows; landing
-> PR (principal-engineer) opens only post-S8-green. No auto-merge armed.
+> Authored by structure-evaluator; adversary review (arch-adversary) folded (iter-1
+> PASS-WITH-CONDITIONS, MF-1..MF-4 applied); landing PR (principal-engineer) opens only
+> post-S8-green. No auto-merge armed.
+>
+> **Hold sunset (RC-D self-applied — MF-4).** This hold is itself a forcing function, not
+> an open lever. If the S8 gate renders **RED**, or has **not rendered green by the epoch's
+> S8 checkpoint** (operator-set when the wave-2 fan lands), the hold does NOT persist
+> silently — it **escalates to an operator ruling** (land-as-doctrine-of-record / revise /
+> withdraw). A document that legislates against immortal bridges may not become one.
 
 ## §0 — What this is
 
@@ -97,8 +104,11 @@ whole-fresh.
   altitude.
 - **Honest floor (fail-loud).** Serving refuses past SLA (`STALE`) or on digest mismatch
   (`CORRUPT`). **SLA governance is the whole truth-content of RC-B**: an ungoverned SLA
-  re-serves the wound with a green proof — SLA values are operator-visible and their
-  change is a governed act, not a config edit.
+  re-serves the wound with a green proof — so an SLA change MUST become a **governed act**
+  (operator-visible), never a quiet config edit. That governance mechanism is **C8-pending**
+  (A-1): where `sla_seconds` lives and who may change it is operator-due by the S8 gate
+  (TDD §11 C8), **not yet an existing control** — the companion plan §2 carries its register
+  disposition.
 - **Retires.** The "verified 1m ago" false-fresh signal on 14-day-stale data.
 
 ### RC-C — Plane-correctness by construction
@@ -203,6 +213,14 @@ constructions in §1. Where construction genuinely cannot reach, exactly **four 
 teeth** apply — transcribed from the frozen TDD (§3/§4/§11), not invented here. The full
 register, with the false-positive gate each tooth passes, is in the companion plan.
 
+**Fleet-portability scope of the teeth (A-2).** The teeth below name a **Python** substrate
+surface — true at census date (probed: `autom8y-data` and `autom8y-ads` carry `pyproject.toml`,
+no `package.json`). A non-Python surface translates the *mechanism*, not the *law*: "mypy-strict"
+→ "strict static type-checking enforced in CI"; "`typing.assert_never`" → its exhaustiveness-check
+equivalent; "import-forbid lint" → the platform's import/dependency-boundary check. The
+construction-unreachable *reasons* (no compile step makes a type-level guarantee only an editor
+hint; time passing is not a code property) are language-general.
+
 | Tooth | Serves | Why construction cannot reach it |
 |-------|--------|----------------------------------|
 | **mypy-strict** (repo-wide `strict = true`) | RC-C (required discriminator), RC-E (capability separation), RC-B (frozen value types) | Python has no compile step; without CI running mypy-strict a type-level "impossible" is only an editor hint |
@@ -211,8 +229,19 @@ register, with the false-positive gate each tooth passes, is in the companion pl
 | **`SUNSET_AFTER` expiry tooth** | RC-D | Time passing is not a code property; only a CI check comparing `now()` to the sunset date can make an immortal bridge fail. Extension requires an operator ruling (C11) |
 
 Everything else is construction or fail-loud. No per-call-site guard, no query-gated alarm,
-no re-consolidation step, no result-cache above the freshness gate — each such absence is a
-broken v1 invariant made unconstructable, not guarded.
+no re-consolidation step — each such absence is a broken v1 invariant made unconstructable,
+not guarded.
+
+**One honest exception — the result-cache prohibition (MF-1; the doctrine holds itself to its
+own OQ-2 rule).** The absence of a result-cache above the freshness gate is **NOT**
+unconstructable. Inside the package the memory→S3 tier caches only proof-validated **bytes
+below the gate** (that half is constructive) — but a consumer memoizing a `Provable` result is
+**trivially constructable**. The prohibition is a **frozen seam contract** ([H16]/C2: caching
+`ServedNumber`/`Provable` above the gate is **FORBIDDEN**), closed by **build-time adversarial
+review** (P7), NOT by construction. Labeling it "by construction" would be exactly the mislabel
+RC-C/OQ-2 forbids ("no silent BY-CONSTRUCTION on a runtime guard"); a sibling repo applying the
+template must keep vigilance at its own adapters — **consumer-side memoization is the disclosed
+residue**. No guard *suite* is added: the contract + review is the enforcement.
 
 ## §3 — Landing model (pythia UV-P-4 resolution)
 
@@ -223,6 +252,10 @@ broken v1 invariant made unconstructable, not guarded.
   **NOT a shared filesystem path.** Sibling autom8y-\* repos inherit these invariants by
   applying the kit and re-constructing their substrate against them — not by reading a
   cross-repo mount. "The next repo's reconstruction is a template application."
+- **Provisional on the P11 amendment (A-4).** This home is used on pythia UV-P-4 authority
+  with SURFACE-i raised — not self-ratified. If the operator's P11 amendment (SURFACE-i) rules
+  a DIFFERENT constitution-of-record home, the post-S8-green landing PR **relocates** this
+  doctrine accordingly; the location is provisional until P11 is amended.
 
 ## §4 — Operator surface items (non-blocking — for the operator, not landing blockers)
 

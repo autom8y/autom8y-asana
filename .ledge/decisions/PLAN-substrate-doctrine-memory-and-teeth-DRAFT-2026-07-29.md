@@ -42,6 +42,7 @@ landing. Each entry names the scar, the RC law that subsumes its class, and the 
 | **SCAR-FRESH-001** (freshness-verification-recency silent-corruption; ADR-006, T11-T16) | freshness stamping | **RC-B** | From "freshness stamping must fail loud on null-name / re-seed edges" → "**no re-stampable freshness field exists in v2**; freshness is content-derived (RC-B); the null-watermark false-CLEAN class is unconstructable". v1 T11-T16 stay green until v1 deletion. |
 | **SCAR-DFR-001** (dataframe-cache lineage — the double-write cache location) | multi-copy divergence | **RC-A** | From "the double-write cache location" lineage → "**one artifact per `(project, entity)`; the consolidated-vs-per-section duality is subtracted**". Lineage note only; no live v1 guard to flip. |
 | **ADR-006** (freshness = verification-recency) | design paradigm | **RC-B** (content-derived) | Mark the paradigm **superseded by RC-B** at cutover — freshness-as-recency is the disease RC-B cures. Governs v1 until cutover; nothing in v2. |
+| **ADR-seam1-entity-identity-key** (v1 SEAM-1 entity-identity key contract; `status: draft`, `supersedes: []`, no `superseded_by` — direct read) | v1 entity-identity keying paradigm | **RC-A + RC-C** (`ArtifactId`) | Staged now, marked **superseded at cutover/S11**; governs v1 until then. **MF-3 — closes the AC-03 silent-casualty gap**: `ArtifactId` replaces the v1 identity-keying paradigm wholesale, so this ADR must not die as an implicit seam-invariant casualty (the exact class DP-3 dissent item 3 made this initiative guard against). Deeper v1 persistence lineage (e.g. TDD-UNIFIED-DF-PERSISTENCE-001) may ride the same cutover sweep; only this seam1 ADR is load-bearing enough to condition on. |
 | **ADR-serve-stale-within-bound** (2026-06-03; 200-with-stale-flag) | serving paradigm | **F5-5 / RC-B fail-loud** | **Already SUPERSEDED-EXECUTED 2026-07-29** (DP-3). No further action; recorded here for lineage completeness. |
 
 **New memory to author at landing (not a v1 scar — a *doctrine* memory):**
@@ -72,11 +73,19 @@ add a tooth where construction subtracts the hazard, per P3):
 | T3 | **Import-forbid** — raw reads (`read_current`/`load_dataframe`) private to `{serve, rebuild}`; core imports no infra | RC-A / RC-C (no gate-bypass) + whole-design dependency legality | PASS — Python has no true module-private or dependency-direction enforcement; only an import-layer lint/mypy tooth forbids the import. | substrate package; no sunset |
 | T4 | **`SUNSET_AFTER` expiry** — bounded bridges (e.g. the S7 parity harness) fail CI past their sunset date | RC-D | PASS — **the canonical unreachable case**: time passing is not a code property; only a CI check comparing `now()` to the sunset date makes an immortal bridge fail. | test-scoped bridges only; **each carries a dated SUNSET_AFTER; extension → operator-visible ruling (C11)** |
 
+**C9 contingency (A-3 — S4-resolved, not pre-decided here).** RC-E's validate-before-swap is
+construction-enforced via a `ValidationReceipt` mintable only by `validate()`. If that
+capability change is **declined at S4**, the fallback is a discriminating swap-before-validate
+ordering RED test — a conditional, tooth-shaped enforcement resolved at S4. The four-row
+register is therefore not "closed": a fifth, contingent RC-E enforcement may land at S4
+depending on the capability decision.
+
 **Deliberately NOT added (subtraction won — recorded so a future pass does not re-add them):**
 - No per-call-site plane guard → subtracted by RC-C construction (the wound's own guard drifted; P5/P6 prove call-site guards drift).
 - No query-gated staleness alarm → subtracted by RC-F's query-independent evaluator.
-- No result-cache-consistency guard above the gate → subtracted by RC-B/C2 (result-caching above the gate is forbidden by construction).
+- No result-cache-consistency guard above the gate → the prohibition is a **frozen seam contract** ([H16]/C2: caching `ServedNumber`/`Provable` above the gate is **FORBIDDEN**), **review-guarded at build** (P7) — **NOT "by construction" (MF-1)**. The built-in memory→S3 tier is constructive (proof-validated bytes below the gate only); **consumer-side memoization of a `Provable` is the disclosed residue** a sibling must guard at its adapters. A guard *suite* is still not added — the contract + build-time adversarial review is the enforcement, per the doctrine's OQ-2 honesty rule.
 - No blanket "substrate invariants" guard suite → forbidden by P11 as the doctrine home.
+- No `sla_seconds`-diff tooth **yet (MF-2)** → SLA-change governance is a construction-unreachable residue of the **same class as T4** (governed-act-vs-quiet-edit; TDD AV-3: an unreviewed 14-day SLA re-serves the wound with a green proof). But the mechanism is **C8-pending** — where `sla_seconds` lives and who may change it is operator-due by the S8 gate (TDD §11 C8). Recorded **NOT-added-pending-C8**, not silently omitted: once C8 lands `sla_seconds` in a diffable registry, a **C11-pattern tooth** (an `sla_seconds` diff must carry a ruling reference — the exact SUNSET_AFTER-extension shape) becomes available; revisit at that ruling. Asserting the tooth now would be a design-choice-masquerading — the mechanism it would enforce is undesigned.
 
 ## §3 — Cross-rite observations (noted for the operator / remediation-planner, not converted here)
 
