@@ -1,8 +1,17 @@
 ---
 type: decision
-status: accepted   # canonical lifecycle status; semantic state = RATIFIED (ratification_state below)
-ratification_state: ratified
+status: superseded   # SUPERSEDED by DP-3-consumer-contracts (operator-ratified 2026-07-29); was: accepted/RATIFIED 2026-06-03
+ratification_state: superseded
 ratified_date: 2026-06-03
+superseded_by: DP-3-consumer-contracts   # substrate-v2-epoch Door #3, operator-ratified 2026-07-29
+superseded_date: 2026-07-29
+superseded_note: >
+  EXPLICIT supersession (not silent — DP-3 §Supersession, condition C5): the stale-served-200 +
+  stale_served=true paradigm this ADR ratified is the "confidence-labelled stale number" the
+  substrate-v2 charter forbids (RC-B / P2 / Non-goals). Under substrate-v2, STALE/CORRUPT/DIVERGENT
+  become a non-2xx Refused (ratified class: 424 + Retry-After + refusal-SLI). This ADR remains the
+  accurate record of the LIVE v1 paradigm until the v2 cutover lands (S5/S8) and governs nothing
+  in v2.
 id: ADR-serve-stale-within-bound
 date: 2026-06-03
 author: platform-engineer + observability-engineer (sre)
