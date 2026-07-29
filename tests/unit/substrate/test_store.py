@@ -30,6 +30,7 @@ from autom8_asana.substrate.store import (
     ETag,
     PointerAbsent,
     PointerCorrupt,
+    ProofDigestMismatch,
     S3ArtifactStore,
     StaleProofRefused,
 )
@@ -548,3 +549,42 @@ async def test_refresh_pointer_proof_blank_if_match_refused(
     await store.swap_pointer(aid, vid, if_match=CREATE_IF_ABSENT)
     with pytest.raises(ValueError, match="blank/whitespace if_match"):
         await store.refresh_pointer_proof(aid, _proof(digest="a" * 64), if_match=ETag(""))
+
+
+async def test_refresh_pointer_proof_digest_coherence_two_sided(
+    store: S3ArtifactStore, aid: ArtifactId
+) -> None:
+    """N1: refresh accepts a fresher proof ONLY IF its content_digest matches the incumbent.
+
+    (1) the cross-version graft — a naive ``CASLost``-retry re-firing version A's proof
+    after the pointer moved to B — is REFUSED loud (the ETag is genuinely current, so
+    only the digest check catches it); B keeps its own proof. (2) a same-digest fresher
+    proof for the live version still republishes (the legitimate complement).
+    """
+    # A becomes live (content_digest 'a')
+    vid_a = await store.stage_version(aid, b"content-A", _proof(digest="a" * 64, minutes_ago=120))
+    await store.swap_pointer(aid, vid_a, if_match=CREATE_IF_ABSENT)
+    state_a = await store.read_pointer(aid)
+    assert state_a is not None
+
+    # a concurrent swap moves the pointer to B (content_digest 'b')
+    vid_b = await store.stage_version(aid, b"content-B", _proof(digest="b" * 64, minutes_ago=90))
+    await store.swap_pointer(aid, vid_b, if_match=state_a.etag)
+    state_b = await store.read_pointer(aid)
+    assert state_b is not None and state_b.version_id == vid_b
+
+    # (1) naive retry re-fires A's (fresher) proof with the genuinely-current ETag → GRAFT refused
+    with pytest.raises(ProofDigestMismatch):
+        await store.refresh_pointer_proof(
+            aid, _proof(digest="a" * 64, minutes_ago=0), if_match=state_b.etag
+        )
+    got_bytes, got_proof = await store.read_current(aid)
+    assert got_bytes == b"content-B"
+    assert got_proof.content_digest == "b" * 64  # B keeps its OWN proof — no A-graft
+
+    # (2) the digest guard fired before any write, so state_b.etag is still live: a
+    # same-digest ('b') fresher proof for B republishes fine
+    fresher_b = _proof(digest="b" * 64, minutes_ago=0)
+    await store.refresh_pointer_proof(aid, fresher_b, if_match=state_b.etag)
+    _, refreshed = await store.read_current(aid)
+    assert refreshed.built_from_live_at == fresher_b.built_from_live_at

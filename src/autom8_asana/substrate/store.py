@@ -56,8 +56,9 @@ Build notes (S3 owner):
 * **C14 (architect F1 ruling) — byte-stable proof-advance is S4 policy on the
   mutable pointer.** ``refresh_pointer_proof`` is its store-side write path: it
   republishes ``current.json`` (same version_id, caller-supplied fresher proof)
-  under CAS, enforcing a monotonic-non-decreasing ``built_from_live_at`` floor and
-  NEVER mutating the immutable version object. Additive beyond the frozen Protocol.
+  under CAS, enforcing proof↔version digest coherence (N1 — blocks the cross-version
+  graft CAS cannot catch) + a monotonic-non-decreasing ``built_from_live_at`` floor,
+  and NEVER mutating the immutable version object. Additive beyond the frozen Protocol.
 """
 
 from __future__ import annotations
@@ -158,6 +159,21 @@ class StaleProofRefused(ValueError):
     The F1 ruling makes byte-stable proof-advance an S4 policy on the mutable
     pointer; the store enforces the monotonic-non-decreasing floor — equal instants
     republish, strictly-earlier instants are refused loud.
+    """
+
+
+class ProofDigestMismatch(ValueError):
+    """Raised by ``refresh_pointer_proof`` when the supplied proof's freshness digest
+    (``content_digest``) does not match the incumbent pointer's (N1 / QA iteration-2).
+
+    A same-version refresh MUST describe the SAME content, so its canonical freshness
+    digest MUST equal the incumbent's. A mismatch means the proof was verified against
+    DIFFERENT bytes — e.g. the cross-version graft where a naive ``CASLost``-retry
+    re-fires version A's proof after the pointer moved to B (the ETag is genuinely
+    current, so the CAS cannot catch it; only this digest check does). Refused loud so
+    a version can never be served under another version's proof. NOTE: this is the
+    FRESHNESS digest (Seam-1 ``canonical_digest``), NOT the physical address digest
+    (``version_id = sha256(frame_bytes)``) — the P13 distinction.
     """
 
 
@@ -399,11 +415,13 @@ class S3ArtifactStore:
         lives in the pointer, not the version metadata). Additive beyond the frozen
         Protocol; ``swap_pointer`` is unchanged.
 
-        Enforced invariants: (a) ``built_from_live_at`` is monotonic NON-DECREASING
-        for the same version_id — a strictly-backward refresh raises
-        ``StaleProofRefused``; (b) only current.json is written under ``If-Match``
-        (a lost race raises ``CASLost``); (c) ``versions/{id}/frame`` bytes+metadata
-        are NEVER mutated.
+        Enforced invariants: (a) the proof's ``content_digest`` MUST equal the
+        incumbent's (same version ⇒ same content ⇒ same freshness digest) — a
+        mismatch raises ``ProofDigestMismatch``, blocking the cross-version graft
+        that CAS cannot catch (N1); (b) ``built_from_live_at`` is monotonic
+        NON-DECREASING — a strictly-backward refresh raises ``StaleProofRefused``;
+        (c) only current.json is written under ``If-Match`` (a lost race raises
+        ``CASLost``); (d) ``versions/{id}/frame`` bytes+metadata are NEVER mutated.
         """
         if not if_match.strip():
             raise ValueError(
@@ -413,6 +431,12 @@ class S3ArtifactStore:
         current = await self.read_pointer(aid)
         if current is None:
             raise ArtifactMissing(f"no current pointer to refresh for {aid!r}")
+        if proof.content_digest != current.proof.content_digest:
+            raise ProofDigestMismatch(
+                f"refresh_pointer_proof for {aid!r}: supplied proof content_digest "
+                f"{proof.content_digest!r} != incumbent {current.proof.content_digest!r} "
+                "(proof describes different content — cross-version graft refused)"
+            )
         if proof.built_from_live_at < current.proof.built_from_live_at:
             raise StaleProofRefused(
                 f"refresh_pointer_proof for {aid!r} would move built_from_live_at backward "
