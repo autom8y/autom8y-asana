@@ -163,6 +163,16 @@ _SANCTIONED_IO_TO_THREAD: dict[str, str] = {
         "numeric cf cells — I/O offload, semaphore-capped, 0 Asana GETs; the cure's "
         "cold-tier read logic subsumed here by the StorageNamespaceContract retire"
     ),
+    # Substrate-v2 S3ArtifactStore (Seam-2 storage): sync boto3 S3 client calls
+    # (get/put/head/list/delete_object) wrapped for the async ArtifactStore surface.
+    # Blocking I/O offload of the SAME S3-persistence co-tenant the CPU gate protects
+    # (cf. storage.py above), NOT a CPU-bound merge; bounded, no event-loop blocking;
+    # moto-tested (store.py:285,305,337,387,451,475,506,551).
+    "autom8_asana/substrate/store.py": (
+        "substrate-v2 S3ArtifactStore — sync boto3 S3 client calls (get/put/head/"
+        "list/delete_object) wrapped for the async store surface; bounded I/O "
+        "offload, NOT a CPU merge; moto-tested"
+    ),
 }
 
 
