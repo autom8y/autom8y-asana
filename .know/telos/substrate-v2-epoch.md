@@ -60,7 +60,15 @@ telos:
       - "(landed S1 2026-07-29) RC acceptance predicates, 22 falsifiable + consumer-exhaustive RC-C (CP-1..6) — .ledge/specs/RC-acceptance-predicates-substrate-v2.md:204"
       - "(landed S1 2026-07-29) rite-disjoint adversarial review PASS-WITH-CONDITIONS — .ledge/reviews/ADVERSARY-substrate-v2-design-s1.md:1; PE feasibility BUILDABLE-AS-DRAWN — .ledge/reviews/FEASIBILITY-substrate-v2-seams-s1.md:42"
       - "(landed S1 2026-07-29) door packets ALL RATIFIED: DP-2 storage-shape .ledge/decisions/DP-2-v2-storage-shape.md:10 RATIFIED-BY-OPERATOR 2026-07-29 (shape C · entity-after-project; S3-atomicity SVR discharged at ratification) + DP-3 consumer-contracts .ledge/decisions/DP-3-consumer-contracts.md:10 RATIFIED-BY-OPERATOR 2026-07-29 (424+refusal-SLI · F5-5 P11 law · ADR-serve-stale-within-bound SUPERSEDED-executed) + DP-1F v1-live-path .ledge/decisions/DP-1F-v1-live-path-p6-boundary.md:10 RATIFIED-BY-OPERATOR (c-i HOLD P6, pre-ruling 2026-07-28)"
-      - "(planned) v2-core BUILD (S2-S5), cutover-gate-harness (S7/S8), v1-extinction (S11), truthful-observability (S6), doctrine-to-constitution (S9), fleet-unblock-kit (S10) — per-item anchors minted at their sprint landings; wave-2 staged specs at .ledge/handoffs/STAGED-wave2-dispatch-specs-2026-07-29.md"
+      - "(landed WAVE-2 2026-07-29, dark build on main 7d963902) SEAM-0 frozen contract pkg — src/autom8_asana/substrate/__init__.py (24-symbol export surface) — PR #280 4400ec7d"
+      - "(landed WAVE-2 2026-07-29, RC-B) content-derived freshness — src/autom8_asana/substrate/freshness.py (canonical_digest 5 pins [H1], is_provable, built_from_live_at MIN-over-section-fetch-instants C1; D8 null-watermark false-CLEAN class UNCONSTRUCTABLE — no probe-stamp path) — PR #281 15029459; qa-adversary QA-s2-freshness-pr281 GO"
+      - "(landed WAVE-2 2026-07-29, RC-A/RC-C) single-source storage + entity-safe keys — src/autom8_asana/substrate/{identity.py (ArtifactId entity_type REQUIRED, UNKNOWN refused, C6 mypy type-error), store.py (DP-2 shape C: versioned-immutable + If-Match CAS pointer, content-digest VersionId, ProofDigestMismatch)} — PR #284 5407020f; QA-s3-storage-pr284 GO"
+      - "(landed WAVE-2 2026-07-29, RC-E) atomic stage-validate-swap rebuild — src/autom8_asana/substrate/rebuild.py + C15 Seam-2 v1.1 store amendment (proof-in-pointer; DEFECT:76 mid-fetch-persist hazard killed — read is side-effect-free) — PR #285 7d963902; QA-s4-rebuild-pr285 GO (F1 proof-provenance wound closed via architect C15) + CAPACITY-s4 GO-WITH-CONDITIONS"
+      - "(landed WAVE-2 2026-07-29, P2/RC-C) refuse-loud serving choke-point — src/autom8_asana/substrate/serve.py (GatedSubstrateReader, 424+Retry-After, [H16]/[H17] AST teeth, C13 sunset_breach) + serve_adapters.py (CP-1..6) + mcp/asana_mcp/errors.py (additive-inert 424) — PR #286 2201db21; QA-s5-serving-pr286 GO (C1 wound LOCKED) + SEC-s5 APPROVE-WITH-ADVISORIES; ADR-serve-stale-within-bound SUPERSEDED-executed"
+      - "(landed WAVE-2 2026-07-29, RC-F) truthful observability — src/autom8_asana/substrate/observe.py (query-independent evaluator, C7 registry∪store two-sided set) + terraform/services/asana/substrate_v2_provability_alarms.tf (PROV-1..6 AUTHORED-NOT-APPLIED; apply = Door #4/DP-4a) — PR #282 c2cdeb00; QA-s6-observe-pr282 GO (tf↔emitter dead-metric class fixed + binding test)"
+      - "(landed WAVE-2 2026-07-29, P5) cutover-gate harness scaffold — tests/harness/substrate_gate/ (replay corpus 22/22 RC predicates, 100% saboteur-trip, $84,385 parity exemplar #1; live-parity DARK behind LiveParityNotArmedError) — PR #283 af2b0b5c; QA-s7-harness-pr283 GO"
+      - "(authored WAVE-2 2026-07-29, LEG-4 — LANDING HELD to S8-green) doctrine draft — .ledge/decisions/CONSTITUTION-substrate-invariants-DRAFT-2026-07-29.md + PLAN-substrate-doctrine-memory-and-teeth-DRAFT — DRAFT PR #279; ADVERSARY-s9-doctrine PASS (iter 2/2)"
+      - "(planned) S8 cutover gate (LEG-1 P5), PT-04 >=2 warm cycles (LEG-2), S11 v1-extinction (LEG-3), S9 doctrine LANDING + S10 kit (LEG-4), S12 eunomia attestation (P12 epoch exit) — S8-ignition manifest at .ledge/handoffs/HANDOFF-wave2-to-s8-cutover-gate-2026-07-29.md"
     user_visible_surface: >
       A consumer (operator CLI `python -m autom8_asana.metrics active_mrr`,
       service reader, or MCP/delegated-fleet caller) asks the substrate for a
@@ -92,8 +100,8 @@ telos:
       (three-evidence-leg discipline) — never rubber-stamps builder receipts.
   attestation_status:
     inception: INSCRIBED
-    shipped: MISSING
-    verified_realized: UNATTESTED
+    shipped: DARK-BUILT-WAVE2   # S2-S7 + SEAM-0 code LANDED on main 7d963902 (per-sprint {path} anchors above, each green-CI + rite-adversarial-review); epoch-level shipped stays GATED on P12 (v1 deletion S11 + doctrine landing S9/S10) — Gate B "cannot close on v2-serving alone"
+    verified_realized: UNATTESTED   # eunomia's at S12 (rite-disjoint, 4-leg re-derivation); NO wave-2 self-assessment claims STRONG (self-ref caps MODERATE)
     last_eunomia_advisory: null
   receipt_grammar:
     per_item_file_line_anchors:
