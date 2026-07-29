@@ -2,8 +2,10 @@
 
 The real static typecheck is the ``mypy src/autom8_asana/substrate`` gate; this
 module is the runtime smoke that proves the export surface imports, the CLOSED
-enums keep their frozen members, the owned-function stubs stay contract-only
+enums keep their frozen members, the still-owned S2 stubs stay contract-only
 (raise with their owner tag), and the value objects are frozen and constructible.
+The S3-owned bodies (``artifact_key`` / ``is_servable``) are now filled — their
+behaviour is covered in test_identity.py, not here.
 """
 
 from __future__ import annotations
@@ -24,10 +26,8 @@ from autom8_asana.substrate import (
     RefusePayload,
     RefuseReason,
     ServedNumber,
-    artifact_key,
     canonical_digest,
     is_provable,
-    is_servable,
 )
 
 # The frozen SEAM-0 export surface (TDD §4). If this count changes, a seam
@@ -59,16 +59,16 @@ def test_closed_enums_have_frozen_members() -> None:
     }
 
 
-def test_owned_stubs_raise_with_owner_tag() -> None:
-    """The four owned-function stubs stay contract-only until their owner sprint fills them."""
+def test_s2_owned_stubs_raise_with_owner_tag() -> None:
+    """The still-owned S2 stubs stay contract-only until S2 fills them.
+
+    (The S3-owned ``artifact_key`` / ``is_servable`` are implemented this sprint;
+    their behaviour is asserted in test_identity.py.)
+    """
     with pytest.raises(NotImplementedError, match="owned by S2"):
         is_provable(_a_proof(), "digest", datetime.now(tz=UTC))
     with pytest.raises(NotImplementedError, match="owned by S2"):
         canonical_digest(object())
-    with pytest.raises(NotImplementedError, match="owned by S3"):
-        artifact_key(ArtifactId(project_gid="1", entity_type=EntityType.OFFER))
-    with pytest.raises(NotImplementedError, match="owned by S3"):
-        is_servable(EntityType.OFFER)
 
 
 def test_value_objects_are_frozen_and_constructible() -> None:
