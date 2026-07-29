@@ -119,7 +119,11 @@ class EntityDescriptor:
         name_pattern: Substring pattern for Tier 2 name detection.
         emoji: Custom emoji indicator for holder matching.
         schema_key: SchemaRegistry lookup key. Defaults to pascal_name.
-        default_ttl_seconds: Cache TTL in seconds. Defaults to 300.
+        default_ttl_seconds: Cache TTL in seconds. Defaults to 300. DUAL-ROLE
+            (substrate-v2 C8): also read by ``substrate.freshness.sla_seconds_for``
+            as the freshness-SLA (the "provably <= SLA-old" bound), pending the C8
+            operator ruling at the S8 cutover gate. Tuning this for cache/429
+            behavior also loosens freshness truth (AV-3 drift watch).
         warmable: Whether included in Lambda cache warming.
         warm_priority: Warming order (lower = higher priority).
         aliases: Field normalization alias chain for resolver.
@@ -165,6 +169,10 @@ class EntityDescriptor:
     schema_key: str | None = None  # Defaults to pascal_name if None
 
     # --- Cache Behavior ---
+    # DUAL-ROLE (substrate-v2 C8): substrate.freshness.sla_seconds_for reads this as
+    # the freshness-SLA (the "provably <= SLA-old" bound), NOT just cache TTL. A tune
+    # for cache/429 behavior also loosens freshness truth; the C8 operator ruling at
+    # the S8 cutover gate governs this dual role (AV-3 drift watch).
     default_ttl_seconds: int = 300
     warmable: bool = False
     warm_priority: int = 99
