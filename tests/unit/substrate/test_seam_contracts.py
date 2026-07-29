@@ -29,8 +29,13 @@ from autom8_asana.substrate import (
     ServedNumber,
 )
 
-# The frozen SEAM-0 export surface (TDD §4). If this count changes, a seam
-# changed — which is an architect finding, not a silent edit.
+# The frozen export surface (TDD §4). Seam 2 is v1.1 (F1/C15 amendment 2026-07-29:
+# ``stage_version`` drops its proof param; ``swap_pointer`` gains one — the mypy
+# ``mypy src/autom8_asana/substrate`` gate enforces those v1.1 signatures). The
+# PACKAGE export COUNT is unchanged (no ``__all__`` symbol added/removed — the
+# retired ``refresh_pointer_proof`` and ``StaleProofRefused`` were intra-package,
+# never re-exported), so the "count change = architect finding" guard stays GREEN
+# and correctly did not need bumping for this architect-ruled amendment.
 EXPECTED_EXPORTS = 24
 
 

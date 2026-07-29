@@ -139,12 +139,12 @@ class FakeStore:
             raise ArtifactMissing(f"no current pointer for {aid.project_gid}")
         return self._entries[aid]
 
-    async def stage_version(
-        self, aid: ArtifactId, frame_bytes: bytes, proof: FreshnessProof
-    ) -> VersionId:
+    async def stage_version(self, aid: ArtifactId, frame_bytes: bytes) -> VersionId:
         raise NotImplementedError
 
-    async def swap_pointer(self, aid: ArtifactId, to: VersionId, *, if_match: ETag) -> None:
+    async def swap_pointer(
+        self, aid: ArtifactId, to: VersionId, proof: FreshnessProof, *, if_match: ETag
+    ) -> None:
         raise NotImplementedError
 
     async def list_versions(self, aid: ArtifactId) -> list[VersionId]:

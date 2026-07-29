@@ -53,12 +53,20 @@ Build notes (S3 owner):
 * **C11 — no SUNSET_AFTER bridge.** No bounded dual-read / legacy-fallback path is
   added; RC-A/RC-D hold by subtraction. A future temptation to add one requires an
   operator-visible ruling, never a serial date-bump.
-* **C14 (architect F1 ruling) — byte-stable proof-advance is S4 policy on the
-  mutable pointer.** ``refresh_pointer_proof`` is its store-side write path: it
-  republishes ``current.json`` (same version_id, caller-supplied fresher proof)
-  under CAS, enforcing proof↔version digest coherence (N1 — blocks the cross-version
-  graft CAS cannot catch) + a monotonic-non-decreasing ``built_from_live_at`` floor,
-  and NEVER mutating the immutable version object. Additive beyond the frozen Protocol.
+* **C15 (Seam-2 v1.1 amendment — F1 WOUND root fix) — the freshness proof lives
+  ONLY in the mutable pointer, written ONLY by the validated path.** ``stage_version``
+  persists **bytes only** (no proof into immutable version metadata); ``swap_pointer``
+  takes the caller's **validated in-memory proof** as an explicit param and publishes
+  IT into ``current.json`` — never a read-back from the version's (possibly
+  stale/idempotent/poisoned) metadata. This structurally kills F1/P1 (A→B→A pointer
+  regression), P3 (a validate-REJECTED future-dated staging can no longer poison a
+  version's metadata → PROVABLE-forever is unconstructable), and P4 (a re-verified
+  version publishes its fresh validated proof, not a frozen T0). C15 SUPERSEDES C14's
+  post-swap ``refresh_pointer_proof`` (retired): the byte-stable proof-advance is now
+  just ``swap_pointer(aid, same_version_id, fresher_proof, if_match=etag)`` — one path
+  for every publish. Forward-only monotonicity is S4 REBUILD policy (C12), not a store
+  guard: the store is POLICY-FREE on ordering, correctness-strict on CAS + version
+  existence.
 """
 
 from __future__ import annotations
@@ -95,11 +103,6 @@ CREATE_IF_ABSENT: ETag = ETag("__substrate_create_if_absent__")
 _POINTER_KEY = "current.json"
 _VERSIONS_SEGMENT = "versions"
 _FRAME_OBJECT = "frame"
-
-# S3 user-metadata keys carrying the staged proof (returned lower-cased by S3).
-_MD_BUILT_AT = "built-from-live-at"
-_MD_DIGEST = "content-digest"
-_MD_SLA = "sla-seconds"
 
 
 class ArtifactMissing(Exception):
@@ -152,28 +155,22 @@ class ConcurrentPointerDelete(PointerCASError):
     """409 Conflict — S3 signalled a concurrent-delete race on the conditional write."""
 
 
-class StaleProofRefused(ValueError):
-    """Raised by ``refresh_pointer_proof`` when the supplied proof would move
-    ``built_from_live_at`` strictly BACKWARD for the same version (C14 / architect F1).
-
-    The F1 ruling makes byte-stable proof-advance an S4 policy on the mutable
-    pointer; the store enforces the monotonic-non-decreasing floor — equal instants
-    republish, strictly-earlier instants are refused loud.
-    """
-
-
 class ProofDigestMismatch(ValueError):
-    """Raised by ``refresh_pointer_proof`` when the supplied proof's freshness digest
-    (``content_digest``) does not match the incumbent pointer's (N1 / QA iteration-2).
+    """The published proof describes DIFFERENT content than the version it points at (N1 graft).
 
-    A same-version refresh MUST describe the SAME content, so its canonical freshness
-    digest MUST equal the incumbent's. A mismatch means the proof was verified against
-    DIFFERENT bytes — e.g. the cross-version graft where a naive ``CASLost``-retry
-    re-fires version A's proof after the pointer moved to B (the ETag is genuinely
-    current, so the CAS cannot catch it; only this digest check does). Refused loud so
-    a version can never be served under another version's proof. NOTE: this is the
-    FRESHNESS digest (Seam-1 ``canonical_digest``), NOT the physical address digest
-    (``version_id = sha256(frame_bytes)``) — the P13 distinction.
+    A proof↔version coherence violation: ``proof.content_digest`` (the Seam-1
+    ``canonical_digest`` of the frame the proof was validated against) does not match
+    the freshness digest of version ``to``'s bytes. Under C15 (Seam-2 v1.1) the
+    policy-free, bytes-only store cannot compute the parquet-INDEPENDENT freshness
+    digest from ``frame_bytes`` (that needs a deserializer + Seam-1 ``canonical_digest``,
+    a layer the store deliberately does not own), so this guard is raised by the S4
+    REBUILDER's ``_publish`` — the layer that holds the materialised frame — before it
+    calls ``swap_pointer``, composed with the C9 ``ValidationReceipt`` full-proof
+    binding. It blocks the cross-version graft where a naive retry re-fires version A's
+    proof after the pointer moved to B (the ETag is genuinely current, so CAS cannot
+    catch it; only this digest check does). Seam-4 ``is_provable`` is the downstream
+    net (served digest ≠ proof digest → CORRUPT-refuse). NOTE: freshness digest, NOT
+    the physical address digest ``version_id = sha256(frame_bytes)`` (the P13 distinction).
     """
 
 
@@ -189,14 +186,14 @@ class ArtifactStore(Protocol):
         """[H5] resolves pointer → named immutable version in ONE logical read; raises ArtifactMissing on absence — NEVER (None, None)."""
         ...
 
-    async def stage_version(
-        self, aid: ArtifactId, frame_bytes: bytes, proof: FreshnessProof
-    ) -> VersionId:
-        """Staging only — never touches the pointer ([H7]); returns a collision-free VersionId (C3)."""
+    async def stage_version(self, aid: ArtifactId, frame_bytes: bytes) -> VersionId:
+        """C15: BYTES ONLY — persists NO proof to immutable version metadata; never touches the pointer ([H7]); collision-free VersionId (C3)."""
         ...
 
-    async def swap_pointer(self, aid: ArtifactId, to: VersionId, *, if_match: ETag) -> None:
-        """[H6]/C3 true CAS (If-Match ETag); the sole, atomic, monotonic pointer mutation."""
+    async def swap_pointer(
+        self, aid: ArtifactId, to: VersionId, proof: FreshnessProof, *, if_match: ETag
+    ) -> None:
+        """[H6]/C3/C15 true CAS (If-Match ETag); publishes the VALIDATED in-memory proof (never a metadata read-back); sole atomic monotonic pointer mutation."""
         ...
 
     async def list_versions(self, aid: ArtifactId) -> list[VersionId]:
@@ -322,15 +319,19 @@ class S3ArtifactStore:
         return PointerState(version_id=version_id, etag=etag, proof=proof)
 
     # ----------------------------------------------------------- write paths ---
-    async def stage_version(
-        self, aid: ArtifactId, frame_bytes: bytes, proof: FreshnessProof
-    ) -> VersionId:
-        """Write an immutable version; NEVER touch the pointer ([H7]).
+    async def stage_version(self, aid: ArtifactId, frame_bytes: bytes) -> VersionId:
+        """Write an immutable version — BYTES ONLY; NEVER touch the pointer ([H7]/C15).
 
         ``version_id = sha256(frame_bytes)`` and the frame PUT is ``If-None-Match:
         *`` (write-once). Re-staging identical content is an idempotent no-op: S3
         answers 412, which we swallow and return the same VersionId — the version
         is already present and immutable (C3 idempotency).
+
+        **C15 (Seam-2 v1.1): NO proof is persisted into the immutable version
+        metadata.** The freshness proof lives ONLY in the mutable pointer, written
+        ONLY by the validated path (``swap_pointer``). A validate-REJECTED staging
+        therefore poisons nothing, and an idempotent re-stage has no frozen proof to
+        republish — this structurally kills F1/P1/P3/P4 (TDD §11 C15).
         """
         version_id = VersionId(hashlib.sha256(frame_bytes).hexdigest())
         try:
@@ -339,7 +340,6 @@ class S3ArtifactStore:
                 Bucket=self._bucket,
                 Key=self._frame_key(aid, version_id),
                 Body=frame_bytes,
-                Metadata=_proof_to_metadata(proof),
                 IfNoneMatch="*",
             )
         except ClientError as exc:
@@ -348,14 +348,25 @@ class S3ArtifactStore:
             raise
         return version_id
 
-    async def swap_pointer(self, aid: ArtifactId, to: VersionId, *, if_match: ETag) -> None:
-        """The sole atomic pointer mutation — a TRUE CAS ([H6]/C3).
+    async def swap_pointer(
+        self, aid: ArtifactId, to: VersionId, proof: FreshnessProof, *, if_match: ETag
+    ) -> None:
+        """The sole atomic pointer mutation — a TRUE CAS ([H6]/C3/C15).
+
+        **C15 (Seam-2 v1.1):** publishes the caller's VALIDATED in-memory ``proof``
+        into ``current.json`` atomically with the version pointer — the proof is
+        NEVER read back from the version's (possibly stale/idempotent/poisoned)
+        immutable metadata (the F1/P1/P3/P4 wound). The pointer atomically carries
+        {version_id, proof} in ONE object (DP-2 Option C: no serve-time torn window).
 
         ``if_match=CREATE_IF_ABSENT`` creates the first pointer (``If-None-Match:
-        *``); any other value is an ``If-Match`` ETag conditional PUT. The proof
-        published into the pointer is read back from the staged version's
-        immutable S3 metadata — so the pointer atomically carries {version_id,
-        proof} in ONE object (DP-2 Option C: no serve-time torn window).
+        *``); any other value is an ``If-Match`` ETag conditional PUT.
+
+        The store is POLICY-FREE on ORDERING ([H8]): it does NOT judge whether
+        ``proof`` advances or regresses the incumbent — forward-only monotonicity is
+        S4 REBUILD policy (C12), applied BEFORE this call. The store's correctness
+        invariants are (a) CAS (no silent clobber) and (b) version ``to`` must EXIST
+        (``_require_staged`` — you cannot point at unstaged bytes).
 
         A blank/whitespace ``if_match`` is refused LOUD before any S3 call (QA F2):
         emitting ``IfMatch=""`` degrades to an UNCONDITIONAL overwrite (moto proved
@@ -368,7 +379,7 @@ class S3ArtifactStore:
                 "overwrite (the concurrent-clobber CAS forbids); pass a real ETag from "
                 "read_pointer, or CREATE_IF_ABSENT to create the first pointer"
             )
-        proof = await self._staged_proof(aid, to)
+        await self._require_staged(aid, to)
         body = json.dumps(
             {"version_id": str(to), "proof": _proof_to_json(proof)},
             sort_keys=True,
@@ -402,77 +413,16 @@ class S3ArtifactStore:
                 ) from exc
             raise
 
-    async def refresh_pointer_proof(
-        self, aid: ArtifactId, proof: FreshnessProof, *, if_match: ETag
-    ) -> None:
-        """Republish current.json with the SAME version_id but a FRESHER proof, under CAS (C14/F1).
+    async def _require_staged(self, aid: ArtifactId, version_id: VersionId) -> None:
+        """Existence guard: version ``version_id`` must be staged before it is pointed at (C15).
 
-        The architect's F1/C14 ruling: byte-stable-content proof-advance is S4
-        POLICY on the mutable pointer. This is its store-side write path — an
-        idempotent rebuild that re-verified identical bytes at a later instant
-        advances the served ``built_from_live_at`` WITHOUT minting a new version and
-        WITHOUT touching the immutable version object (Option-C decoupling: proof
-        lives in the pointer, not the version metadata). Additive beyond the frozen
-        Protocol; ``swap_pointer`` is unchanged.
-
-        Enforced invariants: (a) the proof's ``content_digest`` MUST equal the
-        incumbent's (same version ⇒ same content ⇒ same freshness digest) — a
-        mismatch raises ``ProofDigestMismatch``, blocking the cross-version graft
-        that CAS cannot catch (N1); (b) ``built_from_live_at`` is monotonic
-        NON-DECREASING — a strictly-backward refresh raises ``StaleProofRefused``;
-        (c) only current.json is written under ``If-Match`` (a lost race raises
-        ``CASLost``); (d) ``versions/{id}/frame`` bytes+metadata are NEVER mutated.
+        The old ``_staged_proof`` read the proof back from version metadata — the
+        F1/P1/P3/P4 wound. Under C15 the proof travels as an explicit ``swap_pointer``
+        param, so this is now an EXISTENCE check ONLY (HEAD the frame): a 404 means a
+        swap to a never-staged version — a loud ordering error. No metadata is read.
         """
-        if not if_match.strip():
-            raise ValueError(
-                "blank/whitespace if_match would degrade to an UNCONDITIONAL pointer "
-                "overwrite (QA F2); pass the ETag from read_pointer"
-            )
-        current = await self.read_pointer(aid)
-        if current is None:
-            raise ArtifactMissing(f"no current pointer to refresh for {aid!r}")
-        if proof.content_digest != current.proof.content_digest:
-            raise ProofDigestMismatch(
-                f"refresh_pointer_proof for {aid!r}: supplied proof content_digest "
-                f"{proof.content_digest!r} != incumbent {current.proof.content_digest!r} "
-                "(proof describes different content — cross-version graft refused)"
-            )
-        if proof.built_from_live_at < current.proof.built_from_live_at:
-            raise StaleProofRefused(
-                f"refresh_pointer_proof for {aid!r} would move built_from_live_at backward "
-                f"({proof.built_from_live_at.isoformat()} < "
-                f"{current.proof.built_from_live_at.isoformat()})"
-            )
-        body = json.dumps(
-            {"version_id": str(current.version_id), "proof": _proof_to_json(proof)},
-            sort_keys=True,
-        ).encode("utf-8")
         try:
             await asyncio.to_thread(
-                self._s3().put_object,
-                Bucket=self._bucket,
-                Key=self._pointer_key(aid),
-                Body=body,
-                ContentType="application/json",
-                IfMatch=str(if_match),
-            )
-        except ClientError as exc:
-            status = _status(exc)
-            if status == 412:
-                raise CASLost(
-                    f"CAS lost refreshing proof for {aid!r} (if-match precondition failed)"
-                ) from exc
-            if status == 404:
-                raise PointerAbsent(f"proof refresh of {aid!r} but the pointer is absent") from exc
-            if status == 409:
-                raise ConcurrentPointerDelete(
-                    f"concurrent-delete race refreshing proof for {aid!r}"
-                ) from exc
-            raise
-
-    async def _staged_proof(self, aid: ArtifactId, version_id: VersionId) -> FreshnessProof:
-        try:
-            head = await asyncio.to_thread(
                 self._s3().head_object,
                 Bucket=self._bucket,
                 Key=self._frame_key(aid, version_id),
@@ -484,8 +434,6 @@ class S3ArtifactStore:
                     "(stage_version must precede swap_pointer)"
                 ) from exc
             raise
-        metadata: dict[str, str] = head["Metadata"]
-        return _proof_from_metadata(metadata)
 
     # -------------------------------------------------------- enumerate / gc ---
     async def _list_all_contents(self, prefix: str) -> list[Any]:
@@ -571,27 +519,9 @@ class S3ArtifactStore:
 
 
 # ------------------------------------------------------------ proof codecs ---
-def _proof_to_metadata(proof: FreshnessProof) -> dict[str, str]:
-    """FreshnessProof -> S3 user-metadata (all values ASCII strings)."""
-    return {
-        _MD_BUILT_AT: proof.built_from_live_at.isoformat(),
-        _MD_DIGEST: proof.content_digest,
-        _MD_SLA: str(proof.sla_seconds),
-    }
-
-
-def _proof_from_metadata(metadata: dict[str, str]) -> FreshnessProof:
-    from datetime import datetime
-
-    from autom8_asana.substrate.freshness import FreshnessProof
-
-    return FreshnessProof(
-        built_from_live_at=datetime.fromisoformat(metadata[_MD_BUILT_AT]),
-        content_digest=metadata[_MD_DIGEST],
-        sla_seconds=int(metadata[_MD_SLA]),
-    )
-
-
+# C15: proof is carried ONLY in the pointer (current.json) — never in version
+# metadata. So the only codec pair is the pointer-JSON one below; the former
+# ``_proof_to_metadata`` / ``_proof_from_metadata`` (version-metadata) are retired.
 def _proof_to_json(proof: FreshnessProof) -> dict[str, Any]:
     return {
         "built_from_live_at": proof.built_from_live_at.isoformat(),

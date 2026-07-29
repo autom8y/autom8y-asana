@@ -32,12 +32,13 @@ but undrawn in §4):
 * ``RebuildResult`` — the outcome envelope; S4 fills the field surface (S6 declined
   it — ``observe`` never referenced it).
 
-C9/C12/C14 obligation dispositions (encoded + tested here):
+C9/C12/C15/C16 obligation dispositions (encoded + tested here):
 
-* **C9** — swap is gated on a ``ValidationReceipt`` minted ONLY by ``validate()``
-  (construction-enforces validate-before-swap: ``_publish`` takes the receipt and
-  binds it to the staged version), AND a discriminating swap-before-validate test
-  proves a deliberately-miswired ordering is caught (``tests/.../test_rebuild.py``).
+* **C9** — swap is gated on a ``ValidationReceipt`` minted ONLY by ``validate()``.
+  ``_publish`` binds the receipt to the staged version's FULL proof (version_id +
+  content_digest + built_from_live_at — QA F2: version_id-only under-binds), AND a
+  discriminating swap-before-validate test proves a deliberately-miswired ordering
+  is caught.
 * **C12** (architect ruling, encoded VERBATIM) — the rebuilder reads the current
   pointer's ``proof.built_from_live_at`` and swaps its staged version ONLY IF
   ``staged.built_from_live_at >= current`` (a forward/idempotent advance); a staged
@@ -45,14 +46,29 @@ C9/C12/C14 obligation dispositions (encoded + tested here):
   that lost a concurrent race must never regress the pointer) — the sole exception
   being an explicit, logged/receipted rollback path. On a CAS (``If-Match``) failure
   the rebuilder RE-READS the current pointer and re-applies this monotonicity check
-  before retrying.
-* **C14** — when the staged ``version_id`` equals the current pointer's
-  ``version_id`` (byte-stable content, idempotent stage), the rebuilder performs the
-  pointer-only proof refresh via ``store.refresh_pointer_proof`` (same version,
-  fresher proof) — the F1 stale-forever cure. ``StaleProofRefused`` (a concurrent
-  fresher win) is accepted as advanced-done; ``ProofDigestMismatch`` is
-  unconstructable from this flow (the refreshed proof always describes the SAME
-  version's bytes) and is surfaced as a loud invariant failure.
+  before retrying. Under C15 this holds UNIFORMLY for byte-stable (same-version) AND
+  byte-changed publishes.
+* **C15** (Seam-2 v1.1 root fix — SUPERSEDES C14) — the store persists proof ONLY in
+  the mutable pointer, written ONLY by the validated path: ``stage_version(aid,
+  frame_bytes)`` is bytes-only; the rebuilder passes its VALIDATED in-memory proof to
+  ``swap_pointer(aid, version_id, proof, if_match=...)`` for EVERY publish (byte-stable
+  and byte-changed alike). The former C14 same-version ``refresh_pointer_proof`` is
+  RETIRED (subsumed by swap-carries-proof). This structurally kills F1/P1 (A→B→A
+  regression), P3 (a validate-REJECTED future-dated staging can no longer poison a
+  version → PROVABLE-forever unconstructable), P4 (a re-verified version publishes its
+  fresh validated proof). N1 graft coherence (``proof.content_digest`` must describe
+  the staged frame) is enforced HERE — the S4 layer that holds the materialised frame,
+  since the policy-free bytes-only store cannot compute the parquet-independent
+  freshness digest — via ``ProofDigestMismatch``, composed with the C9 receipt binding
+  and Seam-4 ``is_provable`` as the downstream net.
+* **C16** — fetch-completeness-by-construction: a fetch MUST account for EVERY
+  requested section as fetched-or-explicitly-failed; a silent gap OR any failed
+  section makes the rebuild ``FETCH_REFUSED`` (it never reaches validate/swap; the
+  incumbent is untouched — RC-E partial ≠ corrupt). This closes QA F3 (a silently
+  partial 1-of-500 fetch swapping a 1-row frame over a healthy 500-row incumbent) and
+  F4 (the MIN-fold now folds over the complete requested set). ``min_rows >= 1`` is a
+  construction guard on ``DefaultAcceptancePredicates`` (NOT an ungoverned relative
+  shrink threshold — the architect REJECTED that).
 
 Side effects are EXPLICIT (RC-E): the store is touched ONLY with a COMPLETE,
 in-memory-materialised frame — ``stage_version`` (staging, non-pointer) then ONE
@@ -60,6 +76,9 @@ pointer publish. There is NO persist-section-k call in this path, so the v1
 progressive-builder hazard (a "read-only" recompute that persisted sections
 mid-fetch and wrote prod — DEFECT-seam1 :76) is structurally absent: a fetch that
 raises mid-way leaves the store byte-identical.
+
+``FetchTelemetry`` (CAP-4) rides ``FetchedSections`` → ``RebuildResult`` as the P10
+usage receipt (requests / 429s / retries / sections) S8's budget evidence consumes.
 """
 
 from __future__ import annotations
@@ -79,11 +98,9 @@ from autom8_asana.substrate.freshness import (
 from autom8_asana.substrate.identity import artifact_key
 from autom8_asana.substrate.store import (
     CREATE_IF_ABSENT,
-    ArtifactMissing,
     CASLost,
     PointerAbsent,
     ProofDigestMismatch,
-    StaleProofRefused,
     VersionId,
 )
 
@@ -100,7 +117,7 @@ if TYPE_CHECKING:
 # Injected clock — tz-aware UTC. Deterministic in tests; ``datetime.now(UTC)`` in prod.
 type NowFn = Callable[[], "datetime"]
 # Deterministic frame → stored bytes. version_id = sha256(these bytes), so byte-stable
-# logical content MUST mint identical bytes for C3 idempotency / C14 to hold.
+# logical content MUST mint identical bytes for C3 idempotency / C15 byte-stable advance.
 type FrameSerializer = Callable[["pl.DataFrame"], bytes]
 # (project, entity) → sla_seconds. Default reads the entity registry (S2 C8).
 type SlaResolver = Callable[["EntityType"], int]
@@ -110,14 +127,16 @@ type SlaResolver = Callable[["EntityType"], int]
 class RebuildOutcome(Enum):
     """CLOSED rebuild outcome taxonomy (frozen §4; no member added).
 
-    * ``SWAPPED`` — the live pointer now serves a fresher truth: a new version was
-      CAS-swapped in, OR (C14) the SAME version's proof was refreshed forward. Both
-      are "the artifact advanced" from a consumer's view.
+    * ``SWAPPED`` — the live pointer now serves this rebuild's validated proof: a
+      byte-changed version was CAS-swapped in, OR (C15 byte-stable advance) the SAME
+      version's proof was published forward via the same swap path. Both are "the
+      artifact advanced" from a consumer's view.
     * ``STAGED_REJECTED`` — a version was staged but did NOT become current:
       ``validate`` failed (discard), or C12 monotonicity declined a staler build.
       Live untouched (partial ≠ corrupt).
-    * ``FETCH_REFUSED`` — the paced fetch refused before anything was staged (rate
-      backpressure / upstream refusal). Zero store writes.
+    * ``FETCH_REFUSED`` — the fetch refused before anything was staged: a paced
+      ``FetchRefused`` (rate backpressure) OR a C16 completeness failure (a silent
+      section gap / an explicitly-failed section). Zero store writes.
     """
 
     SWAPPED = "swapped"
@@ -126,19 +145,49 @@ class RebuildOutcome(Enum):
 
 
 @dataclass(frozen=True, slots=True)
-class RebuildResult:
-    """Envelope returned by ``Rebuilder.rebuild``. Seam 3, FROZEN v1.0 (S4-filled).
+class FetchTelemetry:
+    """P10 usage receipt for one rebuild's fetch (CAP-4). Zeros on the dark-build fakes.
 
-    ``version_id`` / ``built_from_live_at`` describe the LIVE artifact after this
-    rebuild (present on ``SWAPPED``; ``None`` when nothing was published).
-    ``detail`` is a human-readable disposition (the validation-failure reason, the
-    monotonicity decline, the fetch refusal) — never a substitute for the outcome.
+    A real ``PacedAsanaFetcher`` populates these; the rebuilder threads them onto
+    ``RebuildResult`` so S8's per-day-budget evidence chain has a per-rebuild
+    request/429/retry accounting to consume (charter P10 "every prod touch leaves a
+    receipt").
+    """
+
+    requests_issued: int = 0
+    http_429_count: int = 0
+    retries_issued: int = 0
+    sections_refetched: int = 0
+    sections_reused: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class RebuildResult:
+    """Envelope returned by ``Rebuilder.rebuild``. Seam 3 (S4-filled field surface).
+
+    Field truthfulness (QA F6 — S8 receipts read these):
+
+    * ``version_id`` / ``built_from_live_at`` describe the artifact that is LIVE after
+      this call, WHEN KNOWN:
+        - ``SWAPPED`` → this rebuild's version + validated instant (now live);
+        - ``STAGED_REJECTED`` via C12 monotonicity decline → the INCUMBENT that
+          remains live (already re-read in the CAS loop — free, and truthful about
+          what serves);
+        - ``STAGED_REJECTED`` via validation failure → ``None`` (this rebuild produced
+          nothing live; the untouched incumbent is not re-read);
+        - ``FETCH_REFUSED`` → ``None``.
+    * ``detail`` carries a STABLE disambiguating prefix (frozen for S8): ``"validation
+      failed [check]: ..."`` | ``"monotonicity decline: ..."`` | the fetch-refusal
+      message. Never a substitute for ``outcome``.
+    * ``telemetry`` — the fetch's ``FetchTelemetry`` (CAP-4) when a fetch occurred;
+      ``None`` when the fetch raised before returning one.
     """
 
     outcome: RebuildOutcome
     version_id: VersionId | None = None
     built_from_live_at: datetime | None = None
     detail: str = ""
+    telemetry: FetchTelemetry | None = None
 
 
 # --------------------------------------------------------- fetch capability ---
@@ -153,7 +202,7 @@ class FetchRefused(Exception):
 
 @dataclass(frozen=True, slots=True)
 class FetchedSections:
-    """The paced fetch's output — a fully-materialised frame + its provenance (C1).
+    """The paced fetch's output — a fully-materialised frame + provenance + accounting.
 
     ``frame`` is the WHOLE assembled version (fetched sections ∪ reused sections),
     materialised IN MEMORY — the store never sees a partial. ``section_instants``
@@ -163,10 +212,22 @@ class FetchedSections:
     scheduling ONLY and never stamps one (C1). The rebuilder MIN-folds these into
     the artifact's ``built_from_live_at`` via S2's ``fold_built_from_live_at`` — so
     the artifact honestly ages to its stalest constituent section.
+
+    **C16 completeness accounting (structural):** ``requested_sections`` is the set
+    the probe/planner DECIDED this artifact needs; ``section_instants`` keys are the
+    sections actually FETCHED (or reused); ``failed_sections`` are the ones the fetch
+    tried and could not obtain. The rebuilder asserts
+    ``set(section_instants) ∪ failed_sections == requested_sections`` (no silent gap)
+    AND ``failed_sections`` empty (complete) before it materialises/validates/swaps —
+    else ``FETCH_REFUSED`` (the incumbent is untouched). A required field, so a fetch
+    cannot omit the accounting (QA F3/F4).
     """
 
     frame: pl.DataFrame
     section_instants: Mapping[str, datetime]
+    requested_sections: frozenset[str]
+    failed_sections: frozenset[str] = frozenset()
+    telemetry: FetchTelemetry | None = None
 
 
 class PacedAsanaFetcher(Protocol):
@@ -174,7 +235,8 @@ class PacedAsanaFetcher(Protocol):
 
     The rebuilder DELEGATES all live Asana I/O to this capability and never
     constructs an ``AsanaClient`` (RC-E-4). A production impl composes v1's G6
-    controllers (floor-gate admit → AIMD slot → retry → bounded gather); a test
+    controllers (floor-gate admit → AIMD slot → retry → bounded gather) and reports
+    per-section fetched/failed accounting (C16) + ``FetchTelemetry`` (CAP-4); a test
     injects a fake. S7's parity runner may later reuse this contract.
     """
 
@@ -210,15 +272,29 @@ class StagedVersion:
 class ValidationReceipt:
     """The C9 swap key — minted ONLY by ``AcceptancePredicates.validate()`` on PASS.
 
-    ``_publish`` REQUIRES a receipt and binds it to the staged version
-    (``receipt.version_id == staged.version_id``). There is no other path to a
-    receipt, so validate-before-swap is construction-enforced: a rebuilder cannot
-    publish a version it did not validate without fabricating this object — which the
-    discriminating swap-before-validate test detects.
+    ``_publish`` REQUIRES a receipt and binds it to the staged version's FULL proof
+    via ``binds()``. There is no other path to a receipt, so validate-before-swap is
+    construction-enforced: a rebuilder cannot publish a version it did not validate
+    without fabricating this object — which the discriminating swap-before-validate
+    test detects.
+
+    **QA F2 — full-proof binding:** the receipt attests the version_id AND the whole
+    validated proof (``content_digest`` + ``built_from_live_at``), not version_id
+    alone. Otherwise a same-bytes ``StagedVersion`` carrying a DIFFERENT (e.g.
+    future-dated) proof could ride an honest receipt through ``_publish`` (PROBE-P2).
     """
 
     version_id: VersionId
     content_digest: str
+    built_from_live_at: datetime
+
+    def binds(self, staged: StagedVersion) -> bool:
+        """Whether this receipt was minted for ``staged``'s exact version AND proof (F2)."""
+        return (
+            self.version_id == staged.version_id
+            and self.content_digest == staged.proof.content_digest
+            and self.built_from_live_at == staged.proof.built_from_live_at
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -266,11 +342,26 @@ class DefaultAcceptancePredicates:
     3. **proof-well-formedness** — ``built_from_live_at`` is tz-aware (guaranteed by
        ``FreshnessProof.__post_init__`` but re-asserted here) and NOT in the future
        relative to ``now`` (a future instant would serve PROVABLE forever — the
-       frozen ``<= sla`` predicate has no negative-age floor); ``sla_seconds > 0``.
+       frozen ``<= sla`` predicate has no negative-age floor; under C15 this guard is
+       un-bypassed, since nothing persists between stage and validate — it is the
+       whole P3 defense); ``sla_seconds > 0``.
+
+    ``min_rows`` carries a ``>= 1`` CONSTRUCTION guard (C16 / QA F3): a
+    ``min_rows=0``/negative misconfig would let an empty publish through. This is a
+    construction guard, NOT an ungoverned relative shrink threshold (the architect
+    REJECTED that — completeness-by-construction at the fetch step closes the shrink
+    hazard instead).
     """
 
     min_rows: int = 1
     active_predicate: Callable[[pl.DataFrame], pl.DataFrame] | None = None
+
+    def __post_init__(self) -> None:
+        if self.min_rows < 1:
+            raise ValueError(
+                f"min_rows must be >= 1 (a population floor of {self.min_rows} would admit an "
+                "empty/degenerate publish); C16 guard"
+            )
 
     def validate(self, staged: StagedVersion, now: datetime) -> ValidationResult:
         # (1) population-floor -------------------------------------------------
@@ -323,7 +414,11 @@ class DefaultAcceptancePredicates:
                 reason=f"non-positive sla_seconds {proof.sla_seconds}",
             )
 
-        return ValidationReceipt(version_id=staged.version_id, content_digest=proof.content_digest)
+        return ValidationReceipt(
+            version_id=staged.version_id,
+            content_digest=proof.content_digest,
+            built_from_live_at=proof.built_from_live_at,
+        )
 
 
 # ------------------------------------------------------------ single-flight ---
@@ -384,7 +479,7 @@ class Rebuilder(Protocol):
         fetch: PacedAsanaFetcher,
         validate: AcceptancePredicates,
     ) -> RebuildResult:
-        """ORDERED, swap LAST (see the module docstring for the C9/C12/C14 encoding)."""
+        """ORDERED, swap LAST (see the module docstring for the C9/C12/C15/C16 encoding)."""
         ...
 
 
@@ -437,12 +532,22 @@ class SubstrateRebuilder:
         fetch: PacedAsanaFetcher,
         validate: AcceptancePredicates,
     ) -> RebuildResult:
-        # 1-3. paced fetch → materialise → freshness (all IN MEMORY; store untouched).
+        # 1. paced fetch (all IN MEMORY; store untouched — a raise here writes NOTHING).
         try:
             fetched = await fetch.fetch(aid)
         except FetchRefused as exc:
             return RebuildResult(outcome=RebuildOutcome.FETCH_REFUSED, detail=str(exc))
+        telemetry = fetched.telemetry
 
+        # 2. C16 completeness-by-construction: refuse a partial fetch BEFORE the fold /
+        #    materialise / stage / swap — the incumbent is left untouched (partial ≠ corrupt).
+        gap = self._completeness_gap(fetched)
+        if gap is not None:
+            return RebuildResult(
+                outcome=RebuildOutcome.FETCH_REFUSED, detail=gap, telemetry=telemetry
+            )
+
+        # 3. materialise → freshness over the COMPLETE requested section set (C1 MIN-fold).
         built_from_live_at = fold_built_from_live_at(fetched.section_instants)  # S2 MIN-fold (C1)
         content_digest = canonical_digest(fetched.frame)  # S2 [H1]
         frame_bytes = self._serialize(fetched.frame)  # deterministic (S8 carry)
@@ -452,8 +557,8 @@ class SubstrateRebuilder:
             sla_seconds=self._sla_for(aid.entity_type),
         )
 
-        # 4. stage ONLY (never the pointer) — the FIRST and only pre-publish store write.
-        staged_version_id = await self._store.stage_version(aid, frame_bytes, proof)
+        # 4. stage ONLY (bytes-only — C15; never the pointer) — the first pre-publish write.
+        staged_version_id = await self._store.stage_version(aid, frame_bytes)
         staged = StagedVersion(
             version_id=staged_version_id, frame=fetched.frame, frame_bytes=frame_bytes, proof=proof
         )
@@ -464,101 +569,127 @@ class SubstrateRebuilder:
             return RebuildResult(
                 outcome=RebuildOutcome.STAGED_REJECTED,
                 detail=f"validation failed [{result.check}]: {result.reason}",
+                telemetry=telemetry,
             )
 
-        # 6. publish LAST — the single atomic monotonic CAS, gated on the receipt (C9).
-        return await self._publish(aid, staged, result)
+        # 6. publish LAST — the single atomic CAS carrying the VALIDATED proof (C9/C12/C15).
+        return await self._publish(aid, staged, result, telemetry)
+
+    @staticmethod
+    def _completeness_gap(fetched: FetchedSections) -> str | None:
+        """C16: return a refusal reason iff the fetch is not COMPLETE, else ``None``.
+
+        Complete = every requested section is accounted for (no silent gap) AND every
+        requested section was actually fetched (no failed/omitted section). Either
+        shortfall makes the rebuild ``FETCH_REFUSED`` (QA F3/F4).
+        """
+        fetched_set = frozenset(fetched.section_instants)
+        accounted = fetched_set | fetched.failed_sections
+        if accounted != fetched.requested_sections:
+            missing = fetched.requested_sections - accounted
+            extra = accounted - fetched.requested_sections
+            return (
+                "incomplete fetch accounting (C16): "
+                f"unaccounted={sorted(missing)} unexpected={sorted(extra)} "
+                f"(requested={len(fetched.requested_sections)}, fetched={len(fetched_set)})"
+            )
+        if fetched.failed_sections:
+            return (
+                f"partial fetch (C16): {len(fetched.failed_sections)} of "
+                f"{len(fetched.requested_sections)} requested section(s) could not be fetched "
+                f"{sorted(fetched.failed_sections)} — refusing to swap a partial over the incumbent"
+            )
+        return None
 
     async def _publish(
-        self, aid: ArtifactId, staged: StagedVersion, receipt: ValidationReceipt
+        self,
+        aid: ArtifactId,
+        staged: StagedVersion,
+        receipt: ValidationReceipt,
+        telemetry: FetchTelemetry | None = None,
     ) -> RebuildResult:
-        """The C9-gated publish: requires a ``ValidationReceipt`` for THIS staged version.
+        """The C9-gated publish (C15): CAS-swap carrying the VALIDATED in-memory proof.
 
-        Encodes the C12 monotonicity ruling + C14 idempotent proof-refresh. Re-reads
-        the current pointer at the top of EACH retry and re-branches (first-publish /
-        C14 refresh / C12 advance-or-decline) so a lost CAS race re-applies the
-        monotonicity check before retrying.
+        Under C15 there is ONE publish path for every case — first-publish, byte-stable
+        same-version advance, and byte-changed swap all call ``swap_pointer(aid,
+        version_id, staged.proof, if_match=...)`` with the validated proof (the former
+        C14 ``refresh_pointer_proof`` is retired). C12 forward-only monotonicity is
+        applied here (S4 policy — the store is policy-free on ordering); a lost CAS
+        re-reads and re-applies it before retrying (a staler build declines on retry).
         """
-        if receipt.version_id != staged.version_id:
+        # C9 (QA F2): the receipt must attest THIS staged version's full validated proof.
+        if not receipt.binds(staged):
             raise ValueError(
-                f"validation receipt is for version {receipt.version_id} but the staged "
-                f"version is {staged.version_id} — refusing to publish an unvalidated version (C9)"
+                f"validation receipt {receipt!r} does not bind the staged version+proof "
+                f"({staged.version_id}, digest={staged.proof.content_digest}, "
+                f"instant={staged.proof.built_from_live_at.isoformat()}) — refusing to publish "
+                "an unvalidated/substituted proof (C9/F2)"
+            )
+        # N1 graft coherence, realized at the layer that holds the frame (the policy-free
+        # bytes-only store cannot compute the parquet-independent freshness digest): the
+        # published proof MUST describe the staged frame's content. Belt-and-suspenders
+        # with the receipt binding above + Seam-4 ``is_provable`` downstream.
+        if canonical_digest(staged.frame) != staged.proof.content_digest:
+            raise ProofDigestMismatch(
+                f"publish for {aid!r}: proof content_digest {staged.proof.content_digest!r} does "
+                f"not describe the staged frame (re-derived {canonical_digest(staged.frame)!r}) — "
+                "cross-version graft refused"
             )
 
         for _attempt in range(self._max_cas_retries):
             current = await self._store.read_pointer(aid)
 
-            # First-ever publish: create the pointer.
+            # First-ever publish: create the pointer with the validated proof.
             if current is None:
-                try:
-                    await self._store.swap_pointer(
-                        aid, staged.version_id, if_match=CREATE_IF_ABSENT
-                    )
-                except CASLost:
-                    continue  # another writer created it first — re-read + re-branch
-                return self._swapped(staged)
-
-            # C14 idempotent stage: byte-stable content → pointer-only proof refresh.
-            if current.version_id == staged.version_id:
-                # C12 monotonicity: never move built_from_live_at backward for the same version.
+                if_match = CREATE_IF_ABSENT
+            else:
+                # C12 monotonicity (UNIFORM for same-version byte-stable advance AND
+                # byte-changed swap): never move built_from_live_at backward. A staler
+                # build that lost a race DECLINES, never regresses (the sole exception is
+                # an explicit receipted rollback — not this forward-only path).
                 if staged.proof.built_from_live_at < current.proof.built_from_live_at:
-                    return self._declined(current, "same version, staged proof older than current")
-                try:
-                    await self._store.refresh_pointer_proof(
-                        aid, staged.proof, if_match=current.etag
-                    )
-                except (CASLost, PointerAbsent, ArtifactMissing):
-                    continue  # concurrent pointer write/delete — re-read + re-branch
-                except StaleProofRefused:
-                    # A concurrent fresher win advanced the pointer's proof past ours: accept, done.
-                    return self._swapped(staged)
-                except ProofDigestMismatch:
-                    # Unconstructable from this flow: a same-version refresh describes the SAME
-                    # bytes → the same canonical digest. If it fires, re-read to disambiguate a
-                    # concurrent pointer move (re-branch) from a genuine invariant violation (loud).
-                    moved = await self._store.read_pointer(aid)
-                    if moved is not None and moved.version_id != staged.version_id:
-                        continue
-                    raise
-                return self._swapped(staged)
+                    return self._declined(current, telemetry)
+                if_match = current.etag
 
-            # Byte-changed: C12 advance-or-decline (rollback is a separate receipted path).
-            if staged.proof.built_from_live_at < current.proof.built_from_live_at:
-                return self._declined(
-                    current, "staged build older than current — will not regress the pointer"
-                )
             try:
-                await self._store.swap_pointer(aid, staged.version_id, if_match=current.etag)
+                await self._store.swap_pointer(
+                    aid, staged.version_id, staged.proof, if_match=if_match
+                )
             except (CASLost, PointerAbsent):
                 continue  # lost the race / pointer reaped — re-read + re-apply C12 (C12 verbatim)
-            return self._swapped(staged)
+            return self._swapped(staged, telemetry)
 
         # Exhausted the bounded retry budget: re-read once and decline to a staler-or-equal current.
         final = await self._store.read_pointer(aid)
         if final is not None and staged.proof.built_from_live_at <= final.proof.built_from_live_at:
-            return self._declined(
-                final, "CAS contention: current is at-least-as-fresh after retries"
-            )
+            return self._declined(final, telemetry, why="CAS contention: current at-least-as-fresh")
         raise CASLost(
             f"exhausted {self._max_cas_retries} CAS attempts publishing {aid!r} -> {staged.version_id}"
         )
 
     @staticmethod
-    def _swapped(staged: StagedVersion) -> RebuildResult:
+    def _swapped(staged: StagedVersion, telemetry: FetchTelemetry | None) -> RebuildResult:
         return RebuildResult(
             outcome=RebuildOutcome.SWAPPED,
             version_id=staged.version_id,
             built_from_live_at=staged.proof.built_from_live_at,
             detail="",
+            telemetry=telemetry,
         )
 
     @staticmethod
-    def _declined(current: PointerState, why: str) -> RebuildResult:
+    def _declined(
+        current: PointerState,
+        telemetry: FetchTelemetry | None,
+        why: str = "staged build older than current — will not regress the pointer",
+    ) -> RebuildResult:
+        # QA F6: report the INCUMBENT that remains live (truthful about what serves).
         return RebuildResult(
             outcome=RebuildOutcome.STAGED_REJECTED,
             version_id=current.version_id,
             built_from_live_at=current.proof.built_from_live_at,
             detail=f"monotonicity decline: {why}",
+            telemetry=telemetry,
         )
 
 
@@ -567,7 +698,7 @@ def canonical_frame_bytes(frame: pl.DataFrame) -> bytes:
     """A deterministic, row/column-canonical byte encoding of ``frame`` (dark-build default).
 
     ``version_id = sha256(these bytes)``; byte-stable LOGICAL content must mint
-    identical bytes or C3 idempotency / C14 refresh cannot fire. This default sorts
+    identical bytes or C3 idempotency / the C15 byte-stable advance cannot fire. This default sorts
     columns, canonicalises each record (``sort_keys`` + a stable ``str`` fallback for
     datetimes/Decimals), and sorts the row encodings — so identical logical frames in
     any input row/column order collapse to identical bytes. It is explicitly NOT
