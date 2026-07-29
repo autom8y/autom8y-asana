@@ -41,8 +41,24 @@ def order_by_age(
 
 
 def diverges(left: Materialization, right: Materialization, *, abs_tol: float = 0.005) -> bool:
-    """True iff the two copies disagree on the served value beyond ``abs_tol``."""
-    return abs(left.served_value - right.served_value) > abs_tol
+    """True iff the copies disagree on the served value OR any per-section value.
+
+    QA-ADVERSARY FIX (S7 corpus authoring): the scaffold's original check compared
+    the SCALAR total only — a zero-net composition shift (the DEFECT's own move
+    pattern: offers migrating ACTIVE → STAGED with no net change) produced two
+    materially disagreeing copies that were silently served. Two copies that
+    disagree per-section ARE disagreeing copies (RC-A-1/RC-A-2), even when their
+    totals coincide; the ``per_section_delta`` observable exists precisely to
+    explain that shift.
+    """
+    if abs(left.served_value - right.served_value) > abs_tol:
+        return True
+    for name in set(left.composition) | set(right.composition):
+        left_value = left.composition[name].value if name in left.composition else 0.0
+        right_value = right.composition[name].value if name in right.composition else 0.0
+        if abs(left_value - right_value) > abs_tol:
+            return True
+    return False
 
 
 def divergence_payload(

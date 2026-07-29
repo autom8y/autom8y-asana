@@ -26,6 +26,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Protocol
 
+from autom8_asana.substrate.serve import RefusePayload
+
 if TYPE_CHECKING:
     from collections.abc import Mapping
     from datetime import datetime
@@ -33,6 +35,9 @@ if TYPE_CHECKING:
     from autom8_asana.substrate.freshness import FreshnessProof
     from autom8_asana.substrate.identity import ArtifactId
     from autom8_asana.substrate.serve import RefuseReason, ServedNumber
+
+# Tolerance for the composition-consistency guard (dollar aggregates; sub-cent).
+_COMPOSITION_ABS_TOL = 0.005
 
 
 @dataclass(frozen=True, slots=True)
@@ -53,6 +58,12 @@ class Materialization:
 
     RC-A turns on there being MORE THAN ONE of these for the same ``ArtifactId``:
     two disagreeing copies must be detected and refused, never silently served.
+
+    SCHEMA RESISTANCE (qa-adversary): ``__post_init__`` REFUSES a fixture whose
+    composition does not sum to its ``served_value``. Without this guard a sloppy
+    case author could seed an internally-inconsistent copy, and the divergence
+    ledger's Σ-invariant (Σ per_section_delta == magnitude) would silently
+    mis-explain. The invariant is enforced at construction, not by vigilance.
     """
 
     plane: str  # which copy/plane this is, e.g. "v2/offer" or "fresh-rewarm"
@@ -60,6 +71,45 @@ class Materialization:
     served_value: float  # the aggregate number this copy would serve (e.g. active_mrr)
     composition: Mapping[str, SectionCell]  # per-section breakdown (feeds per_section_delta)
     frame_digest: str  # digest of the parsed frame; CORRUPT iff != proof.content_digest
+
+    def __post_init__(self) -> None:
+        total = sum(cell.value for cell in self.composition.values())
+        if abs(total - self.served_value) > _COMPOSITION_ABS_TOL:
+            raise ValueError(
+                f"inconsistent Materialization on plane {self.plane!r}: "
+                f"composition sums to {total} but served_value is {self.served_value}; "
+                "the ledger Σ-invariant would silently mis-explain — fix the fixture"
+            )
+
+
+@dataclass(frozen=True, slots=True)
+class SunsetBreach:
+    """Field-level sunset marker (TDD §11 C13 — architect ruling 2026-07-29).
+
+    The CLOSED ``RefuseReason`` enum STANDS (sunset-breach → ``STALE``); the breach
+    is made machine-distinguishable by THIS named marker riding the refusal payload,
+    never by a new enum member (the rot-trigger for minting EXPIRED is recorded in
+    C13 — do not invent one here).
+    """
+
+    surface: str  # which bridge/transitional surface breached (the serving plane)
+    sunset_after: datetime  # the declared sunset instant
+    observed_at: datetime  # the serving instant at which the breach was observed
+
+
+@dataclass(frozen=True, slots=True)
+class HarnessRefusePayload(RefusePayload):
+    """C13 additive payload extension — HARNESS-INTERNAL, seam un-narrowed.
+
+    The frozen seam ``RefusePayload`` carries the OQ-1 four fields; C13 rules the
+    payload MUST additionally carry a named ``sunset_breach`` marker. This subclass
+    realizes the ruling additively inside the harness (the frozen four fields stay
+    exactly as landed; a 5th optional field is ADDED, nothing narrowed). The
+    seam-side additive field is the S4 owner's to land per C13; until then the
+    harness carries it here so sunset cases are machine-distinguishable NOW.
+    """
+
+    sunset_breach: SunsetBreach | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,17 +142,30 @@ class Verdict(Enum):
 
 @dataclass(frozen=True, slots=True)
 class ExpectServe:
-    """Expect a ``Provable`` whose decoded served value + plane match (SERVE side)."""
+    """Expect a ``Provable`` whose decoded served value + plane match (SERVE side).
+
+    ``composition``, when given, is ALSO asserted per-section (qa-adversary
+    strengthening: a substrate serving the right TOTAL over the wrong per-section
+    content must not pass — the DEFECT's zero-net composition shift is the wound).
+    ``None`` = total+plane only (back-compatible with the worked cases).
+    """
 
     value: float
     plane: str
+    composition: Mapping[str, SectionCell] | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class ExpectRefuse:
-    """Expect a ``Refused`` carrying this CLOSED ``RefuseReason`` (REJECT side)."""
+    """Expect a ``Refused`` carrying this CLOSED ``RefuseReason`` (REJECT side).
+
+    ``sunset_breach``, when given, is ALSO asserted against the payload's C13
+    marker (see ``SunsetBreach``): a sunset-breach refusal must be
+    machine-distinguishable from an age-STALE refusal, not comment-only.
+    """
 
     reason: RefuseReason
+    sunset_breach: SunsetBreach | None = None
 
 
 type Expected = ExpectServe | ExpectRefuse

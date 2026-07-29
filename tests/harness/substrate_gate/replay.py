@@ -28,19 +28,22 @@ from tests.harness.substrate_gate.cases import (
     CaseVariant,
     ExpectRefuse,
     ExpectServe,
+    HarnessRefusePayload,
     Verdict,
     verdict_of,
 )
 from tests.harness.substrate_gate.frame_codec import decode_frame
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Iterable, Mapping
 
     from autom8_asana.substrate.serve import ServedNumber
     from tests.harness.substrate_gate.cases import (
         Expected,
         HarnessSubstrate,
         ReplayCase,
+        SectionCell,
+        SunsetBreach,
     )
 
 _VALUE_ABS_TOL = 0.005
@@ -83,6 +86,19 @@ def classify(observed: ServedNumber, expected: Expected) -> tuple[ResultStatus, 
     assert_never(expected)
 
 
+def _composition_matches(
+    observed: Mapping[str, SectionCell], expected: Mapping[str, SectionCell]
+) -> bool:
+    """Per-section match: same section set, same rows, values within tolerance."""
+    if set(observed) != set(expected):
+        return False
+    return all(
+        observed[name].rows == expected[name].rows
+        and math.isclose(observed[name].value, expected[name].value, abs_tol=_VALUE_ABS_TOL)
+        for name in expected
+    )
+
+
 def _classify_expect_serve(
     observed: ServedNumber, expected: ExpectServe
 ) -> tuple[ResultStatus, str]:
@@ -90,13 +106,21 @@ def _classify_expect_serve(
         case Provable(frame=frame):
             content = decode_frame(frame)
             value_ok = math.isclose(content.served_value, expected.value, abs_tol=_VALUE_ABS_TOL)
-            if value_ok and content.plane == expected.plane:
-                return ResultStatus.PASS, f"served {content.served_value} on plane {content.plane}"
-            return (
-                ResultStatus.FAIL,
-                f"served-value mismatch: got {content.served_value}@{content.plane}, "
-                f"expected {expected.value}@{expected.plane}",
-            )
+            if not value_ok or content.plane != expected.plane:
+                return (
+                    ResultStatus.FAIL,
+                    f"served-value mismatch: got {content.served_value}@{content.plane}, "
+                    f"expected {expected.value}@{expected.plane}",
+                )
+            if expected.composition is not None and not _composition_matches(
+                content.composition, expected.composition
+            ):
+                return (
+                    ResultStatus.FAIL,
+                    "served-composition mismatch: right total on the wrong per-section "
+                    f"content (plane {content.plane}) — the zero-net-shift wound class",
+                )
+            return ResultStatus.PASS, f"served {content.served_value} on plane {content.plane}"
         case Refused(reason=reason):
             return (
                 ResultStatus.FAIL,
@@ -107,17 +131,34 @@ def _classify_expect_serve(
             assert_never(observed)
 
 
+def _observed_sunset_breach(observed: Refused) -> SunsetBreach | None:
+    """The C13 marker if the payload carries one (harness-additive), else None."""
+    detail = observed.detail
+    if isinstance(detail, HarnessRefusePayload):
+        return detail.sunset_breach
+    return None
+
+
 def _classify_expect_refuse(
     observed: ServedNumber, expected: ExpectRefuse
 ) -> tuple[ResultStatus, str]:
     match observed:
         case Refused(reason=reason):
-            if reason is expected.reason:
-                return ResultStatus.PASS, f"refused {reason.value} as expected"
-            return (
-                ResultStatus.FAIL,
-                f"wrong refuse reason: got {reason.value}, expected {expected.reason.value}",
-            )
+            if reason is not expected.reason:
+                return (
+                    ResultStatus.FAIL,
+                    f"wrong refuse reason: got {reason.value}, expected {expected.reason.value}",
+                )
+            if expected.sunset_breach is not None:
+                observed_breach = _observed_sunset_breach(observed)
+                if observed_breach != expected.sunset_breach:
+                    return (
+                        ResultStatus.FAIL,
+                        "sunset_breach marker missing/mismatched (TDD §11 C13): "
+                        f"got {observed_breach}, expected {expected.sunset_breach} — "
+                        "a sunset-breach STALE must be machine-distinguishable from age-STALE",
+                    )
+            return ResultStatus.PASS, f"refused {reason.value} as expected"
         case Provable(frame=frame):
             content = decode_frame(frame)
             return (

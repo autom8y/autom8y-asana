@@ -23,22 +23,26 @@ from tests.harness.substrate_gate.cases import (
     Expected,
     ExpectRefuse,
     ExpectServe,
+    HarnessRefusePayload,
     HarnessSubstrate,
     Materialization,
     ReplayCase,
     SectionCell,
     SeededState,
+    SunsetBreach,
     Verdict,
     verdict_of,
 )
 from tests.harness.substrate_gate.corpus import (
     ALL_PREDICATE_IDS,
+    CONSTRUCTION_ALTITUDE_IDS,
     CORPUS_SLOTS,
+    SABOTEUR_SIDE_ONLY_IDS,
     CaseSlot,
+    construction_slots,
     covered_predicate_ids,
     filled_cases,
     filled_slots,
-    pending_slots,
 )
 from tests.harness.substrate_gate.divergence import (
     divergence_payload,
@@ -66,7 +70,9 @@ from tests.harness.substrate_gate.replay import CaseResult, ReplayRunner, Result
 
 __all__ = [
     "ALL_PREDICATE_IDS",
+    "CONSTRUCTION_ALTITUDE_IDS",
     "CORPUS_SLOTS",
+    "SABOTEUR_SIDE_ONLY_IDS",
     "CaseResult",
     "CaseSlot",
     "CaseVariant",
@@ -76,6 +82,7 @@ __all__ = [
     "ExpectServe",
     "FixtureParitySource",
     "FrameContent",
+    "HarnessRefusePayload",
     "HarnessSubstrate",
     "LiveParityNotArmedError",
     "Materialization",
@@ -91,8 +98,10 @@ __all__ = [
     "SectionCell",
     "SeededState",
     "SilentServeSubstrate",
+    "SunsetBreach",
     "Verdict",
     "classify",
+    "construction_slots",
     "covered_predicate_ids",
     "decode_frame",
     "display_key",
@@ -103,6 +112,5 @@ __all__ = [
     "filled_cases",
     "filled_slots",
     "order_by_age",
-    "pending_slots",
     "verdict_of",
 ]

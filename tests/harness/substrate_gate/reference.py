@@ -19,10 +19,13 @@ from typing import TYPE_CHECKING
 
 from autom8_asana.substrate.freshness import FreshnessProof
 from autom8_asana.substrate.serve import Provable, Refused, RefusePayload, RefuseReason
+from tests.harness.substrate_gate.cases import HarnessRefusePayload, SunsetBreach
 from tests.harness.substrate_gate.divergence import divergence_payload, diverges, order_by_age
 from tests.harness.substrate_gate.frame_codec import FrameContent, encode_frame
 
 if TYPE_CHECKING:
+    from datetime import datetime
+
     from autom8_asana.substrate.serve import ServedNumber
     from tests.harness.substrate_gate.cases import Materialization, SeededState
 
@@ -39,6 +42,25 @@ def _single_copy_payload(materialization: Materialization, age: float) -> Refuse
         absolute_age={materialization.plane: age},
         magnitude=0.0,
         per_section_delta={},
+    )
+
+
+def _sunset_payload(
+    materialization: Materialization, age: float, *, sunset_after: datetime, observed_at: datetime
+) -> HarnessRefusePayload:
+    """The C13-marked payload for a sunset-breach refusal: STALE + named marker.
+
+    The four frozen fields land exactly as in ``_single_copy_payload``; the 5th
+    additive ``sunset_breach`` field makes the breach machine-distinguishable.
+    """
+    return HarnessRefusePayload(
+        plane=materialization.plane,
+        absolute_age={materialization.plane: age},
+        magnitude=0.0,
+        per_section_delta={},
+        sunset_breach=SunsetBreach(
+            surface=materialization.plane, sunset_after=sunset_after, observed_at=observed_at
+        ),
     )
 
 
@@ -68,10 +90,17 @@ class ReferenceSubstrate:
         if age > canonical.proof.sla_seconds:
             return Refused(reason=RefuseReason.STALE, detail=_single_copy_payload(canonical, age))
         if state.sunset_after is not None and state.now > state.sunset_after:
-            # RC-D: a bridge past its machine-enforced sunset fails loud. Within the
-            # CLOSED RefuseReason grammar {STALE, CORRUPT, MISSING, DIVERGENT}, STALE
-            # is the honest mapping (the bridge's allowed age is exceeded).
-            return Refused(reason=RefuseReason.STALE, detail=_single_copy_payload(canonical, age))
+            # RC-D: a bridge past its machine-enforced sunset fails loud.
+            # sunset→STALE per the frozen CLOSED RefuseReason grammar (TDD §11 C13,
+            # architect ruling 2026-07-29): the enum stays closed — the breach is
+            # machine-distinguishable via the additive sunset_breach payload marker,
+            # never via a new enum member (the EXPIRED rot-trigger is recorded in C13).
+            return Refused(
+                reason=RefuseReason.STALE,
+                detail=_sunset_payload(
+                    canonical, age, sunset_after=state.sunset_after, observed_at=state.now
+                ),
+            )
 
         content = FrameContent(
             served_value=canonical.served_value,
