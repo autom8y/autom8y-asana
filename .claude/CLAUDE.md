@@ -98,6 +98,8 @@ Work product artifacts in `.ledge/`:
 <!-- KNOSSOS:START user-content -->
 ## Project-Specific Instructions
 
+**Governing decision-space charter (ratified 2026-07-29):** before any autonomous decision or escalation, Read and operate under `.ledge/decisions/CHARTER-decision-space-of-record-2026-07-30.md` — the ratified decision-space of record (verbatim core fence L48–65), the single source of truth for this repo, never the operator's private memory.
+
 <!--
 Add your project-specific Claude instructions here.
 This section is preserved during re-materialization.
