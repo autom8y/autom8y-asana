@@ -119,11 +119,17 @@ class EntityDescriptor:
         name_pattern: Substring pattern for Tier 2 name detection.
         emoji: Custom emoji indicator for holder matching.
         schema_key: SchemaRegistry lookup key. Defaults to pascal_name.
-        default_ttl_seconds: Cache TTL in seconds. Defaults to 300. DUAL-ROLE
-            (substrate-v2 C8): also read by ``substrate.freshness.sla_seconds_for``
-            as the freshness-SLA (the "provably <= SLA-old" bound), pending the C8
-            operator ruling at the S8 cutover gate. Tuning this for cache/429
-            behavior also loosens freshness truth (AV-3 drift watch).
+        default_ttl_seconds: Cache TTL in seconds. Defaults to 300. Post-C17 this is
+            the freshness-SLA FALLBACK only: ``substrate.freshness.sla_seconds_for``
+            reads the governed ``freshness_sla_seconds`` first and falls back here
+            when it is unset (C8 operator ruling 2026-07-30 decoupled the roles;
+            AV-3 drift watch retired for governed entities).
+        freshness_sla_seconds: GOVERNED freshness SLA in seconds (substrate-v2
+            C8/C17) — the "provably <= SLA-old" bound a green FreshnessProof
+            promises. None (default) = ungoverned; ``sla_seconds_for`` falls back
+            to ``default_ttl_seconds``. Set per-entity by operator ruling
+            (C8-sla-governance-packet-2026-07-30 §Ratification); re-ratify in
+            place (asset_edit/process provisional pending UV-P-6 cadence data).
         warmable: Whether included in Lambda cache warming.
         warm_priority: Warming order (lower = higher priority).
         aliases: Field normalization alias chain for resolver.
@@ -169,13 +175,18 @@ class EntityDescriptor:
     schema_key: str | None = None  # Defaults to pascal_name if None
 
     # --- Cache Behavior ---
-    # DUAL-ROLE (substrate-v2 C8): substrate.freshness.sla_seconds_for reads this as
-    # the freshness-SLA (the "provably <= SLA-old" bound), NOT just cache TTL. A tune
-    # for cache/429 behavior also loosens freshness truth; the C8 operator ruling at
-    # the S8 cutover gate governs this dual role (AV-3 drift watch).
+    # Post-C17: cache TTL proper. For freshness, substrate.freshness.sla_seconds_for
+    # reads the governed freshness_sla_seconds below and falls back HERE only when it
+    # is unset — the C8 operator ruling (2026-07-30) decoupled the dual role.
     default_ttl_seconds: int = 300
     warmable: bool = False
     warm_priority: int = 99
+
+    # --- Freshness Governance (substrate-v2 C8/C17) ---
+    # The governed "provably <= SLA-old" bound a green FreshnessProof promises.
+    # None = ungoverned -> sla_seconds_for falls back to default_ttl_seconds.
+    # Values are operator-ratified (C8 packet 2026-07-30); re-ratify in place.
+    freshness_sla_seconds: int | None = None
 
     # --- Field Normalization ---
     aliases: tuple[str, ...] = ()
@@ -454,6 +465,7 @@ ENTITY_DESCRIPTORS: tuple[EntityDescriptor, ...] = (
         primary_project_gid="1200653012566782",
         model_class_path="autom8_asana.models.business.business.Business",
         default_ttl_seconds=3600,
+        freshness_sla_seconds=3600,  # C8/C17 governed (2026-07-30)
         warmable=True,
         warm_priority=1,
         aliases=("office",),
@@ -481,6 +493,7 @@ ENTITY_DESCRIPTORS: tuple[EntityDescriptor, ...] = (
         primary_project_gid="1201081073731555",
         model_class_path="autom8_asana.models.business.unit.Unit",
         default_ttl_seconds=900,
+        freshness_sla_seconds=3600,  # C8/C17 governed (2026-07-30)
         warmable=True,
         warm_priority=2,
         aliases=("business_unit",),
@@ -507,6 +520,7 @@ ENTITY_DESCRIPTORS: tuple[EntityDescriptor, ...] = (
         primary_project_gid="1200775689604552",
         model_class_path="autom8_asana.models.business.contact.Contact",
         default_ttl_seconds=900,
+        freshness_sla_seconds=3600,  # C8/C17 governed (2026-07-30)
         warmable=True,
         warm_priority=4,
         aliases=(),
@@ -526,6 +540,7 @@ ENTITY_DESCRIPTORS: tuple[EntityDescriptor, ...] = (
         primary_project_gid="1143843662099250",
         model_class_path="autom8_asana.models.business.offer.Offer",
         default_ttl_seconds=180,
+        freshness_sla_seconds=3600,  # C8/C17 governed (2026-07-30)
         warmable=True,
         warm_priority=3,
         aliases=("business_offer",),
@@ -550,6 +565,7 @@ ENTITY_DESCRIPTORS: tuple[EntityDescriptor, ...] = (
         primary_project_gid="1202204184560785",
         model_class_path="autom8_asana.models.business.asset_edit.AssetEdit",
         default_ttl_seconds=300,
+        freshness_sla_seconds=3600,  # C8/C17 governed (2026-07-30)
         warmable=True,
         warm_priority=5,
         aliases=("process",),
@@ -569,6 +585,7 @@ ENTITY_DESCRIPTORS: tuple[EntityDescriptor, ...] = (
         primary_project_gid=None,  # Dynamic via workspace discovery
         model_class_path="autom8_asana.models.business.process.Process",
         default_ttl_seconds=60,
+        freshness_sla_seconds=3600,  # C8/C17 governed (2026-07-30)
     ),
     # =========================================================================
     # Pipeline Process Entities (9 projects)

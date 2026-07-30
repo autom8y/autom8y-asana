@@ -154,7 +154,7 @@ def exemplar_one_replay_case() -> ReplayCase:
 # The watermark BUILD instant (watermark.json "watermark" field) — the artifact's honest
 # built_from_live_at (the live-pull moment, NOT the S3 write mtime).
 _WATERMARK_BUILT_FROM_LIVE_AT = datetime(2026, 7, 30, 12, 23, 9, 371507, tzinfo=UTC)
-_OFFER_SLA_SECONDS = 180  # the REAL offer freshness contract (registry default_ttl_seconds)
+_OFFER_SLA_SECONDS = 3600  # the REAL offer freshness contract (governed freshness_sla_seconds, C8/C17 ruling 2026-07-30)
 
 _CURRENT_PLANE = "v2/offer-current"
 _CURRENT_VALUE = 80_985.0  # Σ mrr over the three offer-lifecycle sections below

@@ -770,6 +770,19 @@ sprint and deliberately NOT designed into the S1 frozen contract (P7 — do not 
   frozen-signature change; refines Seam 3 REBUILD + [H13]. Regression: encode the 500→1 partial as a
   two-sided tooth (partial → REFUSED; complete → SWAPPED).
 
+- **C17 → S2 (`substrate.freshness`) + core (`entity_registry`) + S8-0 harness [C8/AV-3 HIGH; operator-ratified option-c; NO frozen-signature change — INTERNALS-only].**
+  Decouple the freshness SLA from the cache TTL: `EntityDescriptor` gains additive
+  `freshness_sla_seconds: int | None = None` (registry = the [H1] config home; a second
+  attribute of the SAME home, not a new home); `sla_seconds_for` returns it when set, else
+  falls back to `default_ttl_seconds`. Six C8-ratified entities governed at 3600s
+  (offer/unit/contact/business + asset_edit/process provisional pending UV-P-6); no
+  `default_ttl_seconds` VALUE edited (v1 cache behavior byte-identical — P6-clean; the
+  concrete witness: `get_entity_ttl` still reads `default_ttl_seconds`). Exemplar #2's
+  proof-metadata sla 180→3600 (VALUE/composition/digest byte-unchanged — digest
+  independence proven mechanically by the bytes-vs-constant tripwire). Frozen signatures,
+  `FreshnessProof`/`RefuseReason`/`Provability` grammars: ALL unchanged. Ruling of record:
+  C8-sla-governance-packet-2026-07-30 §Ratification; full ruling text of record in C8-sla-governance-packet-2026-07-30 §Ratification.
+
 ---
 
 *Authored by architect (10x-dev), S1. Draft 2026-07-27; FINALIZED 2026-07-29 folding the Phase-2

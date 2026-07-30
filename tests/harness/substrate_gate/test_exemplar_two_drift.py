@@ -59,7 +59,7 @@ def test_drift_delta_against_exemplar_one_frozen_value() -> None:
 def test_freshness_proof_carries_watermark_instant_and_offer_sla() -> None:
     proof = exemplar_two_materialization().proof
     assert proof.built_from_live_at.isoformat() == "2026-07-30T12:23:09.371507+00:00"
-    assert proof.sla_seconds == 180  # the real offer contract, not the #1 placeholder 3600
+    assert proof.sla_seconds == 3600  # the GOVERNED offer contract (C8/C17 ruling 2026-07-30)
 
 
 def test_coherent_anchor_emits_no_divergence() -> None:
