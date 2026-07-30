@@ -76,3 +76,44 @@ def test_registered_at_parity_gate_enumeration_beside_exemplar_one() -> None:
     assert (exemplar_one_source, exemplar_two_source) == PARITY_GATE_SOURCES
     # both produce a usable parity source
     assert exemplar_two_source().fetch(exemplar_two_aid()) is not None
+
+
+def test_fixture_parquet_bytes_rederive_the_pinned_constants() -> None:
+    """Bytes-vs-constant tripwire (qa-adversary S8-0 review): the committed
+    S3-derived fixture re-derives served_value, composition, and content_digest
+    from raw bytes — a corrupted or swapped fixture fails here, not just a
+    constant edited to match a constant. Recipe mirrors the receipt
+    (RECEIPT-s8-0-fixture-recapture-2026-07-30.md §Derived composition):
+    group by ``section``, sum ``mrr``, over the three offer-lifecycle sections;
+    canonical json = sorted ``{section: [rows, value]}`` compact separators.
+    """
+    import hashlib
+    import json
+    from pathlib import Path
+
+    import polars as pl
+
+    fixture = (
+        Path(__file__).parent / "fixtures" / "offer_1143843662099250" / "offer_plane_section_mrr.parquet"
+    )
+    materialization = exemplar_two_materialization()
+    sections = list(materialization.composition)
+
+    df = pl.read_parquet(fixture)
+    derived = {
+        row["section"]: (int(row["rows"]), float(row["value"]))
+        for row in df.filter(pl.col("section").is_in(sections))
+        .group_by("section")
+        .agg(pl.len().alias("rows"), pl.col("mrr").sum().alias("value"))
+        .iter_rows(named=True)
+    }
+
+    for section, cell in materialization.composition.items():
+        assert derived[section] == (cell.rows, cell.value), section
+    assert sum(v for _, v in derived.values()) == pytest.approx(materialization.served_value)
+
+    canonical = json.dumps(
+        {s: [r, v] for s, (r, v) in derived.items()}, sort_keys=True, separators=(",", ":")
+    )
+    recomputed = "sha256:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    assert recomputed == materialization.proof.content_digest
