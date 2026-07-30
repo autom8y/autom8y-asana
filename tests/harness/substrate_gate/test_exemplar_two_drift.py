@@ -94,7 +94,10 @@ def test_fixture_parquet_bytes_rederive_the_pinned_constants() -> None:
     import polars as pl
 
     fixture = (
-        Path(__file__).parent / "fixtures" / "offer_1143843662099250" / "offer_plane_section_mrr.parquet"
+        Path(__file__).parent
+        / "fixtures"
+        / "offer_1143843662099250"
+        / "offer_plane_section_mrr.parquet"
     )
     materialization = exemplar_two_materialization()
     sections = list(materialization.composition)
