@@ -11,13 +11,20 @@ The S8 machinery — scaffolded here, EXECUTED at S8 (not now). Two runners:
     (``PacedLiveParitySource``, guarded by ``LiveParityNotArmedError``) and composes v1's
     pacing controllers directly (RC-E-4).
 
-This is a corpus-ready SCAFFOLD; the qa-adversary authors the acceptance corpus against
-it. It makes NO v2-parity claim — v2's serve does not exist until S5/S8. See
-``corpus.ALL_PREDICATE_IDS`` for the 22-predicate authoring surface.
+This is a corpus-ready harness; the qa-adversary authored the acceptance corpus against
+it. v2's serve now EXISTS (``substrate.serve``, landed PR #286) — this harness EXECUTES
+against it at S8. Until it runs, the harness itself makes NO v2-parity claim: a green
+corpus here is the acceptance surface, not evidence v2 has been served. See
+``corpus.ALL_PREDICATE_IDS`` for the 22-predicate surface.
 """
 
 from __future__ import annotations
 
+from tests.harness.substrate_gate.budget import (
+    BudgetedPacedFetcher,
+    ParityBudgetExhausted,
+    PerDayBudgetLedger,
+)
 from tests.harness.substrate_gate.cases import (
     CaseVariant,
     Expected,
@@ -57,9 +64,11 @@ from tests.harness.substrate_gate.parity import (
     LiveParityNotArmedError,
     PacedLiveParitySource,
     ParityObservation,
+    ParityOutboundError,
     ParityRunner,
     ParitySource,
     display_key,
+    get_process_fetcher,
 )
 from tests.harness.substrate_gate.reference import (
     OverRefuseSubstrate,
@@ -73,6 +82,7 @@ __all__ = [
     "CONSTRUCTION_ALTITUDE_IDS",
     "CORPUS_SLOTS",
     "SABOTEUR_SIDE_ONLY_IDS",
+    "BudgetedPacedFetcher",
     "CaseResult",
     "CaseSlot",
     "CaseVariant",
@@ -88,9 +98,12 @@ __all__ = [
     "Materialization",
     "OverRefuseSubstrate",
     "PacedLiveParitySource",
+    "ParityBudgetExhausted",
     "ParityObservation",
+    "ParityOutboundError",
     "ParityRunner",
     "ParitySource",
+    "PerDayBudgetLedger",
     "ReferenceSubstrate",
     "ReplayCase",
     "ReplayRunner",
@@ -111,6 +124,7 @@ __all__ = [
     "explain_divergence",
     "filled_cases",
     "filled_slots",
+    "get_process_fetcher",
     "order_by_age",
     "verdict_of",
 ]

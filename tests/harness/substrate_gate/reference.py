@@ -2,8 +2,10 @@
 
 OVER-CLAIM GUARD (architect S7 ruling, obeyed): ``ReferenceSubstrate`` is a MINIMAL
 harness-internal serve oracle that exists ONLY to prove the replay runner's teeth on
-known fixtures. It is **NOT v2's serve** (which does not exist until S5/S8) and makes
-**no v2-parity claim**. It does not call the SEAM-0 ``substrate.freshness.is_provable``
+known fixtures. It is **NOT v2's serve** — v2's serve now EXISTS at
+``src/autom8_asana/substrate/serve.py`` (landed PR #286); this oracle is a separate
+known-correct counter-party — and it makes **no v2-parity claim**. It does not call the
+SEAM-0 ``substrate.freshness.is_provable``
 (that raises ``NotImplementedError`` — owned by S2); it re-derives a minimal age /
 digest / divergence gate itself, purely so the harness has a known-correct
 counter-party to discriminate against the broken substrates below.

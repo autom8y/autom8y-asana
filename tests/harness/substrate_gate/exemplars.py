@@ -1,4 +1,8 @@
-"""Parity exemplar #1 (S7 · P5) — the ``$84,385``-vs-``$79,585`` divergence.
+"""Parity exemplars — #1 (historical ``$84,385``-vs-``$79,585`` divergence) + #2 (current).
+
+Exemplar #1 is FROZEN-HISTORICAL; do not refresh to current prod — current state lives
+in exemplar #2 (``exemplar_two_*``, an S8-0 additive current-state anchor derived from
+the real S3 offer plane; see the bottom of this module and the recapture receipt).
 
 REQUIREMENT 3 of the S7 build. The DEFECT headline (DEFECT :64-71) encoded as a
 fixture: a stale v2/offer plane summing to ``$79,585`` (frozen 2026-07-13) vs a fresh
@@ -22,6 +26,7 @@ The parity runner must EXPLAIN this divergence via the ledger (the RC-A-2
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 from autom8_asana.core.types import EntityType
 from autom8_asana.substrate.freshness import FreshnessProof
@@ -36,6 +41,9 @@ from tests.harness.substrate_gate.cases import (
     SeededState,
 )
 from tests.harness.substrate_gate.parity import FixtureParitySource, ParityObservation
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 # Project verified against S3 in the DEFECT (:20-23, :64-71).
 PROJECT_GID = "1143843662099250"
@@ -128,3 +136,96 @@ def exemplar_one_replay_case() -> ReplayCase:
         ),
         expected=ExpectRefuse(reason=RefuseReason.DIVERGENT),
     )
+
+
+# ============================================================================
+# Exemplar #2 — CURRENT offer plane (S8-0 pre-gate recapture · O4 · additive)
+# ============================================================================
+# Derived from the REAL S3 artifact — 0 Asana API calls; AWS control-plane + S3
+# GET/LIST only. Full provenance (probe commands, ETags, digests, torn-read guard)
+# in .ledge/reviews/RECEIPT-s8-0-fixture-recapture-2026-07-30.md.
+#
+# Source: s3://autom8-s3/dataframes/1143843662099250/offer/{dataframe.parquet,
+# watermark.json}. Snapshot instant 2026-07-30T12:24:15Z; dataframe.parquet ETag
+# "de911e6885a587e09e653ec2d697211d" (sha256 da97751365…c3e7d); watermark.json ETag
+# "22dfe7576e7ac5bd2da3e0749c85ad21". Torn-read guard PASSED (watermark post-dates all
+# section artifacts: newest section 11:09:04Z < build 12:23:09Z < write 12:24:15Z).
+
+# The watermark BUILD instant (watermark.json "watermark" field) — the artifact's honest
+# built_from_live_at (the live-pull moment, NOT the S3 write mtime).
+_WATERMARK_BUILT_FROM_LIVE_AT = datetime(2026, 7, 30, 12, 23, 9, 371507, tzinfo=UTC)
+_OFFER_SLA_SECONDS = 180  # the REAL offer freshness contract (registry default_ttl_seconds)
+
+_CURRENT_PLANE = "v2/offer-current"
+_CURRENT_VALUE = 80_985.0  # Σ mrr over the three offer-lifecycle sections below
+
+# sha256 over the canonical composition json (sorted, section -> [rows, value]) — a
+# genuine DRIFT TRIPWIRE: the same S3 bytes re-derive the same aggregate → same digest.
+_CURRENT_DIGEST = "sha256:4e711a7a8b8a7f4b18d4beb7ef9f7dc28286d682d3e339c9a407c63de84bce65"
+
+# The current per-section composition — the THREE offer-lifecycle sections exemplar #1
+# tracked, summed straight from the S3 frame's `mrr` column grouped by `section`. NOTE
+# the section name is a plain HYPHEN (U+002D) in prod; exemplar #1's fixture used an
+# en-dash (U+2013). The real bytes win here (a drift tripwire keys off the true string).
+_CURRENT_COMPOSITION: dict[str, SectionCell] = {
+    "ACTIVE": SectionCell(rows=47, value=60_085.0),
+    "OPTIMIZE - Human Review": SectionCell(rows=7, value=10_900.0),
+    "STAGED": SectionCell(rows=7, value=10_000.0),
+}
+
+
+def exemplar_two_aid() -> ArtifactId:
+    """The (project, entity) address for the current offer-plane anchor (== exemplar #1's)."""
+    return ArtifactId(project_gid=PROJECT_GID, entity_type=EntityType.OFFER)
+
+
+def exemplar_two_materialization() -> Materialization:
+    """The CURRENT offer plane as a coherent, S3-derived materialization.
+
+    DRIFT TRIPWIRE: served_value ``$80,985`` measured against exemplar #1's frozen
+    ``$84,385`` IS the measured dark-build drift-delta = **−$3,400 (−4.03%)** over the
+    interval. Per-section, mirroring the RC-A-2 ledger idiom (exemplar #1 FRESH →
+    exemplar #2 CURRENT)::
+
+        ACTIVE                    48r·$61,585 → 47r·$60,085  = −$1,500
+        OPTIMIZE Human Review      5r·$7,900  →  7r·$10,900   = +$3,000  (en-dash → hyphen in prod)
+        STAGED                     7r·$10,000 →  7r·$10,000   =     $0
+        OTHER (unchanged)          6r·$4,900  →   (dropped)   = −$4,900  (synthetic bucket; no S3 analogue)
+                                                        net    = −$3,400
+
+    The +$1,500 real shift across the three shared sections, minus exemplar #1's $4,900
+    synthetic OTHER bucket (which has no reproducible S3 analogue), composes the −$3,400
+    headline delta. Provenance + the 0-Asana-call affirmation:
+    ``.ledge/reviews/RECEIPT-s8-0-fixture-recapture-2026-07-30.md`` (snapshot instant
+    2026-07-30T12:24:15Z; sources s3://autom8-s3/dataframes/1143843662099250/offer/).
+    """
+    return Materialization(
+        plane=_CURRENT_PLANE,
+        proof=FreshnessProof(
+            built_from_live_at=_WATERMARK_BUILT_FROM_LIVE_AT,
+            content_digest=_CURRENT_DIGEST,
+            sla_seconds=_OFFER_SLA_SECONDS,
+        ),
+        served_value=_CURRENT_VALUE,
+        composition=_CURRENT_COMPOSITION,
+        frame_digest=_CURRENT_DIGEST,  # digest-consistent: coherent current state, NOT corrupt
+    )
+
+
+def exemplar_two_observation() -> ParityObservation:
+    """The COHERENT current-state anchor: v1 == v2 (no divergence — a tripwire, not a wound)."""
+    current = exemplar_two_materialization()
+    return ParityObservation(aid=exemplar_two_aid(), v1=current, v2=current)
+
+
+def exemplar_two_source() -> FixtureParitySource:
+    """A parity source seeded with the current offer-plane anchor (exemplar #2 only)."""
+    return FixtureParitySource([exemplar_two_observation()])
+
+
+# The parity-gate enumeration point — exemplar #2 registered BESIDE exemplar #1. Net
+# corpus = 22 predicates unchanged + #1 (historical wound) + #2 (current anchor).
+PARITY_GATE_SOURCES: tuple[Callable[[], FixtureParitySource], ...] = (
+    exemplar_one_source,
+    exemplar_two_source,
+)
