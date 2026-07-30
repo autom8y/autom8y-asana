@@ -781,8 +781,7 @@ sprint and deliberately NOT designed into the S1 frozen contract (P7 — do not 
   proof-metadata sla 180→3600 (VALUE/composition/digest byte-unchanged — digest
   independence proven mechanically by the bytes-vs-constant tripwire). Frozen signatures,
   `FreshnessProof`/`RefuseReason`/`Provability` grammars: ALL unchanged. Ruling of record:
-  C8-sla-governance-packet-2026-07-30 §Ratification; full ruling text in the C17 PR body.
-
+  C8-sla-governance-packet-2026-07-30 §Ratification; full ruling text of record in C8-sla-governance-packet-2026-07-30 §Ratification.
 
 ---
 

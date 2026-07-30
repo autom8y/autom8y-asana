@@ -519,14 +519,20 @@ def test_sla_seconds_for_reads_the_governed_field_decoupled_from_cache_ttl() -> 
 
 
 def test_sla_seconds_falls_back_to_cache_ttl_when_ungoverned() -> None:
-    """C17 fallback: an entity WITHOUT a governed SLA resolves to default_ttl_seconds
-    (self-adjusting witness: requires the entity to actually be ungoverned)."""
+    """C17 fallback: an entity WITHOUT a governed SLA resolves to default_ttl_seconds.
+
+    Self-adjusting witness with mutant teeth (qa F1): the chosen entity must be
+    ungoverned AND carry a TTL != 3600, so an unconditional ``return 3600`` mutant
+    in ``sla_seconds_for`` fails here (LOCATION was rejected — its TTL is
+    coincidentally 3600, numerically degenerate with the governed value).
+    """
     from autom8_asana.core.entity_registry import get_registry
 
-    descriptor = get_registry().get_by_type(EntityType.LOCATION)
+    descriptor = get_registry().get_by_type(EntityType.SECTION)
     assert descriptor is not None
     assert descriptor.freshness_sla_seconds is None  # ungoverned by C8 ruling
-    assert sla_seconds_for(EntityType.LOCATION) == descriptor.default_ttl_seconds
+    assert descriptor.default_ttl_seconds != 3600  # mutant-killing precondition
+    assert sla_seconds_for(EntityType.SECTION) == descriptor.default_ttl_seconds
 
 
 def test_sla_seconds_for_unregistered_entity_fails_loud() -> None:
