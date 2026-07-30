@@ -503,16 +503,30 @@ def test_fold_rejects_naive_section_instant() -> None:
 # --------------------------------------------------------------------------- #
 
 
-def test_sla_seconds_for_reads_the_registry_ttl() -> None:
-    """C8: offer's SLA IS the registry's default_ttl_seconds (180s), not a new home."""
-    assert sla_seconds_for(EntityType.OFFER) == 180
+def test_sla_seconds_for_reads_the_governed_field_decoupled_from_cache_ttl() -> None:
+    """C17: offer's SLA is the GOVERNED freshness_sla_seconds (3600s), while the
+    cache-role default_ttl_seconds stays 180s — the dual role is provably split
+    (the AV-3 wound: a cache tune can no longer silently loosen freshness truth).
+    """
+    from autom8_asana.core.entity_registry import get_registry
+
+    descriptor = get_registry().get_by_type(EntityType.OFFER)
+    assert descriptor is not None
+    assert sla_seconds_for(EntityType.OFFER) == 3600
+    assert descriptor.freshness_sla_seconds == 3600
+    assert descriptor.default_ttl_seconds == 180  # cache TTL untouched (P6 witness)
+    assert sla_seconds_for(EntityType.OFFER) != descriptor.default_ttl_seconds
 
 
-def test_sla_seconds_per_entity_is_discoverable() -> None:
-    """Per-entity SLA values are discoverable and distinct (business 3600 vs offer 180)."""
-    assert sla_seconds_for(EntityType.BUSINESS) == 3600
-    assert sla_seconds_for(EntityType.OFFER) == 180
-    assert sla_seconds_for(EntityType.BUSINESS) != sla_seconds_for(EntityType.OFFER)
+def test_sla_seconds_falls_back_to_cache_ttl_when_ungoverned() -> None:
+    """C17 fallback: an entity WITHOUT a governed SLA resolves to default_ttl_seconds
+    (self-adjusting witness: requires the entity to actually be ungoverned)."""
+    from autom8_asana.core.entity_registry import get_registry
+
+    descriptor = get_registry().get_by_type(EntityType.LOCATION)
+    assert descriptor is not None
+    assert descriptor.freshness_sla_seconds is None  # ungoverned by C8 ruling
+    assert sla_seconds_for(EntityType.LOCATION) == descriptor.default_ttl_seconds
 
 
 def test_sla_seconds_for_unregistered_entity_fails_loud() -> None:

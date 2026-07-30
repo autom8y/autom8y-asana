@@ -88,3 +88,21 @@ made. Refusal fires at >1h, loudly.
 On `option-c` + values: an architect DELTA ruling + one small corridor PR land
 before S8-2 arms (P7 bar; qa-adversary review); the parity window then runs
 against governed SLAs.
+
+## Ratification record — 2026-07-30
+
+**Ruling received:** operator in-channel grant, verbatim: *"Apply it on my behalf
+with user-grade authority grant here through the ruling seam."* Recorded per the
+house one-word precedent (DP-2/DP-3 pattern: **recommendations as staged,
+unamended**) — the orchestrator notes explicitly that the grant's verb ("apply")
+names DP-4a; its extension to this packet is the one-word-precedent reading of
+"through the ruling seam" covering the queued rulings. **The operator was invited
+to flag if a narrower ruling was intended; values remain one-word-amendable.**
+
+| Sub-decision | Ruling |
+|---|---|
+| 1 · Mechanism | **option-c** — distinct governed `freshness_sla_seconds` (registry-additive; `sla_seconds_for` reads it with fallback). Architect DELTA + small corridor PR. |
+| 2 · Values | **table-as-recommended** — offer/unit/contact/business = 3600s; asset_edit/process = 3600s provisional (re-ratify at UV-P-6 discharge if cadence data warrants). |
+| 3 · Semantic delta | **ack** (by grant) — a green proof means "provably ≤ 1h old", never "current". |
+
+**Consequence: C8's S8-2 gate OPENS when the option-c PR lands green + reviewed.**

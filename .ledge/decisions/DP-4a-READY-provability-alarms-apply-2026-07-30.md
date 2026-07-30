@@ -93,3 +93,26 @@ genuinely parent-repo-adjacent and is untouched by this resolution.
 ## Requested ruling
 
 One word — **`applied`** (after running the lever) or **`hold`** (blocks S8-2).
+
+## Ratification record — 2026-07-30
+
+**Ruling: `applied`** — executed by the orchestrator UNDER OPERATOR GRANT, in-channel
+verbatim: *"Apply it on my behalf with user-grade authority grant here through the
+ruling seam."* (P9's terraform reservation discharged by explicit delegation; the
+grant, the plan, and the apply are receipted here.)
+
+- Plan of record: **6 to add, 0 to change, 0 to destroy** (saved-plan apply; no
+  plan/apply drift window). Correct resource addresses:
+  `prov{1_unprovable, 2_heartbeat_absence, 3_incomplete, 4_expected_set_mismatch,
+  5_expected_floor, 6_future_dated_proof}`.
+- Applied 2026-07-30 ~13:5x UTC; **verified live** via `describe-alarms`: all six
+  `asana-PROV-*` present, state `INSUFFICIENT_DATA` (expected — no evaluator emits
+  yet). **PROV-2 → ALARM expected within its ~1h dead-man window** (documented above;
+  the C10 fires-side evidence candidate). Defaults held: ticket-mode, no paging armed.
+- State posture: this dir had no backend; the apply initialized **local state**
+  (`terraform.tfstate`, gitignored, left in place as state-of-record for these six
+  resources). Flag for a future ops pass: adopt these into whatever root/backend
+  applied `observability_alarms.tf`, or keep dir-local state deliberately —
+  CloudWatch `PutMetricAlarm` is name-idempotent either way.
+
+**Consequence: Door #4a is DISCHARGED. S8-2's DP-4a gate is OPEN.**

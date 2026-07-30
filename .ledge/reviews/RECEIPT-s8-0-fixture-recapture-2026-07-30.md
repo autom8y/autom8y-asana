@@ -142,3 +142,15 @@ Retained under `tests/harness/substrate_gate/fixtures/offer_1143843662099250/`:
 
 No DuckDB MCP tooling was available in this dispatch. Parquet sums were derived with
 `polars` locally, as instructed. This skip is non-blocking.
+
+## Amendment — 2026-07-30 (C17): proof-metadata SLA 180→3600
+
+Per the C8 operator ruling (option-c, C8-sla-governance-packet-2026-07-30
+§Ratification) and architect build-note C17: exemplar #2's `FreshnessProof.
+sla_seconds` changes 180→3600 (the governed `freshness_sla_seconds`, decoupled
+from the cache-role `default_ttl_seconds` which stays 180). **The S3-derived
+VALUE ($80,985), composition, and content digest are byte-unchanged** —
+`sla_seconds` is proof-metadata, not a composition/digest input (proven
+mechanically by `test_fixture_parquet_bytes_rederive_the_pinned_constants`,
+which re-derives all three from raw bytes with zero reference to sla_seconds).
+No re-snapshot performed; **0 Asana calls, 0 S3 calls** in this amendment.

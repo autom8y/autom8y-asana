@@ -22,8 +22,10 @@ GID-set-preserving value edit (v1's blind spot) changes the digest.
 
 Purity: ``canonical_digest`` / ``is_provable`` / ``fold_built_from_live_at`` do
 no I/O and touch no registry. ``sla_seconds_for`` is the one function that reads
-the entity registry (C8 — no new config home); it uses a function-local import so
-the pure core stays registry-free.
+the entity registry (C8/C17 — no new config home: the governed
+``freshness_sla_seconds`` with ``default_ttl_seconds`` fallback, both attributes
+of the SAME registry home); it uses a function-local import so the pure core
+stays registry-free.
 """
 
 from __future__ import annotations
@@ -280,12 +282,14 @@ def canonical_digest(frame: pl.DataFrame) -> str:
 
 
 def sla_seconds_for(entity_type: EntityType) -> int:
-    """C8: the freshness ``sla_seconds`` for an entity class, read from the entity registry.
+    """C8/C17: the freshness ``sla_seconds`` for an entity class, from the entity registry.
 
-    No new config home ([H1]): the value IS the registry's existing per-entity
-    ``default_ttl_seconds`` (e.g. offer = 180s). The registry is a heavy in-memory
-    singleton, so the import is function-local to keep the pure-core surface of
-    this module registry-free.
+    No new config home ([H1]): the registry IS the home. Post-C17 (operator-ratified
+    option-c, C8-sla-governance-packet-2026-07-30) the value is the GOVERNED
+    ``freshness_sla_seconds`` (e.g. offer = 3600s), falling back to the cache-role
+    ``default_ttl_seconds`` only when ungoverned — the dual role is decoupled. The
+    registry is a heavy in-memory singleton, so the import is function-local to keep
+    the pure-core surface of this module registry-free.
 
     Raises:
         ValueError: if ``entity_type`` has no registry descriptor (an unregistered
@@ -298,5 +302,7 @@ def sla_seconds_for(entity_type: EntityType) -> int:
         raise ValueError(
             f"no entity-registry descriptor for {entity_type!r}; cannot resolve sla_seconds"
         )
+    if descriptor.freshness_sla_seconds is not None:
+        return descriptor.freshness_sla_seconds
     seconds: int = descriptor.default_ttl_seconds
     return seconds
