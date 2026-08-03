@@ -282,6 +282,36 @@ land in the SAME repo (`autom8y-asana`) on DISJOINT files** — the law at
 Fleet inheritance is by kit application, not by a shared path. **Non-blocking**: a framing
 correction for the operator's model; it changes no artifact location in this wave.
 
+## §4b — Bridge-period + gate laws (folded 2026-08-03, operator interview #2)
+
+Three fleet-transferable laws ratified at the asana proving ground during the S8
+bridge period, folded here per the operator's law-altitude ruling so every sibling
+inherits them rather than rediscovering them. Charter-of-record: the [A-2026-08-03]
+amendment blocks in `CHARTER-substrate-v2-epoch-2026-07-27` (P5/P6/P12/P13/P1-fleet).
+
+1. **Floor-integrity exception class (P6 amendment).** During any v1-frozen bridge
+   period, signal-truth defects IN the honesty floor's own machinery (a false-stale
+   or false-fresh emitted by the floor's guards/stamps themselves) are freeze-EXEMPT
+   as a class: fixed small, adversarially reviewed, inscribed as micro-packets with
+   the epistemic rationale — no per-instance operator halt. Rationale: a floor that
+   emits a known-false signal violates the freeze's purpose ("keeps v1 honest")
+   harder than a scoped fix does; false-staleness is the alarm-fatigue direction
+   that buries real wounds. Exemplar: FIX-1 (empty-section stamp — the false-CLEAN
+   class is unconstructable at rows=0, so hash-CLEAN on an empty section IS complete
+   verification).
+
+2. **Evidence-closed parity window (P5 amendment).** A cutover-gate live-parity
+   window closes on EVIDENCE, never calendar: >=2 distinct warm cycles in parity,
+   every ledger divergence explained, zero open wounds, budget honored — with a
+   ~3-day floor (cadence diversity) and a hard ceiling honoring "days not weeks".
+   A wound restarts the clock by adjudicator ruling. Operator visibility:
+   wound-interrupts + daily digests, full ledger at the gate verdict.
+
+3. **Standing ruling-seam protocol (P13).** Non-door rulings auto-ratify as staged
+   on inscription with a 24h operator amend window (provenance disclosed in every
+   ratification record); one-way doors always halt for the operator's explicit
+   word. Doors stay sacred; the corridor stays fast.
+
 ## §5 — Provenance and grade
 
 - **Grade: MODERATE** (self-ref ceiling; self-authored corridor doctrine). STRONG is the
