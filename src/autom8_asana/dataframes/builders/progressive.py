@@ -399,8 +399,13 @@ class ProgressiveProjectBuilder:
             from autom8_asana.dataframes.builders.freshness import (
                 ProbeVerdict,
                 SectionFreshnessProber,
+                compute_gid_hash,
             )
             from autom8_asana.dataframes.section_persistence import SectionStatus
+
+            # FIX-1 coherence anchor: the hash of the EMPTY GID set. A section
+            # is coherently-empty only when rows==0 AND gid_hash matches this.
+            _EMPTY_GID_HASH = compute_gid_hash([])
 
             prober = SectionFreshnessProber(
                 client=self._client,
@@ -531,22 +536,34 @@ class ProgressiveProjectBuilder:
                         # fresh watermark, so they fall through and stamp.
                         #
                         # FIX-1 (floor-integrity law, charter P6 [A-2026-08-03]):
-                        # the no-stamp rule EXEMPTS rows==0 sections. On an
-                        # empty section the D8 false-CLEAN class is
-                        # UNCONSTRUCTABLE — any content requires a task, any
-                        # task changes the GID set from empty, and the prober
-                        # compares the LIVE GID fetch against the stored hash
-                        # every warm. Hash-CLEAN on an empty section therefore
-                        # IS complete verification ("still empty" is re-proven
-                        # each warm); withholding the stamp mislabeled a
-                        # verified fact as unverifiable and pinned the
+                        # the no-stamp rule EXEMPTS COHERENTLY-EMPTY sections
+                        # (rows==0 AND gid_hash == hash(∅)). On such a section
+                        # the D8 false-CLEAN class is UNCONSTRUCTABLE — any
+                        # content requires a task, any task changes the GID set
+                        # from empty, and the prober compares the LIVE GID
+                        # fetch against the stored hash every warm. Hash-CLEAN
+                        # therefore IS complete verification ("still empty" is
+                        # re-proven each warm); withholding the stamp mislabeled
+                        # a verified fact as unverifiable and pinned the
                         # verification floor (18 empty sections at the last
-                        # pre-P3 bulk stamp -> a false-stale WARNING). See
-                        # FIX-1-empty-section-stamp-2026-08-03.md.
+                        # pre-P3 bulk stamp -> a false-stale WARNING).
+                        #
+                        # COHERENCE PREMISE (qa F1, review of PR #299): the
+                        # exemption requires BOTH fields to agree. The delta
+                        # path can persist rows=0 beside a gid_hash of live
+                        # NON-empty GIDs (total fetch-failure burst on full
+                        # turnover — DEFECT-delta-path-empty-poison-2026-08-03);
+                        # in that poisoned state the next warm probes CLEAN
+                        # against the poisoned hash, and stamping would silence
+                        # the exact verification-age channel that detects it.
+                        # An incoherent rows=0 stays on the no-stamp path.
+                        # See FIX-1-empty-section-stamp-2026-08-03.md.
                         if (
                             r.verdict == ProbeVerdict.CLEAN
                             and stamp_info.watermark is None
-                            and stamp_info.rows != 0
+                            and not (
+                                stamp_info.rows == 0 and stamp_info.gid_hash == _EMPTY_GID_HASH
+                            )
                         ):
                             healed = await self._heal_null_watermark(r.section_gid)
                             if healed is not None:

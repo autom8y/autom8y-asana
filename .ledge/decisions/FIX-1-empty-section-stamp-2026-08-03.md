@@ -54,3 +54,20 @@ inscribed under **P13 staged-auto**: this packet AUTO-RATIFIES on inscription
 with a **24h operator amend window** — one word reverts. v2 impact: none (v2's
 whole-artifact proof design retires the per-section stamp entirely at cutover;
 this fix dies with v1 at S11, as all floor fixes do).
+
+## DELTA — 2026-08-03 (qa-adversary F1): the coherence premise, made explicit
+
+The adversarial review (PR #299, NO-GO iter 1) CONSTRUCTED a counterexample to
+"unconstructable at rows=0": the delta path can persist an INCOHERENT state —
+parquet/`rows`=0 beside a `gid_hash` computed from LIVE non-empty GIDs — when a
+full-turnover delta hits a total fetch-failure burst
+(`DEFECT-delta-path-empty-poison-2026-08-03`, pre-existing, out of this fix's
+scope). In that poisoned state the next warm probes CLEAN against the poisoned
+hash, and an unconditional rows==0 stamp would permanently silence the
+verification-age channel that detects it.
+
+**Repair (landed in the same PR):** the exemption requires COHERENT emptiness —
+`rows == 0 AND gid_hash == compute_gid_hash([])`. An incoherent rows=0 stays on
+the no-stamp path (verification age climbs → detected). Third test leg added:
+the poisoned tuple does NOT stamp. The 18 operator-reported prod sections are
+the coherent class (their `gid_hash` IS hash(∅)) — the cure is unaffected.
