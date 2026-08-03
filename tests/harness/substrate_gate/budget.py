@@ -139,13 +139,22 @@ class PerDayBudgetLedger:
                 f"parity budget ledger at {self._path} is not a JSON object "
                 f"(got {type(raw).__name__}) — refusing; a human must inspect/repair"
             )
-        try:
-            return {str(k): int(v) for k, v in raw.items()}
-        except (TypeError, ValueError) as exc:
-            raise BudgetLedgerCorrupt(
-                f"parity budget ledger at {self._path} has a non-integer day count — "
-                f"refusing; a human must inspect/repair: {exc}"
-            ) from exc
+        # F-2/F-3 (WU-3): strict non-negative-int day counts. ``int(v)`` silently
+        # coerced ``"7"`` -> 7, ``3.9`` -> 3 (truncated), ``True`` -> 1, and accepted a
+        # NEGATIVE count that fails the budget OPEN (a ``{"day": -1000000}`` payload grants
+        # ~1M attempts). Each day count MUST be a real, non-negative ``int`` (``bool`` is an
+        # int subclass -> rejected first); anything else is a tampered/corrupt ledger -> refuse
+        # loudly (refuse > wrong), never coerce.
+        parsed: dict[str, int] = {}
+        for key, value in raw.items():
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise BudgetLedgerCorrupt(
+                    f"parity budget ledger at {self._path} has a non-int/negative day count "
+                    f"for {key!r} ({value!r}) — refusing (no silent coercion/reset); "
+                    "a human must inspect/repair"
+                )
+            parsed[str(key)] = value
+        return parsed
 
     def _atomic_write(self, data: dict[str, int]) -> None:
         """Write ``data`` durably: temp file in the target dir, then atomic rename."""
@@ -206,7 +215,19 @@ class PerDayBudgetLedger:
         cross-process ``flock`` (see ``_acquire_lock``) so two processes near the cap
         serialize instead of both reading ``N < cap`` and both charging (a lost update
         that would overshoot the cap).
+
+        ``units`` MUST be ``>= 1`` (F-1, WU-3): before this guard, ``consume(-3)`` silently
+        REFUNDED the day's count (``current + (-3) > cap`` is False -> the ledger wrote a
+        LOWER count) and ``consume(0)`` at cap succeeded as a no-op. Both write states the
+        cap contract forbids. WU-3 computes caller-side multi-unit charges from an
+        HTTP-boundary count, so a sign/arithmetic bug there must fail the meter LOUD, never
+        silently refund it OPEN (mirrors the constructor's ``cap >= 1`` guard).
         """
+        if units < 1:
+            raise ValueError(
+                f"consume(units) requires units >= 1 (got {units}); a non-positive charge "
+                "would silently refund/no-op the day count and fail the P10 cap OPEN"
+            )
         lock_file = self._acquire_lock()
         try:
             data = self._load()
