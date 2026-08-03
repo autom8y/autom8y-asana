@@ -6,6 +6,7 @@ authored_on: 2026-07-27
 authored_by: operator-interview (3-phase, 12 rulings)
 status: accepted
 ratification: operator-interview-2026-07-27 (12 explicit rulings via AskUserQuestion)
+amended: 2026-08-03 (operator interview #2 — 11 rulings; IN-PLACE amendment blocks marked [A-2026-08-03] per the operator's explicit law-altitude ruling; original 2026-07-27 text preserved verbatim above each block)
 consumes: .ledge/reviews/DEFECT-seam1-entity-blind-prober-plane-split-2026-07-27.md
 seeds: /frame → /architect → /build → /qa ultracode workflows
 ---
@@ -72,11 +73,34 @@ not weeks)**: v2 computes the real numbers beside v1 against live prod, and
 **every divergence is explained before the flip**. Rollback = restore v1.
 V1 deletion follows cutover only after the gate's receipts are clean.
 
+> **[A-2026-08-03] Window law (evidence-closed).** The parity window closes on
+> EVIDENCE, never calendar: ≥2 distinct warm cycles observed in parity, every
+> ledger divergence explained, zero open wounds, budget honored — with a ~3-day
+> floor (cadence diversity) and a 7-day hard ceiling. A wound-class divergence
+> restarts the clock per pythia's ruling. **Operator visibility during the
+> window:** interrupts ONLY on {wound-class divergence, budget exhaustion,
+> alarm anomaly}; all else rides the dated daily parity handoff; the full
+> ledger arrives in the PT-03 packet. **Cutover trigger re-confirmed:** PT-03
+> PASS + rollback-drill green → the flip fires P9-autonomously; rollback stays
+> armed through PT-04.
+
 **P6 — V1 meanwhile: honest, frozen, zero new investment.** The landed guards
 (PR #276: entity-aware prober, plane-divergence refusal, verification-axis
 warnings) keep v1 honest. No further v1 hardening; a v1 refusal is answered by
 an operator re-baseline, never by new v1 code. The epoch's enemy is v1 quietly
 re-absorbing investment.
+
+> **[A-2026-08-03] Floor-integrity exception class.** Signal-truth defects IN
+> the honesty floor's own machinery (a false-stale or false-fresh emitted by
+> the #276-era guards/stamps themselves) are P6-EXEMPT as a class: fixed
+> small, adversarially reviewed, inscribed as micro-packets carrying the
+> epistemic rationale — no per-instance operator halt. All other v1 code stays
+> frozen. Rationale: P6's stated purpose is "keeps v1 honest"; a floor that
+> emits a known-false signal violates P6 harder than a scoped fix does, and
+> false-staleness is the alarm-fatigue direction that buried the original
+> wound. First instance: FIX-1 (empty-section stamp — the D8 false-CLEAN class
+> is unconstructable at rows=0, so a hash-CLEAN on an empty section IS complete
+> verification and stamps).
 
 **P7 — Working proof bar: green CI + adversarial review.** Per unit of work,
 the bar is discriminating tests + adversarial review — economical by design.
@@ -117,6 +141,28 @@ disabled); each RC-invariant is impossible-by-construction or fail-loud in v2;
 and the doctrine + reusable forms are packaged so the fleet wave can /frame
 directly from them. "Unblocked" means: the next repo's reconstruction is a
 template application, not a research project.
+
+> **[A-2026-08-03] Fast extinction.** The DP-1 packet (countable v1-surface
+> register + adversary dissent on forgone rollback) is authored the moment
+> PT-04 closes, and the delete EXECUTES immediately on the operator's explicit
+> word — no additional soak. Operator-ruled over the soak-gated alternative:
+> the strongest anti-RC-D posture; every week of dual-state is a week the
+> split-brain class stays constructable. DP-1 remains a halting one-way door.
+
+**P13 [A-2026-08-03] — Standing ruling-seam protocol (epoch remainder).** For
+NON-door rulings (C8-class governance, floor-integrity fixes, window
+parameters): the staged recommendation AUTO-RATIFIES on inscription, with a
+standing **24h operator amend window** — one word reverts, and every
+ratification record discloses this provenance. One-way DOORS (DP-1, DP-4b, any
+newly-identified door) still HALT for the operator's explicit word. Codifies
+the observed in-channel grant practice of 2026-07-30.
+
+**P1-fleet [A-2026-08-03] — Stream-2 boundary amendment (kit-gated overlap).**
+Amends P1/DEFER-1's boundary: once S9 doctrine LANDS and the S10 kit exists
+(both post-S8-green), the first sibling's /frame + audit phases MAY run in
+parallel with the epoch's S11/S12 tail — but **no sibling cutover lands before
+asana's S12 attestation**. First sibling prior: **autom8y-data**
+(wound-similarity), to be confirmed by the S10/UV-P-3 census before binding.
 
 ## Non-goals
 
