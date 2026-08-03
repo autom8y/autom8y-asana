@@ -515,6 +515,61 @@ class TestStampReseedIntegration:
             "permanently unverifiable (self-perpetuating hash-only CLEAN)."
         )
 
+    async def test_fix1_empty_null_watermark_clean_stamps(self) -> None:
+        """FIX-1 (floor-integrity law, charter P6 [A-2026-08-03]): a CLEAN verdict
+        on an EMPTY (rows=0) null-watermark section STAMPS — the D8 false-CLEAN
+        class is unconstructable at rows=0 (any content requires a task; any task
+        changes the GID set → STRUCTURE_CHANGED), so the hash check IS complete
+        verification. Two-sided with test_p3_...: the NON-empty null-watermark
+        sibling in the same warm still refuses to stamp (the load-bearing D8
+        guard is untouched).
+        """
+        wm = datetime(2026, 5, 27, 0, 0, tzinfo=UTC)
+        manifest = _make_manifest(
+            {
+                "sec_empty": SectionInfo(
+                    status=SectionStatus.COMPLETE,
+                    rows=0,  # EMPTY — the FIX-1 class (STAGING/PENDING APPROVAL/... in prod)
+                    name="STAGING",
+                    watermark=None,
+                    gid_hash="empty-hash",
+                ),
+                "sec_populated_nowm": SectionInfo(
+                    status=SectionStatus.COMPLETE,
+                    rows=3,  # populated null-watermark — P3 no-stamp MUST hold
+                    name="ONE-OFF",
+                    watermark=None,
+                    gid_hash="def",
+                ),
+            }
+        )
+        probe_results = [
+            SectionProbeResult("sec_empty", ProbeVerdict.CLEAN),
+            SectionProbeResult("sec_populated_nowm", ProbeVerdict.CLEAN),
+        ]
+        builder, persistence, fake_prober = _make_progressive_builder_with_fakes(
+            manifest,
+            probe_results=probe_results,
+            applied_gids=frozenset(),
+            section_dfs={},  # heal finds nothing for either (no cached frames)
+        )
+        manifest.completed_sections = 2
+        await self._invoke_probe(builder, manifest, section_names={}, fake_prober=fake_prober)
+
+        out_empty = persistence.manifest.sections["sec_empty"]
+        out_populated = persistence.manifest.sections["sec_populated_nowm"]
+        assert out_empty.last_verified_at is not None, (
+            "FIX-1 FAIL: an EMPTY null-watermark CLEAN section was not stamped — "
+            "its emptiness IS fully re-verified by the live GID-hash comparison "
+            "every warm; withholding the stamp pins the verification floor and "
+            "emits the false-stale WARNING the floor-integrity law exists to kill."
+        )
+        assert out_populated.last_verified_at is None, (
+            "FIX-1 FAIL (two-sided): a POPULATED null-watermark CLEAN section was "
+            "stamped — the load-bearing P3/D8 guard must survive FIX-1 untouched."
+        )
+        assert out_empty.watermark is None  # nothing to heal on an empty section
+
     async def test_t10_stamp_phase_failure_emits_metric(self) -> None:
         """T10 (amended): a stamp-phase exception emits
         ``section_last_verified_stamp_failed`` rather than disappearing

@@ -529,7 +529,25 @@ class ProgressiveProjectBuilder:
                         # NEXT warm can content-verify and stamp it
                         # legitimately. Delta/refetch verdicts already wrote a
                         # fresh watermark, so they fall through and stamp.
-                        if r.verdict == ProbeVerdict.CLEAN and stamp_info.watermark is None:
+                        #
+                        # FIX-1 (floor-integrity law, charter P6 [A-2026-08-03]):
+                        # the no-stamp rule EXEMPTS rows==0 sections. On an
+                        # empty section the D8 false-CLEAN class is
+                        # UNCONSTRUCTABLE — any content requires a task, any
+                        # task changes the GID set from empty, and the prober
+                        # compares the LIVE GID fetch against the stored hash
+                        # every warm. Hash-CLEAN on an empty section therefore
+                        # IS complete verification ("still empty" is re-proven
+                        # each warm); withholding the stamp mislabeled a
+                        # verified fact as unverifiable and pinned the
+                        # verification floor (18 empty sections at the last
+                        # pre-P3 bulk stamp -> a false-stale WARNING). See
+                        # FIX-1-empty-section-stamp-2026-08-03.md.
+                        if (
+                            r.verdict == ProbeVerdict.CLEAN
+                            and stamp_info.watermark is None
+                            and stamp_info.rows != 0
+                        ):
                             healed = await self._heal_null_watermark(r.section_gid)
                             if healed is not None:
                                 stamp_info.watermark = healed
