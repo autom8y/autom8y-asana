@@ -7,6 +7,7 @@ initiative: substrate-v2-epoch
 wave: S8-2
 session: session-20260803-220334-f2a75514
 pr: 301
+pr_addendum: 303  # second gate section appended same-file (warm seat): exemplar #2 leg-2 re-pin
 date: 2026-08-03
 reviewer: qa-adversary (P7 adversarial gate, WU-2)
 reviewed_sha: b9e0d4d5 (branch fix/s8-2-budget-ledger-hardening, off main 5d62d0b8)
@@ -150,3 +151,108 @@ P7 line: **self-assessment caps MODERATE.** Discrimination and race evidence abo
 own-hands (not inherited from the builder), but this receipt is same-rite authorship;
 STRONG on the mechanism arrives only via rite-disjoint corroboration (PT-03 fresh potnia +
 cross-rite security critics at WU-5).
+
+---
+
+# QA GATE — PR #303 exemplar #2 leg-2 re-pin
+
+**VERDICT: GO** — the coherent-set discipline of the pythia drift verdict §4
+(RECEIPT-s8-0-fixture-recapture-2026-07-30.md, on main via #302) is satisfied on every
+term, verified own-hands from the committed bytes; zero MEDIUM/LOW findings, 1 INFO.
+**Self-assessment caps MODERATE** (P7 line).
+
+- **Reviewed**: PR #303, commit 329f3571 (branch fix/s8-2-exemplar2-leg2-repin, off main
+  5d62d0b8 — forks pre-#301; suite baseline 285). Diff scope: exemplars.py +
+  test_exemplar_two_drift.py + fixtures/offer_1143843662099250/{offer_plane_section_mrr.parquet
+  (Bin 2843→2838), watermark.json} — 4 files, nothing else.
+- **Session**: session-20260803-220334-f2a75514 · wave S8-2 · reviewer qa-adversary (P7 warm seat).
+
+## 1. Coherent-set advance (verdict §4 term 1) — PASS, own-hands recompute
+
+Value, digest, and fixture bytes advance TOGETHER in the single commit 329f3571. I
+recomputed BOTH pinned constants from the committed projection parquet bytes myself
+(polars group_by section / sum mrr / count; canonical json `sorted {section: [rows, value]}`
+compact separators; sha256):
+
+| Quantity | Recomputed from bytes | Pinned constant | Match |
+|---|---|---|---|
+| ACTIVE | 45r / $57,085 | 45r / $57,085 (exemplars.py:175) | YES |
+| OPTIMIZE - Human Review | 7r / $10,900 | 7r / $10,900 (exemplars.py:176) | YES |
+| STAGED | 6r / $8,000 | 6r / $8,000 (exemplars.py:177) | YES |
+| served_value | $75,985.0 | `_CURRENT_VALUE` 75_985.0 (exemplars.py:166) | YES |
+| in-scope rows | 58 | test_exemplar_two_drift.py:44 `== 58` | YES |
+| composition digest | sha256:4a3aca962e1b656a47a74c2d57c19d1353b024b11c98c54fee267666e5285b65 | `_CURRENT_DIGEST` (exemplars.py:170) | YES (exact) |
+
+Coherence bonus: the projection parquet holds 4,191 rows — exactly the watermark
+`row_count: 4191` (the full-plane (section, mrr) projection of the leg-2 frame, as §4
+requires). The verdict's re-pin contingency ("the projection being committed and
+re-deriving $75,985 from its own bytes") is discharged by direct recompute, not by
+trusting the constants.
+
+## 2. PII discipline (verdict §4 term 2) — PASS
+
+- Parquet schema inspected own-hands: **exactly** `{section: String, mrr: Float64}` —
+  no other columns. Section values are workflow labels (ACTIVE, INACTIVE, Sales
+  Process, ...), no customer identity.
+- **NO `dataframe.parquet` (full PII frame) entered the diff** — diff stat is exhaustive
+  (4 files); `git ls-files` on the fixture dir shows only the projection + watermark;
+  no untracked leakage. The full frame's sha256 `cb79eaf5…b75c261` is recorded
+  comment-only (exemplars.py:155-156) for re-fetch capability, per §4.
+- watermark.json: identical KEY SET to the leg-1 fixture (project_gid, watermark,
+  saved_at, row_count, columns [names only], entity_type, population_degraded,
+  population_min_rate) — only VALUES advanced (instant 16:12:41.349255, saved_at
+  …501623, row_count 4180→4191, population_min_rate 1.0→0.8205128205128205, matching
+  the verdict's anomaly-3 registration verbatim). Nothing else rode in.
+
+## 3. Exemplar #1 untouched + C17 (verdict §4 / bar 3) — PASS
+
+- Byte-level check: exemplars.py lines 1-138 (the whole frozen exemplar-#1 block)
+  are **diff-identical** between 5d62d0b8 and 329f3571 (both diff hunks land at :139+
+  and :182+, exemplar-2 region only). `$84,385` / `$79,585` wound archetype intact
+  (exemplars.py:57-58).
+- C17 wiring preserved: `_OFFER_SLA_SECONDS = 3600` unchanged (exemplars.py:163) and
+  the governed-contract assertion `proof.sla_seconds == 3600` retained
+  (test_exemplar_two_drift.py:65).
+
+## 4. Mutation probes (determinism tripwire has teeth)
+
+| Mutation | RED | Restored |
+|---|---|---|
+| `_CURRENT_VALUE` 75_985 → 75_986 | ALL 8 drift tests RED — the flip is caught at `Materialization` CONSTRUCTION (composition==served_value invariant), poisoning every exemplar-2 caller. The tripwire bites before assertion altitude. | `git checkout 329f3571 --`; 8/8 GREEN |
+| `_CURRENT_DIGEST` last hex 5→4 | exactly 1 RED: `test_fixture_parquet_bytes_rederive_the_pinned_constants` (recomputed-from-bytes digest ≠ pinned), 7 GREEN — narrow discrimination | same; 8/8 GREEN; full suite 285/285 |
+
+**Stale old-generation constants**: grep across tests/ for `614c9ab8 | 4e711a7a | 80_985 |
+80985 | da977513 | == 61 | 4180` → survivors ONLY in historical prose (exemplars.py:149
+GENERATIONS block + :204 docstring — the leg-1 retention §4 explicitly requires), **zero
+asserting positions**. No test still pins the old generation.
+
+## 5. Derived-constant coherence (bar 5) — PASS, re-derived
+
+- `_DRIFT_DELTA = -8_400.0`: 75,985 − 84,385 = −8,400 ✓ (test_exemplar_two_drift.py:29).
+- Docstring ledger closes exactly: shared-section shifts ACTIVE −$4,500 (61,585→57,085)
+  + OPTIMIZE +$3,000 (7,900→10,900) + STAGED −$2,000 (10,000→8,000) = **−$3,500**;
+  minus the $4,900 synthetic OTHER bucket = **−$8,400** headline ✓ (exemplars.py:195-201).
+- leg-1→leg-2 motion: $80,985 − $75,985 = $5,000 ✓ matching the verdict's PROMINENT-flagged
+  −$5,000/−6.17%; row motion 47→45 ACTIVE (2 offers) + 7→6 STAGED (1 offer) matches the
+  docstring's benign-motion narrative ✓. Historical leg-1 numbers are quoted unaltered.
+
+## 6. Suite + lint (bar 6) — PASS
+
+`uv run python -m pytest tests/harness/substrate_gate tests/unit/substrate -q` →
+**285 passed** at 329f3571 (expected on the pre-#301 fork; the 10 budget tests live on
+the other branch — no conflict, no rebase needed: the two PRs share zero files).
+Ruff check + format clean on both changed .py files. Post-mutation restores verified by
+clean `git status` on tests/ + full-suite re-run.
+
+## Findings
+
+| ID | Sev | Finding | Disposition |
+|---|---|---|---|
+| R-1 | INFO | The bytes tripwire filters to the three in-scope sections before digesting (test_exemplar_two_drift.py:110), so corruption confined to OUT-of-scope rows of the committed projection (4,133 of 4,191 rows) would not trip it. By design — the digest is defined over the lifecycle composition, and out-of-scope rows bear no pinned constant — but a swapped fixture that preserves the 3-section stats passes. Not worth hardening at P7 economy; noted for PT-03 awareness. | Carried (ledger note only). |
+
+**Verdict: GO.** 0 MEDIUM · 0 LOW · 1 INFO. No stale old-generation constant survived in
+any asserting position. The re-pin lands exactly as the pythia §4 grant prescribed.
+
+P7 line: **self-assessment caps MODERATE** — own-hands byte recompute and mutation
+discrimination, but same-rite authorship; rite-disjoint corroboration arrives at PT-03
+(fresh potnia fixture-replay) per the wave plan.
