@@ -515,6 +515,75 @@ class TestStampReseedIntegration:
             "permanently unverifiable (self-perpetuating hash-only CLEAN)."
         )
 
+    async def test_fix1_empty_null_watermark_clean_stamps(self) -> None:
+        """FIX-1 (floor-integrity law, charter P6 [A-2026-08-03]): a CLEAN verdict
+        on an EMPTY (rows=0) null-watermark section STAMPS — the D8 false-CLEAN
+        class is unconstructable at rows=0 (any content requires a task; any task
+        changes the GID set → STRUCTURE_CHANGED), so the hash check IS complete
+        verification. Two-sided with test_p3_...: the NON-empty null-watermark
+        sibling in the same warm still refuses to stamp (the load-bearing D8
+        guard is untouched).
+        """
+        manifest = _make_manifest(
+            {
+                "sec_empty": SectionInfo(
+                    status=SectionStatus.COMPLETE,
+                    rows=0,  # COHERENTLY empty — the FIX-1 class (STAGING/... in prod)
+                    name="STAGING",
+                    watermark=None,
+                    gid_hash=compute_gid_hash([]),  # hash(∅) — coherence REQUIRED
+                ),
+                "sec_populated_nowm": SectionInfo(
+                    status=SectionStatus.COMPLETE,
+                    rows=3,  # populated null-watermark — P3 no-stamp MUST hold
+                    name="ONE-OFF",
+                    watermark=None,
+                    gid_hash="def",
+                ),
+                "sec_poisoned": SectionInfo(
+                    status=SectionStatus.COMPLETE,
+                    rows=0,  # INCOHERENT empty (qa F1): rows=0 but gid_hash is of
+                    name="CALL",  # LIVE non-empty GIDs — the delta-path poison state
+                    watermark=None,  # (DEFECT-delta-path-empty-poison-2026-08-03)
+                    gid_hash=compute_gid_hash(["live-c", "live-d"]),
+                ),
+            }
+        )
+        probe_results = [
+            SectionProbeResult("sec_empty", ProbeVerdict.CLEAN),
+            SectionProbeResult("sec_populated_nowm", ProbeVerdict.CLEAN),
+            SectionProbeResult("sec_poisoned", ProbeVerdict.CLEAN),
+        ]
+        builder, persistence, fake_prober = _make_progressive_builder_with_fakes(
+            manifest,
+            probe_results=probe_results,
+            applied_gids=frozenset(),
+            section_dfs={},  # heal finds nothing for any (no cached frames)
+        )
+        manifest.completed_sections = 3
+        await self._invoke_probe(builder, manifest, section_names={}, fake_prober=fake_prober)
+
+        out_empty = persistence.manifest.sections["sec_empty"]
+        out_populated = persistence.manifest.sections["sec_populated_nowm"]
+        out_poisoned = persistence.manifest.sections["sec_poisoned"]
+        assert out_empty.last_verified_at is not None, (
+            "FIX-1 FAIL: a COHERENTLY-empty null-watermark CLEAN section was not "
+            "stamped — its emptiness IS fully re-verified by the live GID-hash "
+            "comparison every warm; withholding the stamp pins the verification "
+            "floor and emits the false-stale WARNING the law exists to kill."
+        )
+        assert out_populated.last_verified_at is None, (
+            "FIX-1 FAIL (two-sided): a POPULATED null-watermark CLEAN section was "
+            "stamped — the load-bearing P3/D8 guard must survive FIX-1 untouched."
+        )
+        assert out_poisoned.last_verified_at is None, (
+            "FIX-1 FAIL (qa F1 coherence): an INCOHERENT rows=0 section (gid_hash "
+            "of live non-empty GIDs — the delta-path poison state) was stamped. "
+            "Stamping it silences the verification-age channel that detects the "
+            "cache!=live poison; it MUST stay on the no-stamp path."
+        )
+        assert out_empty.watermark is None  # nothing to heal on an empty section
+
     async def test_t10_stamp_phase_failure_emits_metric(self) -> None:
         """T10 (amended): a stamp-phase exception emits
         ``section_last_verified_stamp_failed`` rather than disappearing
