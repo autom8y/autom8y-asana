@@ -8,6 +8,7 @@ wave: S8-2
 session: session-20260803-220334-f2a75514
 pr: 301
 pr_addendum: 303  # second gate section appended same-file (warm seat): exemplar #2 leg-2 re-pin
+pr_addendum_2: 305  # third gate section (warm seat): WU-3 arm-parity-window — NO-GO
 date: 2026-08-03
 reviewer: qa-adversary (P7 adversarial gate, WU-2)
 reviewed_sha: b9e0d4d5 (branch fix/s8-2-budget-ledger-hardening, off main 5d62d0b8)
@@ -256,3 +257,111 @@ any asserting position. The re-pin lands exactly as the pythia §4 grant prescri
 P7 line: **self-assessment caps MODERATE** — own-hands byte recompute and mutation
 discrimination, but same-rite authorship; rite-disjoint corroboration arrives at PT-03
 (fresh potnia fixture-replay) per the wave plan.
+
+---
+
+# QA GATE — PR #305 arm-parity-window (WU-3)
+
+**VERDICT: NO-GO** — two blocking-class findings (F-305-1 parity-number ≠ served
+active_mrr; F-305-2 refused rebuild outcomes emit clean-looking parity observations,
+proven by live probe). Both are BOUNDED fixes, not architecture: an outcome guard in the
+outbound + a served-number comparison leg (or an explicit pythia adjudication of the
+number's definition). Everything else on the PR is strong — the guard teeth all
+discriminate under mutation, the budget invariant holds on every probed path, the PROV
+identity chain closes against the tf bytes, and the F-1/F-2/F-3 carries from the #301
+gate are closed with discriminating tests. **Self-assessment caps MODERATE** (P7 line).
+
+- **Reviewed**: PR #305, commit 479fc38a (branch feat/s8-2-arm-parity-window, directly
+  off main 1276b732 — #301/#302 in base). Diff: src/autom8_asana/substrate/{live.py 844L,
+  prov_sweep.py 113L} + harness extensions (budget.py F-closes, parity.py additive arming)
+  + pyproject mypy override + 3 test files (+29 tests; 324 own-run).
+- **Session**: session-20260803-220334-f2a75514 · wave S8-2 · qa-adversary (warm seat #3).
+
+## Verification receipts (own hands)
+
+- Suite: `uv run python -m pytest tests/harness/substrate_gate tests/unit/substrate -q`
+  → **324 passed** at 479fc38a; re-run green after every mutation restore.
+- Ruff clean on all 7 changed .py files; `mypy --strict` clean on live.py + prov_sweep.py;
+  `mypy src` clean (574 files).
+- **mypy override scope verified honest**: removing the
+  `tests.harness.substrate_gate.*` follow_imports=silent override surfaces EXACTLY ONE
+  error — `cases.py:112` HarnessRefusePayload SunsetBreach variance, pre-existing and
+  harness-internal, precisely what the builder's comment claims. No src error is masked.
+- **Zero-live-network**: every boto3 use in the new tests sits inside `with mock_aws()`
+  (moto); CloudWatch in 3e tests is a recording stub (`_RecordingCloudWatch`,
+  test_prov_sweep.py:40-45); the real client path is lazy-constructed only in prod use.
+- **Seam-use attested**: rebuild.py NOT in the diff (Protocols/RebuildResult untouched);
+  parity.py diff is additive-only (`get_process_fetcher` arming kwargs +
+  `_arm_process_fetcher_in_place`; the PacedLiveParitySource class body unchanged).
+- **[H17]/F-2 reachability tooth bites**: mutating live.py to reference
+  `store.read_current` → `test_read_current_reachable_only_from_the_seam` RED (exactly);
+  restored GREEN. live/prov_sweep are on the store-import allowlist ONLY
+  (test_serve_raw_read_privacy.py:43-51 vs :56-59).
+- **PROV identity chain (iteration-1 NO-GO class) closes on tf bytes**: tf
+  `variable "environment"` default `"production"` (observability_alarms.tf:38-42) ==
+  `observe.DEFAULT_ENVIRONMENT` (observe.py:415) == `PROV_ENVIRONMENT` (prov_sweep.py:60);
+  every PROV-* alarm filters `dimensions = { environment = var.environment }`
+  (substrate_v2_provability_alarms.tf:118/147/175/204); namespace
+  `"Autom8y/SubstrateProvability"` == tf default (:62). Both sides test-pinned
+  (tf string-diff test + heartbeat-dims test — two-sided).
+
+## Mutation-probe table (all discriminate; all restored, 324/324 after)
+
+| # | Guard mutated | RED test(s) | Rest |
+|---|---|---|---|
+| m1 | `_budget.consume()` removed from `_attempt_page` (live.py:466) | exactly 4: 3b clean-multipage-charges, 3b 429-still-charges, 3b exhaustion-halts, 3c budget-halt-receipt | 13 GREEN |
+| m2 | torn-read `frame.height != row_count` disabled (live.py:202) | exactly 1: 3a torn-read row-count refuses | 16 GREEN |
+| m3 | `PROV_ENVIRONMENT` → `"prod"` | exactly 1: 3e environment-matches-terraform | 3 GREEN |
+| m4 | F-1 `units < 1` guard disabled (budget.py) | exactly 1: `test_f1_consume_rejects_non_positive_units` | 27 GREEN |
+| m5 | conflicting-rearm refusal disabled (parity.py) | exactly 1: 3c conflicting-rearm-refuses | 16 GREEN |
+
+## Findings by severity
+
+| ID | Sev | Finding | Evidence / repro |
+|---|---|---|---|
+| F-305-1 | **HIGH — BLOCKING** | **The window's parity number is NOT the served active_mrr.** Production serve (from CODE, not receipts): `metrics/definitions/offer.py:26-43` — scope `classification="active"` + `dedup_keys=[office_phone, vertical]` + filter `mrr > 0`; `compute.py:67-79` filters sections via `CLASSIFIERS["offer"]`; `activity.py:181-207` — the "active" group is **22 sections**. live.py:106 pins **3** (`ACTIVE_MRR_SECTIONS`). Empirically (own-hands, fixture bytes at this branch): three production-ACTIVE sections are INVISIBLE to the window comparison — OPTIMIZE QUALITY - Update Targeting 1r/$1,500 + OPTIMIZE QUANTITY - Request Asset Edit 1r/$1,500 + OPTIMIZE QUANTITY - Update Offer Name 9r/$11,360 = **$14,360 of production-active MRR the window cannot see**. A v2 fetch PLAN that omits any of those sections yields a CLEAN parity read while v2-served active_mrr silently loses value — plan-driven partial refetch is exactly the machinery being armed. The dedup keys cannot even be expressed by the PII-safe fixture, so the harness *cannot* compare the served number as-built. The builder's live.py:102-105 comment discloses the narrowing honestly — but a comment is not an adjudication, and LEG-2 anchors to SERVED active_mrr. Whether the founding wound number ($79,585) coincided with the served surface is [UV-P: wound-instant served-value equals 3-section sum \| METHOD: operator/pythia historical-receipt check \| REASON: not derivable from present code — definitions differ today by construction]. | Remediate by ONE of: (a) compute the real metrics-pipeline active_mrr on BOTH in-memory frames inside the outbound and carry it in the observation + receipts (frames are live in memory; PII never persists); (b) extend the comparison set to `CLASSIFIERS["offer"].active_sections()`; (c) an explicit pythia ruling that the exemplar 3-section definition IS the LEG-2 anchor — silence is not an option at window-open. |
+| F-305-2 | **HIGH — BLOCKING** | **Refused rebuild outcomes emit clean-looking parity observations.** `_outbound` (live.py:721-736) guards only `fetched is None` — never `result.outcome`. A completeness-gap fetch returns FETCH_REFUSED **with** a captured partial frame (`rebuild.py:544-547` + `_CapturingFetcher`), so the outbound builds v2 from the PARTIAL frame and returns a normal `ParityObservation`. **Proven live (own adversarial test)**: 2-section plan, one section exhausts retries → receipt `outcome=fetch_refused` AND an observation with v2 served_value 100.0, `frame_digest == content_digest` (looks coherent). The refuse-loud C16 outcome masquerades as a window data point — poisoning the WU-4 divergence ledger (a partial in-scope frame reads as a WOUND; a partial out-of-scope frame reads CLEAN). Same class covers STAGED_REJECTED-with-frame (builder's own flag 5, still unexercised). | Fix: emit an observation ONLY on `RebuildOutcome.SWAPPED`; other outcomes raise `OfferSectionFetchError` (receipted). My probe tests are adaptable as the regression tests. |
+| F-305-3 | MEDIUM | **Charged prod touch with ZERO receipt on non-budget-halt raise paths.** Only `ParityBudgetExhausted` is caught for receipting (live.py:731-733); any other post-fetch raise propagates receipt-less. Proven: value-column-poor rows → `MissingValueColumnsError` from staging — 1 budget unit charged, receipts dir EMPTY. Violates P10 "every prod touch leaves a receipt". | Wrap the outbound body; write an `outcome=error` receipt on any raise after the first charge. |
+| F-305-4 | MEDIUM | **Torn-read guard misses an equal-rowcount generation swap.** Proven: watermark from a "newer generation" with matching `row_count` → accepted; the stale frame wears the newer build instant (the fresh-stamped-staleness wound class). The 2-object guard cannot see section mtimes (leg-1's S3-LIST cross-check). Mitigation in-window: the v2 comparison itself would flag the divergence. | WU-4: add the section-listing cross-check or a double-read watermark byte-equality guard; or pythia-note the residual. |
+| F-305-5 | MEDIUM (process) | **Merge-order collision with PR #303**: test_live pins leg-1 literals (`80_985.0` at :177/:229/:395) against fixture bytes #303 re-pins to leg-2 ($75,985). Whichever merges second goes RED at integration. | Rebase #305 over #303; pin via exemplar constants (already imported), not literals. |
+| F-305-6 | LOW | Pre-budgeted singleton double-charges after in-place arming: `get_process_fetcher(budget=L)` then `arm_process_parity_fetcher(...)` → source-level + page-level charges (proven: 2 charges for 1 page). Unreachable via `arm_offer_parity_window` (fresh source, budget=None). | Guard: assert/null the source-level budget at arm time. |
+| F-305-7 | LOW (doc) | 429/retry docs imply in-sweep retries that cannot occur (see ruling flag 2): ALL boundary exceptions wrap to non-transient `ParityOutboundError` before the orchestrator sees them, so `execute_with_retry_async` never retries; `retries_issued = requests − pages` counts FAILED attempts, not retries. | Doc fix at live.py:405-413/:456-462 + FetchTelemetry semantics note. |
+
+## Rulings on the two flagged design questions
+
+**Flag 2 — 429/retry semantics: RIGHT, but misdocumented (carry doc fix F-305-7).**
+The posture — a 429 charges its unit, shrinks the AIMD window (`slot.reject()`,
+live.py:474, mirroring the S8-0 parity.py:249-250 discipline), FAILS this sweep's
+observation, and defers to the next paced sweep — is the P10-conservative choice:
+in-sweep retries against a rate-limited API are precisely the storm the budget exists to
+prevent, and pythia §5 is satisfied because every boundary ATTEMPT (success, 429, retry)
+charges before the call (m1 proves the tests discriminate on this). What is WRONG is the
+documentation: "per-page retry" (live.py:407, 484-490) implies in-sweep retry that is
+structurally impossible — `_attempt_page` wraps every exception into non-transient
+`ParityOutboundError` before the orchestrator classifies it, so the retry leg is v1-G6
+uniformity, not live retry. Post-F-305-2-fix, a 429'd sweep must surface as a receipted
+refusal, which completes this posture honestly.
+
+**Flag 3 — active_mrr definition: BLOCKING as-built (F-305-1).** The receipted 3-section
+set is NOT the number v1 serves — from code: served = Σ mrr over the 22-section
+classifier active-set, deduped by (office_phone, vertical), mrr>0 filtered. The window
+as-built proves parity of a harness-internal number and is structurally blind to
+$14,360 of production-active MRR at the current snapshot. MISSION anchors to "every
+business number the asana dataframe substrate serves"; LEG-2 anchors to served
+active_mrr. Either the comparison covers the served definition, or pythia explicitly
+rules the exemplar definition is the LEG-2 anchor — the window must not open on an
+unadjudicated ambiguity of its own core number.
+
+## WU-4 implications
+
+WU-4 must NOT open the window on this build. Iteration-2 needs: F-305-1 resolution
+(served-number leg or pythia ruling), F-305-2 outcome guard + regression tests
+(adversarial probes provided), F-305-3 error receipts, #303 rebase (F-305-5). F-305-4/6/7
+may ride as WU-4 conditions. The rest of the PR — budget invariant
+(`count_today == requests_issued` held on clean/429/reuse/refused paths), pacing
+composition, PROV chain, arming singleton discipline, F-carry closes — is sound and
+should survive iteration-2 unchanged.
+
+P7 line: **self-assessment caps MODERATE** — all discrimination and probe evidence is
+own-hands (not inherited), but same-rite authorship; the NO-GO gives the DELTA-scope for
+the builder's iteration-2 per critique-iteration-protocol.
