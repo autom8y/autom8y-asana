@@ -360,10 +360,14 @@ def assert_universe_floor(in_scope_phone_count: int, *, floor: int) -> None:
         EnrollmentRefusedError: when the in-scope universe is below the floor.
     """
     if floor <= 0:
+        # ★ A refusal that withholds the number needed to fix it is a dead end. The
+        # OBSERVED universe is named here so a dry-run against an unset floor tells
+        # the operator exactly what to set it from -- refuse loudly AND usefully.
         raise EnrollmentRefusedError(
             f"universe floor is unset or non-positive ({floor}) -- refusing rather "
-            "than running against an unbounded universe. Set it from the live "
-            "recovered universe (TDD build-entry measurement E-2); it is "
+            "than running against an unbounded universe. Observed in-scope universe "
+            f"this cycle: {in_scope_phone_count} phones. Set the floor from the live "
+            "recovered universe (TDD build-entry measurement E-2, phone-side); it is "
             "deliberately not defaulted, because a guessed floor is no floor."
         )
     if in_scope_phone_count < floor:
@@ -388,9 +392,14 @@ def assert_delta_within_ceiling(delta_count: int, *, ceiling: int) -> None:
         EnrollmentRefusedError: when ``delta_count > ceiling``.
     """
     if ceiling <= 0:
+        # ★ Same discipline as the floor: name the OBSERVED delta so a dry-run
+        # against an unset ceiling is the very instrument that sizes it. Without
+        # this, the pre-arm observation cycle could never report the number the
+        # operator needs, and the ceiling would end up guessed.
         raise EnrollmentRefusedError(
             f"delta ceiling is unset or non-positive ({ceiling}) -- refusing rather "
-            "than running without a mass-change brake."
+            "than running without a mass-change brake. Observed flip-delta this "
+            f"cycle: {delta_count} offices. Size the ceiling from a watched dry-run."
         )
     if delta_count > ceiling:
         raise EnrollmentRefusedError(

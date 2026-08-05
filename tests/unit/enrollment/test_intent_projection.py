@@ -598,8 +598,12 @@ class TestUniverseFloorRefusal:
         932 -> 1-44 collapse untouched. A zero/unset floor here must therefore be a
         refusal, not a permissive default.
         """
-        with pytest.raises(EnrollmentRefusedError, match="unset or non-positive"):
+        with pytest.raises(EnrollmentRefusedError, match="unset or non-positive") as exc:
             assert_universe_floor(900, floor=0)
+        # ★ The refusal must NAME the observed universe, so a dry-run against an
+        # unset floor is the instrument that sizes it. A refusal that withholds the
+        # number needed to fix it is a dead end.
+        assert "900 phones" in str(exc.value)
 
     def test_a_one_row_floor_would_not_have_caught_the_observed_collapse(self) -> None:
         """Documents CARD WS-B/4 mechanically: why the producer's floor is decorative."""
@@ -620,8 +624,10 @@ class TestDeltaCeilingRefusal:
             assert_delta_within_ceiling(26, ceiling=25)
 
     def test_RED_unset_ceiling_refuses(self) -> None:
-        with pytest.raises(EnrollmentRefusedError, match="unset or non-positive"):
-            assert_delta_within_ceiling(1, ceiling=0)
+        with pytest.raises(EnrollmentRefusedError, match="unset or non-positive") as exc:
+            assert_delta_within_ceiling(7, ceiling=0)
+        # Same discipline: the pre-arm dry-run reports the delta it would have made.
+        assert "7 offices" in str(exc.value)
 
     def test_refusal_is_at_the_boundary_not_approximate(self) -> None:
         """Non-vacuity: the ceiling bites at exactly ceiling+1, not before."""
