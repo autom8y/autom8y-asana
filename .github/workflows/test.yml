@@ -164,6 +164,7 @@ jobs:
           # required-version constraint in this repo; pinned to the
           # currently-observed-in-CI resolved version, live gh run log probe).
           version: "0.12.1"
+          cache-suffix: fuzz
 
       # G1-W05 WI-2 FIX-A (2026-05-16): cross-repo App-token mint.
       # secrets.GITHUB_TOKEN is satellite-scoped and cannot read
@@ -310,6 +311,7 @@ jobs:
           # required-version constraint in this repo; pinned to the
           # currently-observed-in-CI resolved version, live gh run log probe).
           version: "0.12.1"
+          cache-suffix: workflow-handler-isolated
 
       - name: Install dependencies
         run: |
@@ -409,6 +411,7 @@ jobs:
           # required-version constraint in this repo; pinned to the
           # currently-observed-in-CI resolved version, live gh run log probe).
           version: "0.12.1"
+          cache-suffix: lint-noqa-drift
 
       - name: RUF100 drift-guard (fail on unused noqa in src/; KEEP-floor honored via pyproject)
         # MUST run from the checkout root with the RELATIVE `src/` target: ruff resolves
@@ -512,6 +515,7 @@ jobs:
           # required-version constraint in this repo; pinned to the
           # currently-observed-in-CI resolved version, live gh run log probe).
           version: "0.12.1"
+          cache-suffix: mcp-island
 
       - name: Install mcp island (its OWN pyproject, dev extra)
         # --no-sources: ignore any [tool.uv.sources] path overrides; resolve

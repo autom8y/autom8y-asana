@@ -128,6 +128,7 @@ jobs:
           # REL-005: pin + cache-suffix + prune-cache — see durations-refresh.yml
           # for the pin-source rationale (F5: no [tool.uv] constraint here).
           version: "0.12.1"
+          cache-suffix: nightly-live-smoke
 
       - name: Install dependencies
         # --no-sources: ignore [tool.uv.sources] monorepo-relative path overrides
