@@ -415,8 +415,12 @@ async def test_3b_frame_uses_explicit_schema_not_bare_inference(tmp_path: Path) 
     """
     # 120 (> default infer_schema_length 100) rows with a null office_phone, then one carrying
     # the real string — reproduces the exact prod row shape at zero live cost.
-    null_run = [{**_offer_row("ACTIVE", offer_id=str(i), mrr=1.0), "office_phone": None} for i in range(120)]
-    late_string = _offer_row("ACTIVE", offer_id="late", mrr=1.0, office_phone="COvGsYz26fe7oVUjzYLP")
+    null_run = [
+        {**_offer_row("ACTIVE", offer_id=str(i), mrr=1.0), "office_phone": None} for i in range(120)
+    ]
+    late_string = _offer_row(
+        "ACTIVE", offer_id="late", mrr=1.0, office_phone="COvGsYz26fe7oVUjzYLP"
+    )
     pages = {"ACTIVE": [null_run + [late_string]]}
     ledger = _ledger(tmp_path)
     fetcher = _fetcher(
