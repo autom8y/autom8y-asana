@@ -63,6 +63,7 @@ jobs:
             --domain autom8y \
             --query authorizationToken \
             --output text)
+          echo "::add-mask::$TOKEN"
           echo "CODEARTIFACT_AUTH_TOKEN=$TOKEN" >> "$GITHUB_ENV"
 
       - name: Install dependencies
