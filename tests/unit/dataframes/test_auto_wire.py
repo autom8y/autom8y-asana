@@ -48,6 +48,7 @@ class TestSchemaRegistryAutoWire:
             "Offer",
             "AssetEdit",
             "AssetEditHolder",
+            "UnitHolder",  # WS-B: UNIT_HOLDER_SCHEMA (nine cf: posture columns)
             "ProcessSales",
             "ProcessOutreach",
             "ProcessOnboarding",
