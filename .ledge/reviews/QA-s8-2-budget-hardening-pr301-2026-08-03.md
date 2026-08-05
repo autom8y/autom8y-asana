@@ -507,3 +507,197 @@ per touch.
 P7 line: **self-assessment caps MODERATE** — all mutation discrimination and the
 lying-plan/backstop evidence are own-hands, but same-rite authorship; rite-disjoint
 corroboration arrives at PT-03 (fresh potnia, de novo, per-question receipts).
+
+---
+
+# QA GATE — PR #309 window runner (WU-4 entry)
+
+**VERDICT: GO** — the final corridor gate passes. The runner honors all seven consolidated
+WU-4 entry conditions; the three new guards discriminate under mutation; every flagged
+question is ruled below, none blocking. 0 HIGH · 0 MEDIUM · 1 LOW · 4 INFO.
+**Self-assessment caps MODERATE** (P7 line). The LIVE INVOCATION RUNBOOK at the end of
+this section is the session's verbatim assembly instruction.
+
+- **Reviewed**: PR #309, commit 69e65c59 (branch feat/s8-2-window-runner, off main
+  e987c84c which carries #305). Delta: parity_run.py (479L) + test_parity_run.py (16
+  tests) + additive `min_build_instant` on `arm_offer_parity_window` (live.py:1148-1183,
+  param + threading only) + parity_run.py added to the [H17] store-IMPORTER allowlist
+  ONLY (not the read-current list — the reachability tooth still guards).
+- Suite **352/352** own-run; ruff clean; `mypy --strict` clean on parity_run.py;
+  `mypy src` clean (575 files). **Zero-live-network**: all boto3 in the runner tests sits
+  inside `with mock_aws()` (3 sites); CW is injectable stub; `main()` raises
+  `NotImplementedError` until the runbook supplies real seams — no accidental live path.
+
+## Mutation-probe table (all discriminate; restores clean; 16/16 after)
+
+| Guard | Mutation | RED test(s) |
+|---|---|---|
+| M-1 planner skip-clause (parity_run.py:181-185) | skipped section still declared covered (the lie re-introduced) | exactly 2: `test_m1_section_absent_from_fetch_is_not_covered_and_refuses` + the e2e `test_sweep_coverage_refusal_exit_10` |
+| `scan_last_served_build_instant` served-filter (:214) | non-served receipts counted into the monotonicity floor | exactly 1: `test_scan_returns_latest_served_ignoring_non_served` |
+| exit-code mapping (:91-94) | `refused-*` → SERVED | 4: both `test_exit_for_outcome[refused-*]` params + coverage-refusal e2e |
+
+## Per-flag rulings
+
+**Flag 1 — M-1 in prod + null-named sections: POSTURE CORRECT; no re-seed precondition;
+live manifest name-state is UV-P with a zero-charge loud-refusal failure mode.**
+Own-hands: `SectionInfo.name: str | None = None` (section_persistence.py:92) — names ARE
+optional in the schema, and the docstrings name the exact prod concern ("existing prod
+manifests whose `prior.name is None`", :199-206). But the re-seed channel is REAL and
+DEPLOYED: the warmer threads `section_names` from the warm-entry `_list_sections()`
+(progressive.py:268-287, referencing :472) into all three freshness stamp sites
+(freshness.py:559/:613/:659, `name=self._section_names.get(...)`) per ADR-006 §Decision-7
+— landed 2026-05-27 (cbfb61ca #67), two-plus months of ~20-50 min warm cycles since
+(leg-2 receipt shows offer warmed 2026-08-03 16:12). Names are near-certainly seeded.
+[UV-P: live offer manifest.json carries non-null names for all 22 classifier-active
+sections | METHOD: first-sweep coverage assertion (or a one-off read-only S3 GET of
+manifest.json) | REASON: manifest bytes are not in-repo; the live state is only probe-able
+at the window]. **The failure mode if wrong is the DESIGNED one**: a null-named (or
+manifest-absent) classifier-active section → not in `covered` →
+`assert_plan_covers_active_set` refuses BEFORE ANY CHARGE (live.py:648-651) → exit 10,
+refused-coverage receipt whose message LISTS the missing names, zero budget spent —
+P2 refuse>wrong exactly. **The known-empty REVIEW OPTIMIZATION section does NOT refuse**:
+it is classifier-active (activity.py:205) and LISTED in the 34-section manifest (the
+WU-1 34-vs-33 anomaly is manifest-listed-but-no-parquet); fetch-all fetches it (1 page,
+~0 rows) and covers it — same class as the other ~16 zero-row active sections. Day-one
+window-DOA via a known-empty section: **ruled OUT**.
+
+**Flag 2 — fan-out vs cap: RULED, headroom is massive; fetch-all for window-1 ACCEPTED.**
+Own-hands arithmetic (leg-2 fixture per-section rows; `params["limit"] = min(limit, 100)`
+— "Asana max is 100", clients/tasks.py:623): populated sections' pages = ACTIVE 1 +
+OPT-HR 1 + STAGED 1 + ACCOUNT ERROR 1 + AWAITING REP 1 + ACTIVATING 1 + COMPLETE 2 +
+IMPLEMENTING 1 + INACTIVE 11 + NEW LAUNCH 1 + OPTQ-UT 1 + OPTQ-RAE 1 + OPTQ-UON 1 +
+PLAYS 1 + Sales Process 29 = **54**; + ~19 empty manifest sections × 1 page = **≈73
+pages/sweep**. Cap 11,200/day → **≈153 sweeps/day capacity**; at the P5 densest cadence
+(72/day) ≈ 5,256 attempts = 47% of cap; at the ≥2-sweeps/day floor ≈ 146 attempts = 1.3%
+of cap. Deferring hash-CLEAN reuse is ACCEPTED for window-1 — conservative (charges more,
+refuses nothing) AND coverage-safest: under M-1 a skipped section is deliberately NOT
+covered, so fetch-all is the only zero-refusal-risk decider until reuse learns to declare
+hash-verified coverage (a post-window optimization).
+
+**Flag 3 — the transform seam: RULED, hand-rolling FORBIDDEN; the canonical transform is
+named; runbook must reuse it at PAGE level.** The v1 canonical task→row machinery is
+`DataFrameViewPlugin._extract_rows_async(task_dicts, project_gid=...)`
+(`src/autom8_asana/dataframes/views/dataframe_view.py:247`) — the SAME function both warm
+paths consume (progressive.py:1885-1898 via `_task_to_dict` :1856; freshness.py:516/:635),
+with custom-field extraction (office_phone, vertical per TDD-0009.1) and
+`BASE_OPT_FIELDS` (`dataframes/builders/fields.py:35`). **Impedance note (the mis-assembly
+trap)**: the canonical transform is ASYNC + BATCH; `build_live_offer_page_fetch`'s
+`to_offer_row` is sync per-task — a runbook forcing that seam would be tempted to
+hand-roll. RULING: the runbook does NOT use `to_offer_row` with a hand-rolled fn; it
+supplies its OWN `page_fetch` closure (run_window_sweep takes `page_fetch` directly) that
+calls the canonical extractor on the whole page (exact composition in the RUNBOOK below).
+Backstops if a transform is still mis-wired: missing columns → `ActiveMrrColumnMissing`
+REFUSES (never wrong-serves); wrong VALUES → LEG A v1-vs-v2 divergence (v1 is built by
+the real pipeline) — detected, never silent. A follow-up commit pinning a
+`page_fetch`-level composition helper is RECOMMENDED (non-blocking).
+
+**Flag 4 — receipt-driven outcome: RULED CORRECT.** No-new-receipt → outcome `error`,
+exit 30 (parity_run.py:390-395) — the right posture for "the outbound receipts on every
+path" being violated. Exactly-one-receipt-per-sweep holds by outbound design (one aid,
+one touch, every path receipts — proven at the #305 gates). A two-receipt anomaly
+(runner-retry bug) classifies from the NEWEST (sorted paths; HHMMSSffff names are
+chronological) while `receipts_written` lists BOTH — visible, not silent (I-1). The three
+e2e outcome classes (served/refusal/budget-halt → 0/10/20) are test-pinned and
+mutation-proven (mR3).
+
+**Flag 5 — PROV expected-set: RULED; exact composition named.** The protocol is two-sided
+(observe.py:213-227: `registry_targets()` should-exist ∪ `store_enumeration()`
+exists-in-store; symmetric difference = C7 drift). NO prod implementation exists in-tree —
+the runbook implements the tiny class (below). PROV-5 floor is `ExpectedCount < 1`
+(substrate_v2_provability_alarms.tf:218-224): the window-1 expected set
+`{offer_aid()}` (=1) clears it. Window-1 composition: registry side = the offer aid ONLY
+(the sole v2-governed artifact this window; widening to the six governed entities happens
+as they onboard — declaring all six now would fire C7 expected-set-mismatch against a
+store that legitimately holds only offer); store side = enumeration of the v2 bucket's
+artifact prefix.
+
+## Findings
+
+| ID | Sev | Finding | Disposition |
+|---|---|---|---|
+| L-1 | LOW | `_run_parity`'s no-new-receipt → ERROR branch (parity_run.py:390-395) is code-read-verified but not test-pinned. | Carry: add a test when convenient; 6-line branch, correct by read. |
+| I-1 | INFO | Two-receipts-in-one-sweep classifies from the newest; both visible in `receipts_written`. | Ledger note. |
+| I-2 | INFO | Live manifest name-state + classifier-name-presence are UV-P (above) — first sweep resolves them loudly at zero charge. | Runbook expectation note. |
+| I-3 | INFO | Transform seam impedance (async/batch canonical vs sync/per-task `to_offer_row`) — resolved by the page-level runbook composition; helper commit recommended. | Non-blocking recommendation. |
+| I-4 | INFO | `main()` refuses until runbook assembly (NotImplementedError) — correct; the CLI is a shell, `run_window_sweep` is the tested composition point. | None. |
+
+## LIVE INVOCATION RUNBOOK (the session executes this verbatim at WU-4 open)
+
+Run from the repo root (harness importable), fresh process, off-peak for the first sweep
+(outside the ~:12-per-hour offer warm to avoid racing the v1 writer on the first
+monotonicity read; subsequent sweeps are guarded by the torn-read + monotonicity teeth
+regardless).
+
+```python
+import asyncio
+
+from autom8_asana.clients.tasks import <the v1 tasks-client factory the session already uses>
+from autom8_asana.dataframes.builders.fields import BASE_OPT_FIELDS
+from autom8_asana.dataframes.section_persistence import SectionPersistence
+from autom8_asana.dataframes.storage import S3DataFrameStorage, S3LocationConfig  # v1 home
+from autom8_asana.dataframes.views.dataframe_view import DataFrameViewPlugin  # offer schema view
+from autom8_asana.substrate.identity import ArtifactId
+from autom8_asana.substrate.live import offer_aid
+from autom8_asana.substrate.parity_run import (
+    SectionPersistenceManifestSource,
+    run_window_sweep,
+)
+from autom8_asana.substrate.store import S3ArtifactStore
+
+# 1) Manifest source — the v1 pipeline's OWN listing (M-1; S3 GET only)
+manifest_source = SectionPersistenceManifestSource(
+    SectionPersistence(S3DataFrameStorage(location=S3LocationConfig(bucket="autom8-s3")))
+)
+
+# 2) page_fetch — the REAL Asana client + the CANONICAL v1 transform at PAGE level
+#    (flag-3 ruling: NEVER hand-roll the task->row mapping; reuse
+#    DataFrameViewPlugin._extract_rows_async — dataframes/views/dataframe_view.py:247 —
+#    the same function progressive.py:1885 / freshness.py:516 consume)
+view = <the offer-schema DataFrameViewPlugin instance the v1 builder constructs>
+tasks_client = <the same AsanaHTTPClient-backed tasks client v1 uses (clients/tasks.py:614-627 idiom)>
+_OPT = ",".join(BASE_OPT_FIELDS)
+
+async def page_fetch(aid: ArtifactId, section_gid: str, cursor: str | None):
+    tasks, next_cursor = await tasks_client.get_tasks_page(  # one get_paginated == one page == one charge
+        section=section_gid, opt_fields=_OPT, offset=cursor, limit=100
+    )
+    task_dicts = [t.model_dump() for t in tasks]  # same shape progressive._task_to_dict emits
+    rows = await view._extract_rows_async(task_dicts, project_gid=aid.project_gid)
+    return rows, next_cursor
+
+# 3) PROV expected-set — window-1 = the offer aid ONLY (clears the PROV-5 >=1 floor;
+#    widen as entities onboard; declaring all six now would false-fire C7 mismatch)
+class WindowOneExpectedSet:
+    async def registry_targets(self) -> set[ArtifactId]:
+        return {offer_aid()}
+    async def store_enumeration(self) -> set[ArtifactId]:
+        store_aids = <enumerate the v2 bucket's artifact prefix -> ArtifactIds>
+        return set(store_aids)
+
+summary = asyncio.run(run_window_sweep(
+    bucket="autom8-s3",
+    page_fetch=page_fetch,
+    manifest_source=manifest_source,
+    v2_store=S3ArtifactStore("<v2-bucket>"),
+    expected_set=WindowOneExpectedSet(),
+    # cw_client omitted -> real CloudWatch (PROV-2 clears on this heartbeat)
+    # cap, ledger_path, receipts_root: defaults (11,200; .sos/wip/parity/... {year}-resolved)
+))
+print(summary.to_json())
+raise SystemExit(summary.exit_code)
+```
+
+Expectations for the FIRST sweep: exit 0 (served, dual legs in the receipt) is the goal;
+exit 10 refused-coverage with a missing-names list means the manifest name re-seed has not
+covered a classifier-active name (I-2) — remediate by verifying manifest.json names
+(read-only S3 GET) / one warm cycle, ZERO budget was spent; exit 20 budget-halt is a
+charter L81 operator interrupt; exit 30 error → read the error receipt. Every path leaves
+a receipt; `min_build_instant` self-threads from the receipts dir on the next invocation
+(first run uses the leg-2 baseline 2026-08-03T16:12:41.349255Z). The daily
+`HANDOFF-s8-parity-<date>.md` quotes LEG A `served_active_mrr` as the gate number and LEG
+B strictly as "exemplar aggregate" (ruling §4 label).
+
+P7 line: **self-assessment caps MODERATE** — mutations, arithmetic, and the
+manifest/transform/expected-set chains are own-hands, but same-rite authorship;
+rite-disjoint corroboration arrives at PT-03. The corridor ends here: on this GO the next
+invocation of the runbook is the FIRST LIVE PROD TOUCH of the P5 window.
