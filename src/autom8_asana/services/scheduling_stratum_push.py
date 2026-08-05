@@ -230,7 +230,7 @@ async def resolve_and_push_snapshot(
 
     FRAME-FIRST (FORK-1 A∘D): the per-gid GFR loop is GONE from the push path. The
     offices are projected UPSTREAM in one pure Polars pass over the ALREADY-WARMED
-    offer frame (``lambda_handlers/scheduling_stratum_snapshot.project_offer_frame``
+    offer frame (``lambda_handlers/scheduling_stratum_snapshot.project_posture_rows``
     via the pure :func:`~...scheduling_extractor.map_frame_row_to_inputs`), so this
     path issues ZERO Asana reads -- it is a pure resolve/build/push over the projected
     :class:`ExtractedScheduling` rows.

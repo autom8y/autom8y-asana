@@ -253,7 +253,7 @@ async def test_resolve_and_push_emits_all_provided_offices() -> None:
     """The pure push path emits EVERY provided office (guid-dedup/isolation is upstream).
 
     Per-office isolation + guid-dedup now live in the frame projection
-    (``project_offer_frame``); by the time the push path runs, the offices are the
+    (``project_posture_rows``); by the time the push path runs, the offices are the
     clean deduped set and are all emitted (entry_count preserved for the whole-source
     DELETE integrity witness).
     """
