@@ -3,8 +3,11 @@
 Exemplar #2 is a fresh-and-coherent CURRENT offer-plane anchor derived from the real S3
 artifact (0 Asana calls; see RECEIPT-s8-0-fixture-recapture-2026-07-30.md). These tests
 pin it as a DRIFT TRIPWIRE: the same S3 bytes re-derive the same served value, its value
-measured against exemplar #1's frozen ``$84,385`` IS the measured dark-build drift-delta
-(−$3,400), and the coherent anchor emits NO divergence (it is a tripwire, not a wound).
+measured against exemplar #1's frozen ``$84,385`` IS the measured dark-build drift-delta,
+and the coherent anchor emits NO divergence (it is a tripwire, not a wound). Pinned to the
+leg-2 generation (``$75,985``, 2026-08-03; delta −$8,400) per the pythia drift verdict
+{delta+explanation, explained-benign}; the leg-1 generation (``$80,985``, 2026-07-30;
+delta −$3,400) is the prior generation, superseded by re-pin.
 """
 
 from __future__ import annotations
@@ -21,9 +24,9 @@ from tests.harness.substrate_gate.exemplars import (
 )
 from tests.harness.substrate_gate.parity import ParityRunner
 
-_EXEMPLAR_ONE_FROZEN_VALUE = 84_385.0  # exemplar #1's fresh re-warm headline
-_EXEMPLAR_TWO_VALUE = 80_985.0  # S3-derived current offer plane
-_DRIFT_DELTA = -3_400.0
+_EXEMPLAR_ONE_FROZEN_VALUE = 84_385.0  # exemplar #1's fresh re-warm headline (frozen; untouched)
+_EXEMPLAR_TWO_VALUE = 75_985.0  # S3-derived current offer plane (leg-2, 2026-08-03)
+_DRIFT_DELTA = -8_400.0  # $75,985 − $84,385 (leg-2 generation)
 
 
 def test_current_served_value_is_pinned_to_the_s3_derived_number() -> None:
@@ -38,7 +41,7 @@ def test_composition_sums_to_served_value() -> None:
     materialization = exemplar_two_materialization()
     total = sum(cell.value for cell in materialization.composition.values())
     assert total == pytest.approx(materialization.served_value)
-    assert sum(cell.rows for cell in materialization.composition.values()) == 61
+    assert sum(cell.rows for cell in materialization.composition.values()) == 58
 
 
 def test_section_name_uses_prod_hyphen_not_fixture_en_dash() -> None:
@@ -58,7 +61,7 @@ def test_drift_delta_against_exemplar_one_frozen_value() -> None:
 
 def test_freshness_proof_carries_watermark_instant_and_offer_sla() -> None:
     proof = exemplar_two_materialization().proof
-    assert proof.built_from_live_at.isoformat() == "2026-07-30T12:23:09.371507+00:00"
+    assert proof.built_from_live_at.isoformat() == "2026-08-03T16:12:41.349255+00:00"
     assert proof.sla_seconds == 3600  # the GOVERNED offer contract (C8/C17 ruling 2026-07-30)
 
 
