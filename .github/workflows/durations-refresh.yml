@@ -36,6 +36,13 @@ jobs:
       - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
           enable-cache: true
+          # REL-005: was action-default/latest (no [tool.uv] required-version
+          # constraint exists in this repo's pyproject; pinned to the
+          # currently-observed-in-CI resolved version (live gh run log probe,
+          # 2026-08-05) rather than inventing a value.
+          version: "0.12.1"
+          cache-suffix: durations-refresh
+          prune-cache: false
           cache-dependency-glob: "uv.lock"
 
       - name: Configure AWS credentials

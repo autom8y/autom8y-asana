@@ -1148,13 +1148,15 @@ def arm_offer_parity_window(
     receipts_root: Path | None = None,
     now: NowFn | None = None,
     sla_for: SlaResolver | None = None,
+    min_build_instant: datetime | None = None,
 ) -> ArmedParityWindow:
     """Compose 3a-3d and ARM the process-singleton parity source for the offer plane.
 
     WU-4 opens the window by calling this then ``source.fetch_all_paced([offer_aid()])``.
     ``page_fetch`` + ``plan`` are the real Asana client call site + section planner WU-4
-    injects; ``store`` is the v2 ``S3ArtifactStore``. Everything below the seam is proven
-    DARK with fakes; this call performs NO Asana or S3 I/O by itself.
+    injects; ``store`` is the v2 ``S3ArtifactStore``; ``min_build_instant`` (F-305-4) is the
+    prior served receipt's build instant (generation-monotonicity floor). Everything below the
+    seam is proven DARK with fakes; this call performs NO Asana or S3 I/O by itself.
     """
     from tests.harness.substrate_gate.budget import PerDayBudgetLedger
 
@@ -1174,6 +1176,7 @@ def arm_offer_parity_window(
         budget=ledger,
         now=now,
         sla_for=sla_for,
+        min_build_instant=min_build_instant,
     )
     source = arm_process_parity_fetcher(outbound)
     return ArmedParityWindow(
