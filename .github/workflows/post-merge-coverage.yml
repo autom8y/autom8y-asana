@@ -41,6 +41,13 @@ jobs:
           python-version: '3.12'
 
       - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          # REL-005: previously no `with:` block at all (no explicit cache
+          # config). Pinned to the currently-observed-in-CI resolved version
+          # (F5: no [tool.uv] required-version constraint in this repo; live
+          # gh run log probe, 2026-08-05) with a distinct cache-suffix.
+          version: "0.12.1"
+          enable-cache: true
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0 (node24)

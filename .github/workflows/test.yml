@@ -160,6 +160,10 @@ jobs:
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
           enable-cache: true
+          # REL-005: pin + cache-suffix + prune-cache (F5: no [tool.uv]
+          # required-version constraint in this repo; pinned to the
+          # currently-observed-in-CI resolved version, live gh run log probe).
+          version: "0.12.1"
 
       # G1-W05 WI-2 FIX-A (2026-05-16): cross-repo App-token mint.
       # secrets.GITHUB_TOKEN is satellite-scoped and cannot read
@@ -302,6 +306,10 @@ jobs:
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
           enable-cache: true
+          # REL-005: pin + cache-suffix + prune-cache (F5: no [tool.uv]
+          # required-version constraint in this repo; pinned to the
+          # currently-observed-in-CI resolved version, live gh run log probe).
+          version: "0.12.1"
 
       - name: Install dependencies
         run: |
@@ -397,6 +405,10 @@ jobs:
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
           enable-cache: true
+          # REL-005: pin + cache-suffix + prune-cache (F5: no [tool.uv]
+          # required-version constraint in this repo; pinned to the
+          # currently-observed-in-CI resolved version, live gh run log probe).
+          version: "0.12.1"
 
       - name: RUF100 drift-guard (fail on unused noqa in src/; KEEP-floor honored via pyproject)
         # MUST run from the checkout root with the RELATIVE `src/` target: ruff resolves
@@ -496,6 +508,10 @@ jobs:
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
           enable-cache: true
+          # REL-005: pin + cache-suffix + prune-cache (F5: no [tool.uv]
+          # required-version constraint in this repo; pinned to the
+          # currently-observed-in-CI resolved version, live gh run log probe).
+          version: "0.12.1"
 
       - name: Install mcp island (its OWN pyproject, dev extra)
         # --no-sources: ignore any [tool.uv.sources] path overrides; resolve
