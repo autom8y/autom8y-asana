@@ -202,6 +202,16 @@ ignore_missing_imports = true
 module = "autom8_asana.models.core"
 ignore_missing_imports = true
 
+# The substrate-v2 cutover-gate harness is the parity substrate the WU-3 in-repo arming
+# tool (substrate.live) consumes as a seam. src is strict-checked AGAINST its real types,
+# but src is not the gate for the harness's own internal type-correctness (it has its own
+# test-time checks); follow_imports=silent uses the harness types while suppressing its
+# pre-existing internal errors (e.g. cases.HarnessRefusePayload's C13 SunsetBreach variance),
+# so consuming it from src surfaces no error that predates and is unrelated to WU-3.
+[[tool.mypy.overrides]]
+module = "tests.harness.substrate_gate.*"
+follow_imports = "silent"
+
 # All ignore_errors overrides removed — mypy strict enforced on all modules
 
 [tool.ruff]
