@@ -113,6 +113,7 @@ from autom8y_log import get_logger
 
 from autom8_asana.lambda_handlers.cloudwatch import emit_metric
 from autom8_asana.models.business.activity import OFFER_CLASSIFIER
+from autom8_asana.storage_namespace import DATAFRAMES_V2
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -165,9 +166,11 @@ ALARM_BOUND_METRICS: frozenset[str] = frozenset(
 #: The Offer project gid (OFFER_CLASSIFIER.project_gid); its warmed merged frame is
 #: the active-office roster source.
 OFFER_PROJECT_GID = "1143843662099250"
-#: S3 key of the warmed merged offer frame under the dataframes prefix
-#: (storage.py entity-segmented layout: dataframes/{gid}/{entity}/dataframe.parquet).
-OFFER_FRAME_KEY = f"dataframes/{OFFER_PROJECT_GID}/offer/dataframe.parquet"
+#: S3 key of the warmed merged offer frame under the DATAFRAMES_V2 plane prefix
+#: (storage.py entity-segmented layout: {prefix}{gid}/{entity}/dataframe.parquet). The
+#: prefix is DERIVED from the storage_namespace registry (DATAFRAMES_V2.prefix), never
+#: hand-pinned, so the t3 namespace-contract holds; the resolved key is byte-identical.
+OFFER_FRAME_KEY = f"{DATAFRAMES_V2.prefix}{OFFER_PROJECT_GID}/offer/dataframe.parquet"
 
 #: The columns a VALID offer frame MUST carry for the R7 predicate. Their absence is
 #: SCHEMA-LAG (a stale-while-revalidate cache served a pre-projection frame) -> REFUSE
@@ -317,7 +320,7 @@ def _active_offer_predicate() -> pl.Expr:
     return (
         pl.col("section").is_not_null()
         & pl.col("section").cast(pl.Utf8).str.to_lowercase().str.strip_chars().is_in(billable)
-        & (~pl.col("is_completed").cast(pl.Boolean).fill_null(False))  # noqa: E712
+        & (~pl.col("is_completed").cast(pl.Boolean).fill_null(False))
     )
 
 
@@ -596,7 +599,7 @@ def _load_offer_frame() -> tuple[pl.DataFrame, float | None]:
         resp = client.get_object(Bucket=bucket, Key=OFFER_FRAME_KEY)
         body = resp["Body"].read()
         last_modified = resp.get("LastModified")
-    except Exception as exc:  # noqa: BLE001 -- an unreadable frame is a REFUSE, not a crash
+    except Exception as exc:
         raise EvaluationRefusedError(
             f"offer frame unreadable at s3://{bucket}/{OFFER_FRAME_KEY}: {exc}"
         ) from exc
