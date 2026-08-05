@@ -48,6 +48,7 @@ _ALLOWED_STORE_IMPORTERS = {
     "autom8_asana/substrate/__init__.py",
     "autom8_asana/substrate/live.py",
     "autom8_asana/substrate/prov_sweep.py",
+    "autom8_asana/substrate/parity_run.py",
 }
 
 # The ONLY modules permitted to REACH the raw byte reader (call ``.read_current``): the
