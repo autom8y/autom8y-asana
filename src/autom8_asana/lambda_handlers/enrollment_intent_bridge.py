@@ -145,12 +145,26 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 # ==============================================================================
-# ★ CROSS-REPO EMIT->ALARM CONTRACT (byte-exact match with the terraform half)
+# ★ EMIT SURFACE -- and an HONEST statement of what does NOT yet watch it
 # ==============================================================================
-# COUNTERPART: autom8y repo, terraform/services/asana/enrollment_intent_bridge_*.tf
-# A rename here WITHOUT the matching rename there yields a green-on-both-halves,
-# dead-as-a-pair INSUFFICIENT_DATA alarm. These constants ARE the seam, and they
-# are pinned in __all__ + the terraform test so a rename trips CI, not production.
+# ★★ NO ALARM HALF EXISTS YET (D-4). Nothing in the fleet currently watches the
+# Autom8y/AsanaEnrollmentBridge namespace: the terraform in
+# autom8y/terraform/services/asana/enrollment_intent_bridge_lambda.tf provisions
+# the emitter ONLY. The alarm counterpart (HALF-2) is a NAMED PRE-ARM ITEM, not a
+# shipped pairing.
+#
+# This block previously read as though a terraform alarm half already existed
+# ("byte-exact match with the terraform half"). That over-claim is the more
+# dangerous half of a dead pair: an operator reading it would believe the
+# dead-man, the refusal signal, and the write counter were alarmed when they are
+# merely EMITTED. They are observable in CloudWatch; they page nobody.
+#
+# The names below are still the seam a future HALF-2 must match byte-exactly, and
+# ALARM_BOUND_METRICS + __all__ still pin them so a rename trips CI. What is NOT
+# yet true is that anything alarms on them.
+#
+# ARM DEPENDENCY: shipping HALF-2 before the arm is what makes EvaluationRefused
+# and LastRunEpoch load-bearing rather than decorative.
 METRIC_NAMESPACE = "Autom8y/AsanaEnrollmentBridge"
 
 #: Dead-man: emitted EVERY invocation (incl. DARK / refused).
@@ -186,8 +200,10 @@ METRIC_ROSTER_ONLY_PHONES = "RosterOnlyPhoneCount"
 #: Per-phone custom_cal_status disagreement (drift signal; does not block).
 METRIC_STATUS_DRIFT = "StatusDriftPhoneCount"
 
-#: The alarm-bound metric names, pinned as a set so the terraform test can assert
-#: the emit<->alarm contract mechanically.
+#: The metric names a future alarm half (HALF-2) MUST bind to, pinned as a set so
+#: the terraform test can assert the contract mechanically once that half exists.
+#: ★ "alarm-bound" here names the INTENT, not a shipped state -- terraform
+#: counterpart PENDING HALF-2 (D-4). Today these are emitted and unwatched.
 ALARM_BOUND_METRICS: frozenset[str] = frozenset(
     {
         METRIC_LAST_RUN_EPOCH,
@@ -440,6 +456,20 @@ def run_enrollment_bridge(
 
     try:
         # --- REFUSAL 2: freshness of ALL THREE frames (source_complete) ---------
+        # ★ D-5: refuse-on-absent-fuel, same discipline as the floor and the
+        # ceiling. Previously this knob was read with a silent default, so a
+        # garbage or absent value ("", "12h", a stray quote) resolved to 43200
+        # WITHOUT a word -- and a misconfigured staleness ceiling is invisible
+        # precisely when it matters, because it fails OPEN: every frame reads as
+        # fresh and the fossil-frame guard evaporates. A non-positive ceiling is
+        # therefore a refusal, not a default.
+        if staleness_ceiling_seconds <= 0:
+            raise EnrollmentRefusedError(
+                f"frame staleness ceiling is unset, unparseable, or non-positive "
+                f"({staleness_ceiling_seconds}) -- refusing rather than treating every "
+                f"frame as fresh. Set {FRAME_STALENESS_CEILING_ENV_VAR} (the fleet "
+                "convention is 43200 = 12h = 2x the 6h warm cadence, matching WS-E)."
+            )
         frames = load_frames()
         assert_frames_fresh(frames.ages, now_epoch=now, ceiling_seconds=staleness_ceiling_seconds)
         # --- REFUSAL 1: schema-lag (inside the projection) ----------------------
@@ -698,9 +728,7 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             client_factory=_factory,
             min_inscope_phones=_required_int_env(MIN_INSCOPE_PHONES_ENV_VAR),
             max_delta_per_cycle=_required_int_env(MAX_DELTA_PER_CYCLE_ENV_VAR),
-            staleness_ceiling_seconds=_int_env(
-                FRAME_STALENESS_CEILING_ENV_VAR, DEFAULT_FRAME_STALENESS_CEILING_SECONDS
-            ),
+            staleness_ceiling_seconds=_required_int_env(FRAME_STALENESS_CEILING_ENV_VAR),
             dry_run=dry_run,
         )
     except Exception as exc:  # noqa: BLE001 -- lambda boundary: honest 500, NOT a fabricated cycle

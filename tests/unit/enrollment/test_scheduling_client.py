@@ -24,6 +24,7 @@ from autom8_asana.enrollment.scheduling_client import (
     NON_ERROR_OUTCOMES,
     Outcome,
     SchedulingConfigClient,
+    config_path,
 )
 
 AUTHORIZED_TOKEN = "jwt-asana-enrollment-bridge"
@@ -73,7 +74,15 @@ class _FakeSchedulingApi:
         return None
 
     def _phone(self, url: str) -> str:
-        return url.removeprefix(f"{BUSINESSES_PREFIX}/").removesuffix("/config")
+        """Percent-DECODE the segment, as a real ASGI server does.
+
+        Load-bearing fidelity: the client now emits ``%2B...`` and a fake that did
+        not decode would make every healthy-path test fail for the wrong reason --
+        and, worse, could hide a genuine encoding regression behind a fixture quirk.
+        """
+        from urllib.parse import unquote
+
+        return unquote(url.removeprefix(f"{BUSINESSES_PREFIX}/").removesuffix("/config"))
 
     def get(self, url: str, *, headers: dict[str, str] | None = None) -> _Response:
         denial = self._denied(headers)
@@ -329,4 +338,151 @@ class TestPathBodyCoherenceAndProvenance:
                 return _Response(200, {"data": {"scheduling_enabled": True}})
 
         SchedulingConfigClient(_Api(), lambda: "t").get_config(PHONE)
-        assert seen == [f"/api/v1/businesses/{PHONE}/config"]
+        # The phone occupies exactly ONE percent-encoded path segment (D-1).
+        assert seen == ["/api/v1/businesses/%2B15550001111/config"]
+
+
+# ===========================================================================
+# ★★ D-1 -- PATH TRAVERSAL. Two-sided, against a REAL socket.
+# ===========================================================================
+
+
+class TestD1PathTraversalIsStructurallyImpossible:
+    """``office_phone`` originates from an Asana-operator-editable custom field and
+    reaches this client through strip-only ``norm_phone`` with NO format validation.
+    Before the cure, a live-server probe recorded the server RECEIVING:
+
+        "../../../admin"             -> PATCH /admin/config
+        "../../../../internal/admin" -> PATCH /internal/admin/config
+        "+1555#frag"                 -> PATCH /api/v1/businesses/+1555  (suffix DROPPED)
+
+    The first two escape the ``businesses`` namespace entirely; the third silently
+    retargets a DIFFERENT resource. This SA's token is honoured by every scheduling
+    endpoint, so a steered path is a route from operator-editable CONTENT to
+    unintended STATE CHANGE.
+
+    TWO LAYERS, proven INDEPENDENTLY so neither can silently rot:
+      layer 1 -- a non-E.164 value never becomes a request at all;
+      layer 2 -- percent-encoding confines even a bypassed value to ONE segment.
+    """
+
+    HOSTILE = [
+        "../../../admin",
+        "../../../../internal/admin",
+        "+1555#frag",
+        "+1555/config",
+        "//evil.test/x",
+    ]
+
+    # ---- layer 2: the encode, independent of validation ----------------------
+
+    @pytest.mark.parametrize("payload", HOSTILE)
+    def test_encode_confines_any_payload_to_exactly_one_path_segment(self, payload: str) -> None:
+        from urllib.parse import unquote
+
+        path = config_path(payload)
+        assert path.startswith(f"{BUSINESSES_PREFIX}/")
+        assert path.endswith("/config")
+        segment = path[len(BUSINESSES_PREFIX) + 1 :].rsplit("/config", 1)[0]
+        assert "/" not in segment, f"payload escaped its path segment: {path}"
+        assert "#" not in segment and "?" not in segment
+        # Encoding must be REVERSIBLE -- a lossy escape would silently retarget.
+        assert unquote(segment) == payload
+
+    def test_encode_preserves_the_healthy_phone_reversibly(self) -> None:
+        from urllib.parse import unquote
+
+        path = config_path(PHONE)
+        assert path == f"{BUSINESSES_PREFIX}/%2B15550001111/config"
+        assert unquote("%2B15550001111") == PHONE
+
+    # ---- layer 1: validation, before the wire --------------------------------
+
+    @pytest.mark.parametrize("payload", HOSTILE)
+    def test_hostile_payload_issues_no_request_on_either_leg(self, payload: str) -> None:
+        """★ The GET leg matters as much as the PATCH: qa observed the read was
+        previously issued to an arbitrary path with the SA JWT attached."""
+        api = _FakeSchedulingApi(state={payload: False, PHONE: False})
+        client = _client(api)
+
+        read = client.get_config(payload)
+        write = client.set_scheduling_enabled(payload, scheduling_enabled=True, intent_source="x")
+
+        assert read.outcome is Outcome.INVALID_PHONE
+        assert write.outcome is Outcome.INVALID_PHONE
+        assert api.get_calls == [], "a non-phone value reached the wire on the READ leg"
+        assert api.patch_calls == [], "a non-phone value reached the wire on the WRITE leg"
+
+    def test_GREEN_healthy_phone_still_reads_and_writes(self) -> None:
+        """Two-sided: the guard bites ONLY on the defect."""
+        api = _FakeSchedulingApi(state={PHONE: False})
+        client = _client(api)
+        assert client.get_config(PHONE).outcome is Outcome.READ_OK
+        assert (
+            client.set_scheduling_enabled(PHONE, scheduling_enabled=True, intent_source="x").outcome
+            is Outcome.APPLIED
+        )
+
+    # ---- the live-server receipt, kept as a standing regression --------------
+
+    def test_LIVE_SERVER_what_the_server_actually_receives(self) -> None:
+        """★ Drives the PRODUCTION ``autom8y_http.SyncHttpClient`` against a REAL
+        socket and asserts on the request line the SERVER received.
+
+        A fake-client assertion would prove nothing about path resolution -- URL
+        joining happens inside the HTTP stack, which is exactly where the defect
+        lived. This is the only leg that can catch a regression introduced by an
+        SDK change rather than by this module.
+        """
+        import threading
+        from http.server import BaseHTTPRequestHandler, HTTPServer
+
+        from autom8y_http import HttpClientConfig, SyncHttpClient
+
+        received: list[str] = []
+
+        class _Handler(BaseHTTPRequestHandler):
+            def _record(self) -> None:
+                received.append(self.path)
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(b'{"data":{"scheduling_enabled":false,"offer_id":1}}')
+
+            do_GET = _record  # noqa: N815 -- BaseHTTPRequestHandler dispatch name
+            do_PATCH = _record  # noqa: N815
+
+            def log_message(self, *args: object) -> None:  # silence stderr
+                return
+
+        server = HTTPServer(("127.0.0.1", 0), _Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        try:
+            config = HttpClientConfig(
+                base_url=f"http://127.0.0.1:{server.server_address[1]}",
+                timeout=5.0,
+                enable_retry=False,
+                enable_circuit_breaker=False,
+            )
+            with SyncHttpClient(config) as http:
+                client = SchedulingConfigClient(http, lambda: "jwt")
+
+                client.get_config(PHONE)
+                client.set_scheduling_enabled(PHONE, scheduling_enabled=True, intent_source="x")
+                assert received == [
+                    f"{BUSINESSES_PREFIX}/%2B15550001111/config",
+                    f"{BUSINESSES_PREFIX}/%2B15550001111/config",
+                ]
+
+                received.clear()
+                for payload in self.HOSTILE:
+                    client.get_config(payload)
+                    client.set_scheduling_enabled(
+                        payload, scheduling_enabled=True, intent_source="x"
+                    )
+                assert received == [], (
+                    "a hostile payload reached the server: "
+                    f"{received} -- the traversal is live again"
+                )
+        finally:
+            server.shutdown()

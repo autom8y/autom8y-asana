@@ -136,7 +136,15 @@ class _FakeApi:
             return self._body
 
     def _phone(self, url: str) -> str:
-        return url.removeprefix("/api/v1/businesses/").removesuffix("/config")
+        """Percent-DECODE the segment, as a real ASGI server does (D-1).
+
+        The client emits the phone as ONE percent-encoded path segment; a fake that
+        skipped decoding would fail every healthy-path assertion for the wrong
+        reason and could mask a real encoding regression.
+        """
+        from urllib.parse import unquote
+
+        return unquote(url.removeprefix("/api/v1/businesses/").removesuffix("/config"))
 
     def get(self, url: str, *, headers: Any = None) -> Any:
         phone = self._phone(url)
@@ -303,7 +311,8 @@ class TestRefusalsWriteNothing:
         result = _run(api, frames=_frames(ages))
 
         assert result.status == "refused"
-        assert f"frame '{stale}'" in (result.reason or "")
+        # ★ D-3: the refusal names the ACTUAL stale frame, not a hardcoded one.
+        assert f"{stale} (stale" in (result.reason or "")
         assert api.patch_calls == []
 
     @pytest.mark.parametrize("unprovable", ["unit_holder", "business", "offer"])
@@ -335,6 +344,34 @@ class TestRefusalsWriteNothing:
         assert result.status == "refused"
         assert "unset or non-positive" in (result.reason or "")
         assert api.patch_calls == []
+
+    @pytest.mark.parametrize("ceiling", [0, -1])
+    def test_RED_unset_staleness_ceiling_refuses(self, ceiling: int) -> None:
+        """★ D-5: a misconfigured staleness ceiling fails OPEN.
+
+        This knob was previously read with a silent default, so garbage ("12h", a
+        stray quote, "") resolved to 43200 without a word. A non-positive ceiling
+        would make every frame -- including a fossil one -- read as fresh, which
+        evaporates the guard exactly when it matters. Refuse instead.
+        """
+        api = _FakeApi({PHONE_A: False, PHONE_B: True, PHONE_C: True})
+        result = run_enrollment_bridge(
+            gate=lambda: True,
+            load_frames=_frames,
+            client_factory=lambda: SchedulingConfigClient(api, lambda: "jwt"),
+            min_inscope_phones=FLOOR,
+            max_delta_per_cycle=MAX_DELTA,
+            staleness_ceiling_seconds=ceiling,
+            now_epoch=NOW,
+        )
+        assert result.status == "refused"
+        assert "staleness ceiling" in (result.reason or "")
+        assert api.patch_calls == []
+
+    def test_GREEN_a_real_staleness_ceiling_admits_fresh_frames(self) -> None:
+        """Two-sided: the guard bites only on the misconfiguration."""
+        api = _FakeApi({PHONE_A: False, PHONE_B: True, PHONE_C: True})
+        assert _run(api).status == "evaluated"
 
     def test_RED_delta_ceiling_refuses_the_WHOLE_cycle_never_partially(self) -> None:
         """★ The sharpest leg: 2 offices would move, the ceiling admits 1, and

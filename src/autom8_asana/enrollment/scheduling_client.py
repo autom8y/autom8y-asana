@@ -40,8 +40,11 @@ from __future__ import annotations
 
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, NamedTuple
+from urllib.parse import quote
 
 from autom8y_log import get_logger
+
+from autom8_asana.enrollment.intent_projection import is_e164
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -128,6 +131,33 @@ class ConfigWrite(NamedTuple):
     detail: str | None
 
 
+def config_path(office_phone: str) -> str:
+    """Build the config URL, forcing the phone into EXACTLY ONE path segment.
+
+    ★★ SECURITY (D-1). ``safe=""`` percent-encodes EVERYTHING that is not
+    unreserved -- crucially ``/``, ``.``, ``#`` and ``?``. Without it, an
+    ``office_phone`` sourced from an Asana-operator-editable custom field is raw
+    path syntax, and the live-server probe recorded:
+
+        "../../../admin"            -> PATCH /admin/config
+        "../../../../internal/admin"-> PATCH /internal/admin/config
+        "+1555#frag"                -> PATCH /api/v1/businesses/+1555   (suffix DROPPED)
+        "+1555/config"              -> PATCH /api/v1/businesses/+1555/config/config
+        "//evil.test/x"             -> PATCH /api/v1/businesses///evil.test/x/config
+
+    The first two escape the ``businesses`` namespace entirely; the third silently
+    retargets the request at a DIFFERENT resource by truncating ``/config`` into a
+    fragment. This SA's token is honoured by every scheduling endpoint, so a
+    steered path is a route from operator-editable CONTENT to unintended STATE
+    CHANGE -- it must be structurally impossible, not merely improbable.
+
+    ★ Note ``+`` is intentionally encoded to ``%2B``: that is CORRECT for a path
+    segment (the server percent-decodes it back to ``+``), and it is what makes the
+    guarantee absolute rather than dependent on a per-character allowlist.
+    """
+    return f"{BUSINESSES_PREFIX}/{quote(office_phone, safe='')}/config"
+
+
 def _error_code(body: Any) -> str:
     """Extract ``error.code`` from the scheduling error envelope, or ``""``."""
     if isinstance(body, dict):
@@ -196,7 +226,13 @@ class SchedulingConfigClient:
         caller must not write it -- a write from an unknown baseline is exactly the
         blind mass-change this design refuses.
         """
-        url = f"{BUSINESSES_PREFIX}/{office_phone}/config"
+        # ★★ STRUCTURAL NARROWING (D-1). Reject before the wire, not after.
+        # qa noted the GET was previously issued to an ARBITRARY path with this
+        # SA's JWT attached -- so validation must gate the READ leg too, not just
+        # the write. A value that is not a phone never becomes a request.
+        if not is_e164(office_phone):
+            return ConfigRead(Outcome.INVALID_PHONE, None, None, None, "office_phone is not E.164")
+        url = config_path(office_phone)
         try:
             response = self._http.get(url, headers=self._headers())
         except Exception as exc:  # noqa: BLE001 -- transport failure is a classified outcome
@@ -258,7 +294,10 @@ class SchedulingConfigClient:
         ``scheduling_config_updated`` receipt can distinguish an explicitly-set
         intent from one coerced from UNSET. It never influences the write.
         """
-        url = f"{BUSINESSES_PREFIX}/{office_phone}/config"
+        # ★★ STRUCTURAL NARROWING (D-1) -- same rule on the write leg.
+        if not is_e164(office_phone):
+            return ConfigWrite(Outcome.INVALID_PHONE, (), "office_phone is not E.164")
+        url = config_path(office_phone)
         payload = {
             "office_phone": office_phone,
             "scheduling_enabled": scheduling_enabled,
@@ -307,4 +346,5 @@ __all__ = [
     "ConfigWrite",
     "Outcome",
     "SchedulingConfigClient",
+    "config_path",
 ]
