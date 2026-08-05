@@ -45,7 +45,7 @@ from autom8_asana.lambda_handlers.scheduling_stratum_snapshot import (
     SnapshotRefusedError,
     execute_snapshot_push,
     handler,
-    project_offer_frame,
+    project_posture_rows,
 )
 from autom8_asana.normalizer.scheduling_extractor import (
     CUSTOM_CAL_STATUS_FIELD,
@@ -106,11 +106,41 @@ class _FrameCacheEntry:
 
 
 class _FakeCache:
+    """Serves the WS-B OFFICE SPINE (unit_holder + business) from ONE posture frame.
+
+    The adversary frames below are posture-complete single frames (the historical
+    offer-frame shape). ``_split_spine`` re-homes ``company_id`` onto a synthetic
+    business frame reached via ``parent_gid``, so every adversarial case still
+    exercises the real two-frame read path.
+    """
+
     def __init__(self, entry: _FrameCacheEntry | None) -> None:
-        self._entry = entry
+        if entry is None or entry.dataframe is None:
+            self._unit_holder = entry
+            self._business = entry
+        else:
+            uh, biz = _split_spine(entry.dataframe)
+            self._unit_holder = _FrameCacheEntry(uh)
+            self._business = _FrameCacheEntry(biz)
 
     async def get_async(self, project_gid: str, entity_type: str) -> _FrameCacheEntry | None:
-        return self._entry
+        if entity_type == snap.SNAPSHOT_BUSINESS_ENTITY_TYPE:
+            return self._business
+        return self._unit_holder
+
+
+def _split_spine(df: pl.DataFrame) -> tuple[pl.DataFrame, pl.DataFrame]:
+    """Split a posture-complete frame into the (unit_holder, business) spine."""
+    if GUID_FIELD not in df.columns:
+        # A pre-schema frame: leave it untouched so the schema-lag guard still fires.
+        return df, pl.DataFrame({"gid": ["b0"], GUID_FIELD: ["g0"]})
+    parents = [f"b{i}" for i in range(df.height)]
+    unit_holder = df.drop(GUID_FIELD).with_columns(pl.Series("parent_gid", parents, dtype=pl.Utf8))
+    business = pl.DataFrame(
+        {"gid": parents, GUID_FIELD: df.get_column(GUID_FIELD).to_list()},
+        schema={"gid": pl.Utf8, GUID_FIELD: pl.Utf8},
+    )
+    return unit_holder, business
 
 
 async def _push_bomb(_offices: list[ExtractedScheduling]) -> StratumPushResult:
@@ -131,8 +161,8 @@ def test_qa_a_pre150_frame_refuses_at_projection() -> None:
             "last_modified": [_TS, _TS],
         }
     )
-    with pytest.raises(FrameSchemaLagError, match="pre-1.5.0"):
-        project_offer_frame(stale)
+    with pytest.raises(FrameSchemaLagError, match="posture columns"):
+        project_posture_rows(stale)
 
 
 def test_qa_a_partial_lag_frame_refuses_not_default_fills() -> None:
@@ -149,8 +179,8 @@ def test_qa_a_partial_lag_frame_refuses_not_default_fills() -> None:
             # custom_cal_status + the 8 cascade columns ABSENT
         }
     )
-    with pytest.raises(FrameSchemaLagError, match="pre-1.5.0"):
-        project_offer_frame(partial)
+    with pytest.raises(FrameSchemaLagError, match="posture columns"):
+        project_posture_rows(partial)
 
 
 def test_qa_a_single_missing_column_still_refuses() -> None:
@@ -164,7 +194,7 @@ def test_qa_a_single_missing_column_still_refuses() -> None:
         cols[field] = ["x"]
     lagged = pl.DataFrame(cols)  # no custom_cal_status column
     with pytest.raises(FrameSchemaLagError, match=CUSTOM_CAL_STATUS_FIELD):
-        project_offer_frame(lagged)
+        project_posture_rows(lagged)
 
 
 def test_qa_a_adapter_row_lag_refuses_backstop() -> None:
@@ -183,14 +213,14 @@ async def test_qa_a_schema_lag_run_refuses_and_never_pushes() -> None:
     cache = _FakeCache(_FrameCacheEntry(stale))
 
     async def _enumerate() -> tuple[list[ExtractedScheduling], bool]:
-        return await snap._enumerate_offices_from_frame(cache, "proj-1")
+        return await snap._enumerate_offices_from_frame(cache, "uh-proj", "biz-proj")
 
     result = await execute_snapshot_push(
         gate=lambda: True, enumerate_offices=_enumerate, push=_push_bomb
     )
     assert result.status == "refused"
     assert result.entry_count == 0
-    assert "pre-1.5.0" in (result.reason or "")
+    assert "posture columns" in (result.reason or "")
 
 
 # =============================================================================
@@ -203,7 +233,7 @@ async def test_qa_b_empty_frame_refuses_no_push() -> None:
     cache = _FakeCache(_FrameCacheEntry(_empty_150_frame()))
 
     async def _enumerate() -> tuple[list[ExtractedScheduling], bool]:
-        return await snap._enumerate_offices_from_frame(cache, "proj-1")
+        return await snap._enumerate_offices_from_frame(cache, "uh-proj", "biz-proj")
 
     result = await execute_snapshot_push(
         gate=lambda: True, enumerate_offices=_enumerate, push=_push_bomb
@@ -219,7 +249,7 @@ async def test_qa_b_all_guidless_frame_refuses() -> None:
     cache = _FakeCache(_FrameCacheEntry(df))
 
     async def _enumerate() -> tuple[list[ExtractedScheduling], bool]:
-        return await snap._enumerate_offices_from_frame(cache, "proj-1")
+        return await snap._enumerate_offices_from_frame(cache, "uh-proj", "biz-proj")
 
     result = await execute_snapshot_push(
         gate=lambda: True, enumerate_offices=_enumerate, push=_push_bomb
@@ -233,7 +263,7 @@ async def test_qa_b_absent_frame_refuses_source_incomplete() -> None:
     cache = _FakeCache(None)
 
     async def _enumerate() -> tuple[list[ExtractedScheduling], bool]:
-        return await snap._enumerate_offices_from_frame(cache, "proj-1")
+        return await snap._enumerate_offices_from_frame(cache, "uh-proj", "biz-proj")
 
     result = await execute_snapshot_push(
         gate=lambda: True, enumerate_offices=_enumerate, push=_push_bomb
@@ -265,7 +295,7 @@ def _mixed_frame() -> pl.DataFrame:
 
 
 def test_qa_c_universe_is_exactly_the_resolvable_guid_set() -> None:
-    extracted, drift = project_offer_frame(_mixed_frame())
+    extracted, drift = project_posture_rows(_mixed_frame())
     assert sorted(o.guid for o in extracted) == ["g1", "g2", "g3"]
     assert drift == []  # no multi-offer guid disagrees here
     by_guid = {o.guid: o for o in extracted}
@@ -283,7 +313,7 @@ def test_qa_c_universe_is_exactly_the_resolvable_guid_set() -> None:
 
 def test_qa_c_deenrolled_survives_into_wire_entries() -> None:
     """enrolled=False rides ALL the way into contract entries -- never filtered."""
-    extracted, _ = project_offer_frame(_mixed_frame())
+    extracted, _ = project_posture_rows(_mixed_frame())
     entries = resolve_office_entries(extracted, resolved_at=_TS)
     assert len(entries) == 3
     flags = {e["guid"]: e["enrolled"] for e in entries}
@@ -324,7 +354,7 @@ def _disagreeing_multi_offer_rows() -> list[dict[str, Any]]:
 
 def test_qa_d_joint_representative_is_max_modified_status_and_destination() -> None:
     """The winner supplies status AND destination JOINTLY -- never a chimera."""
-    extracted, drift = project_offer_frame(_frame(_disagreeing_multi_offer_rows()))
+    extracted, drift = project_posture_rows(_frame(_disagreeing_multi_offer_rows()))
     assert len(extracted) == 1
     rep = extracted[0]
     # Newest offer (o-new) wins BOTH axes jointly:
@@ -346,8 +376,8 @@ def test_qa_d_representative_is_row_order_independent(seed: int) -> None:
     rows = _disagreeing_multi_offer_rows()
     shuffled = rows[:]
     random.Random(seed).shuffle(shuffled)
-    baseline, drift_a = project_offer_frame(_frame(rows))
-    permuted, drift_b = project_offer_frame(_frame(shuffled))
+    baseline, drift_a = project_posture_rows(_frame(rows))
+    permuted, drift_b = project_posture_rows(_frame(shuffled))
     assert permuted == baseline
     assert sorted(drift_a) == sorted(drift_b) == ["gX"]
     assert permuted[0].enrolled is False  # the max-last_modified winner, always
@@ -359,8 +389,8 @@ def test_qa_d_tiebreak_same_timestamp_is_deterministic() -> None:
         {"gid": "o-a", "last_modified": _TS, GUID_FIELD: "gT", "calendly_url": "https://c/a"},
         {"gid": "o-b", "last_modified": _TS, GUID_FIELD: "gT", "calendly_url": "https://c/b"},
     ]
-    fwd, _ = project_offer_frame(_frame(rows))
-    rev, _ = project_offer_frame(_frame(list(reversed(rows))))
+    fwd, _ = project_posture_rows(_frame(rows))
+    rev, _ = project_posture_rows(_frame(list(reversed(rows))))
     assert fwd == rev
     assert fwd[0].normalized_inputs["calendly_url"] == "https://c/b"  # gid desc: o-b
 
@@ -370,8 +400,8 @@ def test_qa_d_null_last_modified_never_beats_concrete() -> None:
         {"gid": "o-null", "last_modified": None, GUID_FIELD: "gN", "sked_id": "sk-null"},
         {"gid": "o-real", "last_modified": _TS, GUID_FIELD: "gN", "sked_id": "sk-real"},
     ]
-    fwd, _ = project_offer_frame(_frame(rows))
-    rev, _ = project_offer_frame(_frame(list(reversed(rows))))
+    fwd, _ = project_posture_rows(_frame(rows))
+    rev, _ = project_posture_rows(_frame(list(reversed(rows))))
     assert fwd == rev
     assert fwd[0].normalized_inputs["sked_id"] == "sk-real"
 
@@ -384,7 +414,7 @@ def test_qa_d_drift_two_sided_agreement_is_silent() -> None:
         {"gid": "o3", GUID_FIELD: "gB", CUSTOM_CAL_STATUS_FIELD: "Active"},
         {"gid": "o4", GUID_FIELD: "gB", CUSTOM_CAL_STATUS_FIELD: "Inactive"},
     ]
-    extracted, drift = project_offer_frame(_frame(rows))
+    extracted, drift = project_posture_rows(_frame(rows))
     assert drift == ["gB"]
     assert len(extracted) == 2  # drift METERS, never blocks
 
@@ -408,7 +438,7 @@ def test_qa_d_drift_blind_spot_null_vs_value_pinned() -> None:
             CUSTOM_CAL_STATUS_FIELD: "Inactive",
         },
     ]
-    extracted, drift = project_offer_frame(_frame(rows))
+    extracted, drift = project_posture_rows(_frame(rows))
     assert drift == []  # <-- the blind spot, pinned
     assert extracted[0].enrolled is False  # deterministic winner regardless
 
@@ -445,7 +475,7 @@ def test_qa_e_runtime_budget_full_path_at_real_scale() -> None:
     """
     df = _real_scale_frame()
     started = time.perf_counter()
-    extracted, drift = project_offer_frame(df)
+    extracted, drift = project_posture_rows(df)
     result = asyncio.run(resolve_and_push_snapshot(extracted, dry_run=True))
     elapsed = time.perf_counter() - started
 
@@ -496,7 +526,7 @@ class _FrozenV2Envelope(BaseModel):
 
 
 async def test_qa_f_payload_validates_against_frozen_v2_replica() -> None:
-    extracted, _ = project_offer_frame(_mixed_frame())
+    extracted, _ = project_posture_rows(_mixed_frame())
     result = await resolve_and_push_snapshot(extracted, dry_run=True)
     envelope = _FrozenV2Envelope.model_validate(result.payload)  # raises on ANY drift
     assert envelope.entry_count == len(envelope.entries) == 3
@@ -511,7 +541,7 @@ async def test_qa_f_payload_validates_against_frozen_v2_replica() -> None:
 
 async def test_qa_f_real_scale_payload_every_entry_frozen_shape() -> None:
     """Every real-scale entry validates; no row smuggles extra keys onto the wire."""
-    extracted, _ = project_offer_frame(_real_scale_frame())
+    extracted, _ = project_posture_rows(_real_scale_frame())
     result = await resolve_and_push_snapshot(extracted, dry_run=True)
     envelope = _FrozenV2Envelope.model_validate(result.payload)
     assert envelope.entry_count == len(extracted)

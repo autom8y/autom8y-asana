@@ -99,7 +99,7 @@ async def test_f_push_path_emits_every_provided_office() -> None:
     """The frame-first push path emits EVERY provided office (no drops in the pure pass).
 
     Per-office isolation + guid-dedup + guid-less DROP now live UPSTREAM in the frame
-    projection (``project_offer_frame``; covered in the handler adversary). By the time
+    projection (``project_posture_rows``; covered in the handler adversary). By the time
     the push path runs, the offices are the clean deduped set: entry_count is preserved
     (the whole-source DELETE integrity witness) and every guid is emitted.
     """

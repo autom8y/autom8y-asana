@@ -8,33 +8,50 @@ scheduled-entrypoint pattern (``cache_warmer`` client/cache setup +
 ``onboarding_walkthrough`` DARK-gate short-circuit), driving the pure
 ``resolve_and_push_snapshot`` pipeline.
 
-FRAME-FIRST (FORK-1 A∘D, warm-projection). The active-office posture is projected in
-ONE pure Polars pass over the ALREADY-WARMED offer frame (:func:`project_offer_frame`
-via the pure ``map_frame_row_to_inputs``): sub-second, ZERO per-office Asana reads
-(the measured 900s-Lambda-ceiling blocker is dissolved -- TDD-DELTA 2026-07-02). The
-posture columns are projected upstream at bulk frame-warm time (offer schema 1.6.0 --
-cascade:UnitHolder for the enrollment status + eight providers; see OFFER_SCHEMA).
+FRAME-FIRST (FORK-1 A∘D, warm-projection). The office posture is projected in ONE
+pure Polars pass over ALREADY-WARMED frames (:func:`project_office_frame` via the
+pure ``map_frame_row_to_inputs``): sub-second, ZERO per-office Asana reads (the
+measured 900s-Lambda-ceiling blocker is dissolved -- TDD-DELTA 2026-07-02).
+
+OFFICE SPINE (WS-B re-source, DIAG-ws-b-offer-frame-collapse-2026-08-05). The source
+is the ``unit_holder x business`` join, NOT the offer frame. The offer frame sources
+both the office guid and the nine posture columns ``cascade:`` through a FRAME-LESS
+OfferHolder tier, and the ancestor-hydration walk that must deliver them terminates
+at depth 1 (``warm_ancestors_completed {total_warmed: 0, final_depth: 1}``) -- so
+hops 3 (UnitHolder) and 4 (Business) are never visited and those columns are
+STRUCTURALLY unreachable there (measured: company_id 2/4191, the eight provider
+columns 0/4191). ``office_phone`` survived only because it is locally stamped on the
+Offer task itself. The producer therefore reads the two frames that NATIVELY own the
+data -- UnitHolder (posture, cf: on its own manifest) and Business (the guid) --
+joined on ``unit_holder.parent_gid -> business.gid``, measured 2082/2082 = 100.0%.
+Zero ancestor traversal, zero new Asana reads.
 
 EXPLICIT COMPLETENESS CONTRACT (the load-bearing safety):
 
     UNIVERSE (LOCKED): the posture universe is the set of DISTINCT NON-NULL
-    ``company_id`` guids in the warmed offer frame. guid-less offers DROP and fail
-    SAFE to GHL by absence (the honest posture). Multi-offer-per-guid collapses to ONE
-    deterministic representative (max ``last_modified``) supplying enrollment status
-    AND destination JOINTLY; a per-guid ``custom_cal_status`` disagreement is metered
-    as drift.
+    ``company_id`` guids in the joined office spine (~921 today, vs a ``prior_count``
+    of 949 -- shrink ratio 0.030, inside the data side's 0.500 guard). guid-less rows
+    DROP and fail SAFE to GHL by absence (the honest posture). Multi-unit_holder-
+    per-guid collapses to ONE deterministic representative (max ``last_modified``)
+    supplying enrollment status AND destination JOINTLY; a per-guid
+    ``custom_cal_status`` disagreement is metered as drift. Note the universe is the
+    OFFICE SPINE (all offices, including de-enrolled ones, which is what preserves
+    the wire-v2 ``enrolled=false stays present`` invariant) -- NOT an active-offer
+    scoping, which would be 57 guids and correctly refused by the shrink guard.
 
-    This entry point projects the FULL offer frame, NEVER a completed-entities
-    partial. A partial batch fed to the data side's whole-source DELETE
-    (``snapshot_replace``) would mass-wipe live enrolled offices -- strictly worse
-    than a stale snapshot. :func:`assert_complete_office_set` REFUSES the push when
-    the office set cannot be proven complete (an unreadable/absent offer frame, or an
-    empty deduped guid set): it returns a ``refused`` outcome and pushes NOTHING.
+    This entry point projects the FULL spine, NEVER a completed-entities partial. A
+    partial batch fed to the data side's whole-source DELETE (``snapshot_replace``)
+    would mass-wipe live enrolled offices -- strictly worse than a stale snapshot.
+    :func:`assert_complete_office_set` REFUSES the push when the office set cannot be
+    proven complete (EITHER spine frame unreadable/absent, or an empty deduped guid
+    set): it returns a ``refused`` outcome and pushes NOTHING.
 
-    SCHEMA-LAG: the SWR cache serves stale-while-revalidate, so the first post-deploy
-    read may serve a PRE-1.6.0 frame LACKING the projected posture columns. This is
-    detected (:func:`missing_frame_columns`) and REFUSED honestly -- never fabricated
-    or default-filled. The refusal's triggered refresh converges the frame; a
+    SCHEMA-LAG: the SWR cache serves stale-while-revalidate, so a read may serve a
+    unit_holder frame predating UNIT_HOLDER_SCHEMA (base columns only). This is
+    detected (:func:`join_office_spine`) and REFUSED honestly -- never fabricated or
+    default-filled. It is also the PR-1-before-PR-2 safety: shipping this re-source
+    against a base-columns-only unit_holder frame yields honest refusals, not a
+    degenerate push. The refusal's triggered refresh converges the frame; a
     subsequent run succeeds.
 
     VALUE-FLOOR: the columns may be PRESENT (schema-lag passes) yet their CONTENT
@@ -104,8 +121,23 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-#: The offer entity type whose warmed DataFrame is the full active-office source.
-SNAPSHOT_OFFER_ENTITY_TYPE = "offer"
+#: The OFFICE SPINE (WS-B): the two warmed frames whose join is the full office
+#: source. ``unit_holder`` natively holds the nine scheduling-posture fields
+#: (schema 1.0.0, cf: off its own manifest); ``business`` natively holds the office
+#: guid (``company_id``, cf:Company ID). They join on
+#: ``unit_holder.parent_gid -> business.gid`` -- measured 2082/2082 = 100.0%
+#: complete on today's frames.
+#:
+#: This REPLACES the offer frame as the producer's source. The offer frame sources
+#: BOTH the guid and the posture ``cascade:`` through a frame-less OfferHolder tier,
+#: and the ancestor walk that must deliver them terminates at depth 1, so those
+#: columns are structurally unreachable there (company_id 2/4191, the eight provider
+#: columns 0/4191). See DIAG-ws-b-offer-frame-collapse-2026-08-05.
+SNAPSHOT_UNIT_HOLDER_ENTITY_TYPE = "unit_holder"
+SNAPSHOT_BUSINESS_ENTITY_TYPE = "business"
+
+#: The join key on the unit_holder side (rides BASE_COLUMNS); joins to business.gid.
+OFFICE_SPINE_JOIN_KEY = "parent_gid"
 
 #: Intended LOW-frequency cadence (hours) for the releaser-seam EventBridge rule.
 #: NOT enforced by the handler (EventBridge owns scheduling); surfaced here so the
@@ -245,35 +277,44 @@ async def execute_snapshot_push(
     )
 
 
-def project_offer_frame(df: pl.DataFrame) -> tuple[list[ExtractedScheduling], list[str]]:
-    """PURE frame projection: dedup offers by office guid + project posture (frame-first).
+def project_posture_rows(df: pl.DataFrame) -> tuple[list[ExtractedScheduling], list[str]]:
+    """PURE frame projection: dedup rows by office guid + project posture.
+
+    ENTITY-AGNOSTIC (WS-B). This is the unchanged universe / representative / drift
+    core, formerly ``project_offer_frame``. It consumes ANY frame carrying
+    :data:`REQUIRED_FRAME_COLUMNS` plus ``gid`` / ``last_modified``; WS-B re-sourced
+    the producer to feed it the ``unit_holder x business`` join
+    (:func:`project_office_frame`) instead of the offer frame, which is a SOURCE
+    change, not a contract change. The rules below are byte-identical to the
+    offer-frame era -- they are the reason 949 live office postures were never
+    overwritten with empties, and they are deliberately untouched.
 
     UNIVERSE (LOCKED): the posture universe is the set of DISTINCT NON-NULL
-    ``company_id`` guids in the offer frame. guid-less (null/blank) offers DROP -- they
+    ``company_id`` guids in the frame. guid-less (null/blank) rows DROP -- they
     fail SAFE to GHL by absence (the honest posture; no fabricated identity). A
-    guid with multiple active offers collapses to ONE deterministic representative
+    guid with multiple rows collapses to ONE deterministic representative
     (max ``last_modified``, tie-broken by ``gid``) supplying BOTH the enrollment status
-    AND the destination cascade JOINTLY -- a coherent single-offer posture, never
-    status from one offer mixed with a destination from another. A per-guid
-    disagreement on ``custom_cal_status`` across a guid's offers is surfaced as a drift
+    AND the destination cascade JOINTLY -- a coherent single-row posture, never
+    status from one row mixed with a destination from another. A per-guid
+    disagreement on ``custom_cal_status`` across a guid's rows is surfaced as a drift
     signal (returned for the caller to meter) but does NOT block the snapshot.
 
     Args:
-        df: The warmed offer DataFrame (must carry the 1.5.0 posture columns).
+        df: A warmed DataFrame carrying the projected posture columns.
 
     Returns:
         ``(extracted, drift_guids)`` -- the projected offices (one per distinct guid)
-        and the guids whose offers disagreed on ``custom_cal_status``.
+        and the guids whose rows disagreed on ``custom_cal_status``.
 
     Raises:
-        FrameSchemaLagError: if the frame lacks the 1.5.0 posture-projection columns.
+        FrameSchemaLagError: if the frame lacks the posture-projection columns.
     """
     import polars as pl
 
     missing = missing_frame_columns(df.columns)
     if missing:
         raise FrameSchemaLagError(
-            f"offer frame lacks projected posture columns (frame schema pre-1.5.0): {missing} "
+            f"frame lacks projected posture columns: {missing} "
             "(the read triggers a refresh; a subsequent run converges)"
         )
 
@@ -315,11 +356,183 @@ def project_offer_frame(df: pl.DataFrame) -> tuple[list[ExtractedScheduling], li
     return extracted, drift_guids
 
 
+def join_office_spine(unit_holder_df: pl.DataFrame, business_df: pl.DataFrame) -> pl.DataFrame:
+    """Join the office spine: ``unit_holder.parent_gid -> business.gid`` (PURE).
+
+    Produces the frame the unchanged projection core consumes: the nine posture
+    columns from ``unit_holder`` (its own cf: manifest) plus ``company_id`` from the
+    ``business`` ancestor that owns it. Measured 2082/2082 = 100.0% linkage.
+
+    A LEFT join is deliberate: a unit_holder whose business carries no
+    ``Company ID`` yields a NULL guid and is DROPPED by the universe rule -- it fails
+    SAFE to GHL by absence rather than being fabricated an identity. (DIAG CARD
+    WS-B/3: 9 of 71 active offices are in this state today.)
+
+    Only ``gid`` + ``company_id`` are taken from the business side so its ``name`` /
+    ``last_modified`` / ``section`` cannot collide with the unit_holder columns the
+    representative rule sorts on.
+
+    Raises:
+        FrameSchemaLagError: if either side lacks its required columns. This is the
+            PR-1-not-yet-deployed detector -- a unit_holder frame carrying only BASE
+            columns trips it and the run REFUSES honestly rather than pushing a
+            fabricated all-null posture over 949 live offices.
+    """
+    import polars as pl
+
+    # unit_holder side: the nine posture columns + the join key.
+    missing_posture = [c for c in _POSTURE_SIGNAL_COLUMNS if c not in unit_holder_df.columns]
+    if missing_posture:
+        raise FrameSchemaLagError(
+            f"unit_holder frame lacks the scheduling-posture columns {missing_posture} "
+            "(UNIT_HOLDER_SCHEMA not deployed, or the warmer has not completed a cycle "
+            "since it was). Refusing rather than pushing an all-null posture."
+        )
+    if OFFICE_SPINE_JOIN_KEY not in unit_holder_df.columns:
+        raise FrameSchemaLagError(
+            f"unit_holder frame lacks the office-spine join key {OFFICE_SPINE_JOIN_KEY!r}"
+        )
+
+    # D-6(a) SUFFIX-COLLISION GUARD: the join CONTRIBUTES company_id from the
+    # business side. If the unit_holder frame ever carried its own company_id
+    # column, polars would keep both as company_id / company_id_right and the
+    # projection would silently read the WRONG one (UnitHolder's is always null --
+    # R-7 -- so every office would drop). Refuse rather than resolve ambiguously.
+    if GUID_FIELD in unit_holder_df.columns:
+        raise FrameSchemaLagError(
+            f"unit_holder frame unexpectedly carries {GUID_FIELD!r}; the office guid is "
+            "owned by the BUSINESS ancestor and is contributed by this join. Joining "
+            "would produce a suffixed duplicate column and read the wrong one."
+        )
+
+    # business side: the office guid + its own gid (the join target).
+    missing_business = [c for c in ("gid", GUID_FIELD) if c not in business_df.columns]
+    if missing_business:
+        raise FrameSchemaLagError(
+            f"business frame lacks the office-identity columns {missing_business}"
+        )
+
+    # D-6(b) DETERMINISTIC business-side dedup. business.gid is a task PK and is
+    # unique in practice (live: 2572/2572), so this normally selects nothing --
+    # but `keep="first"` on raw frame order would make a duplicate resolve
+    # ARBITRARILY, and a leading row with a null guid would silently DROP an office
+    # that has a perfectly good identity on its sibling row.
+    #
+    # Ordering mirrors the unit_holder representative rule (max last_modified,
+    # tie-broken by gid) with ONE additional leading key: a non-null company_id
+    # always wins. That extra key is the difference between keeping and losing an
+    # office when a stale partial row sorts first.
+    identity_sort_keys = ["_has_guid"]
+    identity_descending = [True]
+    if "last_modified" in business_df.columns:
+        identity_sort_keys.append("last_modified")
+        identity_descending.append(True)
+    identity_sort_keys.append("gid")
+    identity_descending.append(True)
+
+    business_identity = (
+        business_df.with_columns(
+            (
+                pl.col(GUID_FIELD).is_not_null()
+                & (pl.col(GUID_FIELD).cast(pl.Utf8).str.strip_chars() != "")
+            ).alias("_has_guid")
+        )
+        .sort(identity_sort_keys, descending=identity_descending, nulls_last=True)
+        .unique(subset=["gid"], keep="first", maintain_order=True)
+        .select(
+            pl.col("gid").alias(OFFICE_SPINE_JOIN_KEY),
+            pl.col(GUID_FIELD),
+        )
+    )
+
+    return unit_holder_df.join(business_identity, on=OFFICE_SPINE_JOIN_KEY, how="left")
+
+
+def office_spine_census(
+    unit_holder_df: pl.DataFrame, business_df: pl.DataFrame, joined: pl.DataFrame
+) -> dict[str, int]:
+    """PURE per-tick census of the office spine (D-1 observability).
+
+    The join DROPS a materially large share of unit_holder rows -- measured 52.4%
+    on today's frames (3 null parent_gid + 1089 businesses carrying no
+    ``Company ID``). Those rows fail SAFE to GHL by absence, which is the designed
+    posture, but until now they vanished with ZERO signal.
+
+    That silence matters because the two guards leave a detection BAND: with
+    ``MIN_POSTURE_SIGNAL_ROWS = 1`` and a shrink-guard ceiling of 0.500, a universe
+    could collapse from ~921 all the way to ~475 and still be accepted by both. This
+    census makes the denominator observable every tick so a partial collapse is
+    visible in the log/metric surface long before it reaches the guards.
+
+    Pure and cheap (a few Polars aggregates); the caller emits.
+
+    Returns:
+        Counts keyed ``unit_holder_rows``, ``null_parent``, ``dangling_parent``,
+        ``business_no_guid``, ``distinct_guids``.
+    """
+    import polars as pl
+
+    def _non_blank(col: str) -> pl.Expr:
+        return pl.col(col).is_not_null() & (pl.col(col).cast(pl.Utf8).str.strip_chars() != "")
+
+    unit_holder_rows = unit_holder_df.height
+    null_parent = unit_holder_df.filter(~_non_blank(OFFICE_SPINE_JOIN_KEY)).height
+
+    business_gids = set(business_df.filter(_non_blank("gid")).get_column("gid").to_list())
+    linked = unit_holder_df.filter(_non_blank(OFFICE_SPINE_JOIN_KEY))
+    dangling_parent = linked.filter(
+        ~pl.col(OFFICE_SPINE_JOIN_KEY).is_in(list(business_gids))
+    ).height
+
+    business_no_guid = business_df.filter(~_non_blank(GUID_FIELD)).height
+
+    distinct_guids = (
+        joined.filter(_non_blank(GUID_FIELD)).get_column(GUID_FIELD).n_unique()
+        if GUID_FIELD in joined.columns
+        else 0
+    )
+
+    return {
+        "unit_holder_rows": unit_holder_rows,
+        "null_parent": null_parent,
+        "dangling_parent": dangling_parent,
+        "business_no_guid": business_no_guid,
+        "distinct_guids": distinct_guids,
+    }
+
+
+def project_office_frame(
+    unit_holder_df: pl.DataFrame, business_df: pl.DataFrame
+) -> tuple[list[ExtractedScheduling], list[str]]:
+    """PURE office-spine projection (WS-B): join the spine, then project posture.
+
+    The producer's source of record. Replaces the offer-frame projection, whose
+    ``company_id`` and posture columns are structurally unreachable (the ancestor
+    walk terminates at depth 1). Universe arithmetic on today's frames: the office
+    spine yields ~921 distinct guids against a ``prior_count`` of 949 -- a shrink
+    ratio of 0.030, comfortably inside the data side's 0.500 guard. An
+    Offer-ACTIVE-scoped universe would be 57 guids (ratio 0.940) and would be
+    correctly REFUSED on arrival; the universe must be the office spine.
+
+    Delegates to the UNCHANGED :func:`project_posture_rows` core, so the universe
+    rule, the deterministic per-guid representative rule, and the drift metering are
+    identical to the offer-frame era.
+
+    Returns:
+        ``(extracted, drift_guids)`` -- one office per distinct guid, and the guids
+        whose unit_holders disagreed on ``custom_cal_status``.
+
+    Raises:
+        FrameSchemaLagError: if either frame lacks its required columns.
+    """
+    return project_posture_rows(join_office_spine(unit_holder_df, business_df))
+
+
 def posture_signal_row_count(df: pl.DataFrame) -> int:
     """Count universe offices carrying ANY scheduling-posture signal (VALUE-FLOOR input).
 
     The universe is the push universe (distinct-agnostic here: every non-null / non-blank
-    ``company_id`` row -- dedup happens later in :func:`project_offer_frame`). An office
+    ``company_id`` row -- dedup happens later in :func:`project_posture_rows`). An office
     carries a posture signal when its ``custom_cal_status`` OR any of the eight
     CASCADE_PRIORITY provider columns is non-null. A frame missing the posture columns
     entirely (pre-1.6.0 schema-lag) returns 0 here, but that case is caught earlier by
@@ -380,43 +593,72 @@ def assert_posture_signal_floor(df: pl.DataFrame) -> None:
 
 
 async def _enumerate_offices_from_frame(
-    cache: Any, project_gid: str
+    cache: Any, unit_holder_project_gid: str, business_project_gid: str
 ) -> tuple[list[ExtractedScheduling], bool]:
-    """Return ``(extracted_offices, source_complete)`` by PROJECTING the warmed offer frame.
+    """Return ``(extracted_offices, source_complete)`` by projecting the OFFICE SPINE.
 
-    The offer frame is a FULL-project snapshot (warmed as a whole), so projecting its
-    posture columns yields the complete active-office posture set with ZERO Asana
-    reads. Returns ``source_complete=False`` when the frame is absent / unreadable --
-    the completeness gate then REFUSES. Raises :class:`SnapshotRefusedError` on
-    SCHEMA-LAG (a pre-1.5.0 frame) so the refusal carries the honest reason.
+    Both frames are FULL-project snapshots (warmed as wholes), so joining them yields
+    the complete office posture set with ZERO Asana reads. Returns
+    ``source_complete=False`` when EITHER frame is absent / unreadable -- a
+    half-readable spine is a PARTIAL, and the completeness gate must REFUSE rather
+    than let it reach the data side's whole-source DELETE. Raises
+    :class:`SnapshotRefusedError` on SCHEMA-LAG so the refusal carries the honest
+    reason.
     """
-    entry = await cache.get_async(project_gid, SNAPSHOT_OFFER_ENTITY_TYPE)
-    if entry is None or getattr(entry, "dataframe", None) is None:
+    unit_holder_entry = await cache.get_async(
+        unit_holder_project_gid, SNAPSHOT_UNIT_HOLDER_ENTITY_TYPE
+    )
+    if unit_holder_entry is None or getattr(unit_holder_entry, "dataframe", None) is None:
         logger.warning(
-            "scheduling_stratum_snapshot_no_offer_frame", extra={"project_gid": project_gid}
+            "scheduling_stratum_snapshot_no_unit_holder_frame",
+            extra={"project_gid": unit_holder_project_gid},
         )
         return [], False
-    df = entry.dataframe
-    if "gid" not in df.columns:
-        logger.warning("scheduling_stratum_snapshot_offer_frame_no_gid_column")
+
+    business_entry = await cache.get_async(business_project_gid, SNAPSHOT_BUSINESS_ENTITY_TYPE)
+    if business_entry is None or getattr(business_entry, "dataframe", None) is None:
+        logger.warning(
+            "scheduling_stratum_snapshot_no_business_frame",
+            extra={"project_gid": business_project_gid},
+        )
+        return [], False
+
+    unit_holder_df = unit_holder_entry.dataframe
+    business_df = business_entry.dataframe
+    if "gid" not in unit_holder_df.columns:
+        logger.warning("scheduling_stratum_snapshot_unit_holder_frame_no_gid_column")
         return [], False
 
     try:
-        extracted, drift_guids = project_offer_frame(df)
+        joined = join_office_spine(unit_holder_df, business_df)
+        # D-1: emit the per-tick spine census BEFORE the guards run, so a partial
+        # collapse is observable even on ticks that end in a refusal (the refusing
+        # ticks are exactly the ones an operator most needs the denominator for).
+        census = office_spine_census(unit_holder_df, business_df, joined)
+        logger.info("office_spine_universe_census", extra=census)
+        emit_metric("SchedulingStratumUniverseCensus", census["distinct_guids"])
+        emit_metric(
+            "SchedulingStratumUniverseDropped",
+            census["unit_holder_rows"] - census["distinct_guids"],
+        )
+        extracted, drift_guids = project_posture_rows(joined)
     except FrameSchemaLagError as exc:
-        # SCHEMA-LAG: a stale-while-revalidate cache served a PRE-1.6.0 frame. REFUSE
-        # honestly (never fabricate posture from a frame that cannot carry it).
+        # SCHEMA-LAG: the unit_holder frame predates UNIT_HOLDER_SCHEMA (or the warmer
+        # has not completed a cycle since it deployed), or the business frame lacks the
+        # identity columns. REFUSE honestly -- never fabricate posture from a frame that
+        # cannot carry it. This is the PR-1-before-PR-2 safety and it MUST fire.
         logger.warning("scheduling_stratum_snapshot_frame_schema_lag", extra={"reason": str(exc)})
         emit_metric("SchedulingStratumSnapshotSchemaLag", 1)
         raise SnapshotRefusedError(str(exc)) from exc
 
     # VALUE-FLOOR: the columns are PRESENT (schema-lag passed) but their CONTENT may be
-    # degenerate (all-null posture -- the 1.5.0 wrong-level/wrong-name cascade defect).
-    # company_id resolves fine, so the office SET is complete and the SET gate would
-    # pass; only this value floor catches an all-empty projection before it whole-source
-    # overwrites live posture. Raises SnapshotRefusedError (caught by execute_snapshot_push).
+    # degenerate (all-null posture -- a wrong-level/wrong-name source, or a spine whose
+    # posture never populated). company_id resolves fine, so the office SET is complete
+    # and the SET gate would pass; only this value floor catches an all-empty projection
+    # before it whole-source overwrites live posture. Evaluated on the JOINED frame --
+    # the same rows the projection consumes. Raises SnapshotRefusedError.
     try:
-        assert_posture_signal_floor(df)
+        assert_posture_signal_floor(joined)
     except SnapshotRefusedError:
         emit_metric("SchedulingStratumSnapshotDegenerateSource", 1)
         raise
@@ -543,11 +785,19 @@ async def run_snapshot_push_async(
                 )
                 return [], False
 
-        project_gid = registry.get_project_gid(SNAPSHOT_OFFER_ENTITY_TYPE)
-        if not project_gid:
-            logger.error("scheduling_stratum_snapshot_offer_project_unresolved")
+        unit_holder_gid = registry.get_project_gid(SNAPSHOT_UNIT_HOLDER_ENTITY_TYPE)
+        business_gid = registry.get_project_gid(SNAPSHOT_BUSINESS_ENTITY_TYPE)
+        if not unit_holder_gid or not business_gid:
+            # An unresolved spine project is an INCOMPLETE source, never a partial push.
+            logger.error(
+                "scheduling_stratum_snapshot_spine_project_unresolved",
+                extra={
+                    "unit_holder_resolved": bool(unit_holder_gid),
+                    "business_resolved": bool(business_gid),
+                },
+            )
             return [], False
-        return await _enumerate_offices_from_frame(cache, project_gid)
+        return await _enumerate_offices_from_frame(cache, unit_holder_gid, business_gid)
 
     async def _push(extracted_offices: list[ExtractedScheduling]) -> StratumPushResult | None:
         # FRAME-FIRST: the offices are already projected from the warmed frame -- the
@@ -618,15 +868,20 @@ def _documented_cadence_hours() -> int:
 __all__ = [
     "DEFAULT_SNAPSHOT_CADENCE_HOURS",
     "MIN_POSTURE_SIGNAL_ROWS",
+    "OFFICE_SPINE_JOIN_KEY",
+    "SNAPSHOT_BUSINESS_ENTITY_TYPE",
     "SNAPSHOT_CADENCE_HOURS_ENV_VAR",
-    "SNAPSHOT_OFFER_ENTITY_TYPE",
+    "SNAPSHOT_UNIT_HOLDER_ENTITY_TYPE",
     "SnapshotRefusedError",
     "SnapshotRunResult",
     "assert_complete_office_set",
     "assert_posture_signal_floor",
     "execute_snapshot_push",
     "handler",
+    "join_office_spine",
+    "office_spine_census",
     "posture_signal_row_count",
-    "project_offer_frame",
+    "project_office_frame",
+    "project_posture_rows",
     "run_snapshot_push_async",
 ]

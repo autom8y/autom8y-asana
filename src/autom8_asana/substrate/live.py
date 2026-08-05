@@ -189,6 +189,33 @@ def assert_plan_covers_active_set(covered_section_names: frozenset[str]) -> None
         )
 
 
+def active_offer_rows(frame: pl.DataFrame) -> pl.DataFrame:
+    """The classifier-active-section rows — the population the served ``active_mrr`` reads.
+
+    Wired as ``DefaultAcceptancePredicates.active_predicate`` (see ``rebuild_offer_v2``) so the
+    population floor (rebuild.py:367-384) evaluates the SERVED denominator, NOT the whole frame.
+    Mirrors the served metric's Step-0.5 classification filter (metrics/compute.py:79) EXACTLY:
+    lowercase the frame's ``section`` and keep rows whose section is in the OFFER classifier's
+    active set (``classifier_active_sections()`` — §6 #1, FROM THE CLASSIFIER, never hardcoded).
+
+    Why this is a denominator CORRECTION, not a guard relaxation: v1's own daily-served offer
+    frame carries value-column nulls on the INACTIVE-section rows (retired/parked offers
+    legitimately have no ``mrr``/``cost``/``offer_id``/``weekly_ad_spend``), so an UNFILTERED floor
+    demands zero nulls on rows the served number never reads — a bar the incumbent itself could
+    never pass (RULING-pythia-f305-1 §6 #1; empirically the v1 offer frame carries ~2.9k value-column
+    nulls, all on inactive-section rows). The guard still bites two-sided: a null value column on ANY
+    active-section row REFUSES (the served number would be wrong); ``min_rows`` still refuses an empty
+    active subset.
+
+    Fail-closed: a frame with no ``section`` column cannot be classified, so the floor reverts to
+    the strict whole-frame evaluation (NEVER weaker than the pre-wiring default).
+    """
+    if "section" not in frame.columns:
+        return frame  # cannot classify -> strict whole-frame floor (fail-closed, never weaker)
+    active = classifier_active_sections()
+    return frame.filter(pl.col("section").str.to_lowercase().is_in(list(active)))
+
+
 def served_active_mrr(frame: pl.DataFrame) -> tuple[float, int]:
     """LEG A: the served-definition active_mrr, via the REAL ``active_mrr`` metric machinery.
 
@@ -744,7 +771,13 @@ async def rebuild_offer_v2(
     """
     capturing = _CapturingFetcher(fetcher)
     rebuilder = SubstrateRebuilder(store, now=now, sla_for=sla_for)
-    result = await rebuilder.rebuild(aid, capturing, DefaultAcceptancePredicates())
+    # active_predicate=active_offer_rows: the population floor evaluates the classifier-active
+    # SERVED denominator, not the whole frame (whose inactive-section rows carry legitimate
+    # value-column nulls v1 itself serves). Without it the floor is unpassable (RULING-pythia-f305-1
+    # §6 #1); with it the guard still bites a null value column on any active-section row.
+    result = await rebuilder.rebuild(
+        aid, capturing, DefaultAcceptancePredicates(active_predicate=active_offer_rows)
+    )
     return result, capturing.captured
 
 

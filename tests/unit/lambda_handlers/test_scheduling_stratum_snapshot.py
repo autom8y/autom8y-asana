@@ -3,7 +3,8 @@
 Locks the load-bearing safety: the EXPLICIT COMPLETENESS CONTRACT (never push a
 partial to the data side's whole-source DELETE), the DEFAULT-DARK gate (skipped +
 zero substrate/Asana read when SCHEDULING_STRATUM_PUSH_ENABLED is off), and the
-full-office enumeration off the warmed offer frame.
+full-office enumeration off the warmed OFFICE SPINE (``unit_holder x business``
+-- WS-B re-source; see ``test_office_spine_projection`` for the two-sided proof).
 """
 
 from __future__ import annotations
@@ -24,7 +25,7 @@ from autom8_asana.lambda_handlers.scheduling_stratum_snapshot import (
     execute_snapshot_push,
     handler,
     posture_signal_row_count,
-    project_offer_frame,
+    project_posture_rows,
     run_snapshot_push_async,
 )
 from autom8_asana.normalizer.scheduling_extractor import (
@@ -201,7 +202,7 @@ async def test_dry_run_push_reports_dry_run_status() -> None:
     assert result.status == "dry_run"
 
 
-# --- project_offer_frame (PURE frame-first projection) --------------------------
+# --- project_posture_rows (PURE frame-first projection) --------------------------
 
 
 def test_project_hit_path_all_columns_present() -> None:
@@ -211,7 +212,7 @@ def test_project_hit_path_all_columns_present() -> None:
     fabricated; None is a legitimate null column).
     """
     df = _frame_df([{GUID_FIELD: "gA", "reviewwave_id": "rw"}])  # status None
-    extracted, drift = project_offer_frame(df)
+    extracted, drift = project_posture_rows(df)
     assert len(extracted) == 1
     assert extracted[0].guid == "gA"
     assert extracted[0].enrolled is True  # absent status -> ACTIVE default
@@ -222,7 +223,7 @@ def test_project_hit_path_all_columns_present() -> None:
 def test_project_deenrolled_office_present_with_enrolled_false() -> None:
     """A de-enrolled (INACTIVE) office is PRESENT with enrolled=False -- never omitted."""
     df = _frame_df([{GUID_FIELD: "gOff", CUSTOM_CAL_STATUS_FIELD: "Inactive", "sked_id": "sk"}])
-    extracted, _ = project_offer_frame(df)
+    extracted, _ = project_posture_rows(df)
     assert len(extracted) == 1
     assert extracted[0].guid == "gOff"
     assert extracted[0].enrolled is False
@@ -237,7 +238,7 @@ def test_project_guidless_offer_dropped_fail_safe_by_absence() -> None:
             {"gid": "o-ok", GUID_FIELD: "gOk", "reviewwave_id": "rw"},
         ]
     )
-    extracted, _ = project_offer_frame(df)
+    extracted, _ = project_posture_rows(df)
     assert [e.guid for e in extracted] == ["gOk"]  # only the resolvable guid survives
 
 
@@ -265,7 +266,7 @@ def test_project_multi_offer_dedup_max_modified_at_representative() -> None:
             },
         ]
     )
-    extracted, _ = project_offer_frame(df)
+    extracted, _ = project_posture_rows(df)
     assert len(extracted) == 1  # one representative per distinct guid
     rep = extracted[0]
     assert rep.guid == "gDup"
@@ -284,7 +285,7 @@ def test_project_status_drift_signalled_when_offers_disagree() -> None:
             {"gid": "d", GUID_FIELD: "gAgree", CUSTOM_CAL_STATUS_FIELD: "Active"},
         ]
     )
-    _, drift = project_offer_frame(df)
+    _, drift = project_posture_rows(df)
     assert drift == ["gDrift"]  # gAgree does NOT drift (both Active)
 
 
@@ -296,14 +297,14 @@ def test_project_no_drift_when_statuses_agree() -> None:
             {"gid": "b", GUID_FIELD: "g1", CUSTOM_CAL_STATUS_FIELD: None},
         ]
     )
-    _, drift = project_offer_frame(df)
+    _, drift = project_posture_rows(df)
     assert drift == []
 
 
 def test_project_empty_universe_yields_empty() -> None:
     """A frame with only guid-less offers projects to an empty set (the gate then REFUSES)."""
     df = _frame_df([{GUID_FIELD: None}, {GUID_FIELD: "   "}])
-    extracted, drift = project_offer_frame(df)
+    extracted, drift = project_posture_rows(df)
     assert extracted == []
     assert drift == []
 
@@ -329,8 +330,8 @@ def test_project_schema_lag_frame_refuses_not_fabricates() -> None:
     assert fabricated is True  # RED: the fabricating variant silently invents ACTIVE
 
     # The refusing build detects the absent columns and REFUSES honestly.
-    with pytest.raises(FrameSchemaLagError, match="pre-1.5.0"):
-        project_offer_frame(stale)
+    with pytest.raises(FrameSchemaLagError, match="posture columns"):
+        project_posture_rows(stale)
 
 
 # --- VALUE-FLOOR guard (degenerate-source completeness teeth) ---------------------
@@ -382,15 +383,14 @@ async def test_enumerate_degenerate_frame_raises_refused() -> None:
     The value floor propagates SnapshotRefusedError through the enumerate closure so
     execute_snapshot_push converts it to a ``refused`` run (pushes NOTHING).
     """
-    df = _frame_df([{GUID_FIELD: "g1"}, {GUID_FIELD: "g2"}])
-    cache = _FakeCache(_FakeEntry(df))
+    cache = _spine_cache([{GUID_FIELD: "g1"}, {GUID_FIELD: "g2"}])
 
     async def _push(_offices: list[ExtractedScheduling]) -> StratumPushResult:
         raise AssertionError("degenerate frame must REFUSE before any push")
 
     result = await execute_snapshot_push(
         gate=lambda: True,
-        enumerate_offices=lambda: snap._enumerate_offices_from_frame(cache, "proj"),
+        enumerate_offices=lambda: snap._enumerate_offices_from_frame(cache, "uh", "biz"),
         push=_push,
     )
     assert result.status == "refused"
@@ -406,32 +406,98 @@ class _FakeEntry:
 
 
 class _FakeCache:
-    def __init__(self, entry: Any) -> None:
-        self._entry = entry
+    """Serves the OFFICE SPINE: a per-entity-type frame (WS-B reads TWO frames).
+
+    ``entries`` maps entity_type -> entry (or None for an absent frame), so a test
+    can make either side of the spine unreadable independently.
+    """
+
+    def __init__(self, entries: Any) -> None:
+        if not isinstance(entries, dict):
+            # Back-compat shorthand: a single entry serves BOTH spine sides.
+            entries = {
+                snap.SNAPSHOT_UNIT_HOLDER_ENTITY_TYPE: entries,
+                snap.SNAPSHOT_BUSINESS_ENTITY_TYPE: entries,
+            }
+        self._entries = entries
         self.requested: tuple[str, str] | None = None
+        self.requests: list[tuple[str, str]] = []
 
     async def get_async(self, project_gid: str, entity_type: str) -> Any:
         self.requested = (project_gid, entity_type)
-        return self._entry
+        self.requests.append((project_gid, entity_type))
+        return self._entries.get(entity_type)
 
 
-async def test_enumerate_projects_offices_from_frame() -> None:
-    df = _frame_df(
+def _spine_frames(rows: list[dict[str, Any]]) -> tuple[pl.DataFrame, pl.DataFrame]:
+    """Split posture rows into the (unit_holder, business) spine the producer reads.
+
+    Each row's ``company_id`` moves to the BUSINESS frame (where it natively lives)
+    and is reached via ``unit_holder.parent_gid -> business.gid``; the nine posture
+    columns stay on the UNIT_HOLDER frame (where they natively live).
+    """
+    full = _frame_df(rows)
+    unit_holder = full.drop(GUID_FIELD).with_columns(
+        pl.Series("parent_gid", [f"b{i}" for i in range(full.height)])
+    )
+    business = pl.DataFrame(
+        {
+            "gid": [f"b{i}" for i in range(full.height)],
+            GUID_FIELD: full.get_column(GUID_FIELD).to_list(),
+        }
+    )
+    return unit_holder, business
+
+
+def _spine_cache(rows: list[dict[str, Any]]) -> _FakeCache:
+    unit_holder, business = _spine_frames(rows)
+    return _FakeCache(
+        {
+            snap.SNAPSHOT_UNIT_HOLDER_ENTITY_TYPE: _FakeEntry(unit_holder),
+            snap.SNAPSHOT_BUSINESS_ENTITY_TYPE: _FakeEntry(business),
+        }
+    )
+
+
+async def test_enumerate_projects_offices_from_office_spine() -> None:
+    """WS-B: the producer reads the unit_holder x business SPINE, not the offer frame."""
+    cache = _spine_cache(
         [
             {GUID_FIELD: "g1", "reviewwave_id": "rw"},
             {GUID_FIELD: "g2", "sked_id": "sk"},
         ]
     )
-    cache = _FakeCache(_FakeEntry(df))
-    extracted, complete = await snap._enumerate_offices_from_frame(cache, "PROJ")
+    extracted, complete = await snap._enumerate_offices_from_frame(cache, "UH_PROJ", "BIZ_PROJ")
     assert complete is True
     assert {e.guid for e in extracted} == {"g1", "g2"}
-    assert cache.requested == ("PROJ", "offer")  # reads the OFFER frame (full source)
+    # Reads BOTH spine frames -- and the OFFER frame is never touched.
+    assert cache.requests == [
+        ("UH_PROJ", snap.SNAPSHOT_UNIT_HOLDER_ENTITY_TYPE),
+        ("BIZ_PROJ", snap.SNAPSHOT_BUSINESS_ENTITY_TYPE),
+    ]
+    assert not any(entity == "offer" for _gid, entity in cache.requests)
 
 
-async def test_enumerate_absent_frame_is_incomplete() -> None:
-    """No warmed offer frame -> source_complete=False -> the gate will REFUSE."""
-    extracted, complete = await snap._enumerate_offices_from_frame(_FakeCache(None), "PROJ")
+async def test_enumerate_absent_unit_holder_frame_is_incomplete() -> None:
+    """No warmed unit_holder frame -> source_complete=False -> the gate will REFUSE."""
+    extracted, complete = await snap._enumerate_offices_from_frame(
+        _FakeCache(None), "UH_PROJ", "BIZ_PROJ"
+    )
+    assert extracted == []
+    assert complete is False
+
+
+async def test_enumerate_absent_business_frame_is_incomplete() -> None:
+    """HALF a spine is a PARTIAL: a readable unit_holder with an absent business
+    frame must NOT be projected (every guid would be null -> mass-wipe shape)."""
+    unit_holder, _business = _spine_frames([{GUID_FIELD: "g1", "reviewwave_id": "rw"}])
+    cache = _FakeCache(
+        {
+            snap.SNAPSHOT_UNIT_HOLDER_ENTITY_TYPE: _FakeEntry(unit_holder),
+            snap.SNAPSHOT_BUSINESS_ENTITY_TYPE: None,
+        }
+    )
+    extracted, complete = await snap._enumerate_offices_from_frame(cache, "UH_PROJ", "BIZ_PROJ")
     assert extracted == []
     assert complete is False
 
@@ -439,21 +505,37 @@ async def test_enumerate_absent_frame_is_incomplete() -> None:
 async def test_enumerate_frame_without_gid_column_is_incomplete() -> None:
     df = pl.DataFrame({"name": ["a"]})
     extracted, complete = await snap._enumerate_offices_from_frame(
-        _FakeCache(_FakeEntry(df)), "PROJ"
+        _FakeCache(_FakeEntry(df)), "UH_PROJ", "BIZ_PROJ"
     )
     assert extracted == []
     assert complete is False
 
 
 async def test_enumerate_schema_lag_frame_raises_refused() -> None:
-    """A pre-1.5.0 frame (gid present, posture columns absent) -> SnapshotRefusedError.
+    """A base-columns-only unit_holder frame -> SnapshotRefusedError.
 
-    The enumerate translates the frame-level FrameSchemaLagError into the honest
-    refused reason so execute_snapshot_push records it (never a 500).
+    This is the PR-1-before-PR-2 safety: if the re-sourced producer ships before
+    UNIT_HOLDER_SCHEMA is deployed and warmed, every run REFUSES honestly rather
+    than pushing an all-null posture over 949 live offices. The enumerate translates
+    the frame-level FrameSchemaLagError into the honest refused reason so
+    execute_snapshot_push records it (never a 500).
     """
-    stale = pl.DataFrame({"gid": ["o1"], "last_modified": [dt.datetime(2026, 1, 1, tzinfo=dt.UTC)]})
-    with pytest.raises(SnapshotRefusedError, match="pre-1.5.0"):
-        await snap._enumerate_offices_from_frame(_FakeCache(_FakeEntry(stale)), "PROJ")
+    stale = pl.DataFrame(
+        {
+            "gid": ["uh1"],
+            "parent_gid": ["b1"],
+            "last_modified": [dt.datetime(2026, 1, 1, tzinfo=dt.UTC)],
+        }
+    )
+    business = pl.DataFrame({"gid": ["b1"], GUID_FIELD: ["g1"]})
+    cache = _FakeCache(
+        {
+            snap.SNAPSHOT_UNIT_HOLDER_ENTITY_TYPE: _FakeEntry(stale),
+            snap.SNAPSHOT_BUSINESS_ENTITY_TYPE: _FakeEntry(business),
+        }
+    )
+    with pytest.raises(SnapshotRefusedError, match="scheduling-posture columns"):
+        await snap._enumerate_offices_from_frame(cache, "UH_PROJ", "BIZ_PROJ")
 
 
 # --- handler (end-to-end DARK) --------------------------------------------------
