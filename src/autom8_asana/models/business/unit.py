@@ -484,10 +484,19 @@ class UnitHolder(
         resolved null (degenerate push). 1.6.0 sources them ``cascade:`` so the
         offer frame reads them off this ancestor at bulk warm time.
 
-        ``name`` is the EXACT live Asana custom-field display name (Title Case) --
-        the cascade name-match is ``lower()/strip()`` (cf_utils.get_custom_field_value),
-        so snake_case does NOT match. Values verified live on the
-        "…Business Units 🔎" (Units-project) UnitHolder task.
+        ``name`` is the EXACT live Asana custom-field display name (Title Case).
+        Values verified live on the "…Business Units 🔎" (Units-project) UnitHolder
+        task.
+
+        These defs feed the CASCADE path, whose matcher is
+        ``cf_utils.get_custom_field_value`` -- a ``lower().strip()`` comparison. It
+        does NOT strip inner separators, so snake_case does NOT match here and the
+        Title Case spelling is load-bearing for cascade consumers.
+
+        Do NOT generalize that rule: the ``cf:`` schema path uses a DIFFERENT matcher
+        (``DefaultCustomFieldResolver`` -> ``NameNormalizer.normalize``), which strips
+        ALL non-alphanumerics, so snake_case DOES resolve there. See
+        ``dataframes/schemas/unit_holder.py`` for the cf:-path statement.
 
         ``target_types=None`` (cascade to all descendants incl. Offer);
         ``allow_override=False`` (DEFAULT -- the office-level UnitHolder value is

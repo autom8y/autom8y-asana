@@ -966,33 +966,37 @@ def _make_gate_persistence() -> MagicMock:
 class TestL2GateFramelessProviderEndToEnd:
     """End-to-end through _preload_dataframe_cache_progressive with the
     REAL planner (cascade_warm_phases) and the REAL L2 gate — no ordering
-    patches. Guards the #192 wedge: the frame-less unit_holder provider
-    (OFFER_SCHEMA 1.6.0 scheduling-posture cascade) is never frame-warmed,
-    so the gate must not demand it; but a genuinely missing frame-warmable
-    provider must still be fatal.
+    patches.
+
+    WS-B (DIAG-ws-b-offer-frame-collapse-2026-08-05): unit_holder is no longer
+    frame-LESS — it owns UNIT_HOLDER_SCHEMA and warms at priority 3. It has
+    therefore MOVED INTO offer's frame-warm provider set, so the real gate now
+    demands its completion before offer's phase.
+
+    That demand is satisfiable in production because discovery Phase 2 registers
+    unit_holder UNCONDITIONALLY from ``UnitHolder.PRIMARY_PROJECT_GID``
+    (``services/discovery.py:131`` + the placeholder-name else-branch at
+    ``:176``), which is why a unit_holder frame already existed in S3 with base
+    columns only. ``test_red_unit_holder_absent_from_configs_is_fatal`` pins that
+    dependency so it can never silently regress into a #192-class wedge.
     """
 
-    async def test_green_offer_preloads_with_frameless_unit_holder(self) -> None:
-        """GREEN: offer's phase passes the real gate although unit_holder
-        (a real cascade provider of offer) never completes.
-
-        On the pre-fix gate this preload raised WarmupOrderingError on
-        EVERY run (observed live 2026-07-02T14:48:10Z) because the gate
-        demanded the unfiltered provider set {.., 'unit_holder'}.
-        """
+    async def test_green_offer_preloads_with_unit_holder_configured(self) -> None:
+        """GREEN: offer's phase passes the real gate when unit_holder is
+        configured and completes in an earlier phase (production shape)."""
         from autom8_asana.api.preload.progressive import (
             _preload_dataframe_cache_progressive,
         )
         from autom8_asana.dataframes.cascade_utils import get_cascade_providers
 
-        # Precondition: live registry state — offer really depends on the
-        # frame-less unit_holder (else this test is vacuous).
+        # Precondition: offer really depends on unit_holder (else this is vacuous).
         assert "unit_holder" in get_cascade_providers("offer")
 
         registry = _make_entity_registry(
             entity_types=[
                 ("business", "proj_business", "Business"),
                 ("unit", "proj_unit", "Business Units"),
+                ("unit_holder", "proj_unit_holder", "Business Units Holder"),
                 ("offer", "proj_offer", "Offers"),
             ]
         )
@@ -1041,4 +1045,43 @@ class TestL2GateFramelessProviderEndToEnd:
             real_warm_ordering=True,
         ):
             with pytest.raises(WarmupOrderingError, match="business"):
+                await _preload_dataframe_cache_progressive(app)
+
+    async def test_red_unit_holder_absent_from_configs_is_fatal(self) -> None:
+        """RED (WS-B): unit_holder missing from the preload configs wedges
+        offer's phase — fail-closed, and DELIBERATELY pinned.
+
+        This is the new production dependency PR-1 introduces: because
+        unit_holder became frame-warmable, offer's gate demands it. Discovery
+        Phase 2 satisfies that unconditionally today. If that registration ever
+        regresses, this test documents the blast radius (an ECS preload wedge of
+        exactly the #192 shape) instead of leaving it latent.
+
+        A green here would mean the gate had been weakened into silence.
+        """
+        from autom8_asana.api.preload.progressive import (
+            _preload_dataframe_cache_progressive,
+        )
+        from autom8_asana.dataframes.cascade_utils import WarmupOrderingError
+
+        registry = _make_entity_registry(
+            entity_types=[
+                ("business", "proj_business", "Business"),
+                ("unit", "proj_unit", "Business Units"),
+                # unit_holder deliberately omitted
+                ("offer", "proj_offer", "Offers"),
+            ]
+        )
+        app = _make_mock_app(registry)
+
+        df = pl.DataFrame({"gid": ["t-1"]}, schema={"gid": pl.Utf8})
+        mock_df_storage = MagicMock()
+        mock_df_storage.load_dataframe = AsyncMock(return_value=(df, datetime.now(UTC)))
+
+        with _build_patch_stack(
+            _make_gate_persistence(),
+            mock_df_storage,
+            real_warm_ordering=True,
+        ):
+            with pytest.raises(WarmupOrderingError, match="unit_holder"):
                 await _preload_dataframe_cache_progressive(app)

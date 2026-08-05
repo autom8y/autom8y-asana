@@ -457,6 +457,10 @@ class TestGlobalRegistry:
         assert names == [
             "business",
             "unit",
+            # WS-B: unit_holder gained UNIT_HOLDER_SCHEMA and warms at priority 3.
+            # It MUST precede offer — offer cascades nine posture columns off it,
+            # so L1 validate_cascade_ordering() fails fast otherwise.
+            "unit_holder",
             "offer",
             "contact",
             "asset_edit",
@@ -510,6 +514,7 @@ class TestFacadeBackwardCompatibility:
         expected = [
             "business",
             "unit",
+            "unit_holder",  # WS-B: warmable holder (excluded from ENTITY_TYPES by is_holder)
             "offer",
             "contact",
             "asset_edit",
@@ -547,6 +552,7 @@ class TestFacadeBackwardCompatibility:
 
         expected = {
             "unit": ["business_unit"],
+            "unit_holder": [],  # WS-B: warmable, aliases=()
             "offer": ["business_offer"],
             "business": ["office"],
             "contact": [],
@@ -842,12 +848,14 @@ class TestDataFrameLayerPopulation:
 
     def test_non_schema_entities_have_none_defaults(self) -> None:
         """Entities without schemas keep None/False defaults."""
+        # WS-B: unit_holder LEFT this list — it now owns UNIT_HOLDER_SCHEMA and the
+        # full triad (schema/extractor/row model). See TestDataFrameLayerPopulation
+        # coverage of the wired entities and test_cascading_field_providers below.
         non_schema_entities = [
             "process",
             "location",
             "hours",
             "contact_holder",
-            "unit_holder",
             "location_holder",
             "dna_holder",
             "reconciliation_holder",
@@ -861,12 +869,28 @@ class TestDataFrameLayerPopulation:
             assert desc.schema_module_path is None, f"{name} should have no schema"
             assert desc.extractor_class_path is None, f"{name} should have no extractor"
             assert desc.row_model_class_path is None, f"{name} should have no row model"
-            # unit_holder is schema-less but IS a cascading provider (OFFER_SCHEMA 1.6.0:
-            # it owns the scheduling-posture fields the offer frame reads cascade:).
-            if name != "unit_holder":
-                assert desc.cascading_field_provider is False, (
-                    f"{name} should not be a cascading provider"
-                )
+            assert desc.cascading_field_provider is False, (
+                f"{name} should not be a cascading provider"
+            )
+
+    def test_unit_holder_has_full_triad(self) -> None:
+        """WS-B: unit_holder is fully wired (schema + extractor + row model).
+
+        Guards the inverse of its former membership in ``non_schema_entities``:
+        a partial wiring would trip registry checks 6d/6e/6f and silently degrade
+        the frame the scheduling-posture producer depends on.
+        """
+        desc = get_registry().require("unit_holder")
+        assert desc.schema_module_path == (
+            "autom8_asana.dataframes.schemas.unit_holder.UNIT_HOLDER_SCHEMA"
+        )
+        assert desc.extractor_class_path == (
+            "autom8_asana.dataframes.extractors.unit_holder.UnitHolderExtractor"
+        )
+        assert desc.row_model_class_path == (
+            "autom8_asana.dataframes.models.task_row.UnitHolderRow"
+        )
+        assert desc.cascading_field_provider is True
 
     def test_cascading_field_providers(self) -> None:
         """business, unit, and unit_holder have cascading_field_provider=True.
@@ -1306,6 +1330,10 @@ EXPECTED_SCHEMA_COLUMN_COUNTS: list[tuple[str, int]] = [
     ("offer", 33),  # 13 base + 10 offer-specific + 10 scheduling-posture projection (1.5.0)
     ("asset_edit", 34),  # 13 base + 21 asset_edit-specific
     ("asset_edit_holder", 14),  # 13 base + 1 asset_edit_holder-specific
+    # WS-B: 13 base + 9 cf: scheduling-posture columns (custom_cal_status + the
+    # eight CASCADE_PRIORITY providers). company_id is NOT here — it lives on the
+    # Business ancestor and is joined via parent_gid, not cascaded.
+    ("unit_holder", 22),
     ("process_sales", 16),  # 13 base + 3 process-specific
     ("process_outreach", 16),  # 13 base + 3 process-specific
     ("process_onboarding", 16),  # 13 base + 3 process-specific

@@ -114,6 +114,11 @@ class TestImportTimeValidation:
             "Business",
             "AssetEdit",
             "AssetEditHolder",
+            # WS-B: UnitHolder has a DEDICATED extractor (UnitHolderExtractor) but
+            # still warns, exactly as AssetEditHolder does -- registry.py:351 pins a
+            # stale hardcoded allowlist {"Unit", "Contact", "*"}. Pre-existing debt,
+            # warning-only; widening that allowlist is out of WS-B scope.
+            "UnitHolder",
             "ProcessSales",
             "ProcessOutreach",
             "ProcessOnboarding",
@@ -194,6 +199,7 @@ class TestSchemaAudit:
             "Offer",
             "Business",
             "AssetEdit",
+            "UnitHolder",  # WS-B: new UNIT_HOLDER_SCHEMA
             "AssetEditHolder",
             "ProcessSales",
             "ProcessOutreach",

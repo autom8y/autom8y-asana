@@ -346,9 +346,14 @@ class EntityRegistry:
 
         The current ordering is::
 
-            business (1) -> unit (2) -> offer (3) -> contact (4)
-                                                  -> asset_edit (5)
-                                                  -> asset_edit_holder (6)
+            business (1) -> unit (2) -> unit_holder (3) -> offer (4)
+                                                        -> contact (5)
+                                                        -> asset_edit (6)
+                                                        -> asset_edit_holder (7)
+
+        ``unit_holder`` (WS-B) has no cascade dependencies of its own — its
+        schema is cf:/base only — but it PROVIDES the nine scheduling-posture
+        fields to ``offer``, so it must precede offer in this ordering.
 
         Violating this invariant would cause cascade fields to be null at
         extraction time, reproducing SCAR-005/006 conditions.
@@ -522,7 +527,7 @@ ENTITY_DESCRIPTORS: tuple[EntityDescriptor, ...] = (
         default_ttl_seconds=900,
         freshness_sla_seconds=3600,  # C8/C17 governed (2026-07-30)
         warmable=True,
-        warm_priority=4,
+        warm_priority=5,  # WS-B: 4 -> 5 (unit_holder inserted at 3; relative order unchanged)
         aliases=(),
         join_keys=(("business", "office_phone"),),
         key_columns=("office_phone", "contact_phone", "contact_email"),
@@ -542,7 +547,10 @@ ENTITY_DESCRIPTORS: tuple[EntityDescriptor, ...] = (
         default_ttl_seconds=180,
         freshness_sla_seconds=3600,  # C8/C17 governed (2026-07-30)
         warmable=True,
-        warm_priority=3,
+        # WS-B: 3 -> 4. unit_holder became frame-warmable (priority 3) and offer
+        # cascades nine posture fields off it, so L1 validate_cascade_ordering()
+        # now requires unit_holder to warm EARLIER. Relative order is unchanged.
+        warm_priority=4,
         aliases=("business_offer",),
         join_keys=(
             ("unit", "office_phone"),
@@ -567,7 +575,7 @@ ENTITY_DESCRIPTORS: tuple[EntityDescriptor, ...] = (
         default_ttl_seconds=300,
         freshness_sla_seconds=3600,  # C8/C17 governed (2026-07-30)
         warmable=True,
-        warm_priority=5,
+        warm_priority=6,  # WS-B: 5 -> 6 (unit_holder inserted at 3; relative order unchanged)
         aliases=("process",),
         key_columns=("office_phone", "vertical", "asset_id", "offer_id"),
         explicit_name_mappings=(("paid content", "asset_edit"),),
@@ -791,6 +799,31 @@ ENTITY_DESCRIPTORS: tuple[EntityDescriptor, ...] = (
         # (Custom Cal Status + 8 providers); the offer frame reads them cascade: off
         # this ancestor. UnitHolder.CascadingFields supplies the definitions.
         cascading_field_provider=True,
+        # WS-B (DIAG-ws-b-offer-frame-collapse-2026-08-05): UnitHolder gains a frame
+        # of its OWN so the scheduling-posture producer can read the posture without
+        # the ancestor walk (which terminates at depth 1 — CARD WS-B/1). Its schema
+        # declares only cf:/base columns, so it has ZERO cascade dependencies and
+        # carries no ordering constraint of its own.
+        #
+        # warm_priority=3 is LOAD-BEARING, not arbitrary. Flipping warmable=True
+        # moves unit_holder from the frame-LESS provider set (excluded by
+        # get_frame_warm_providers) into offer's FRAME-WARM provider set, because
+        # offer sources nine columns cascade: off it. L1 validate_cascade_ordering()
+        # then requires unit_holder EARLIER in the flat warm order than offer.
+        # Measured: at priority 7 it raises
+        #   "offer (priority_idx=2) warms BEFORE its cascade provider unit_holder
+        #    (priority_idx=6)"
+        # which is fail-fast at api/lifespan.py:326 — an ECS start refusal. Hence
+        # unit_holder=3 with offer/contact/asset_edit/asset_edit_holder each +1;
+        # business(1) and unit(2) are untouched and all relative order is preserved.
+        warmable=True,
+        warm_priority=3,
+        aliases=(),
+        key_columns=(),
+        schema_module_path="autom8_asana.dataframes.schemas.unit_holder.UNIT_HOLDER_SCHEMA",
+        extractor_class_path="autom8_asana.dataframes.extractors.unit_holder.UnitHolderExtractor",
+        row_model_class_path="autom8_asana.dataframes.models.task_row.UnitHolderRow",
+        custom_field_resolver_class_path="autom8_asana.dataframes.resolver.DefaultCustomFieldResolver",
     ),
     EntityDescriptor(
         name="location_holder",
@@ -832,7 +865,8 @@ ENTITY_DESCRIPTORS: tuple[EntityDescriptor, ...] = (
         name_pattern="reconciliations",
         emoji="abacus",
     ),
-    # warm_priority=6: depends on Business (priority=1) for cascade:Office Phone key column.
+    # warm_priority=7: depends on Business (priority=1) for cascade:Office Phone key column.
+    # (WS-B: 6 -> 7 — unit_holder inserted at 3; relative order unchanged.)
     # key_columns: 1 column (office_phone).  Simplified lookup surface for
     # holder-by-business resolution.  See asset_edit for fine-grained leaf lookup.
     EntityDescriptor(
@@ -849,7 +883,7 @@ ENTITY_DESCRIPTORS: tuple[EntityDescriptor, ...] = (
         name_pattern="asset edit",
         emoji="art",
         warmable=True,
-        warm_priority=6,
+        warm_priority=7,
         aliases=(),
         key_columns=("office_phone",),
         schema_module_path="autom8_asana.dataframes.schemas.asset_edit_holder.ASSET_EDIT_HOLDER_SCHEMA",
