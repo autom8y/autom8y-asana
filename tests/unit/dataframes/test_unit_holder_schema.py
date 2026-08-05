@@ -10,11 +10,21 @@ The cure gives UnitHolder a frame of its OWN whose posture columns are sourced
 ``cf:`` off the UnitHolder's own manifest -- zero ancestor traversal.
 
 These tests are the SOURCE-LEVEL guard. The single most dangerous regression is a
-silent revert to the OFFER_SCHEMA 1.5.0 defect class: a column that LOOKS wired
-but resolves null on every row because it is sourced at the wrong LEVEL
-(``cascade:`` instead of ``cf:``) or under the wrong NAME (snake_case instead of
-the exact live Asana Title Case display name). Both produce a schema that
-type-checks, builds, and pushes a fully degenerate frame.
+silent revert to the OFFER_SCHEMA 1.5.0 defect class: a column that LOOKS wired but
+resolves null on every row because it is sourced at the wrong LEVEL — ``cascade:``
+(the depth-1 ancestor walk) instead of ``cf:`` (this entity's own manifest). That
+produces a schema which type-checks, builds, and pushes a fully degenerate frame.
+
+NAME-MATCH SCOPE (corrected — do not overstate this suite's teeth): on the ``cf:``
+path, names resolve through ``NameNormalizer.normalize()``, which strips ALL
+non-alphanumerics and lowercases. Probed: ``cf:reviewwave_id`` resolves a live
+"ReviewWave ID" field. So the Title Case assertions below are a FIDELITY guard (the
+schema mirrors the live Asana surface and the model's CascadingFieldDefs), NOT a
+null-resolution safety. The genuine safety here is the source LEVEL.
+
+The strict-name rule belongs one path over: ``cascade:`` columns match via
+``cf_utils.get_custom_field_value`` (``lower().strip()``), where snake_case does NOT
+match. ``dataframes/schemas/offer.py`` is the schema that depends on it.
 """
 
 from __future__ import annotations
@@ -127,17 +137,66 @@ class TestUnitHolderSchemaSourceLevel:
     def test_display_names_match_the_model_cascading_field_defs(self) -> None:
         """Cross-check against UnitHolder.CascadingFields, the in-tree authority.
 
-        Guards against a rename drifting the two apart: the custom-field match is
-        lower()/strip(), so a snake_case or reworded name matches NOTHING and the
-        column silently resolves null on every row.
+        FIDELITY guard: the schema's cf: names and the model's CascadingFieldDefs
+        describe the same nine live Asana fields, so they must not drift apart. A
+        genuine RENAME in Asana (not a mere restyling) would break BOTH paths, and
+        the cascade: consumer in offer.py is name-strict even though this cf: path
+        is not.
         """
         model_names = {fd.name for fd in UnitHolder.CascadingFields.all()}
         schema_names = {(c.source or "").removeprefix("cf:") for c in UNIT_HOLDER_COLUMNS}
         assert schema_names == model_names
 
     def test_no_snake_case_source_names(self) -> None:
-        """The literal 1.5.0 defect: snake_case names matched nothing."""
+        """Sources spell the Asana display name, not the DataFrame column name.
+
+        CONVENTION guard, NOT a safety guard: NameNormalizer would resolve a
+        snake_case cf: source just fine (see module docstring). This keeps the
+        schema readable against the live Asana surface and aligned with the
+        name-strict cascade: consumer in offer.py.
+        """
         offenders = [
             c.name for c in UNIT_HOLDER_COLUMNS if "_" in (c.source or "").removeprefix("cf:")
         ]
-        assert not offenders, f"snake_case custom-field names match nothing in Asana: {offenders}"
+        assert not offenders, (
+            f"cf: sources should carry the Asana display name, not the column name: {offenders}"
+        )
+
+
+class TestNameMatchMechanismIsNamedCorrectly:
+    """Pin the ACTUAL matcher on each path (D-4 regression).
+
+    Three docstrings previously claimed exact-name matching was the safety on the
+    cf: path and attributed the OFFER_SCHEMA 1.5.0 defect partly to naming. Both
+    claims are false: cf: normalizes away separators, so 1.5.0 failed on LEVEL
+    alone. These tests make the two matchers' divergence executable so the
+    misdiagnosis cannot silently return.
+    """
+
+    def test_cf_path_normalizes_separators_away(self) -> None:
+        """cf: -> NameNormalizer: snake_case and Title Case collapse to one key."""
+        from autom8_asana.dataframes.resolver.normalizer import NameNormalizer
+
+        for column_name, display_name in EXPECTED_POSTURE_SOURCES.items():
+            assert NameNormalizer.normalize(column_name) == NameNormalizer.normalize(
+                display_name
+            ), f"{column_name} vs {display_name} should normalize identically on the cf: path"
+
+    def test_cascade_path_does_not_normalize_separators(self) -> None:
+        """cascade: -> cf_utils lower().strip(): snake_case does NOT match.
+
+        The contrast is the whole point — offer.py's cascade: columns genuinely do
+        depend on the Title Case spelling, while this schema's cf: columns do not.
+        """
+        from autom8_asana.dataframes.views.cf_utils import get_custom_field_value
+
+        task = {
+            "custom_fields": [
+                {"name": "ReviewWave ID", "resource_subtype": "text", "text_value": "rw"}
+            ]
+        }
+        # Case/outer-whitespace insensitive ...
+        assert get_custom_field_value(task, "reviewwave id") == "rw"
+        assert get_custom_field_value(task, "  ReviewWave ID  ") == "rw"
+        # ... but inner separators are NOT stripped.
+        assert get_custom_field_value(task, "reviewwave_id") is None

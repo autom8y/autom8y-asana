@@ -20,10 +20,24 @@ SOURCE LEVEL — ``cf:`` NOT ``cascade:``:
     this frame.
 
     The names below are the EXACT live Asana display names (Title Case), verbatim
-    from ``UnitHolder.CascadingFields`` (``models/business/unit.py:497-505``) and
-    corroborated by the R-7 live read. The custom-field match is ``lower()/strip()``
-    (``cf_utils.get_custom_field_value``), so snake_case does NOT match — this is
-    the exact defect OFFER_SCHEMA 1.5.0 shipped.
+    from ``UnitHolder.CascadingFields`` and corroborated by the R-7 live read.
+
+    NAME MATCHING ON THIS PATH (stated precisely — it is NOT the safety):
+    ``cf:`` columns resolve through ``DefaultCustomFieldResolver``, which indexes and
+    looks up via ``NameNormalizer.normalize()`` — that strips ALL non-alphanumerics
+    and lowercases. Probed directly: ``cf:reviewwave_id`` resolves a live
+    "ReviewWave ID" field. So snake_case WOULD also match here, and using the Title
+    Case display name is a FIDELITY/READABILITY convention (the schema reads as the
+    Asana surface does), not a null-resolution guard.
+
+    The load-bearing safety on this schema is the SOURCE LEVEL (``cf:`` on the
+    entity that actually owns the field), not the spelling. That is exactly what
+    OFFER_SCHEMA 1.5.0 got wrong: it read ``cf:`` off the Offer's own manifest,
+    where these fields do not exist at ANY spelling.
+
+    The strict-name rule DOES apply one path over: ``cascade:`` columns match via
+    ``cf_utils.get_custom_field_value`` (``lower().strip()`` only, inner separators
+    preserved), where snake_case does NOT match. Do not carry that rule back here.
 
 IDENTITY / JOIN KEY:
     ``parent_gid`` already ships in ``BASE_COLUMNS`` (base 1.1.0) and is the join
