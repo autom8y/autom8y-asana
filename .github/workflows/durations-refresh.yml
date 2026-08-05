@@ -42,6 +42,7 @@ jobs:
           # 2026-08-05) rather than inventing a value.
           version: "0.12.1"
           cache-suffix: durations-refresh
+          prune-cache: false
           cache-dependency-glob: "uv.lock"
 
       - name: Configure AWS credentials
