@@ -41,6 +41,7 @@ from autom8_asana.lambda_handlers.scheduling_stratum_snapshot import (
     assert_posture_signal_floor,
     execute_snapshot_push,
     join_office_spine,
+    office_spine_census,
     posture_signal_row_count,
     project_office_frame,
 )
@@ -430,3 +431,197 @@ class TestLegBGuardsStillBite:
         joined = join_office_spine(uh, biz)
         assert GUID_FIELD in joined.columns
         assert joined.get_column(GUID_FIELD).null_count() == 0
+
+
+# =============================================================================
+# D-6 — latent join hazards (two-sided)
+# =============================================================================
+
+
+class TestD6JoinHazards:
+    """Two defensive lines in join_office_spine, each with a paired healthy run."""
+
+    # --- D-6(a): suffix-collision guard --------------------------------------
+
+    def test_unit_holder_carrying_company_id_is_refused(self) -> None:
+        """BROKEN INPUT: unit_holder already has company_id -> suffix collision.
+
+        polars would emit company_id + company_id_right and the projection would
+        read UnitHolder's own value -- which is ALWAYS null (R-7: the UnitHolder
+        task carries Company ID=None) -- silently dropping EVERY office while the
+        frame still looked fully populated.
+        """
+        uh, biz = _realistic_spine(office_count=5)
+        uh_with_guid = uh.with_columns(pl.lit(None, dtype=pl.Utf8).alias(GUID_FIELD))
+
+        with pytest.raises(FrameSchemaLagError, match="unexpectedly carries"):
+            join_office_spine(uh_with_guid, biz)
+
+    def test_d6a_healthy_variant_passes_the_same_code_path(self) -> None:
+        """PAIRED HEALTHY: without the stray column the join is unambiguous."""
+        uh, biz = _realistic_spine(office_count=5)
+        joined = join_office_spine(uh, biz)
+        assert f"{GUID_FIELD}_right" not in joined.columns
+        assert joined.get_column(GUID_FIELD).null_count() == 0
+
+    # --- D-6(b): deterministic business-side dedup ---------------------------
+
+    def test_duplicate_business_gid_with_leading_null_keeps_the_real_guid(self) -> None:
+        """BROKEN INPUT: a duplicate business gid whose FIRST row has a null guid.
+
+        Under the previous keep="first" on raw order the null row won and the
+        office was dropped entirely -- an office with a perfectly good identity on
+        its sibling row silently vanished from the universe. The non-null-first
+        ordering key keeps it.
+        """
+        uh = _unit_holder_frame(
+            [{"gid": "uh1", "parent_gid": "bizA", CUSTOM_CAL_STATUS_FIELD: "Enabled"}]
+        )
+        biz_dup = pl.DataFrame(
+            {
+                "gid": ["bizA", "bizA"],
+                GUID_FIELD: [None, "guid-real"],  # NULL row leads
+                "last_modified": [_TS, _TS],
+            },
+            schema={
+                "gid": pl.Utf8,
+                GUID_FIELD: pl.Utf8,
+                "last_modified": pl.Datetime(time_unit="us", time_zone="UTC"),
+            },
+        )
+
+        extracted, _ = project_office_frame(uh, biz_dup)
+        assert [e.guid for e in extracted] == ["guid-real"]
+
+    def test_duplicate_business_gid_resolution_is_order_independent(self) -> None:
+        """The winner must not depend on incoming row order (determinism)."""
+        uh = _unit_holder_frame(
+            [{"gid": "uh1", "parent_gid": "bizA", CUSTOM_CAL_STATUS_FIELD: "Enabled"}]
+        )
+        rows = {
+            "gid": ["bizA", "bizA"],
+            GUID_FIELD: [None, "guid-real"],
+            "last_modified": [_TS, _TS],
+        }
+        schema = {
+            "gid": pl.Utf8,
+            GUID_FIELD: pl.Utf8,
+            "last_modified": pl.Datetime(time_unit="us", time_zone="UTC"),
+        }
+        forward = pl.DataFrame(rows, schema=schema)
+        reversed_rows = {k: list(reversed(v)) for k, v in rows.items()}
+        backward = pl.DataFrame(reversed_rows, schema=schema)
+
+        fwd, _ = project_office_frame(uh, forward)
+        rev, _ = project_office_frame(uh, backward)
+        assert [e.guid for e in fwd] == [e.guid for e in rev] == ["guid-real"]
+
+    def test_duplicate_business_gid_prefers_the_newest_among_real_guids(self) -> None:
+        """Among non-null guids the unit_holder doctrine applies: max last_modified."""
+        uh = _unit_holder_frame(
+            [{"gid": "uh1", "parent_gid": "bizA", CUSTOM_CAL_STATUS_FIELD: "Enabled"}]
+        )
+        biz_dup = pl.DataFrame(
+            {
+                "gid": ["bizA", "bizA"],
+                GUID_FIELD: ["guid-old", "guid-new"],
+                "last_modified": [
+                    dt.datetime(2026, 1, 1, tzinfo=dt.UTC),
+                    dt.datetime(2026, 6, 1, tzinfo=dt.UTC),
+                ],
+            },
+            schema={
+                "gid": pl.Utf8,
+                GUID_FIELD: pl.Utf8,
+                "last_modified": pl.Datetime(time_unit="us", time_zone="UTC"),
+            },
+        )
+
+        extracted, _ = project_office_frame(uh, biz_dup)
+        assert [e.guid for e in extracted] == ["guid-new"]
+
+    def test_d6b_healthy_variant_unique_gids_unaffected(self) -> None:
+        """PAIRED HEALTHY: the live shape (every business gid unique) is untouched."""
+        uh, biz = _realistic_spine(office_count=25)
+        assert biz.get_column("gid").n_unique() == biz.height  # live invariant
+        extracted, _ = project_office_frame(uh, biz)
+        assert len(extracted) == 25
+
+
+# =============================================================================
+# D-1 — per-tick universe census (observability; no behavior change)
+# =============================================================================
+
+
+class TestD1UniverseCensus:
+    """The join drops rows silently; the census makes the denominator observable."""
+
+    def test_census_counts_a_healthy_spine(self) -> None:
+        uh, biz = _realistic_spine(office_count=100)
+        census = office_spine_census(uh, biz, join_office_spine(uh, biz))
+
+        assert census == {
+            "unit_holder_rows": 100,
+            "null_parent": 0,
+            "dangling_parent": 0,
+            "business_no_guid": 0,
+            "distinct_guids": 100,
+        }
+
+    def test_census_separates_the_three_drop_causes(self) -> None:
+        """Each drop reason is counted on its OWN axis, not lumped together.
+
+        Reproduces the live composition in miniature: null parent_gid, a parent
+        that resolves to no business row, and a business carrying no Company ID.
+        """
+        uh = _unit_holder_frame(
+            [
+                {"gid": "uh1", "parent_gid": "bizA", CUSTOM_CAL_STATUS_FIELD: "Enabled"},
+                {"gid": "uh2", "parent_gid": None, CUSTOM_CAL_STATUS_FIELD: "Enabled"},
+                {"gid": "uh3", "parent_gid": "bizGHOST", CUSTOM_CAL_STATUS_FIELD: "Enabled"},
+                {"gid": "uh4", "parent_gid": "bizNOGUID", CUSTOM_CAL_STATUS_FIELD: "Enabled"},
+            ]
+        )
+        biz = _business_frame([("bizA", "guid-A"), ("bizNOGUID", None)])
+        census = office_spine_census(uh, biz, join_office_spine(uh, biz))
+
+        assert census["unit_holder_rows"] == 4
+        assert census["null_parent"] == 1
+        assert census["dangling_parent"] == 1
+        assert census["business_no_guid"] == 1
+        assert census["distinct_guids"] == 1
+
+    def test_census_makes_the_undetected_collapse_band_visible(self) -> None:
+        """A 921 -> 500 collapse passes BOTH guards but is loud in the census.
+
+        With MIN_POSTURE_SIGNAL_ROWS=1 and a 0.500 shrink ceiling, this universe
+        would be accepted end-to-end. distinct_guids is what surfaces it.
+        """
+        uh, biz = _realistic_spine(office_count=SPINE_OFFICE_COUNT)
+        # Collapse the identity side: only 500 businesses still carry a guid.
+        collapsed = biz.with_columns(
+            pl.when(pl.int_range(pl.len()) < 500)
+            .then(pl.col(GUID_FIELD))
+            .otherwise(None)
+            .alias(GUID_FIELD)
+        )
+        joined = join_office_spine(uh, collapsed)
+        census = office_spine_census(uh, collapsed, joined)
+
+        # Both guards still accept ...
+        assert_posture_signal_floor(joined)
+        shrink_ratio = (LIVE_PRIOR_COUNT - census["distinct_guids"]) / LIVE_PRIOR_COUNT
+        assert shrink_ratio < SHRINK_GUARD_MAX_RATIO
+        # ... while the census reports the real denominator.
+        assert census["distinct_guids"] == 500
+        assert census["business_no_guid"] == SPINE_OFFICE_COUNT - 500
+
+    def test_census_is_pure_and_does_not_alter_the_projection(self) -> None:
+        """Observability only: identical extraction with and without the census."""
+        uh, biz = _realistic_spine(office_count=30)
+        before, drift_before = project_office_frame(uh, biz)
+        office_spine_census(uh, biz, join_office_spine(uh, biz))
+        after, drift_after = project_office_frame(uh, biz)
+
+        assert [e.guid for e in before] == [e.guid for e in after]
+        assert drift_before == drift_after

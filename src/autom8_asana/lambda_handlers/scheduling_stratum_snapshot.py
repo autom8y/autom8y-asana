@@ -393,6 +393,18 @@ def join_office_spine(unit_holder_df: pl.DataFrame, business_df: pl.DataFrame) -
             f"unit_holder frame lacks the office-spine join key {OFFICE_SPINE_JOIN_KEY!r}"
         )
 
+    # D-6(a) SUFFIX-COLLISION GUARD: the join CONTRIBUTES company_id from the
+    # business side. If the unit_holder frame ever carried its own company_id
+    # column, polars would keep both as company_id / company_id_right and the
+    # projection would silently read the WRONG one (UnitHolder's is always null --
+    # R-7 -- so every office would drop). Refuse rather than resolve ambiguously.
+    if GUID_FIELD in unit_holder_df.columns:
+        raise FrameSchemaLagError(
+            f"unit_holder frame unexpectedly carries {GUID_FIELD!r}; the office guid is "
+            "owned by the BUSINESS ancestor and is contributed by this join. Joining "
+            "would produce a suffixed duplicate column and read the wrong one."
+        )
+
     # business side: the office guid + its own gid (the join target).
     missing_business = [c for c in ("gid", GUID_FIELD) if c not in business_df.columns]
     if missing_business:
@@ -400,12 +412,93 @@ def join_office_spine(unit_holder_df: pl.DataFrame, business_df: pl.DataFrame) -
             f"business frame lacks the office-identity columns {missing_business}"
         )
 
-    business_identity = business_df.select(
-        pl.col("gid").alias(OFFICE_SPINE_JOIN_KEY),
-        pl.col(GUID_FIELD),
-    ).unique(subset=[OFFICE_SPINE_JOIN_KEY], keep="first", maintain_order=True)
+    # D-6(b) DETERMINISTIC business-side dedup. business.gid is a task PK and is
+    # unique in practice (live: 2572/2572), so this normally selects nothing --
+    # but `keep="first"` on raw frame order would make a duplicate resolve
+    # ARBITRARILY, and a leading row with a null guid would silently DROP an office
+    # that has a perfectly good identity on its sibling row.
+    #
+    # Ordering mirrors the unit_holder representative rule (max last_modified,
+    # tie-broken by gid) with ONE additional leading key: a non-null company_id
+    # always wins. That extra key is the difference between keeping and losing an
+    # office when a stale partial row sorts first.
+    identity_sort_keys = ["_has_guid"]
+    identity_descending = [True]
+    if "last_modified" in business_df.columns:
+        identity_sort_keys.append("last_modified")
+        identity_descending.append(True)
+    identity_sort_keys.append("gid")
+    identity_descending.append(True)
+
+    business_identity = (
+        business_df.with_columns(
+            (
+                pl.col(GUID_FIELD).is_not_null()
+                & (pl.col(GUID_FIELD).cast(pl.Utf8).str.strip_chars() != "")
+            ).alias("_has_guid")
+        )
+        .sort(identity_sort_keys, descending=identity_descending, nulls_last=True)
+        .unique(subset=["gid"], keep="first", maintain_order=True)
+        .select(
+            pl.col("gid").alias(OFFICE_SPINE_JOIN_KEY),
+            pl.col(GUID_FIELD),
+        )
+    )
 
     return unit_holder_df.join(business_identity, on=OFFICE_SPINE_JOIN_KEY, how="left")
+
+
+def office_spine_census(
+    unit_holder_df: pl.DataFrame, business_df: pl.DataFrame, joined: pl.DataFrame
+) -> dict[str, int]:
+    """PURE per-tick census of the office spine (D-1 observability).
+
+    The join DROPS a materially large share of unit_holder rows -- measured 52.4%
+    on today's frames (3 null parent_gid + 1089 businesses carrying no
+    ``Company ID``). Those rows fail SAFE to GHL by absence, which is the designed
+    posture, but until now they vanished with ZERO signal.
+
+    That silence matters because the two guards leave a detection BAND: with
+    ``MIN_POSTURE_SIGNAL_ROWS = 1`` and a shrink-guard ceiling of 0.500, a universe
+    could collapse from ~921 all the way to ~475 and still be accepted by both. This
+    census makes the denominator observable every tick so a partial collapse is
+    visible in the log/metric surface long before it reaches the guards.
+
+    Pure and cheap (a few Polars aggregates); the caller emits.
+
+    Returns:
+        Counts keyed ``unit_holder_rows``, ``null_parent``, ``dangling_parent``,
+        ``business_no_guid``, ``distinct_guids``.
+    """
+    import polars as pl
+
+    def _non_blank(col: str) -> pl.Expr:
+        return pl.col(col).is_not_null() & (pl.col(col).cast(pl.Utf8).str.strip_chars() != "")
+
+    unit_holder_rows = unit_holder_df.height
+    null_parent = unit_holder_df.filter(~_non_blank(OFFICE_SPINE_JOIN_KEY)).height
+
+    business_gids = set(business_df.filter(_non_blank("gid")).get_column("gid").to_list())
+    linked = unit_holder_df.filter(_non_blank(OFFICE_SPINE_JOIN_KEY))
+    dangling_parent = linked.filter(
+        ~pl.col(OFFICE_SPINE_JOIN_KEY).is_in(list(business_gids))
+    ).height
+
+    business_no_guid = business_df.filter(~_non_blank(GUID_FIELD)).height
+
+    distinct_guids = (
+        joined.filter(_non_blank(GUID_FIELD)).get_column(GUID_FIELD).n_unique()
+        if GUID_FIELD in joined.columns
+        else 0
+    )
+
+    return {
+        "unit_holder_rows": unit_holder_rows,
+        "null_parent": null_parent,
+        "dangling_parent": dangling_parent,
+        "business_no_guid": business_no_guid,
+        "distinct_guids": distinct_guids,
+    }
 
 
 def project_office_frame(
@@ -538,6 +631,16 @@ async def _enumerate_offices_from_frame(
 
     try:
         joined = join_office_spine(unit_holder_df, business_df)
+        # D-1: emit the per-tick spine census BEFORE the guards run, so a partial
+        # collapse is observable even on ticks that end in a refusal (the refusing
+        # ticks are exactly the ones an operator most needs the denominator for).
+        census = office_spine_census(unit_holder_df, business_df, joined)
+        logger.info("office_spine_universe_census", extra=census)
+        emit_metric("SchedulingStratumUniverseCensus", census["distinct_guids"])
+        emit_metric(
+            "SchedulingStratumUniverseDropped",
+            census["unit_holder_rows"] - census["distinct_guids"],
+        )
         extracted, drift_guids = project_posture_rows(joined)
     except FrameSchemaLagError as exc:
         # SCHEMA-LAG: the unit_holder frame predates UNIT_HOLDER_SCHEMA (or the warmer
@@ -776,6 +879,7 @@ __all__ = [
     "execute_snapshot_push",
     "handler",
     "join_office_spine",
+    "office_spine_census",
     "posture_signal_row_count",
     "project_office_frame",
     "project_posture_rows",
