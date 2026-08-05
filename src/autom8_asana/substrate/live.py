@@ -53,7 +53,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from functools import lru_cache, partial
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import polars as pl
 
@@ -70,6 +70,8 @@ from autom8_asana.core.retry import (
     Subsystem,
 )
 from autom8_asana.core.types import EntityType
+from autom8_asana.dataframes.builders.fields import safe_dataframe_construct
+from autom8_asana.dataframes.schemas import OFFER_SCHEMA
 from autom8_asana.errors import RateLimitError
 from autom8_asana.metrics.compute import compute_metric
 from autom8_asana.metrics.registry import MetricRegistry
@@ -678,7 +680,18 @@ class PacedOfferSectionFetcher:
             all_rows.extend(reused.rows)
             instants[gid] = reused.instant  # prior instant — the MIN-fold ages honestly
 
-        frame = pl.DataFrame(list(all_rows)) if all_rows else pl.DataFrame()
+        # Construct with EXPLICIT OFFER_SCHEMA dtypes (the canonical v1 idiom, mirrors
+        # services/dataframe_service.py:220) — NEVER bare inference. A Utf8 custom-field column
+        # that is null for more than polars' infer_schema_length rows then carries a late string
+        # value (real prod shape: "COvGsYz26fe7oVUjzYLP", 2026-08-05 first-sweep receipt
+        # offer-1143843662099250-091945246412-ec83614f.json) makes bare pl.DataFrame(rows) infer a
+        # Null builder and ComputeError on the append. safe_dataframe_construct coerces then types
+        # from the schema, giving v1/v2 schema identity for the LEG A compare (§6 #3-7).
+        frame = (
+            safe_dataframe_construct(cast("list[dict[str, Any]]", list(all_rows)), OFFER_SCHEMA)
+            if all_rows
+            else pl.DataFrame(schema=OFFER_SCHEMA.to_polars_schema())
+        )
         return FetchedSections(
             frame=frame,
             section_instants=instants,

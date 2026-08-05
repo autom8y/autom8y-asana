@@ -402,6 +402,36 @@ async def test_3b_reused_section_never_charges(tmp_path: Path) -> None:
     assert fetched.frame.height == 1
 
 
+async def test_3b_frame_uses_explicit_schema_not_bare_inference(tmp_path: Path) -> None:
+    """The v2 leg builds its frame with EXPLICIT OFFER_SCHEMA dtypes, never bare inference.
+
+    Regression for the 2026-08-05 first-sweep exit-30: a ``office_phone`` Utf8 cascade column
+    was null for more than polars' ``infer_schema_length`` rows, then a late row carried a string
+    custom-field value ("COvGsYz26fe7oVUjzYLP") — bare ``pl.DataFrame(rows)`` inferred a Null
+    builder and raised ``ComputeError: could not append value ... of type: str to the builder``
+    (receipt offer-1143843662099250-091945246412-ec83614f.json). Two-sided: this fixture is RED
+    (ComputeError in ``fetch``) on bare inference and GREEN with ``safe_dataframe_construct`` +
+    ``OFFER_SCHEMA``. Also pins v1/v2 dtype identity for the LEG A compare (§6 #3-7).
+    """
+    # 120 (> default infer_schema_length 100) rows with a null office_phone, then one carrying
+    # the real string — reproduces the exact prod row shape at zero live cost.
+    null_run = [
+        {**_offer_row("ACTIVE", offer_id=str(i), mrr=1.0), "office_phone": None} for i in range(120)
+    ]
+    late_string = _offer_row(
+        "ACTIVE", offer_id="late", mrr=1.0, office_phone="COvGsYz26fe7oVUjzYLP"
+    )
+    pages = {"ACTIVE": [null_run + [late_string]]}
+    ledger = _ledger(tmp_path)
+    fetcher = _fetcher(
+        tmp_path, page_fetch=_FakePageFetch(pages), plan=_plan(("ACTIVE",)), ledger=ledger
+    )
+    fetched = await fetcher.fetch(_aid())  # RED without the fix: ComputeError raised here
+    assert fetched.frame.height == 121
+    assert fetched.frame.schema["office_phone"] == pl.String  # explicit dtype, not inferred Null
+    assert "COvGsYz26fe7oVUjzYLP" in fetched.frame["office_phone"].to_list()
+
+
 async def test_3b_coverage_refusal_before_any_charge(tmp_path: Path) -> None:
     """§6 #2 keystone: a plan omitting an active section REFUSES BEFORE spending any budget."""
     pages = {"S1": [[_offer_row("ACTIVE", offer_id="a", mrr=1.0)]]}
@@ -593,14 +623,20 @@ async def test_3c_coverage_refusal_is_first_class_no_charge(tmp_path: Path) -> N
 
 
 @pytest.mark.skipif(not MOTO_AVAILABLE, reason="moto not installed")
-async def test_3c_error_path_still_receipts(tmp_path: Path) -> None:
-    """F-305-3: a charged touch that RAISES (v2 frame lacks a value column) still leaves a receipt."""
+async def test_3c_null_value_column_refuses_and_receipts(tmp_path: Path) -> None:
+    """F-305-3 + 2026-08-05 frame-schema fix: a charged touch whose v2 frame carries a null value
+    column REFUSES (staged_rejected) and still leaves a receipt. Explicit OFFER_SCHEMA construction
+    fills a missing value column with null, so the rebuild's null-value-column guard refuses
+    gracefully (incumbent v1 served number preserved) instead of the old uncaught crash — the
+    charged-failure-leaves-a-receipt invariant now holds at the refusal altitude.
+    """
     with mock_aws():
         client = boto3.client("s3", region_name="us-east-1")
         client.create_bucket(Bucket="autom8-s3")
         client.create_bucket(Bucket=_V2_BUCKET)
         _seed_v1(client, [_offer_row("ACTIVE", offer_id="x", mrr=300.0)])
-        # v2 rows LACK 'cost' -> canonical_digest raises MissingValueColumnsError inside the rebuild
+        # v2 row omits 'cost' -> explicit-schema construction fills it null -> the rebuild's
+        # null-value-column guard REFUSES (staged_rejected), preserving the v1 served number.
         bad_row = {
             "section": "ACTIVE",
             "offer_id": "y",
@@ -616,9 +652,9 @@ async def test_3c_error_path_still_receipts(tmp_path: Path) -> None:
             await outbound(_aid())
 
     receipt = _only_receipt(receipts)
-    assert receipt["outcome"] == "error"
-    assert receipt["error"]["type"] == "MissingValueColumnsError"
-    assert ledger.count_today() >= 1  # the fetch charged before the raise — receipted (P10)
+    assert receipt["outcome"] == "refused-staged_rejected"  # graceful refusal, not an error/crash
+    assert "value column" in receipt["detail"]  # the null-value-column reason is carried
+    assert ledger.count_today() >= 1  # the fetch charged before the refusal — receipted (P10)
 
 
 @pytest.mark.skipif(not MOTO_AVAILABLE, reason="moto not installed")
