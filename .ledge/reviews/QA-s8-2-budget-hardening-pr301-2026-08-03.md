@@ -777,3 +777,80 @@ P7 line: **self-assessment caps MODERATE** — construction-identity, mutation, 
 hygiene evidence are own-hands; same-rite authorship; PT-03 corroborates. On this GO the
 cure merges and the next paced sweep should produce the window's FIRST dual-leg SERVED
 observation.
+
+---
+
+# QA DELTA-GATE — PR #318 population-floor active predicate
+
+**VERDICT: GO** — the terminal gate before observation #1 passes. The fix is a
+denominator CORRECTION, not a relaxation (proven adversarially three ways); the
+compute.py:79 mirror is EXACT; the fail-closed fallback is unreachable on the real
+staged frame; the 2-offer data incident is confirmed as the CORRECT next refusal.
+0 blocking · 1 NOTE. **Self-assessment caps MODERATE** (P7 line).
+
+- **Reviewed**: PR #318, commit 4063a506 (fix/s8-2-validator-active-predicate, off
+  dbd46378). True delta = exactly live.py (+35: `active_offer_rows` + wiring at
+  `rebuild_offer_v2`) + test_live.py (+153, 5 tests). Main moved externally to 754c7d1f
+  (#315 docs + #316 UnitHolder schema split) — `git diff dbd46378..origin/main --
+  src/autom8_asana/substrate/` is EMPTY: zero semantic conflict on the fix surface; a
+  routine rebase/merge rides to CI (authoritative full gate per builder's note).
+- **Seam discipline**: `active_predicate` is a PRE-EXISTING `DefaultAcceptancePredicates`
+  field (rebuild.py:357, default None = whole-frame strict) — this is seam-USE; the floor
+  mechanics (rebuild.py:366-384: min_rows over the predicate-selected subset, then
+  `_value_columns_with_nulls(active)`) are untouched.
+- Suite **358/358** own-run; full-config ruff clean repo-wide (the CI-exact RUF100
+  check per the PR #313 receipt pin); `ruff format --check` clean; `mypy src` clean
+  (577 files).
+
+## Duty 1 — correction-not-relaxation, proven adversarially (3 mutations, restores clean)
+
+| Mutation | RED | Meaning |
+|---|---|---|
+| mV1: `active_offer_rows` → whole frame | exactly 2: the v1-reality two-sided test (`test_population_floor_active_subset_passes_where_whole_frame_fails` — whole-frame REFUSES / active-subset PASSES flips) + classifier-mutation propagation | the denominator correction is load-bearing |
+| mV2: `active_offer_rows` → empty frame | 7 incl. the e2e SWAPPED/dual-leg tests — `min_rows` refuses an empty active subset through the REAL rebuild path | the floor cannot be emptied silently |
+| mV3 (MY fixture mutation): fill the active row's `offer_id` null | exactly 1: `test_population_floor_refuses_null_value_column_on_active_row` REDs (no refusal fires) | the refusal test discriminates on EXACTLY the active-row null — `_value_columns_with_nulls` still bites where the served number reads |
+
+## Duty 2 — compute.py:79 mirror: EXACT
+
+`active_offer_rows` (live.py) filters `pl.col("section").str.to_lowercase().is_in(list(active))`
+with `active = classifier_active_sections()` = `frozenset(classifier.sections_for(AccountActivity("active")))`;
+the served metric's Step-0.5 (compute.py:78-79) filters
+`pl.col("section").str.to_lowercase().is_in(list(sections))` with
+`sections = classifier.sections_for(...)`. Both sides lowercase the column AND consume the
+classifier's already-lowercased name set (`SectionClassifier._mapping` keys are
+`name.lower()`, activity.py) with identical `is_in` semantics — no case-mismatch shrink
+vector (the RC-C shape) exists. Classifier-sourcing is behaviorally proven by the
+mutation-propagation test (RED under both mV1 and mV2).
+
+## Duty 3 — fail-closed fallback unreachable on the real path: ANCHORED
+
+The real staged v2 frame is ALWAYS constructed via `safe_dataframe_construct(rows,
+OFFER_SCHEMA)` or the typed empty branch `pl.DataFrame(schema=OFFER_SCHEMA.to_polars_schema())`
+(the PR #313 fix), and `OFFER_SCHEMA` carries the `section` column (probed:
+`'section' in [c.name for c in OFFER_SCHEMA.columns]` → True). The missing-`section`
+fallback (→ whole-frame STRICT, never weaker) is therefore reachable only from foreign
+frames outside the armed path — and its direction is fail-CLOSED regardless.
+
+## Duty 4 — the 2-offer residual: CONFIRMED, and it is the gate WORKING
+
+The oracle's active-subset null counts (0 cost / 0 mrr / **2 offer_id** / 0 was) mean the
+FIXED floor will evaluate `_value_columns_with_nulls(active)` → `{offer_id}` →
+`ValidationFailure("null value column(s) ['offer_id'] on active rows")` →
+STAGED_REJECTED → `refused-staged_rejected` receipt, exit 10, incumbent preserved.
+**This is CORRECT refusal, not a validator problem**: the operator ruled `offer_id`
+expected-present, so two real active offers missing their Offer ID custom field
+(gids 1213234683414144, 1216414611774709) are a surfaceable DATA INCIDENT. **The
+operator-facing story, plainly: fix the two offers' Offer ID field in Asana → the next
+sweep's floor passes → observation #1 serves.** The window's first refusal on this floor
+is the P2 refuse-loud posture doing exactly what the epoch exists to do.
+
+## Findings
+
+| ID | Sev | Finding | Disposition |
+|---|---|---|---|
+| N-1 | NOTE | Branch needs a routine rebase/merge onto 754c7d1f (#316 UnitHolder split — zero substrate-file overlap, no semantic conflict; #316 also removed cf: posture columns from OFFER_SCHEMA, which does not touch the four value columns the floor reads). CI at the merge is the authoritative full gate. | Merge-time mechanical. |
+
+P7 line: **self-assessment caps MODERATE** — mutations (incl. the fixture-side
+discrimination proof), the mirror read, and the schema anchor are own-hands; same-rite
+authorship; PT-03 corroborates. On this GO: merge, one warm data-fix on the two offers,
+and the window produces observation #1.
