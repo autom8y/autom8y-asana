@@ -516,13 +516,26 @@ class TestBulkPrematerializationKeys:
             assert (gid, "section") in keys
 
     def test_heaviest_first_ordering(self) -> None:
-        """CF-2 fix: the DNA holder (heaviest GID) is warmed FIRST, not last."""
-        from autom8_asana.core.project_registry import bulk_prematerialization_keys
+        """CF-2 (heaviest-first) holds for the NON-priority tail after the F1a carve-out.
+
+        The F1a offer-frame priority carve-out (freshness_priority_gids, default the ASR
+        offer frame 1143843662099250) front-loads the freshness-contract GID so it warms
+        every cycle. CF-2 is preserved for everything after it: the DNA holder (the OOM
+        driver, heaviest GID) leads the remaining tail, not warmed last.
+        """
+        from autom8_asana.core.project_registry import (
+            bulk_prematerialization_keys,
+            freshness_priority_gids,
+        )
 
         keys = bulk_prematerialization_keys()
-        first_gid = keys[0][0]
-        # BackendClientSuccessDna ~30k rows -- the OOM driver, must lead.
-        assert first_gid == "1167650840134033"
+        # The freshness-priority GID leads (carve-out), then heaviest-first resumes.
+        assert keys[0][0] == freshness_priority_gids()[0] == "1143843662099250"
+        non_priority_gids = [
+            gid for gid, arm in keys if arm == "project" and gid != "1143843662099250"
+        ]
+        # BackendClientSuccessDna ~30k rows -- the OOM driver, leads the non-priority tail.
+        assert non_priority_gids[0] == "1167650840134033"
 
     def test_deterministic_order(self) -> None:
         """Enumeration order is stable across calls (checkpoint resume needs it)."""

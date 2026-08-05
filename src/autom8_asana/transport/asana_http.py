@@ -31,6 +31,7 @@ from autom8y_http import (
     TokenBucketRateLimiter,
 )
 
+from autom8_asana.core.warm_deadline import raise_if_warm_deadline_reached
 from autom8_asana.errors import (
     AsanaError,
     RateLimitError,
@@ -787,7 +788,18 @@ class AsanaHttpClient:
         attempt: int,
         retry_after: int | None = None,
     ) -> None:
-        """Wait before retry using retry policy."""
+        """Wait before retry using retry policy.
+
+        F1a pacing cure: before sleeping into a 429-storm backoff, yield out of the
+        retry loop if the warmer's process-scoped deadline has been reached. Raising
+        here (rather than sleeping into the 900 s Lambda wall) hands control back to the
+        warm orchestration, which checkpoints the pending tail and self-invokes -- turning
+        a would-be SIGKILL strand into a graceful continue. INERT unless a warmer armed
+        the deadline: for ECS/API and every un-armed process this is a no-op, so the
+        retry behaviour is byte-identical to origin/main. This funnel is the single
+        choke-point all three request loops route their retries through.
+        """
+        raise_if_warm_deadline_reached()
         if self._retry_policy:
             await self._retry_policy.wait(attempt, retry_after)
 

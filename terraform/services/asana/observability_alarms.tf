@@ -304,15 +304,24 @@ variable "substrate_freshness_gids" {
 
 variable "offer_frame_stale_threshold_seconds" {
   description = <<-EOT
-    AL-5 staleness threshold (seconds). 3600 = "served frame older than one hour".
-    NOTE this is LOOSER than the code's own FRESH TTL (offer=180s, default=300s)
-    and its STALE onset (>900s): a frame satisfying <3600 is already code-STALE
-    but within the LKG-servable band (offer FRESHNESS_CONTRACT_MAX_AGE=16200s).
-    3600 is the incident cure bar (ASR arc resume gate), not the code freshness
-    definition. Tighten toward the TTL once the cure holds.
+    AL-5 staleness threshold (seconds). 7200 = "served frame older than 120 min" ==
+    the ASR readiness gate's abort threshold (ASR runs 4h ticks and aborts when the
+    offer frame it reads is > 120 min old). Aligning AL-5 to the ASR abort threshold
+    makes it a FAITHFUL ASR-abort predictor: it fires iff the frame is stale enough
+    that an ASR tick landing in the window would abort.
+
+    F1a pacing re-scope (2026-08-05): raised 3600 -> 7200. The prior 3600 (60 min)
+    was DEGENERATE against the pre-cure OfferFrameAgeSeconds sawtooth (peaks 674-1231
+    min, i.e. 10-20x the threshold) -- trivially always-breaching, non-actionable --
+    and it also fired on 60-120 min peaks that do NOT cause an ASR abort. The pacing
+    cure collapses the peak below 120 min, so 7200 is the actionable "an ASR abort
+    would have happened" line. Still LOOSER than the code FRESH TTL (offer=180s,
+    default=300s) / STALE onset (>900s) and within the LKG-servable band (offer
+    FRESHNESS_CONTRACT_MAX_AGE=16200s); a separate tighter freshness alarm (toward the
+    TTL) can be added later without conflating it with the ASR-abort gate.
   EOT
   type        = number
-  default     = 3600
+  default     = 7200
 }
 
 variable "substrate_freshness_namespace" {
@@ -351,7 +360,7 @@ resource "aws_cloudwatch_metric_alarm" "al5_offer_frame_stale" {
   for_each = var.substrate_freshness_gids
 
   alarm_name        = "asana-AL5-offer-frame-stale-${each.key}"
-  alarm_description = "Per-GID offer frame staleness: served LKG frame for project_gid=${each.key} older than ${var.offer_frame_stale_threshold_seconds}s, 2-of-12 datapoints over 3600s (M-of-N sparsity cure). RB-SUBSTRATE-FRESHNESS. Cures SCAR-015 entity-level blindness (per-GID axis) AND the sparsity-blindness the 300s/2-of-2 config masked. NON-PAGING until AL-5 armed + apply-imported; confirm-first."
+  alarm_description = "Per-GID offer frame staleness: served LKG frame for project_gid=${each.key} older than ${var.offer_frame_stale_threshold_seconds}s (== ASR 120-min abort threshold), 2-of-8 datapoints over a 4h ASR-tick window (M-of-N sparsity cure). Fires iff an ASR tick landing in the window would abort. RB-SUBSTRATE-FRESHNESS. Cures SCAR-015 entity-level blindness (per-GID axis). NON-PAGING until AL-5 armed + apply-imported; confirm-first."
   namespace         = var.substrate_freshness_namespace
   metric_name       = "OfferFrameAgeSeconds"
   dimensions = {
@@ -360,14 +369,16 @@ resource "aws_cloudwatch_metric_alarm" "al5_offer_frame_stale" {
   statistic           = "Maximum"
   comparison_operator = "GreaterThanThreshold"
   threshold           = var.offer_frame_stale_threshold_seconds
-  # SPARSITY-BLINDNESS RECONFIG (node-0, EXECUTION-RECEIPT-al5-reconfig.md,
-  # 2026-07-20, two-sided-teeth-proven): Period 300->3600, EvaluationPeriods
-  # 2->12, DatapointsToAlarm 2 (M-of-N: 2-of-12h). Sparse breaching datapoints
-  # (a starved GID served only a handful of times over hours) now trip the alarm;
-  # the prior 2-of-2-over-300s config read OK through 10,000s+ breaches. Codifies
-  # the live API reconfig into IaC so terraform state == live (was drift).
-  period              = 3600
-  evaluation_periods  = 12
+  # F1a PACING RE-SCOPE (2026-08-05, two-sided-teeth-proven): align the window to the
+  # ASR 4h tick cadence and the threshold to the 120-min abort line so AL-5 predicts
+  # ASR aborts instead of reading always-red against the pre-cure sawtooth. Period
+  # 3600->1800, EvaluationPeriods 12->8 (== 4h), DatapointsToAlarm 2 (M-of-N: 2-of-8
+  # over 4h) keeps the sparsity cure (a starved GID served a handful of times over the
+  # window still trips) while bounding the eval span to one ASR tick. Supersedes the
+  # 2026-07-20 EXECUTION-RECEIPT-al5-reconfig 3600/12/2 config (which cured the earlier
+  # 300s/2-of-2 sparsity blindness but read degenerate against the 10-20x sawtooth).
+  period              = 1800
+  evaluation_periods  = 8
   datapoints_to_alarm = 2
   treat_missing_data  = "notBreaching" # missing serve != stale; residual blind spot per header
 

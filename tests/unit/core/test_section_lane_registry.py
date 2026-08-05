@@ -34,16 +34,22 @@ class TestSectionOnlyPrematerializationKeys:
         assert all(et == "section" for _gid, et in keys)
 
     def test_every_warm_set_gid_present_in_order(self) -> None:
-        """Each of the 34 consumer warm-set GIDs appears exactly once, in order."""
+        """Each of the 34 consumer warm-set GIDs appears exactly once, in carve-out order.
+
+        The F1a offer-frame priority carve-out front-loads the freshness-contract GID(s);
+        the lane order is therefore prioritize_freshness_gids(consumer_warm_set_gids()).
+        Coverage is invariant -- every GID still appears exactly once (a permutation).
+        """
         from autom8_asana.core.project_registry import (
             consumer_warm_set_gids,
+            prioritize_freshness_gids,
             section_only_prematerialization_keys,
         )
 
         keys = section_only_prematerialization_keys()
         key_gids = [gid for gid, _et in keys]
-        warm_gids = list(consumer_warm_set_gids())
-        assert key_gids == warm_gids
+        assert key_gids == list(prioritize_freshness_gids(consumer_warm_set_gids()))
+        assert set(key_gids) == set(consumer_warm_set_gids())  # no add, no drop
 
     def test_exact_section_key_set_membership(self) -> None:
         """Set of keys == {(gid, 'section') for gid in consumer_warm_set_gids()}."""
@@ -57,12 +63,24 @@ class TestSectionOnlyPrematerializationKeys:
         assert actual == expected
 
     def test_heaviest_first_ordering(self) -> None:
-        """CF-2: DNA holder (heaviest GID) leads, matching the bulk-sweep contract."""
-        from autom8_asana.core.project_registry import section_only_prematerialization_keys
+        """F1a carve-out: the freshness GID leads; CF-2 (heaviest-first) holds for the tail.
+
+        Matches the bulk-sweep contract (test_project_registry.test_heaviest_first_ordering):
+        the freshness-priority GID is front-loaded, then the DNA holder (OOM driver, heaviest
+        GID) leads the remaining non-priority tail.
+        """
+        from autom8_asana.core.project_registry import (
+            freshness_priority_gids,
+            section_only_prematerialization_keys,
+        )
 
         keys = section_only_prematerialization_keys()
-        # BackendClientSuccessDna ~30k rows -- the OOM driver, must lead.
-        assert keys[0] == ("1167650840134033", "section")
+        assert (
+            keys[0] == (freshness_priority_gids()[0], "section") == ("1143843662099250", "section")
+        )
+        non_priority = [gid for gid, _et in keys if gid != "1143843662099250"]
+        # BackendClientSuccessDna ~30k rows -- the OOM driver, leads the non-priority tail.
+        assert non_priority[0] == "1167650840134033"
 
     def test_deterministic_order(self) -> None:
         """Enumeration order is stable across calls (checkpoint resume needs it)."""

@@ -47,6 +47,11 @@ from autom8y_config.lambda_extension import resolve_secret_from_env
 from autom8y_log import get_logger
 from autom8y_telemetry.aws import emit_success_timestamp, instrument_lambda
 
+from autom8_asana.core.warm_deadline import (
+    WarmDeadlineExceeded,
+    arm_warm_deadline,
+    disarm_warm_deadline,
+)
 from autom8_asana.lambda_handlers.cloudwatch import (
     emit_metric,
     emit_warmer_coverage_rate,
@@ -543,6 +548,10 @@ async def _prematerialize_bulk_set_async(
 
     key_budget = _bulk_key_budget()
 
+    # F1a pacing cure: arm the process-scoped warm deadline so a per-key 429 storm
+    # yields out of the transport retry loop (WarmDeadlineExceeded) and lands on the
+    # graceful checkpoint+continue below, instead of SIGKILL-stranding at the 900 s wall.
+    arm_warm_deadline(context)
     try:
         async with AsanaClient(token=bot_pat, workspace_gid=workspace_gid) as client:
             keys_this_invocation = 0
@@ -634,6 +643,13 @@ async def _prematerialize_bulk_set_async(
             checkpoint_cleared=all_covered,
         )
 
+    except WarmDeadlineExceeded:
+        # F1a pacing cure: a key's warm rode a 429 storm into the deadline. Yield
+        # gracefully -- checkpoint the pending tail + self-invoke -- exactly like the
+        # timeout-exit branch, instead of letting the retry loop burn to the 900 s
+        # SIGKILL (which would strand the sweep: no checkpoint, no continuation).
+        emit_metric("WarmerDeadlineYield", 1)
+        return await _checkpoint_and_continue("deadline")
     except (
         Exception  # noqa: BLE001
     ) as e:  # BROAD-CATCH: boundary -- async function top-level catch, returns error response
@@ -646,6 +662,8 @@ async def _prematerialize_bulk_set_async(
             },
         )
         return _finish(success=False, message_prefix=f"Bulk pre-materialization failed: {e}")
+    finally:
+        disarm_warm_deadline()
 
 
 @dataclass
@@ -868,6 +886,10 @@ async def _warm_cache_async(
         strict=False,  # Handle failures individually for checkpointing
     )
 
+    # F1a pacing cure: arm the process-scoped warm deadline so a per-entity 429 storm
+    # yields out of the transport retry loop (WarmDeadlineExceeded) onto the graceful
+    # per-entity checkpoint+continue below, instead of SIGKILL-stranding at the 900 s wall.
+    arm_warm_deadline(context)
     # Execute warming with async context manager for client
     try:
         async with AsanaClient(token=bot_pat, workspace_gid=workspace_gid) as client:
@@ -1024,6 +1046,34 @@ async def _warm_cache_async(
                             entity_results=entity_results,
                         )
                         emit_metric("CheckpointSaved", 1)
+
+                except WarmDeadlineExceeded:
+                    # F1a pacing cure: this entity's warm rode a 429 storm into the
+                    # deadline. Yield gracefully -- identical to the _should_exit_early
+                    # branch above (checkpoint pending + self-invoke) -- instead of
+                    # letting the retry loop burn to the 900 s SIGKILL (which strands
+                    # the sweep: no checkpoint, no continuation).
+                    emit_metric("WarmerDeadlineYield", 1)
+                    pending = [et for et in processing_list if et not in completed_entities]
+                    await checkpoint_mgr.save_async(
+                        invocation_id=invocation_id,
+                        completed_entities=completed_entities,
+                        pending_entities=pending,
+                        entity_results=entity_results,
+                    )
+                    emit_metric("CheckpointSaved", 1)
+                    _self_invoke_continuation(context, pending, invocation_id)
+                    return WarmResponse(
+                        success=False,
+                        message=(
+                            f"Partial completion, self-continuing (deadline). "
+                            f"Completed: {completed_entities}, Pending: {pending}"
+                        ),
+                        entity_results=entity_results,
+                        total_rows=sum(r.get("row_count", 0) for r in entity_results),
+                        duration_ms=(time.monotonic() - start_time) * 1000,
+                        invocation_id=invocation_id,
+                    )
 
                 except Exception as e:  # BROAD-CATCH: isolation -- per-entity-type loop, single failure must not abort batch
                     logger.error(
@@ -1216,6 +1266,8 @@ async def _warm_cache_async(
             duration_ms=duration_ms,
             invocation_id=invocation_id,
         )
+    finally:
+        disarm_warm_deadline()
 
 
 @instrument_lambda
