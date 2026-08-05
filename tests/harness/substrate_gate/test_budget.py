@@ -399,3 +399,64 @@ def test_parity_source_halts_loudly_at_cap(tmp_path) -> None:
     with pytest.raises(ParityBudgetExhausted):
         asyncio.run(source.fetch_all_paced([_aid()]))
     assert ran == []  # the outbound never ran — budget halted the parity fan-out
+
+
+# ------------------------------------------------------- F-1/F-2/F-3 (WU-3) ---
+# Carry-forward closes from QA-s8-2-budget-hardening-pr301 §8. Two-sided where a guard
+# was added: the guard bites the malformed input AND the well-formed boundary is unchanged.
+
+
+def test_f1_consume_rejects_non_positive_units(tmp_path) -> None:
+    """F-1: ``consume(units)`` refuses units < 1 — no silent refund / at-cap no-op.
+
+    Before the guard, ``consume(-3)`` after filling cap 5 wrote count 2 (a silent REFUND),
+    and ``consume(0)`` at cap succeeded as a no-op. Both are states the cap contract forbids.
+    """
+    ledger = PerDayBudgetLedger(path=tmp_path / "b.json", cap=5, clock=_fixed_clock())
+    ledger.consume(5)  # fill the day
+
+    with pytest.raises(ValueError, match="units >= 1"):
+        ledger.consume(-3)  # would silently refund to count 2 pre-guard
+    with pytest.raises(ValueError, match="units >= 1"):
+        ledger.consume(0)  # would succeed as an at-cap no-op pre-guard
+    assert ledger.count_today() == 5  # neither malformed charge mutated the ledger
+
+
+def test_f1_positive_multi_unit_charge_still_works(tmp_path) -> None:
+    """F-1 two-sided: a legitimate multi-unit charge (WU-3's per-touch page count) is intact."""
+    ledger = PerDayBudgetLedger(path=tmp_path / "b.json", cap=10, clock=_fixed_clock())
+    assert ledger.consume(3) == 3  # a 3-page touch charges 3
+    assert ledger.consume(1) == 4  # the units==1 boundary is unchanged
+    with pytest.raises(ParityBudgetExhausted):
+        ledger.consume(7)  # 4 + 7 > 10 — overshoot still refuses, no partial charge
+    assert ledger.count_today() == 4
+
+
+def test_f2_negative_day_count_in_ledger_refuses(tmp_path) -> None:
+    """F-2: a negative day count on disk is a tampered ledger — refuse, never fail-open."""
+    path = tmp_path / "b.json"
+    path.write_text(json.dumps({"2026-07-30": -1_000_000}), encoding="utf-8")
+    ledger = PerDayBudgetLedger(path=path, cap=5, clock=_fixed_clock())
+    with pytest.raises(BudgetLedgerCorrupt, match="non-int/negative"):
+        ledger.count_today()
+    with pytest.raises(BudgetLedgerCorrupt):
+        ledger.consume()  # would have granted ~1M attempts pre-guard
+
+
+@pytest.mark.parametrize("bad", ["7", 3.9, True, None])
+def test_f3_non_int_day_count_refuses_no_coercion(tmp_path, bad) -> None:
+    """F-3: ``"7"`` / ``3.9`` / ``True`` / ``null`` are no longer coerced — corrupt, refuse."""
+    path = tmp_path / "b.json"
+    path.write_text(json.dumps({"2026-07-30": bad}), encoding="utf-8")
+    ledger = PerDayBudgetLedger(path=path, cap=5, clock=_fixed_clock())
+    with pytest.raises(BudgetLedgerCorrupt):
+        ledger.count_today()
+
+
+def test_f2_f3_wellformed_ledger_still_loads(tmp_path) -> None:
+    """F-2/F-3 two-sided: a real non-negative-int ledger (incl. 0) loads unchanged."""
+    path = tmp_path / "b.json"
+    path.write_text(json.dumps({"2026-07-29": 0, "2026-07-30": 42}), encoding="utf-8")
+    ledger = PerDayBudgetLedger(path=path, cap=100, clock=_fixed_clock())
+    assert ledger.count_today() == 42
+    assert ledger.consume() == 43
