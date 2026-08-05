@@ -9,11 +9,15 @@ the live-parity / rebuild fetch path REFUSES against, loudly, never log-and-cont
 Two pieces:
 
   * ``PerDayBudgetLedger`` — a date-keyed JSON ledger persisted at a
-    constructor-injected path with an atomic (write-temp + ``os.replace``) update.
-    ``consume()`` counts EVERY upstream fetch ATTEMPT (a 429'd attempt is still an
-    attempt against the daily API allowance) and raises ``ParityBudgetExhausted``
-    at/over the cap BEFORE the attempt proceeds. Durable across process
-    invocations: a fresh ledger over the same path continues the same day's count.
+    constructor-injected path with an atomic (write-temp + ``os.replace``) update
+    guarded by a blocking cross-process ``flock`` (concurrent chargers serialize;
+    no lost updates). ``consume(units)`` counts EVERY upstream fetch ATTEMPT (a
+    429'd attempt is still an attempt against the daily API allowance) and raises
+    ``ParityBudgetExhausted`` when the charge would take the day OVER the cap,
+    BEFORE the attempt proceeds — never overshooting, never partially charging.
+    A corrupt/tampered ledger raises ``BudgetLedgerCorrupt`` (refuse > wrong); only a
+    *missing* file is a legitimate empty day. Durable across process invocations: a
+    fresh ledger over the same path continues the same day's count.
 
   * ``BudgetedPacedFetcher`` — a wrapper that IMPLEMENTS the FROZEN
     ``substrate.rebuild.PacedAsanaFetcher`` Protocol (imported, never modified) by
@@ -28,6 +32,7 @@ the budget through the fetch path (real, not ornamental) without arming anything
 from __future__ import annotations
 
 import contextlib
+import fcntl
 import json
 import os
 import tempfile
@@ -37,11 +42,14 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from typing import IO
 
     from autom8_asana.substrate.identity import ArtifactId
     from autom8_asana.substrate.rebuild import FetchedSections, PacedAsanaFetcher
 
 __all__ = [
+    "PINNED_LEDGER_PATH",
+    "BudgetLedgerCorrupt",
     "BudgetedPacedFetcher",
     "ParityBudgetExhausted",
     "PerDayBudgetLedger",
@@ -56,6 +64,33 @@ class ParityBudgetExhausted(RuntimeError):
     so it is NOT swallowed by the ``core.retry`` transient classifier (it is not an
     ``Autom8Error`` → non-transient → the orchestrator re-raises it immediately).
     """
+
+
+class BudgetLedgerCorrupt(RuntimeError):
+    """The on-disk ledger is unreadable/tampered — parity REFUSES; a human decides.
+
+    Raised by ``PerDayBudgetLedger._load`` when the ledger file EXISTS but does not
+    parse as a JSON object of ``day -> int`` (invalid JSON, a non-dict payload, or a
+    non-integer count). A *missing* file is NOT corrupt — it is a legitimate empty
+    ledger (first run of the day). There is NO silent reset-to-zero and NO
+    auto-quarantine: a corrupt ledger would otherwise fail OPEN (reset the day's count
+    to 0 and let fetches proceed), the exact log-and-continue posture this module's
+    docstring forbids. Refuse loudly so a human decides (refuse > wrong, charter P2).
+    Like ``ParityBudgetExhausted`` it is a plain ``RuntimeError`` (not an
+    ``Autom8Error``), so ``core.retry`` classifies it non-transient and the
+    orchestrator re-raises immediately instead of retrying against a poisoned ledger.
+    """
+
+
+# Production ledger home consumed by WU-3 wiring (NOT by tests — the constructor takes
+# an explicit path so tests pin a tmp_path). Deliberately repo-relative and durable:
+# NOT /tmp (wiped on reboot) and NOT the session scratchpad (dies at park), because the
+# ledger MUST survive park-per-day across the multi-day P5 cutover-parity window. The
+# ``{year}`` segment bounds file growth (one date key accrues per UTC day; the in-file
+# date keys already reset the daily count) — WU-3 resolves it via ``.format(year=...)``
+# at arming time. The per-day cap stays constructor-injected (calibrated from the UV-P-6
+# probe at WU-1); it is deliberately NOT hardcoded here.
+PINNED_LEDGER_PATH = ".sos/wip/parity/budget-ledger-{year}.json"  # P13-amendable
 
 
 class PerDayBudgetLedger:
@@ -89,12 +124,28 @@ class PerDayBudgetLedger:
 
     def _load(self) -> dict[str, int]:
         try:
-            raw = json.loads(self._path.read_text(encoding="utf-8"))
-        except (FileNotFoundError, json.JSONDecodeError):
-            return {}
+            text = self._path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            return {}  # legitimate empty ledger — first run (of the day); NOT corrupt
+        try:
+            raw = json.loads(text)
+        except json.JSONDecodeError as exc:
+            raise BudgetLedgerCorrupt(
+                f"parity budget ledger at {self._path} is not valid JSON — refusing "
+                f"(no silent reset-to-zero); a human must inspect/repair: {exc}"
+            ) from exc
         if not isinstance(raw, dict):
-            return {}
-        return {str(k): int(v) for k, v in raw.items()}
+            raise BudgetLedgerCorrupt(
+                f"parity budget ledger at {self._path} is not a JSON object "
+                f"(got {type(raw).__name__}) — refusing; a human must inspect/repair"
+            )
+        try:
+            return {str(k): int(v) for k, v in raw.items()}
+        except (TypeError, ValueError) as exc:
+            raise BudgetLedgerCorrupt(
+                f"parity budget ledger at {self._path} has a non-integer day count — "
+                f"refusing; a human must inspect/repair: {exc}"
+            ) from exc
 
     def _atomic_write(self, data: dict[str, int]) -> None:
         """Write ``data`` durably: temp file in the target dir, then atomic rename."""
@@ -113,25 +164,65 @@ class PerDayBudgetLedger:
         """Attempts already consumed for the current UTC day (durable across instances)."""
         return self._load().get(self._today_key(), 0)
 
+    def _lock_path(self) -> Path:
+        return self._path.with_name(f"{self._path.name}.lock")
+
+    def _acquire_lock(self) -> IO[str]:
+        """Take a blocking cross-process exclusive lock over the load→check→write section.
+
+        Blocking ``LOCK_EX`` (NOT the ``LOCK_NB``-then-skip of ``polling_scheduler``): a
+        contending charge MUST wait its turn — skipping the lock would let it proceed
+        unbudgeted (a lost update / overshoot); the section is bounded local file IO that
+        cannot wedge and flock auto-releases on fd-close/process-death, so a blocking
+        acquire is deadlock-free. PID-stamped for who-holds-it diagnostics.
+        """
+        lock_path = self._lock_path()
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        lock_file = open(lock_path, "w", encoding="utf-8")  # noqa: SIM115 — held across return; released in _release_lock
+        try:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        except BaseException:
+            lock_file.close()
+            raise
+        lock_file.write(f"{datetime.now(UTC).isoformat()}\npid={os.getpid()}\n")
+        lock_file.flush()
+        return lock_file
+
+    def _release_lock(self, lock_file: IO[str]) -> None:
+        try:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+        finally:
+            lock_file.close()  # closing also drops the flock (belt-and-suspenders)
+
     def consume(self, units: int = 1) -> int:
         """Charge ``units`` fetch attempt(s) against today's budget; return the new count.
 
-        Raises ``ParityBudgetExhausted`` when today's count is already AT the cap
-        (``current >= cap``) — the charge does not proceed. Every ATTEMPT calls this,
-        including one that will subsequently 429: the attempt is charged first, so a
-        rate-limited or refused attempt still spends its unit.
+        Raises ``ParityBudgetExhausted`` when the charge would take today's count OVER
+        the cap (``current + units > cap``) — the charge does not proceed and NOTHING is
+        written (no partial charge). For ``units == 1`` this is exactly the prior
+        ``current >= cap`` boundary. Every ATTEMPT calls this, including one that will
+        subsequently 429: the attempt is charged first, so a rate-limited or refused
+        attempt still spends its unit. The whole read-modify-write runs under a blocking
+        cross-process ``flock`` (see ``_acquire_lock``) so two processes near the cap
+        serialize instead of both reading ``N < cap`` and both charging (a lost update
+        that would overshoot the cap).
         """
-        data = self._load()
-        key = self._today_key()
-        current = data.get(key, 0)
-        if current >= self._cap:
-            raise ParityBudgetExhausted(
-                f"per-day parity fetch budget exhausted for {key}: "
-                f"count={current} >= cap={self._cap}; parity halts (no log-and-continue)"
-            )
-        data[key] = current + units
-        self._atomic_write(data)
-        return data[key]
+        lock_file = self._acquire_lock()
+        try:
+            data = self._load()
+            key = self._today_key()
+            current = data.get(key, 0)
+            if current + units > self._cap:
+                raise ParityBudgetExhausted(
+                    f"per-day parity fetch budget exhausted for {key}: "
+                    f"count={current} + units={units} > cap={self._cap}; "
+                    f"parity halts (no partial charge, no log-and-continue)"
+                )
+            data[key] = current + units
+            self._atomic_write(data)
+            return data[key]
+        finally:
+            self._release_lock(lock_file)
 
 
 class BudgetedPacedFetcher:

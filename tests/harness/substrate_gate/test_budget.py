@@ -12,7 +12,11 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
+import subprocess
+import sys
 from datetime import UTC, datetime
+from pathlib import Path
 
 import polars as pl
 import pytest
@@ -22,7 +26,9 @@ from autom8_asana.errors import RateLimitError
 from autom8_asana.substrate.identity import ArtifactId
 from autom8_asana.substrate.rebuild import FetchedSections, PacedAsanaFetcher
 from tests.harness.substrate_gate.budget import (
+    PINNED_LEDGER_PATH,
     BudgetedPacedFetcher,
+    BudgetLedgerCorrupt,
     ParityBudgetExhausted,
     PerDayBudgetLedger,
 )
@@ -89,6 +95,171 @@ def test_next_day_resets_the_count(tmp_path) -> None:
     day_two = PerDayBudgetLedger(path=path, cap=2, clock=_fixed_clock(tomorrow))
     assert day_two.count_today() == 0  # new day, fresh budget
     assert day_two.consume() == 1
+
+
+# ------------------------------------------- WU-2 close 3: multi-unit overshoot ---
+def test_multi_unit_charge_never_overshoots_the_cap(tmp_path) -> None:
+    """``consume(units)`` refuses BEFORE charging when ``current + units > cap``.
+
+    The pre-fix check (``current >= cap``) let ``units>1`` overshoot by up to units-1;
+    the fix pre-charges against the whole ``units`` and refuses with NO partial charge.
+    """
+    path = tmp_path / "b.json"
+    ledger = PerDayBudgetLedger(path=path, cap=5, clock=_fixed_clock())
+    assert ledger.consume(3) == 3  # 0 + 3 <= cap -> allowed
+
+    with pytest.raises(ParityBudgetExhausted):
+        ledger.consume(4)  # 3 + 4 = 7 > cap -> refuse (would overshoot by 2)
+    assert ledger.count_today() == 3  # ledger UNCHANGED — not clamped to cap, no partial
+
+
+def test_multi_unit_exact_fill_passes_then_next_refuses(tmp_path) -> None:
+    ledger = PerDayBudgetLedger(path=tmp_path / "b.json", cap=5, clock=_fixed_clock())
+    assert ledger.consume(5) == 5  # 0 + 5 == cap -> fills exactly, allowed
+    with pytest.raises(ParityBudgetExhausted):
+        ledger.consume(1)  # 5 + 1 > cap -> refuse
+    assert ledger.count_today() == 5
+
+
+def test_single_unit_boundary_unchanged_by_overshoot_fix(tmp_path) -> None:
+    """Regression guard: ``current + 1 > cap`` is exactly the old ``current >= cap``."""
+    ledger = PerDayBudgetLedger(path=tmp_path / "b.json", cap=1, clock=_fixed_clock())
+    assert ledger.consume() == 1  # 0 + 1 == cap -> allowed
+    with pytest.raises(ParityBudgetExhausted):
+        ledger.consume()  # 1 + 1 > cap -> fires (== old current >= cap)
+
+
+# ------------------------------------------ WU-2 close 1: corrupt-ledger refusal ---
+def test_corrupt_json_refuses_loudly_not_silent_reset(tmp_path) -> None:
+    """A tampered/corrupt ledger must REFUSE loudly, never fail-open to a 0 count."""
+    path = tmp_path / "b.json"
+    path.write_text("{ this is not valid json ]", encoding="utf-8")
+    ledger = PerDayBudgetLedger(path=path, cap=5, clock=_fixed_clock())
+
+    with pytest.raises(BudgetLedgerCorrupt):
+        ledger.count_today()  # the read path refuses (no silent reset-to-zero)
+    with pytest.raises(BudgetLedgerCorrupt):
+        ledger.consume()  # and the charge path refuses too
+
+
+def test_valid_json_but_non_dict_refuses_loudly(tmp_path) -> None:
+    path = tmp_path / "b.json"
+    path.write_text("[1, 2, 3]", encoding="utf-8")  # valid JSON, wrong shape
+    ledger = PerDayBudgetLedger(path=path, cap=5, clock=_fixed_clock())
+    with pytest.raises(BudgetLedgerCorrupt):
+        ledger.count_today()
+
+
+def test_non_integer_day_count_refuses_loudly(tmp_path) -> None:
+    path = tmp_path / "b.json"
+    path.write_text('{"2026-07-30": "banana"}', encoding="utf-8")  # dict, non-int value
+    ledger = PerDayBudgetLedger(path=path, cap=5, clock=_fixed_clock())
+    with pytest.raises(BudgetLedgerCorrupt):
+        ledger.count_today()
+
+
+def test_missing_file_is_a_legitimate_empty_ledger(tmp_path) -> None:
+    """A MISSING file is first-run, not corrupt: count 0, charging proceeds."""
+    ledger = PerDayBudgetLedger(path=tmp_path / "nope.json", cap=5, clock=_fixed_clock())
+    assert ledger.count_today() == 0
+    assert ledger.consume() == 1
+
+
+def test_loud_refusals_are_plain_runtime_errors_non_transient() -> None:
+    """Both loud stops are plain RuntimeErrors so ``core.retry`` treats them non-transient."""
+    assert issubclass(BudgetLedgerCorrupt, RuntimeError)
+    assert issubclass(ParityBudgetExhausted, RuntimeError)
+
+
+# ------------------------------------------ WU-2 close 2: cross-process lock race ---
+# Loads budget.py STANDALONE by file path (its runtime imports are pure stdlib; the
+# autom8_asana imports are TYPE_CHECKING-only) — so the child pays no package/harness
+# import cost and needs no autom8_asana on the path.
+_RACE_CHILD = """
+import importlib.util, os, sys
+from datetime import datetime, UTC
+from pathlib import Path
+
+spec = importlib.util.spec_from_file_location("_budget_under_race", os.environ["BUDGET_PY"])
+budget = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(budget)
+
+ledger = budget.PerDayBudgetLedger(
+    path=Path(os.environ["LEDGER_PATH"]),
+    cap=int(os.environ["LEDGER_CAP"]),
+    clock=lambda: datetime(2026, 7, 30, 12, 0, tzinfo=UTC),
+)
+charged = 0
+for _ in range(int(os.environ["LEDGER_ATTEMPTS"])):
+    try:
+        ledger.consume()
+        charged += 1
+    except budget.ParityBudgetExhausted:
+        break
+sys.stdout.write(str(charged))
+"""
+
+
+def test_cross_process_contention_never_exceeds_cap(tmp_path) -> None:
+    """N real processes racing consume() near the cap must never JOINTLY exceed it.
+
+    Without the flock, two processes both read ``N < cap`` and both write ``N+1`` (lost
+    update): more than ``cap`` consumes succeed while the file value (last-writer-wins)
+    HIDES the overshoot. We therefore sum the per-process SUCCESS counts and assert the
+    sum is exactly the cap — the file value alone could not catch the bug.
+    """
+    budget_py = Path(__file__).resolve().parent / "budget.py"
+    ledger_path = tmp_path / "race.json"
+    cap = 40
+    n_procs = 6
+    attempts = cap + 5  # each child alone could exhaust the whole budget, then stop
+
+    child_env = {
+        **os.environ,
+        "BUDGET_PY": str(budget_py),
+        "LEDGER_PATH": str(ledger_path),
+        "LEDGER_CAP": str(cap),
+        "LEDGER_ATTEMPTS": str(attempts),
+    }
+
+    procs = [
+        subprocess.Popen(  # noqa: S603 — fixed argv (sys.executable + inline snippet), no shell
+            [sys.executable, "-c", _RACE_CHILD],
+            env=child_env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        for _ in range(n_procs)
+    ]
+
+    charged_counts: list[int] = []
+    for proc in procs:
+        out, err = proc.communicate(timeout=45)
+        assert proc.returncode == 0, f"race child failed (rc={proc.returncode}): {err}"
+        charged_counts.append(int(out.strip()))
+
+    total_charged = sum(charged_counts)
+    assert total_charged == cap, (
+        f"cross-process overshoot: {n_procs} procs jointly charged {total_charged} "
+        f"successful consumes against cap={cap} (per-proc {charged_counts})"
+    )
+
+    # The durable ledger agrees exactly — no torn/lost write left it above cap.
+    parent = PerDayBudgetLedger(path=ledger_path, cap=cap, clock=_fixed_clock())
+    assert parent.count_today() == cap
+
+
+# ---------------------------------------------- WU-2 exit bar: pinned ledger path ---
+def test_pinned_ledger_path_is_durable_repo_relative_and_year_templated() -> None:
+    """The production pin is repo-relative, durable (not /tmp, not scratchpad), templated."""
+    assert PINNED_LEDGER_PATH == ".sos/wip/parity/budget-ledger-{year}.json"
+    assert not PINNED_LEDGER_PATH.startswith("/")  # repo-relative, not absolute
+    assert "/tmp" not in PINNED_LEDGER_PATH  # survives reboot
+    assert "scratchpad" not in PINNED_LEDGER_PATH  # survives park-per-day
+    # WU-3 resolves the {year} template into a concrete path at arming time.
+    resolved = PINNED_LEDGER_PATH.format(year=2026)
+    assert resolved == ".sos/wip/parity/budget-ledger-2026.json"
 
 
 # ------------------------------------------------------ budgeted paced fetcher ---
