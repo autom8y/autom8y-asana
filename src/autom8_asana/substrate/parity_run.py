@@ -129,7 +129,7 @@ class SectionPersistenceManifestSource:
 
     async def get_offer_manifest(self, project_gid: str) -> SectionManifest | None:
         manifest: SectionManifest | None = await self.persistence.get_manifest_async(
-            project_gid, "offer"
+            project_gid, entity_type="offer"
         )
         return manifest
 
