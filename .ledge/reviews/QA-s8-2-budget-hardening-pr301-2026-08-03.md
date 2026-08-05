@@ -365,3 +365,145 @@ should survive iteration-2 unchanged.
 P7 line: **self-assessment caps MODERATE** — all discrimination and probe evidence is
 own-hands (not inherited), but same-rite authorship; the NO-GO gives the DELTA-scope for
 the builder's iteration-2 per critique-iteration-protocol.
+
+---
+
+# QA DELTA-GATE — PR #305 iteration-2
+
+**VERDICT: GO** — both HIGH blockers from iteration-1 are RESOLVED under the pythia
+referent ruling (RULING-pythia-f305-1-active-mrr-referent-2026-08-04.md, §6 binding
+conditions), each resolution proven discriminating by live mutation; the delta introduced
+no new blocking defect. 0 HIGH · 1 MEDIUM (carried as a BINDING WU-4 entry condition,
+backstop-protected in-window) · 1 LOW carried · 3 INFO. **Self-assessment caps MODERATE**
+(P7 line).
+
+- **Reviewed**: PR #305 iteration-2, commit 33f0fbcb (branch merged main through #303;
+  delta commit over merge 210321d9 touches live.py + test_live.py + builder memory only —
+  parity.py / rebuild.py / prov_sweep.py UNTOUCHED by the delta: seam still additive-only).
+- **DELTA discipline**: previously-passed surfaces (pacing composition, budget wiring,
+  PROV chain, singleton discipline, 429 posture) NOT re-litigated except where the delta
+  touched them (fetch :645-651 re-verified below).
+- Suite **336/336** own-run; ruff clean; `mypy src` clean (574 files).
+
+## 1. Fix-resolution matrix (each proven by mutation — revert → RED → restore → GREEN)
+
+| Iter-1 finding | Fix (verified own-hands) | Mutation | RED test(s) |
+|---|---|---|---|
+| F-305-1 (HIGH) | LEG A rides the REAL served machinery: `compute_metric` imported live.py:74, registry `Metric` live.py:157, frame passed UNMODIFIED (`served_active_mrr` live.py:190-207); classifier-sourced 22-section set (live.py:161-170, `len==22` asserted); fail-closed coverage BEFORE any charge (live.py:648-651); dual-leg `ParityLegs` ledger rows (scalars+digests only) | mC: raw-sum substitution for `compute_metric` | exactly 2: `test_served_active_mrr_dedups_and_filters`, `test_3a_leg_a_materialization_from_full_frame` |
+| F-305-1 keystone | `assert_plan_covers_active_set` (live.py:173-187) enforced in `fetch` BEFORE charge | mB: call removed from fetch | exactly 2: `test_3b_coverage_refusal_before_any_charge`, `test_3c_coverage_refusal_is_first_class_no_charge` |
+| F-305-2 (HIGH) | observation ONLY on `RebuildOutcome.SWAPPED` (live.py:1037); non-SWAPPED → refusal receipt + `ParityLegRefused` (first-class, §6 #9) | mA: guard disabled | exactly 1: `test_3c_fetch_refused_is_first_class_not_an_observation` |
+| F-305-3 (MED) | `write_error` (live.py:899) on ALL raise paths (:1023-1033 and :1056-1067); no raise path escapes unreceipted | mD: receipt call dropped | exactly 1: `test_3c_error_path_still_receipts` |
+| F-305-4 (MED) | build-instant monotonicity guard (live.py:317-322), two-sided test | mE: guard disabled | exactly 1: `test_3a_generation_monotonicity_guard_two_sided` |
+| F-305-5 (MED) | branch merged main (#303); leg-2 pins asserted ($75,985 at `test_3a_leg_b_exemplar_aggregate_from_fixture`) | — (structural) | suite green on merged fixture |
+| F-305-7 (LOW) | prose corrected: NO-in-sweep-retry stated at class docstring + `retries_issued` semantics at live.py:515-518 | — (doc) | verified by read |
+
+Coverage no-hardcode is separately proven: `test_coverage_follows_classifier_mutation`
+(monkeypatched classifier set PROPAGATES into the assertion — §6 #1 is behavioral, not
+prose). Restores verified: clean `git status` + 336/336 after the battery.
+
+## 2. Per-flag rulings (the builder's five)
+
+**Flag 1 — LEG A identity: VERIFIED IDENTICAL.** Same function object
+(`autom8_asana.metrics.compute.compute_metric`), same registered `Metric` instance
+(`MetricRegistry().get_metric("active_mrr")`), frame passed with NO pre-processing (the
+column-presence check adds no transformation); the classifier→filter→dedup→cast→sum
+order is compute.py's own pipeline — identity by construction, not reimplementation.
+mC proves the tests discriminate on it. One data-contingent note (INFO): dedup
+`keep="first"` is row-order-sensitive IFF sibling offers under one unit carry UNEQUAL
+mrr (violating the offer.py:29-33 unit-level invariant); if that invariant ever breaks,
+v1-vs-v2 row order can produce a penny-diff at identical instant — which surfaces as
+W1/W3 (detected and adjudicable, not silent).
+
+**Flag 2 — coverage keystone trust boundary: the declared-vs-actual gap EXISTS; NO
+silent-loss path exists at the window; NOT blocking — BINDING WU-4 planner-contract
+condition.** Proven by my lying-plan probe (own-hands, in-tree): a plan declaring the
+full 22-section coverage while fetching ONE section PASSES the keystone, charges (1),
+and serves — v2's omitted section contributes silent $0 *to the v2 scalar* (the hole one
+level down, as feared). BUT the dual-side LEG A comparison is the structural backstop:
+v1 is produced by the INDEPENDENT incumbent pipeline, so the omitted value appears in
+`served_v1` and the mismatch is IMMEDIATELY visible — probe receipt legs read
+`served_v1=600.0 / served_v2=100.0` and the observation carries the same divergence
+into the window's classification. For value to vanish silently, BOTH sides would have
+to omit it, which the v2 planner cannot cause. A frame-level §6 #9 row-presence check
+is structurally impossible at this altitude: empirically (gate-2 full-projection probe)
+only 6 of the 22 classifier-active sections carry ANY rows in today's prod frame — a
+zero-row section is legitimately absent from a row-level frame, so "present" can only
+mean FETCH-COVERED, which is exactly the plan contract. Ruling: (i) in-window, the
+backstop closes the loss path by construction — no block; (ii) **BINDING WU-4 entry
+condition**: the planner MUST derive `covered_section_names` from the live section
+listing it actually fetched/hash-verified (gid→name reconciliation at plan-build time),
+never a static declaration; (iii) post-cutover the v1 backstop disappears — coverage
+must move into the serve-time provability predicate: a NAMED PT-03/S9 obligation.
+
+**Flag 3 — PII column name in `ActiveMrrColumnMissing`: ACCEPTABLE, no tightening.**
+Column NAMES are schema identifiers, not values; the committed watermark fixture already
+publicly lists `office_phone` in its `columns` array (repo precedent). The message can
+only carry names (`_SERVED_REQUIRED_COLUMNS` + `sorted(frame.columns)`) — no value
+transits. `ParityLegs` carries scalars + digests only; dedup-key VALUES never land in a
+receipt (§6 #8 verified in code).
+
+**Flag 4 — `retries_issued` proxy: ACCEPTABLE as documented.** The field lives on the
+FROZEN `FetchTelemetry` seam (renaming = seam change, correctly out of scope); the
+semantics — counts FAILED attempts; no in-sweep retry exists — are now stated at the
+accumulator (live.py:515-518) and the fetcher docstring. PT-03 readers consume the
+docstring; carried as INFO.
+
+**Flag 5 — `min_build_instant` threading deferral: ACCEPTABLE with a named condition.**
+The guard itself is CLOSED in the library (two-sided test; mE discriminates) and the
+parameter is plumbed through `build_parity_outbound` (live.py:962). WU-4 entry condition:
+the runner initializes `min_build_instant` from the last served receipt's
+`built_from_live_at` (fallback: the leg-2 baseline 2026-08-03T16:12:41Z) and threads it
+per touch.
+
+## 3. Delta regression checks (where the delta touched passed surfaces)
+
+- **Budget invariant re-verified** at the changed `fetch` (:645-651): coverage refusal
+  fires BEFORE any charge (`count_today() == 0` asserted in-tree + mB-discriminated);
+  lying-plan probe held `count_today == requests_issued == 1`; 429/exhaustion/reuse
+  invariant tests all green (iter-1 classes retained).
+- **No new network**: delta test additions are moto + injected fakes only; prov_sweep
+  untouched.
+- **Refusal exception classes**: `ActiveMrrRefused`/`ParityLegRefused` are plain
+  RuntimeErrors (non-transient to core.retry — no accidental in-process retry);
+  `ActiveMrrRefused` is NOT a `rebuild.FetchRefused` subclass, so it propagates past the
+  rebuilder (rebuild.py:538 catches only `FetchRefused`) to the dedicated
+  refused-coverage handler — confirmed by the passing first-class test.
+- **PII-safe fixture now refuses LEG A by design** (`ActiveMrrColumnMissing` on the
+  (section,mrr) projection — `test_3a_leg_a_on_pii_safe_fixture_reports_missing`):
+  correct, since the committed projection cannot express the served definition.
+
+## 4. Findings by severity (iteration-2)
+
+| ID | Sev | Finding | Disposition |
+|---|---|---|---|
+| M-1 | MEDIUM | Coverage keystone keys on plan-DECLARED names; a lying planner passes it (proven). In-window loss is impossible (LEG A dual-side backstop, proven 600-vs-100); post-cutover the backstop disappears. | **BINDING WU-4 entry condition** (planner derives coverage from actual fetch listing) + NAMED PT-03/S9 serve-gate obligation. Not blocking now. |
+| L-1 | LOW (carried, iter-1 F-305-6) | Pre-budgeted singleton double-charge after in-place arming — delta did not touch; unreachable via `arm_offer_parity_window`. | Carry: optional arm-time `budget is None` assertion. |
+| I-1 | INFO | Dedup `keep="first"` order-sensitivity contingent on the unit-level-mrr invariant (offer.py:29-33); breach surfaces as W1/W3, adjudicable. | Ledger note for the window's divergence classification. |
+| I-2 | INFO | PII column-name-vs-value ruling (flag 3): acceptable, precedent-consistent. | None. |
+| I-3 | INFO | `retries_issued` naming constrained by the frozen seam; semantics documented (flag 4). | None. |
+
+## 5. WU-4 entry conditions (CONSOLIDATED, FINAL)
+
+1. **Planner coverage contract (M-1, BINDING)**: `covered_section_names` derived from the
+   live section listing actually fetched/hash-verified (gid→name reconciliation at
+   plan-build), never a static declaration. Post-cutover coverage moves to the serve-time
+   provability predicate (PT-03/S9 named obligation).
+2. **`min_build_instant` threading (F-305-4)**: initialize from the last served receipt's
+   `built_from_live_at` (fallback: leg-2 baseline 2026-08-03T16:12:41Z); thread per touch.
+3. **Arming path**: fresh process, `arm_offer_parity_window` ONLY (cap 11,200 pinned;
+   `{year}` ledger path resolved at arming; single pinned charger name; optional L-1
+   arm-time budget-None assertion).
+4. **Real Asana call site as `page_fetch`**: pagination pages charged individually;
+   hash-CLEAN verifies and S3 ops never charge (pythia §5).
+5. **Interrupt classes**: `ParityBudgetExhausted` (budget-halt receipt, charter L81
+   operator interrupt) and `ParityLegRefused` (refusal receipts) are never retried
+   in-process; refusals flow to pythia W2-vs-correct classification per rubric.
+6. **Dual-leg receipts are the daily HANDOFF substrate**: LEG A `served_active_mrr` is
+   the gate anchor (PT-03 Q1 / auto-flip); LEG B `exemplar_aggregate` is corpus-continuity
+   ONLY — never quoted as active_mrr (ruling §4 label).
+7. **Torn-read residual**: equal-rowcount swap now guarded by monotonicity; the S3-LIST
+   cross-check remains optional hardening (pythia-noted residual, not an entry blocker).
+
+P7 line: **self-assessment caps MODERATE** — all mutation discrimination and the
+lying-plan/backstop evidence are own-hands, but same-rite authorship; rite-disjoint
+corroboration arrives at PT-03 (fresh potnia, de novo, per-question receipts).
