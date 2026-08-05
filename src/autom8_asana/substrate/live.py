@@ -327,7 +327,7 @@ def guarded_v1_offer_frame(
     # ---- frame: parse + cross-check the row count against the watermark --------
     try:
         frame = pl.read_parquet(parquet_bytes)
-    except Exception as exc:  # noqa: BLE001 — an unreadable parquet is a loud torn/corrupt read
+    except Exception as exc:  # an unreadable parquet is a loud torn/corrupt read
         raise TornOfferPlaneRead(f"offer dataframe.parquet is unreadable: {exc!r}") from exc
     if frame.height != row_count:
         raise TornOfferPlaneRead(
@@ -1020,7 +1020,7 @@ def build_parity_outbound(
                 detail=str(exc),
             )
             raise ParityLegRefused(f"served leg refused coverage: {exc}") from exc
-        except Exception as exc:  # noqa: BLE001 — F-305-3: a (possibly charged) raise must receipt
+        except Exception as exc:  # F-305-3: a (possibly charged) raise must receipt
             receipt_writer.write_error(
                 aid,
                 error=exc,
@@ -1053,7 +1053,7 @@ def build_parity_outbound(
             v2_exemplar, v2_ex_cells = (
                 exemplar_aggregate_value(fetched.frame) if fetched is not None else (None, {})
             )
-        except Exception as exc:  # noqa: BLE001 — F-305-3: the charged rebuild must still receipt
+        except Exception as exc:  # F-305-3: the charged rebuild must still receipt
             receipt_writer.write_error(
                 aid,
                 error=exc,
