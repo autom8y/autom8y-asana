@@ -701,3 +701,79 @@ P7 line: **self-assessment caps MODERATE** — mutations, arithmetic, and the
 manifest/transform/expected-set chains are own-hands, but same-rite authorship;
 rite-disjoint corroboration arrives at PT-03. The corridor ends here: on this GO the next
 invocation of the runbook is the FIRST LIVE PROD TOUCH of the P5 window.
+
+---
+
+# QA DELTA-GATE — PR #313 v2 frame schema
+
+**VERDICT: GO** — the live-window cure lands clean. Construction identity with the v1
+canonical idiom VERIFIED own-hands; the two-sided proof discriminates with the exact
+prod ComputeError; the refuse-class change is RULED CORRECT. 0 blocking · 1 LOW carried ·
+1 INFO. **Self-assessment caps MODERATE** (P7 line).
+
+- **Reviewed**: PR #313, commit a0c5126c (fix/s8-2-v2-frame-schema), based on CURRENT main
+  bc620e18 (merge-base == origin/main, verified). External commit #312 (bc620e18) touches
+  warmer/transport/registry/terraform ONLY — zero substrate fetch-path files.
+- **Context**: first live sweep 09:19:45Z died fail-loud (outcome=error receipt, never
+  served) on bare `pl.DataFrame(list(all_rows))` schema inference — a Utf8 cascade column
+  null past polars' 100-row infer window, then the literal "COvGsYz26fe7oVUjzYLP".
+  The window's error-receipt machinery worked as designed; this PR cures the construction.
+- Suite **353/353** own-run; ruff clean (changed files + FULL-CONFIG repo-wide — the
+  CI-faithful RUF100 check; see INFO below); `mypy src` clean (577 files).
+
+## 1. Construction-identity ruling (duty 1) — VERIFIED IDENTICAL, no divergence
+
+| Aspect | v1 canonical (dataframe_service.py:218-226) | Fix (live.py:687-691) | Match |
+|---|---|---|---|
+| Function | `safe_dataframe_construct(rows, schema)` (fields.py:186 — "the single construction function that all DataFrame build paths should call") | `safe_dataframe_construct(list(all_rows), OFFER_SCHEMA)` | SAME function object |
+| Coercion | `coerce=True` default (`coerce_rows_to_schema` fields.py:74 — %-strings→float, string-numbers→float, None stays None) | same default | IDENTICAL |
+| Schema object | the offer entity's registered schema — `entity_registry.py:552` pins `autom8_asana.dataframes.schemas.offer.OFFER_SCHEMA` | `OFFER_SCHEMA` imported from the same module | SAME object |
+| Empty branch | `pl.DataFrame(schema=schema.to_polars_schema())` | `pl.DataFrame(schema=OFFER_SCHEMA.to_polars_schema())` | IDENTICAL |
+| Error boundary | `except DataFrameConstructionError → InvalidParameterError` (HTTP 422 context) | propagates → outbound broad-except → `write_error` receipt + exit 30 (parity context) | DIFFERS BY CONTEXT, correctly — the frame DTYPES (the §6 #3-7 substance) are identical by construction; the boundary is the consuming surface's own |
+
+No `infer_schema_length` band-aid anywhere in the diff. §6 #3-7 dtype identity for LEG A
+now holds BY CONSTRUCTION on both sides (v1 parquet written via the same converged
+construction; v2 assembled via the same schema+coercion).
+
+## 2. Mutation (duty 2) — two-sided, exact error class
+
+Reverted live.py:687-691 to bare `pl.DataFrame(list(all_rows))` → exactly 2 RED:
+`test_3b_frame_uses_explicit_schema_not_bare_inference` fails with the EXACT
+**ComputeError** (polars construction dataframe.py:722 — the prod receipt's class; the
+fixture is the real shape: 120 null office_phone rows past the 100-row infer window, then
+the literal "COvGsYz26fe7oVUjzYLP") + `test_3c_null_value_column_refuses_and_receipts`
+(old unclassified-error behavior returns). Restored → both GREEN, 353/353.
+
+## 3. Refuse-class ruling (duty 3) — refused-staged_rejected is CORRECT; torn-read test CARRIED
+
+**Ruling**: a frame that CONSTRUCTS (explicit schema fills the missing value column with
+null) but carries an all-null value column is a **data-quality failure of a structurally
+valid candidate** — exactly `STAGED_REJECTED`'s meaning (staged, validated against the
+acceptance predicates, rejected; incumbent untouched — C16/RC-E "partial ≠ corrupt"). The
+rebuild's null-value-column guard (rebuild.py:379 `_value_columns_with_nulls`) is the
+RIGHT classifier for it, and exit 10 (first-class refusal, v1 served number preserved in
+the receipt legs) is strictly better operator signal than the old uncaught
+`MissingValueColumnsError` → unclassified error/exit 30. The charged-touch-receipts
+invariant (F-305-3/P10) holds at the refusal altitude (test asserts `count_today() >= 1`
++ receipt present).
+
+**Builder's flag — the broad except→write_error branch now has no row-data trigger**:
+CARRIED as a window condition (LOW), not demanded now. Rationale: the branch is
+DELTA-UNTOUCHED (the except block did not change), it was integration-proven at the
+iteration-2 gate (my own probe + the then-live `test_3c_error_path_still_receipts`), and
+`write_error` retains unit coverage (`test_3d_write_error_names_the_exception`). A v1-side
+torn-read integration test (~10 lines: mismatched row_count watermark → outbound → error
+receipt + raise) rides the NEXT non-urgent PR — the open window clock does not wait on
+re-proving an unchanged branch.
+
+## 4. Findings
+
+| ID | Sev | Finding | Disposition |
+|---|---|---|---|
+| L-1 | LOW | write_error branch integration coverage re-purposed to the refusal class; torn-read integration test outstanding. | Window condition: next non-urgent PR. |
+| I-1 | INFO | `ruff check --select RUF100 src tests` standalone reports ~587 false "unused noqa" (rule-universe artifact — noqa for out-of-universe rules read unused). The CI-faithful invocation is FULL-CONFIG `uv run ruff check src tests` (RUF100 rides the configured select; one scarred per-file ignore at pyproject:332) — clean repo-wide. | Invocation pinned here for the third burn's sake. |
+
+P7 line: **self-assessment caps MODERATE** — construction-identity, mutation, and
+hygiene evidence are own-hands; same-rite authorship; PT-03 corroborates. On this GO the
+cure merges and the next paced sweep should produce the window's FIRST dual-leg SERVED
+observation.
