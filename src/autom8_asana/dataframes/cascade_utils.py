@@ -34,8 +34,14 @@ def is_cascade_provider(entity_type: str) -> bool:
     """Check if an entity type provides cascade fields to other entities.
 
     Queries ``EntityDescriptor.cascading_field_provider`` — currently
-    True for ``business``, ``unit``, and ``unit_holder`` (the frame-less
-    scheduling-posture provider, OFFER_SCHEMA 1.6.0).
+    True for ``business``, ``unit``, and ``unit_holder`` (the
+    scheduling-posture provider).
+
+    NOTE (WS-B): ``unit_holder`` is NO LONGER frame-less. It owns
+    ``UNIT_HOLDER_SCHEMA`` and warms at priority 3, so it is now a
+    FRAME-WARM provider of ``offer`` and carries a real ordering
+    constraint. Being a cascade PROVIDER and being frame-warmable are
+    independent properties; do not infer one from the other.
 
     Args:
         entity_type: Snake-case entity type name (e.g., "business").
@@ -171,12 +177,19 @@ def cascade_warm_phases() -> list[list[str]]:
     - ``get_cascading_field_registry()`` to find providers
 
     Only FRAME-WARMABLE entities (``EntityDescriptor.warmable``) are
-    scheduled. Frame-less providers (e.g., the HOLDER-category
-    ``unit_holder``) never appear in any phase: their cascade data rides
-    the unified task store via ancestor hydration during the consumer's
-    own build, not a DataFrame warm. The pre-phase gate MUST therefore
-    demand only frame-warmable providers — see
+    scheduled. A frame-LESS provider never appears in any phase: its
+    cascade data rides the unified task store via ancestor hydration
+    during the consumer's own build, not a DataFrame warm. The pre-phase
+    gate MUST therefore demand only frame-warmable providers — see
     :func:`get_frame_warm_providers` / :func:`assert_l2_pre_phase_gate`.
+
+    NOTE (WS-B): ``unit_holder`` was this module's canonical frame-less
+    example; it is now frame-warmable (``UNIT_HOLDER_SCHEMA``, priority 3)
+    and IS scheduled. As of WS-B no frame-less cascade provider remains in
+    the live registry — the frame-less branch is retained because the
+    predicate must stay correct if one is reintroduced, and it is guarded
+    by a synthetic fixture in
+    ``tests/unit/dataframes/test_l2_gate_frameless_provider.py``.
 
     Returns:
         List of phases, each a list of entity type names.
@@ -256,9 +269,13 @@ def get_cascade_providers(entity_type: str) -> set[str]:
 
     Builds the same dependency graph as :func:`cascade_warm_phases` (via
     the shared :func:`_provider_for_field_map`) but returns only the
-    providers for a single entity type. The result includes FRAME-LESS
-    providers (e.g., ``unit_holder``) whose data is satisfied by ancestor
+    providers for a single entity type. The result is UNFILTERED: it
+    includes any FRAME-LESS provider whose data is satisfied by ancestor
     hydration in the unified task store, NOT by a DataFrame warm.
+
+    NOTE (WS-B): ``unit_holder`` — formerly the frame-less example here —
+    is now frame-warmable, so it appears in BOTH this set and the filtered
+    :func:`get_frame_warm_providers` set.
 
     Consumers:
     - L3 per-build guard (hierarchy-store probe): uses this UNFILTERED
@@ -315,11 +332,15 @@ def get_frame_warm_providers(entity_type: str) -> set[str]:
     :func:`cascade_warm_phases`, so a gate demanding this set can always
     be satisfied by running the planner's phases in order.
 
-    Frame-less providers (``warmable=False``, no DataFrame schema —
-    e.g., the HOLDER-category ``unit_holder``) are excluded: their
-    cascade data is consumed via the unified task store hydrated during
-    the CONSUMER's own build (``warm_ancestors``), so demanding their
-    frame-warm completion is structurally unsatisfiable.
+    Frame-less providers (``warmable=False``, no DataFrame schema) are
+    excluded: their cascade data is consumed via the unified task store
+    hydrated during the CONSUMER's own build (``warm_ancestors``), so
+    demanding their frame-warm completion is structurally unsatisfiable.
+
+    NOTE (WS-B): ``unit_holder`` is no longer excluded here — it became
+    frame-warmable, so it is now a legitimate member of ``offer``'s demand
+    set and MUST warm earlier (enforced by
+    :func:`validate_cascade_ordering`).
 
     Args:
         entity_type: Snake-case entity type name (e.g., "offer").
@@ -354,10 +375,17 @@ def assert_l2_pre_phase_gate(
 
     The demand set is :func:`get_frame_warm_providers` — the planner's
     own schedulability predicate — NOT the unfiltered
-    :func:`get_cascade_providers`. Frame-less providers (e.g.,
-    ``unit_holder``) are satisfied by ancestor hydration during the
-    consumer's build and never appear in any phase, so demanding them
-    here would wedge the preload permanently (the #192 defect).
+    :func:`get_cascade_providers`. A frame-less provider is satisfied by
+    ancestor hydration during the consumer's build and never appears in
+    any phase, so demanding it here would wedge the preload permanently
+    (the #192 defect).
+
+    NOTE (WS-B): ``unit_holder`` — the original #192 trigger — is now
+    frame-warmable and IS legitimately demanded here. The gate is
+    satisfiable because discovery registers it unconditionally from
+    ``UnitHolder.PRIMARY_PROJECT_GID``; if that registration ever
+    regresses, offer's phase wedges in exactly the #192 shape (guarded by
+    ``test_red_unit_holder_absent_from_configs_is_fatal``).
 
     This function lives beside :func:`cascade_warm_phases` deliberately:
     planner and gate derive from the same module-local dependency graph

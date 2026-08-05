@@ -109,16 +109,28 @@ OFFER_COLUMNS: list[ColumnDef] = [
     # "must be called from a UnitHolder object"; verified live: the Offer manifest
     # carries none of them, the UnitHolder "…Business Units 🔎" task carries them
     # POPULATED, e.g. Custom Cal Status='Enabled'). 1.5.0 sourced them ``cf:`` off
-    # the Offer's OWN manifest with snake_case names -- which matched NOTHING (both
-    # WRONG LEVEL and WRONG NAME), so every projected row resolved null and the push
+    # the Offer's OWN manifest, so every projected row resolved null and the push
     # was degenerate (all enrolled=true / stratum='inactive'). They are therefore
     # sourced ``cascade:`` (ancestor traversal, same mechanism as company_id/
     # office_phone) keyed by the REAL Asana display names (Title Case). The cascade
     # resolver traverses Offer -> OfferHolder -> Unit -> UnitHolder and reads the
     # value off the UNIT_HOLDER (registered UnitHolder.CascadingFields, target_types
-    # None). The name match is lower()/strip() (cf_utils.get_custom_field_value), so
-    # the display name MUST be exact modulo case/outer-whitespace -- snake names do
-    # NOT match.
+    # None).
+    #
+    # ROOT CAUSE, PRECISELY (corrected -- the earlier "wrong LEVEL *and* wrong NAME"
+    # reading was a misdiagnosis): 1.5.0 failed on the LEVEL ALONE. The two paths do
+    # NOT share a matcher, and only the cascade: path is name-strict:
+    #   * ``cf:``      -> DefaultCustomFieldResolver -> NameNormalizer.normalize(),
+    #                     which strips ALL non-alphanumerics and lowercases. Probed:
+    #                     ``cf:reviewwave_id`` resolves a live "ReviewWave ID" field.
+    #                     snake_case DOES match here.
+    #   * ``cascade:`` -> cf_utils.get_custom_field_value, which compares
+    #                     ``lower().strip()`` only. Probed: "reviewwave_id" -> None
+    #                     against the same field. snake_case does NOT match here.
+    # So for THESE columns (cascade:) the Title Case display name is load-bearing and
+    # must stay exact modulo case/outer-whitespace. But it is not what 1.5.0 got
+    # wrong: those fields simply do not exist on the Offer's own manifest at any
+    # spelling. Do not attribute the 1.5.0 defect to naming.
     #
     # company_id is the office guid, cascaded from the Business ancestor (registered
     # Business.CascadingFields.COMPANY_ID); it already resolved correctly in 1.5.0.

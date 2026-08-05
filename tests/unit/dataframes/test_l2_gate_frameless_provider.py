@@ -17,11 +17,38 @@ The cure re-unifies planner and gate on one predicate
 | Side  | What it proves |
 |-------|----------------|
 | RED   | Gate still fires for a genuinely missing FRAME-WARMABLE provider |
-| GREEN | Offer's phase passes with the frame-less unit_holder provider |
+| GREEN | A frame-LESS provider does not wedge its consumer's phase |
 | PROP  | Planner/gate coherence is a structural property, not an instance |
+
+WS-B TRANSITION (DIAG-ws-b-offer-frame-collapse-2026-08-05)
+-----------------------------------------------------------
+``unit_holder`` was this suite's LIVE frame-less provider. WS-B gives it a
+DataFrame schema of its own (nine ``cf:`` scheduling-posture columns) and marks
+it ``warmable=True``, because the ancestor walk that was supposed to deliver
+those values to the offer frame terminates at depth 1 and never reaches it.
+
+The original ``TestLiveRegistryDefectShape`` docstring anticipated exactly this:
+
+    "If these preconditions drift (e.g., unit_holder gains a frame or stops
+     providing), the two-sided tests below lose their meaning and must be
+     revisited."
+
+This is that revisit. Two consequences, both handled deliberately:
+
+1. The preconditions below now pin the NEW registry state (unit_holder IS
+   frame-warmable) rather than the old one.
+2. **There is no longer ANY frame-less cascade provider in the live registry**
+   (providers are business, unit, unit_holder — all warmable). The GREEN side
+   would therefore go VACUOUS if it kept asserting against live state. It is
+   converted to a SYNTHETIC fixture that reconstructs the frame-less condition
+   by patching ``warmable_entities``, so the #192 wedge class stays guarded
+   after its live instance disappeared. A guard that silently stops guarding is
+   worse than no guard.
 """
 
 from __future__ import annotations
+
+from unittest.mock import patch
 
 import pytest
 
@@ -40,30 +67,81 @@ from autom8_asana.dataframes.cascade_utils import (
 
 @pytest.mark.scar
 class TestLiveRegistryDefectShape:
-    """Pin the registry state that produced the #192 wedge.
+    """Pin the POST-WS-B registry state.
 
-    If these preconditions drift (e.g., unit_holder gains a frame or
-    stops providing), the two-sided tests below lose their meaning and
-    must be revisited.
+    unit_holder remains offer's cascade provider, but it is now frame-warmable
+    (it owns UNIT_HOLDER_SCHEMA). If these preconditions drift again, the
+    two-sided tests below must be revisited a second time.
     """
 
     def test_unit_holder_is_a_cascade_provider_for_offer(self) -> None:
-        """offer's unfiltered provider set includes frame-less unit_holder."""
+        """offer's unfiltered provider set still includes unit_holder.
+
+        WS-B did NOT remove offer's cascade declaration — the offer schema
+        keeps its nine cascade: posture columns (they remain the correct
+        declaration and the target of the CARD WS-B/1 ancestor-walk cure).
+        """
         assert "unit_holder" in get_cascade_providers("offer")
 
-    def test_unit_holder_is_not_frame_warmable(self) -> None:
-        """unit_holder is a HOLDER: no warmable flag, no DataFrame schema."""
+    def test_unit_holder_is_now_frame_warmable(self) -> None:
+        """WS-B: unit_holder owns a DataFrame schema and is warmed.
+
+        Inverts the pre-WS-B precondition (``warmable is False`` /
+        ``schema_module_path is None``). The nine scheduling-posture columns
+        are read cf: off UnitHolder's own manifest, so this frame is immune to
+        the depth-1 ancestor-walk defect that darkened them on the offer frame.
+        """
         from autom8_asana.core.entity_registry import get_registry
 
         desc = get_registry().get("unit_holder")
         assert desc is not None
-        assert desc.warmable is False
-        assert desc.schema_module_path is None
+        assert desc.warmable is True
+        assert desc.schema_module_path == (
+            "autom8_asana.dataframes.schemas.unit_holder.UNIT_HOLDER_SCHEMA"
+        )
 
-    def test_unit_holder_never_appears_in_any_warm_phase(self) -> None:
-        """The planner cannot schedule unit_holder — it is frame-less."""
+    def test_unit_holder_now_appears_in_a_warm_phase(self) -> None:
+        """The planner schedules unit_holder now that it has a frame."""
         scheduled = {e for phase in cascade_warm_phases() for e in phase}
-        assert "unit_holder" not in scheduled
+        assert "unit_holder" in scheduled
+
+    def test_unit_holder_warms_before_offer(self) -> None:
+        """L1 ordering: a frame-warm provider must precede its consumer.
+
+        Load-bearing regression guard for the WS-B priority correction. Marking
+        unit_holder warmable moves it INTO offer's frame-warm provider set, so
+        validate_cascade_ordering() (fail-fast at api/lifespan.py:326) requires
+        unit_holder earlier in the flat warm order. At warm_priority=7 this
+        raised "offer (priority_idx=2) warms BEFORE its cascade provider
+        unit_holder (priority_idx=6)" — an ECS start refusal.
+        """
+        from autom8_asana.core.entity_registry import get_registry
+
+        order = [d.name for d in get_registry().warmable_entities()]
+        assert order.index("unit_holder") < order.index("offer")
+
+    def test_no_frameless_cascade_providers_remain(self) -> None:
+        """Pin the fact that forces the GREEN side to be synthetic.
+
+        Every cascade provider in the live registry is now frame-warmable, so
+        the #192 wedge condition has NO live instance. If a frame-less provider
+        is ever reintroduced, this test fails and the GREEN fixture below
+        should be re-grounded on the real entity instead.
+        """
+        from autom8_asana.core.entity_registry import get_registry
+
+        registry = get_registry()
+        scheduled = {e for phase in cascade_warm_phases() for e in phase}
+        providers: set[str] = set()
+        for entity_type in scheduled:
+            providers |= get_cascade_providers(entity_type)
+
+        frameless = {p for p in providers if (d := registry.get(p)) is not None and not d.warmable}
+        assert not frameless, (
+            "A frame-less cascade provider reappeared: "
+            f"{sorted(frameless)}. The GREEN side of this suite is a synthetic "
+            "fixture precisely because none existed at WS-B; re-ground it."
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -124,33 +202,87 @@ class TestRedToothFrameWarmableProviderMissing:
 
 @pytest.mark.scar
 class TestGreenFramelessProviderSatisfied:
-    """Offer's phase passes with unit_holder present-but-frame-less —
-    the live registry state that wedged every service start."""
+    """A frame-LESS provider must not wedge its consumer's phase.
 
-    def test_frame_warm_providers_excludes_unit_holder(self) -> None:
-        """The gate's demand set for offer omits the frame-less provider."""
-        frame_warm = get_frame_warm_providers("offer")
-        assert "unit_holder" not in frame_warm
+    SYNTHETIC fixture (WS-B). unit_holder was the live instance of this
+    condition until WS-B gave it a frame; no frame-less provider remains
+    (pinned by ``test_no_frameless_cascade_providers_remain``). Rather than
+    delete the guard and let the #192 class go unwatched, the historical live
+    state is RECONSTRUCTED by patching ``warmable_entities`` to omit
+    unit_holder — which is exactly what ``warmable=False`` did to the two
+    predicates under test (``get_frame_warm_providers`` and the planner).
+    """
+
+    @staticmethod
+    def _registry_without_unit_holder() -> tuple[object, list[object]]:
+        """Live registry + its warmable list with unit_holder removed.
+
+        Reconstructs the pre-WS-B frame-less condition for unit_holder.
+        """
+        from autom8_asana.core.entity_registry import get_registry
+
+        registry = get_registry()
+        warmable_sans_uh = [d for d in registry.warmable_entities() if d.name != "unit_holder"]
+        return registry, warmable_sans_uh
+
+    def test_frame_warm_providers_excludes_a_frameless_provider(self) -> None:
+        """The gate's demand set omits a frame-less provider, while the
+        unfiltered set (L3's view) still carries it."""
+        registry, warmable_sans_uh = self._registry_without_unit_holder()
+
+        with patch.object(registry, "warmable_entities", return_value=warmable_sans_uh):
+            frame_warm = get_frame_warm_providers("offer")
+            assert "unit_holder" not in frame_warm
+            # The gate NARROWED the set; it did not empty it (teeth preserved)
+            assert "business" in frame_warm
+            assert "unit" in frame_warm
         # ... while the unfiltered set (L3's view) still carries it
         assert "unit_holder" in get_cascade_providers("offer")
 
-    def test_offer_phase_passes_without_unit_holder_completion(self) -> None:
-        """Live-registry replay: offer's gate passes once the phases
-        BEFORE offer's phase have completed — unit_holder never does."""
-        phases = cascade_warm_phases()
-        offer_phase_idx = next(i for i, p in enumerate(phases) if "offer" in p)
+    def test_offer_phase_passes_without_frameless_provider_completion(self) -> None:
+        """#192 replay: offer's gate passes once the phases BEFORE offer's
+        phase have completed — the frame-less provider never completes."""
+        registry, warmable_sans_uh = self._registry_without_unit_holder()
 
-        completed: set[str] = set()
-        for phase in phases[:offer_phase_idx]:
-            completed.update(phase)
-        assert "unit_holder" not in completed  # never frame-warms
+        with patch.object(registry, "warmable_entities", return_value=warmable_sans_uh):
+            phases = cascade_warm_phases()
+            offer_phase_idx = next(i for i, p in enumerate(phases) if "offer" in p)
 
-        # Must NOT raise (was a guaranteed WarmupOrderingError pre-fix)
-        assert_l2_pre_phase_gate(
-            phase_idx=offer_phase_idx,
-            phase_entity_types=["offer"],
-            completed_entities=completed,
-        )
+            completed: set[str] = set()
+            for phase in phases[:offer_phase_idx]:
+                completed.update(phase)
+            assert "unit_holder" not in completed  # never frame-warms
+
+            # Must NOT raise (was a guaranteed WarmupOrderingError pre-#192-fix)
+            assert_l2_pre_phase_gate(
+                phase_idx=offer_phase_idx,
+                phase_entity_types=["offer"],
+                completed_entities=completed,
+            )
+
+    def test_frameless_fixture_would_wedge_under_the_unfiltered_set(self) -> None:
+        """TEETH: prove the fixture reconstructs a condition that ACTUALLY
+        wedges if the gate used the unfiltered provider set (the #192 bug).
+
+        Without this, the two tests above could pass vacuously against a
+        fixture that never reproduced the defect.
+        """
+        registry, warmable_sans_uh = self._registry_without_unit_holder()
+
+        with patch.object(registry, "warmable_entities", return_value=warmable_sans_uh):
+            phases = cascade_warm_phases()
+            offer_phase_idx = next(i for i, p in enumerate(phases) if "offer" in p)
+            completed: set[str] = set()
+            for phase in phases[:offer_phase_idx]:
+                completed.update(phase)
+
+            # The #192 bug used get_cascade_providers (UNFILTERED) as the demand
+            # set. Under the fixture that demand is unsatisfiable by construction.
+            unfiltered_demand = get_cascade_providers("offer") - completed
+            assert unfiltered_demand == {"unit_holder"}, (
+                "Fixture failed to reconstruct the #192 wedge condition; the "
+                "GREEN assertions above would be vacuous."
+            )
 
     def test_full_planner_replay_satisfies_gate_at_every_phase(self) -> None:
         """Running the planner's phases in order satisfies the gate at
