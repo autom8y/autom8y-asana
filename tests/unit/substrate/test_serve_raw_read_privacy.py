@@ -35,13 +35,19 @@ _SUBSTRATE_STORE_MODULE = "autom8_asana.substrate.store"
 # The ONLY modules permitted to import the v2 store's contract surface: the three inward
 # consumers named in the seam (serve, rebuild, observe) + the store's own definition home
 # + the package __init__ that RE-EXPORTS the contract types (Protocol/exceptions/type
-# aliases — not a raw read). Paths are relative to src/.
+# aliases — not a raw read) + the WU-3 arming composition root (live, prov_sweep) that WIRES
+# an injected store into rebuild/observe as a TYPE for construction (``store: S3ArtifactStore``
+# for the ``SubstrateRebuilder`` caller / ``ArtifactStore`` for the sweep evaluator) — never a
+# raw ``.read_current`` (they are absent from ``_ALLOWED_READ_CURRENT_CALLERS`` below, and the
+# F-2 reachability tooth would BITE if they ever reached the raw byte reader). Paths rel to src/.
 _ALLOWED_STORE_IMPORTERS = {
     "autom8_asana/substrate/serve.py",
     "autom8_asana/substrate/rebuild.py",
     "autom8_asana/substrate/observe.py",
     "autom8_asana/substrate/store.py",
     "autom8_asana/substrate/__init__.py",
+    "autom8_asana/substrate/live.py",
+    "autom8_asana/substrate/prov_sweep.py",
 }
 
 # The ONLY modules permitted to REACH the raw byte reader (call ``.read_current``): the

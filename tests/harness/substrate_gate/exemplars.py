@@ -139,38 +139,44 @@ def exemplar_one_replay_case() -> ReplayCase:
 
 
 # ============================================================================
-# Exemplar #2 — CURRENT offer plane (S8-0 pre-gate recapture · O4 · additive)
+# Exemplar #2 — CURRENT offer plane (leg-2 re-pin 2026-08-03 · pythia drift verdict)
 # ============================================================================
 # Derived from the REAL S3 artifact — 0 Asana API calls; AWS control-plane + S3
-# GET/LIST only. Full provenance (probe commands, ETags, digests, torn-read guard)
-# in .ledge/reviews/RECEIPT-s8-0-fixture-recapture-2026-07-30.md.
+# GET/LIST only. Full provenance (probe commands, digests, torn-read guard, the
+# leg-1→leg-2 drift ledger) in .ledge/reviews/RECEIPT-s8-0-fixture-recapture-2026-07-30.md.
+#
+# GENERATIONS (value/digest/bytes advance TOGETHER as one coherent generation):
+#   leg-1 (historical, S8-0 2026-07-30): $80,985 · digest 4e711a7a… · frame da977513…
+#   leg-2 (CURRENT,    WU-1  2026-08-03): $75,985 · digest 4a3aca96… · frame cb79eaf5…
+# pythia ruled the leg-1→leg-2 delta {delta+explanation, explained-benign} and GRANTED
+# the re-pin per RULING-pythia-s8-2-adjudication-rubric-2026-08-03.md §3 (re-pin rule).
 #
 # Source: s3://autom8-s3/dataframes/1143843662099250/offer/{dataframe.parquet,
-# watermark.json}. Snapshot instant 2026-07-30T12:24:15Z; dataframe.parquet ETag
-# "de911e6885a587e09e653ec2d697211d" (sha256 da97751365…c3e7d); watermark.json ETag
-# "22dfe7576e7ac5bd2da3e0749c85ad21". Torn-read guard PASSED (watermark post-dates all
-# section artifacts: newest section 11:09:04Z < build 12:23:09Z < write 12:24:15Z).
+# watermark.json}. leg-2 snapshot: dataframe.parquet write 2026-08-03T16:12:42Z, sha256
+# cb79eaf500501c4aeec3b7446af7be9ead44b36e4150e6efc15b8f036b75c261, row_count 4191.
+# Torn-read guard PASSED (watermark post-dates all section artifacts:
+# newest section 16:01:06Z < build 16:12:41Z < write 16:12:42Z).
 
 # The watermark BUILD instant (watermark.json "watermark" field) — the artifact's honest
 # built_from_live_at (the live-pull moment, NOT the S3 write mtime).
-_WATERMARK_BUILT_FROM_LIVE_AT = datetime(2026, 7, 30, 12, 23, 9, 371507, tzinfo=UTC)
+_WATERMARK_BUILT_FROM_LIVE_AT = datetime(2026, 8, 3, 16, 12, 41, 349255, tzinfo=UTC)
 _OFFER_SLA_SECONDS = 3600  # the REAL offer freshness contract (governed freshness_sla_seconds, C8/C17 ruling 2026-07-30)
 
 _CURRENT_PLANE = "v2/offer-current"
-_CURRENT_VALUE = 80_985.0  # Σ mrr over the three offer-lifecycle sections below
+_CURRENT_VALUE = 75_985.0  # Σ mrr over the three offer-lifecycle sections below (leg-2 2026-08-03)
 
 # sha256 over the canonical composition json (sorted, section -> [rows, value]) — a
 # genuine DRIFT TRIPWIRE: the same S3 bytes re-derive the same aggregate → same digest.
-_CURRENT_DIGEST = "sha256:4e711a7a8b8a7f4b18d4beb7ef9f7dc28286d682d3e339c9a407c63de84bce65"
+_CURRENT_DIGEST = "sha256:4a3aca962e1b656a47a74c2d57c19d1353b024b11c98c54fee267666e5285b65"
 
 # The current per-section composition — the THREE offer-lifecycle sections exemplar #1
 # tracked, summed straight from the S3 frame's `mrr` column grouped by `section`. NOTE
 # the section name is a plain HYPHEN (U+002D) in prod; exemplar #1's fixture used an
 # en-dash (U+2013). The real bytes win here (a drift tripwire keys off the true string).
 _CURRENT_COMPOSITION: dict[str, SectionCell] = {
-    "ACTIVE": SectionCell(rows=47, value=60_085.0),
+    "ACTIVE": SectionCell(rows=45, value=57_085.0),
     "OPTIMIZE - Human Review": SectionCell(rows=7, value=10_900.0),
-    "STAGED": SectionCell(rows=7, value=10_000.0),
+    "STAGED": SectionCell(rows=6, value=8_000.0),
 }
 
 
@@ -182,22 +188,25 @@ def exemplar_two_aid() -> ArtifactId:
 def exemplar_two_materialization() -> Materialization:
     """The CURRENT offer plane as a coherent, S3-derived materialization.
 
-    DRIFT TRIPWIRE: served_value ``$80,985`` measured against exemplar #1's frozen
-    ``$84,385`` IS the measured dark-build drift-delta = **−$3,400 (−4.03%)** over the
-    interval. Per-section, mirroring the RC-A-2 ledger idiom (exemplar #1 FRESH →
-    exemplar #2 CURRENT)::
+    DRIFT TRIPWIRE: served_value ``$75,985`` (leg-2, 2026-08-03) measured against
+    exemplar #1's frozen ``$84,385`` IS the measured dark-build drift-delta =
+    **−$8,400 (−9.95%)** over the interval. Per-section, mirroring the RC-A-2 ledger
+    idiom (exemplar #1 FRESH → exemplar #2 leg-2 CURRENT)::
 
-        ACTIVE                    48r·$61,585 → 47r·$60,085  = −$1,500
+        ACTIVE                    48r·$61,585 → 45r·$57,085  = −$4,500
         OPTIMIZE Human Review      5r·$7,900  →  7r·$10,900   = +$3,000  (en-dash → hyphen in prod)
-        STAGED                     7r·$10,000 →  7r·$10,000   =     $0
+        STAGED                     7r·$10,000 →  6r·$8,000    = −$2,000
         OTHER (unchanged)          6r·$4,900  →   (dropped)   = −$4,900  (synthetic bucket; no S3 analogue)
-                                                        net    = −$3,400
+                                                        net    = −$8,400
 
-    The +$1,500 real shift across the three shared sections, minus exemplar #1's $4,900
-    synthetic OTHER bucket (which has no reproducible S3 analogue), composes the −$3,400
-    headline delta. Provenance + the 0-Asana-call affirmation:
-    ``.ledge/reviews/RECEIPT-s8-0-fixture-recapture-2026-07-30.md`` (snapshot instant
-    2026-07-30T12:24:15Z; sources s3://autom8-s3/dataframes/1143843662099250/offer/).
+    The −$3,500 real shift across the three shared sections, minus exemplar #1's $4,900
+    synthetic OTHER bucket (which has no reproducible S3 analogue), composes the −$8,400
+    headline delta. The prior leg-1 generation ($80,985, digest 4e711a7a…) drifted to
+    leg-2 by benign business motion (2 offers left ACTIVE, 1 left STAGED over 4 days);
+    pythia ruled {delta+explanation, explained-benign} and granted the re-pin. Provenance
+    + the 0-Asana-call affirmation:
+    ``.ledge/reviews/RECEIPT-s8-0-fixture-recapture-2026-07-30.md`` § O4 leg-2 (frame
+    write 2026-08-03T16:12:42Z; sources s3://autom8-s3/dataframes/1143843662099250/offer/).
     """
     return Materialization(
         plane=_CURRENT_PLANE,

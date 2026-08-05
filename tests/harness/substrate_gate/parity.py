@@ -334,6 +334,8 @@ def get_process_fetcher(
     concurrency: int = 5,
     aimd_ceiling: int = 10,
     budget: PerDayBudgetLedger | None = None,
+    outbound: Callable[[ArtifactId], Awaitable[ParityObservation]] | None = None,
+    armed: bool = False,
 ) -> PacedLiveParitySource:
     """Return THE one process-wide paced fetcher (CAPACITY-s4 condition 2), idempotent.
 
@@ -348,16 +350,50 @@ def get_process_fetcher(
     orthogonal DISTINCT-``ArtifactId`` in-flight ceiling guard (single-flight does not
     bound how many *different* artifacts rebuild concurrently — this does).
 
-    Idempotent: the first call constructs (DARK — never armed here); subsequent calls
-    return the identical object and ignore later kwargs (the ceiling is process-wide,
-    not per-caller).
+    ARMING (S8/WU-3): ``outbound`` + ``armed`` install the concrete live outbound onto THE
+    singleton (never a second instance). The first call constructs with them; a subsequent
+    call arms the existing DARK instance IN PLACE (idempotent for the SAME outbound; loud on
+    a conflicting re-arm with a different impl). Callers that pass no arming kwargs keep the
+    DARK, ignore-later-kwargs behaviour — the ceiling is process-wide, not per-caller.
     """
     global _PROCESS_FETCHER
     if _PROCESS_FETCHER is None:
         _PROCESS_FETCHER = PacedLiveParitySource(
-            concurrency=concurrency, aimd_ceiling=aimd_ceiling, budget=budget
+            concurrency=concurrency,
+            aimd_ceiling=aimd_ceiling,
+            budget=budget,
+            outbound=outbound,
+            armed=armed,
         )
+    elif outbound is not None or armed:
+        _arm_process_fetcher_in_place(_PROCESS_FETCHER, outbound=outbound, armed=armed)
     return _PROCESS_FETCHER
+
+
+def _arm_process_fetcher_in_place(
+    fetcher: PacedLiveParitySource,
+    *,
+    outbound: Callable[[ArtifactId], Awaitable[ParityObservation]] | None,
+    armed: bool,
+) -> None:
+    """Install ``outbound`` + arm the existing singleton in place (never a second instance).
+
+    Same-module private access is deliberate: the singleton is armed exactly ONCE per
+    process; a conflicting re-arm with a DIFFERENT outbound is a wiring bug — refuse loud.
+    """
+    if (
+        outbound is not None
+        and fetcher._outbound_impl is not None
+        and fetcher._outbound_impl is not outbound
+    ):
+        raise RuntimeError(
+            "process parity fetcher already armed with a different outbound impl — "
+            "refusing a conflicting re-arm (there is exactly one process-wide instance)"
+        )
+    if outbound is not None:
+        fetcher._outbound_impl = outbound
+    if armed:
+        fetcher._armed = True
 
 
 def reset_process_fetcher() -> None:
