@@ -13,6 +13,8 @@ Module: src/autom8_asana/core/project_registry.py
 
 from __future__ import annotations
 
+import os
+
 # =============================================================================
 # Entity Projects
 # =============================================================================
@@ -299,6 +301,74 @@ def consumer_warm_set_gids() -> tuple[str, ...]:
     return CONSUMER_WARM_SET_GIDS
 
 
+# =============================================================================
+# F1a offer-frame priority carve-out (breaks the OfferFrameAgeSeconds sawtooth)
+# =============================================================================
+#
+# THE STARVATION THIS CURES: the ASR offer frame (project 1143843662099250,
+# BusinessOffers) is the 9th GID in the heaviest-first warm set, so its
+# (project/section) keys sit at list positions 17-18 of 68 -- ONE key past the
+# 16-key per-link budget (_DEFAULT_BULK_KEY_BUDGET, cache_warmer.py). Under the
+# heaviest-first order the first invocation exhausts its budget on the 8 heaviest
+# GIDs and hands off BEFORE reaching the offer frame, so the frame is warmed only
+# on a LATER continuation -- and if that continuation strands (a 429-storm hard
+# timeout), the frame goes stale for hours (the sawtooth). This is the intra-sweep
+# expression of the cross-process budget contention: the offer frame loses the
+# race for the scarce first-window slots every cycle.
+#
+# THE CARVE-OUT: front-load the GIDs that carry an explicit per-GID freshness
+# contract (the SAME set the AL-5 alarm registers, terraform
+# substrate_freshness_gids) so their keys land in the FIRST key-budget window of
+# EVERY invocation -- the offer frame refreshes each cycle regardless of the tail.
+# This is a REORDER, never a drop: the full 68-key set (coverage denominator) is
+# unchanged; the non-priority GIDs keep their heaviest-first order. The priority
+# set is tiny (1 GID = 2 keys), so the heaviest GIDs shift by <= 2 positions and
+# CF-2 (expensive GIDs warmed before the cheap tail) still holds for the rest.
+#
+# GUARD AGAINST STARVING THE OTHER FRAMES (named): coverage is set-preserving
+# (test asserts set(reordered) == set(baseline)), so no other frame is dropped;
+# and with the Part-1 deadline yield the sweep always self-continues to the tail,
+# so the shifted GIDs are still reached. INERT/REVERTIBLE: an empty
+# ASANA_FRESHNESS_PRIORITY_GIDS (env-only, no redeploy) yields byte-identical
+# origin/main ordering.
+_DEFAULT_FRESHNESS_PRIORITY_GIDS: tuple[str, ...] = ("1143843662099250",)
+_FRESHNESS_PRIORITY_GIDS_ENV = "ASANA_FRESHNESS_PRIORITY_GIDS"
+
+
+def freshness_priority_gids() -> tuple[str, ...]:
+    """Return the GIDs whose warm keys are front-loaded each invocation (F1a).
+
+    Source of truth is the ``ASANA_FRESHNESS_PRIORITY_GIDS`` env var (comma-
+    separated), defaulting to the ASR offer frame -- the SAME founding GID the
+    AL-5 alarm registers in terraform ``substrate_freshness_gids``. An explicitly
+    empty value disables the carve-out (byte-identical to origin/main ordering),
+    the env-only instant revert.
+    """
+    raw = os.environ.get(_FRESHNESS_PRIORITY_GIDS_ENV)
+    if raw is None:
+        return _DEFAULT_FRESHNESS_PRIORITY_GIDS
+    return tuple(g.strip() for g in raw.split(",") if g.strip())
+
+
+def prioritize_freshness_gids(gids: tuple[str, ...]) -> tuple[str, ...]:
+    """Reorder ``gids`` so freshness-contract GIDs come first (order-preserving reorder).
+
+    Priority GIDs present in ``gids`` are moved to the front in priority-declaration
+    order; every other GID keeps its original (heaviest-first) relative order. The
+    output is a permutation of the input -- same members, no adds, no drops -- so the
+    warm coverage denominator is invariant.
+    """
+    priority = freshness_priority_gids()
+    if not priority:
+        return tuple(gids)
+    present = [g for g in priority if g in gids]
+    if not present:
+        return tuple(gids)
+    present_set = set(present)
+    rest = [g for g in gids if g not in present_set]
+    return tuple(present) + tuple(rest)
+
+
 def bulk_prematerialization_keys(
     arms: tuple[str, ...] = BULK_PREMATERIALIZATION_ARMS,
 ) -> list[tuple[str, str]]:
@@ -331,7 +401,7 @@ def bulk_prematerialization_keys(
     Returns:
         List of ``(project_gid, entity_type)`` tuples, length ``len(GIDs) * len(arms)``.
     """
-    gids = consumer_warm_set_gids()
+    gids = prioritize_freshness_gids(consumer_warm_set_gids())
     return [(gid, arm) for gid in gids for arm in arms]
 
 
@@ -389,7 +459,7 @@ def section_only_prematerialization_keys() -> list[tuple[str, str]]:
         List of ``(project_gid, "section")`` tuples, length
         ``len(consumer_warm_set_gids())`` (34 with the current warm set).
     """
-    return [(gid, "section") for gid in consumer_warm_set_gids()]
+    return [(gid, "section") for gid in prioritize_freshness_gids(consumer_warm_set_gids())]
 
 
 # Structural backstop invariant: the section lane keys are a strict subset of
