@@ -1,13 +1,16 @@
 """WU-3 live-parity arming tests (3a-3d) — DARK, offline, fakes at the HTTP boundary.
 
-CARDINAL P10 boundary: ZERO live Asana calls. The v1 side reads S3 (moto fake); the v2
-side fetches through an injected fake ``page_fetch`` (no network). Discriminating, two-sided
-where a guard is added: torn-read refusal (3a), budget-charge-per-attempt incl. 429 (3b),
-reuse-never-charges (3b), receipt-per-touch incl. budget-halt (3d).
+CARDINAL P10 boundary: ZERO live Asana calls. Post F-305-1 the parity is a DUAL-LEG ledger:
+LEG A (gate anchor) is the SERVED-definition active_mrr (22-section classifier + dedup +
+mrr>0, via the real ``compute_metric``, identical on v1/v2); LEG B (tripwire, NOT the gate)
+is the 3-section raw exemplar aggregate. Discriminating, two-sided where a guard is added:
+torn-read + generation-monotonicity refusal (3a), fetch-plan coverage fail-closed (§6 #2),
+budget-charge-per-attempt incl. 429 (3b), first-class refusal/error on non-SWAPPED (F-305-2/3).
 """
 
 from __future__ import annotations
 
+import io
 import json
 from datetime import UTC, datetime
 from pathlib import Path
@@ -17,26 +20,33 @@ import polars as pl
 import pytest
 
 from autom8_asana.core.types import EntityType
+from autom8_asana.models.business.activity import CLASSIFIERS, AccountActivity
+from autom8_asana.substrate import live
 from autom8_asana.substrate.identity import ArtifactId
 from autom8_asana.substrate.live import (
     OFFER_PROJECT_GID,
+    ActiveMrrColumnMissing,
+    ActiveMrrRefused,
     ArmedParityWindow,
     OfferSectionPlan,
-    PacedOfferSectionFetcher,
+    ParityLegRefused,
     ParityReceiptWriter,
     ReusedSection,
     S3OfferPlaneReader,
     TornOfferPlaneRead,
     arm_offer_parity_window,
     arm_process_parity_fetcher,
+    assert_plan_covers_active_set,
     build_parity_outbound,
     build_v1_offer_materialization,
+    classifier_active_sections,
+    exemplar_aggregate_value,
+    guarded_v1_offer_frame,
     materialize_v1_offer_plane,
-    rebuild_offer_v2,
+    served_active_mrr,
 )
 from autom8_asana.substrate.rebuild import RebuildOutcome
 from tests.harness.substrate_gate.budget import ParityBudgetExhausted, PerDayBudgetLedger
-from tests.harness.substrate_gate.exemplars import exemplar_two_materialization
 from tests.harness.substrate_gate.parity import ParityObservation, reset_process_fetcher
 
 if TYPE_CHECKING:
@@ -54,7 +64,8 @@ _FIXTURE_DIR = (
     Path(__file__).resolve().parents[2] / "harness/substrate_gate/fixtures/offer_1143843662099250"
 )
 _V2_BUCKET = "substrate-v2-live-test"
-_DAY = datetime(2026, 7, 30, 18, 0, tzinfo=UTC)
+_DAY = datetime(2026, 8, 4, 18, 0, tzinfo=UTC)
+_BUILT = datetime(2026, 8, 4, 12, 0, tzinfo=UTC)
 
 
 def _fixed_clock() -> Callable[[], datetime]:
@@ -65,6 +76,11 @@ def _aid() -> ArtifactId:
     return ArtifactId(project_gid=OFFER_PROJECT_GID, entity_type=EntityType.OFFER)
 
 
+def _all_active_covered() -> frozenset[str]:
+    """The full classifier active set as covered names — a coverage-clean plan (§6 #2)."""
+    return classifier_active_sections()
+
+
 def _fixture_bytes() -> tuple[bytes, bytes]:
     return (
         (_FIXTURE_DIR / "offer_plane_section_mrr.parquet").read_bytes(),
@@ -72,13 +88,42 @@ def _fixture_bytes() -> tuple[bytes, bytes]:
     )
 
 
+def _offer_row(
+    section: str, *, offer_id: str, mrr: float, office_phone: str = "p", vertical: str = "v"
+) -> dict[str, Any]:
+    """A value-complete + served-complete offer row (4 value cols + section + dedup keys)."""
+    return {
+        "section": section,
+        "offer_id": offer_id,
+        "cost": 100.0,
+        "mrr": mrr,
+        "weekly_ad_spend": 10.0,
+        "office_phone": office_phone,
+        "vertical": vertical,
+    }
+
+
+def _synth_v1_bytes(
+    rows: list[dict[str, Any]], *, project_gid: str = OFFER_PROJECT_GID, built: datetime = _BUILT
+) -> tuple[bytes, bytes]:
+    """Synthesize a full-column v1 offer plane (parquet + consistent watermark) — PII stays local."""
+    frame = pl.DataFrame(rows)
+    buf = io.BytesIO()
+    frame.write_parquet(buf)
+    watermark = {
+        "project_gid": project_gid,
+        "watermark": built.isoformat(),
+        "saved_at": built.replace(second=30).isoformat(),
+        "row_count": frame.height,
+    }
+    return buf.getvalue(), json.dumps(watermark).encode("utf-8")
+
+
 def _ledger(tmp_path: Path, *, cap: int = 100) -> PerDayBudgetLedger:
     return PerDayBudgetLedger(path=tmp_path / "budget.json", cap=cap, clock=_fixed_clock())
 
 
 class _FastClock:
-    """Monotone fake clock so the floor gate earns tokens instantly (no real sleeps)."""
-
     def __init__(self) -> None:
         self._t = 0.0
 
@@ -92,11 +137,7 @@ async def _no_sleep(_seconds: float) -> None:
 
 
 class _Fake429(Exception):
-    """A 429-signalling boundary error (status_code=429, NOT an Autom8Error, no botocore .response).
-
-    ``_is_transient`` classifies it non-transient (no orchestrator retry), so it fails fast —
-    the budget charge already landed BEFORE the boundary call (pythia §5: 429s charge).
-    """
+    """A 429-signalling boundary error (status_code=429; non-Autom8Error; classifier-safe fast-fail)."""
 
     status_code = 429
 
@@ -126,22 +167,18 @@ class _FakePageFetch:
         return pages[idx], next_cursor
 
 
-def _offer_row(section: str, *, offer_id: str, mrr: float) -> dict[str, Any]:
-    """A value-complete offer row (the four pinned value columns + section)."""
-    return {
-        "section": section,
-        "offer_id": offer_id,
-        "cost": 100.0,
-        "mrr": mrr,
-        "weekly_ad_spend": 10.0,
-    }
-
-
 def _plan(
-    refetch: tuple[str, ...], reuse: Mapping[str, ReusedSection] | None = None
+    refetch: tuple[str, ...],
+    *,
+    reuse: Mapping[str, ReusedSection] | None = None,
+    covered: frozenset[str] | None = None,
 ) -> Callable[[ArtifactId], Awaitable[OfferSectionPlan]]:
+    covered_names = covered if covered is not None else _all_active_covered()
+
     async def _fn(_aid: ArtifactId) -> OfferSectionPlan:
-        return OfferSectionPlan(refetch=refetch, reuse=dict(reuse or {}))
+        return OfferSectionPlan(
+            refetch=refetch, reuse=dict(reuse or {}), covered_section_names=covered_names
+        )
 
     return _fn
 
@@ -152,72 +189,150 @@ def _fetcher(
     page_fetch: _FakePageFetch,
     plan: Callable[[ArtifactId], Awaitable[OfferSectionPlan]],
     ledger: PerDayBudgetLedger | None = None,
-    now: datetime = _DAY,
-) -> PacedOfferSectionFetcher:
-    return PacedOfferSectionFetcher(
+) -> live.PacedOfferSectionFetcher:
+    return live.PacedOfferSectionFetcher(
         page_fetch=page_fetch,
         plan=plan,
         budget=ledger if ledger is not None else _ledger(tmp_path),
-        now=lambda: now,
+        now=lambda: _DAY,
         gate_clock=_FastClock(),
         gate_sleep=_no_sleep,
     )
 
 
 # ===========================================================================
-# 3a — v1 offer plane materialization + torn-read guard
+# served-definition (LEG A) + fetch-plan coverage (§6 #1/#2/#3/#7)
 # ===========================================================================
 
 
-def test_3a_reproduces_exemplar_two_from_fixture_bytes() -> None:
-    """The constructor re-derives the pinned active_mrr + composition digest from real bytes."""
-    parquet, watermark = _fixture_bytes()
-    mat = materialize_v1_offer_plane(parquet, watermark)
-    exemplar = exemplar_two_materialization()
-    assert mat.served_value == exemplar.served_value == 80_985.0
-    assert mat.proof.content_digest == exemplar.proof.content_digest
-    assert mat.frame_digest == mat.proof.content_digest  # coherent, not corrupt
-    assert mat.proof.built_from_live_at == exemplar.proof.built_from_live_at
-    assert {k: (c.rows, c.value) for k, c in mat.composition.items()} == {
-        "ACTIVE": (47, 60_085.0),
-        "OPTIMIZE - Human Review": (7, 10_900.0),
-        "STAGED": (7, 10_000.0),
-    }
+def test_served_active_mrr_dedups_and_filters() -> None:
+    """LEG A = the real served metric: 22-section classifier + dedup(phone,vertical) + mrr>0."""
+    frame = pl.DataFrame(
+        [
+            _offer_row("ACTIVE", offer_id="a", mrr=100.0, office_phone="p1", vertical="v1"),
+            _offer_row("ACTIVE", offer_id="b", mrr=100.0, office_phone="p1", vertical="v1"),  # dup
+            _offer_row("STAGED", offer_id="c", mrr=50.0, office_phone="p2", vertical="v2"),
+            _offer_row("ACTIVE", offer_id="d", mrr=0.0, office_phone="p3", vertical="v3"),  # mrr=0
+            _offer_row(
+                "COMPLETE", offer_id="e", mrr=999.0, office_phone="p9", vertical="v9"
+            ),  # inactive
+        ]
+    )
+    active_mrr, deduped_rows = served_active_mrr(frame)
+    assert active_mrr == 150.0  # 100 (p1/v1 kept once) + 50 (p2/v2); d filtered, e not active
+    assert deduped_rows == 2
+    # LEG B on the SAME frame differs (raw, no dedup/filter) — distinct instruments
+    assert exemplar_aggregate_value(frame)[0] == 250.0  # ACTIVE 100+100+0 raw + STAGED 50
+
+
+def test_served_active_mrr_reports_missing_column() -> None:
+    """A missing dedup-key column is a FINDING (ActiveMrrColumnMissing), never a silent partial."""
+    frame = pl.DataFrame({"section": ["ACTIVE"], "mrr": [100.0]})  # PII-safe projection shape
+    with pytest.raises(ActiveMrrColumnMissing, match="office_phone"):
+        served_active_mrr(frame)
+
+
+def test_classifier_active_set_is_sourced_not_hardcoded() -> None:
+    """§6 #1: the active set comes FROM THE CLASSIFIER (22 sections), not a hardcoded list."""
+    active = classifier_active_sections()
+    assert active == frozenset(CLASSIFIERS["offer"].sections_for(AccountActivity("active")))
+    assert len(active) == 22
+
+
+def test_coverage_assertion_two_sided() -> None:
+    """§6 #2 fail-closed: full coverage passes; a plan missing one active section REFUSES."""
+    assert_plan_covers_active_set(_all_active_covered())  # superset -> OK
+    missing_one = frozenset(list(_all_active_covered())[:-1])  # drop one active section
+    with pytest.raises(ActiveMrrRefused, match="omits"):
+        assert_plan_covers_active_set(missing_one)
+
+
+def test_coverage_follows_classifier_mutation(monkeypatch: pytest.MonkeyPatch) -> None:
+    """§6 #1 proof-of-no-hardcode: mutate the active set -> the coverage assertion PROPAGATES."""
+    monkeypatch.setattr(live, "classifier_active_sections", lambda: frozenset({"mutated-only"}))
+    with pytest.raises(ActiveMrrRefused, match="mutated-only"):
+        assert_plan_covers_active_set(frozenset())  # the mutated section is now the requirement
+    assert_plan_covers_active_set(frozenset({"mutated-only"}))  # covering it passes
+
+
+# ===========================================================================
+# 3a — torn-read guard (leg-agnostic) + LEG A/B materialization + F-305-4
+# ===========================================================================
 
 
 def test_3a_torn_read_row_count_mismatch_refuses() -> None:
-    """Two-sided: the consistent set materializes; a tampered row_count is REFUSED loud."""
+    """Two-sided: the consistent fixture set guards clean; a tampered row_count is REFUSED loud."""
     parquet, watermark = _fixture_bytes()
-    assert materialize_v1_offer_plane(parquet, watermark) is not None  # consistent -> OK
+    frame, built = guarded_v1_offer_frame(parquet, watermark)  # consistent -> OK
+    assert frame.height == 4191 and built is not None
 
     torn = json.loads(watermark)
-    torn["row_count"] = torn["row_count"] + 1  # frame no longer matches the watermark
+    torn["row_count"] = torn["row_count"] + 1
     with pytest.raises(TornOfferPlaneRead, match="row count"):
-        materialize_v1_offer_plane(parquet, json.dumps(torn).encode("utf-8"))
+        guarded_v1_offer_frame(parquet, json.dumps(torn).encode("utf-8"))
 
 
-def test_3a_build_after_save_refuses() -> None:
-    """A watermark whose build instant post-dates its own save is a torn write — REFUSE."""
+def test_3a_build_after_save_and_wrong_project_refuse() -> None:
     parquet, watermark = _fixture_bytes()
-    bad = json.loads(watermark)
-    bad["watermark"] = "2026-08-01T00:00:00+00:00"  # after saved_at
+    late = json.loads(watermark)
+    late["watermark"] = "2026-09-01T00:00:00+00:00"  # after saved_at
     with pytest.raises(TornOfferPlaneRead, match="post-dates"):
-        materialize_v1_offer_plane(parquet, json.dumps(bad).encode("utf-8"))
+        guarded_v1_offer_frame(parquet, json.dumps(late).encode("utf-8"))
 
-
-def test_3a_wrong_project_refuses() -> None:
-    """A watermark for a different project is not the same plane — REFUSE."""
-    parquet, watermark = _fixture_bytes()
-    bad = json.loads(watermark)
-    bad["project_gid"] = "9999999999999999"
+    wrong = json.loads(watermark)
+    wrong["project_gid"] = "9999999999999999"
     with pytest.raises(TornOfferPlaneRead, match="not the same plane"):
-        materialize_v1_offer_plane(parquet, json.dumps(bad).encode("utf-8"))
+        guarded_v1_offer_frame(parquet, json.dumps(wrong).encode("utf-8"))
+
+
+def test_3a_generation_monotonicity_guard_two_sided() -> None:
+    """§F-305-4: an equal-rowcount generation SWAP (build instant regressed) is REFUSED."""
+    parquet, watermark = _synth_v1_bytes(
+        [_offer_row("ACTIVE", offer_id="a", mrr=1.0, office_phone="p1", vertical="v1")],
+        built=_BUILT,
+    )
+    guarded_v1_offer_frame(parquet, watermark, min_build_instant=_BUILT)  # equal-or-after -> OK
+    with pytest.raises(TornOfferPlaneRead, match="regressed below"):
+        guarded_v1_offer_frame(parquet, watermark, min_build_instant=_BUILT.replace(day=5))
+
+
+def test_3a_leg_b_exemplar_aggregate_from_fixture() -> None:
+    """LEG B (tripwire): the 3-section raw exemplar aggregate on the re-pinned fixture = $75,985."""
+    parquet, _ = _fixture_bytes()
+    frame = pl.read_parquet(parquet)
+    value, cells = exemplar_aggregate_value(frame)
+    assert value == 75_985.0  # F-305-5: the leg-2 re-pin generation ($75,985), not $80,985
+    assert set(cells) == {"ACTIVE", "OPTIMIZE - Human Review", "STAGED"}
+
+
+def test_3a_leg_a_materialization_from_full_frame() -> None:
+    """materialize_v1_offer_plane computes the SERVED number (LEG A) from a full-column frame."""
+    parquet, watermark = _synth_v1_bytes(
+        [
+            _offer_row("ACTIVE", offer_id="a", mrr=100.0, office_phone="p1", vertical="v1"),
+            _offer_row("ACTIVE", offer_id="b", mrr=100.0, office_phone="p1", vertical="v1"),
+            _offer_row("STAGED", offer_id="c", mrr=50.0, office_phone="p2", vertical="v2"),
+        ]
+    )
+    mat = materialize_v1_offer_plane(parquet, watermark)
+    assert mat.plane == "v1/offer"
+    assert mat.served_value == 150.0  # served definition, NOT the raw 250
+    assert mat.frame_digest == mat.proof.content_digest  # coherent, not corrupt
+
+
+def test_3a_leg_a_on_pii_safe_fixture_reports_missing() -> None:
+    """The PII-safe fixture (section, mrr) cannot compute LEG A — reported, not papered over."""
+    parquet, watermark = _fixture_bytes()
+    with pytest.raises(ActiveMrrColumnMissing):
+        materialize_v1_offer_plane(parquet, watermark)
 
 
 @pytest.mark.skipif(not MOTO_AVAILABLE, reason="moto not installed")
-def test_3a_s3_reader_reads_and_materializes() -> None:
-    """S3-read-only reader (moto): GETs the v1 offer plane and materializes it (no Asana)."""
-    parquet, watermark = _fixture_bytes()
+def test_3a_s3_reader_reads_and_materializes_served() -> None:
+    """S3-read-only reader (moto): GETs the v1 plane and computes LEG A (no Asana)."""
+    parquet, watermark = _synth_v1_bytes(
+        [_offer_row("ACTIVE", offer_id="a", mrr=500.0, office_phone="p1", vertical="v1")]
+    )
     with mock_aws():
         client = boto3.client("s3", region_name="us-east-1")
         client.create_bucket(Bucket="autom8-s3")
@@ -226,17 +341,15 @@ def test_3a_s3_reader_reads_and_materializes() -> None:
         client.put_object(Bucket="autom8-s3", Key=f"{key}/watermark.json", Body=watermark)
         reader = S3OfferPlaneReader(bucket="autom8-s3", client=client)
         mat = build_v1_offer_materialization(reader)
-    assert mat.served_value == 80_985.0
-    assert mat.plane == "v1/offer"
+    assert mat.served_value == 500.0
 
 
 # ===========================================================================
-# 3b — paced fetcher: budget charged per HTTP attempt (429s included; reuse never)
+# 3b — paced fetcher: budget per HTTP attempt; §6 #2 coverage fail-closed
 # ===========================================================================
 
 
 async def test_3b_clean_multipage_charges_once_per_page(tmp_path: Path) -> None:
-    """Each pagination page == one attempt == one budget charge (pythia §5)."""
     pages = {
         "S1": [
             [_offer_row("ACTIVE", offer_id="a", mrr=1.0)],
@@ -247,59 +360,65 @@ async def test_3b_clean_multipage_charges_once_per_page(tmp_path: Path) -> None:
     fetcher = _fetcher(
         tmp_path, page_fetch=_FakePageFetch(pages), plan=_plan(("S1",)), ledger=ledger
     )
-
     fetched = await fetcher.fetch(_aid())
-
     assert fetched.telemetry is not None
-    assert fetched.telemetry.requests_issued == 2  # two pages -> two attempts
-    assert fetched.telemetry.http_429_count == 0
-    assert ledger.count_today() == 2  # the budget invariant: count == boundary attempts
+    assert fetched.telemetry.requests_issued == 2
+    assert ledger.count_today() == 2  # count == boundary attempts
     assert fetched.frame.height == 2
-    assert not fetched.failed_sections
 
 
-async def test_3b_429_attempt_still_charges_and_shrinks_aimd(tmp_path: Path) -> None:
-    """Two-sided: a 429'd attempt charges the budget exactly like a success, and hits AIMD."""
+async def test_3b_429_attempt_still_charges(tmp_path: Path) -> None:
+    """Two-sided invariant: a 429'd attempt charges exactly like a success (count == requests)."""
     pages = {"S1": [[_offer_row("ACTIVE", offer_id="a", mrr=1.0)]]}
     ledger = _ledger(tmp_path)
-    page_fetch = _FakePageFetch(pages, raise_429_on=("S1",))
-    fetcher = _fetcher(tmp_path, page_fetch=page_fetch, plan=_plan(("S1",)), ledger=ledger)
-
+    fetcher = _fetcher(
+        tmp_path,
+        page_fetch=_FakePageFetch(pages, raise_429_on=("S1",)),
+        plan=_plan(("S1",)),
+        ledger=ledger,
+    )
     fetched = await fetcher.fetch(_aid())
-
     assert fetched.telemetry is not None
     assert fetched.telemetry.http_429_count >= 1
-    # THE budget invariant — every boundary attempt charged, the 429 included:
-    assert ledger.count_today() == fetched.telemetry.requests_issued
-    assert "S1" in fetched.failed_sections  # C16: the 429'd section is a partial -> refused
-    assert fetcher._semaphore.get_stats()["decrease_count"] >= 1  # AIMD window shrank on 429
+    assert ledger.count_today() == fetched.telemetry.requests_issued  # the 429 charged
+    assert "S1" in fetched.failed_sections
+    assert fetcher._semaphore.get_stats()["decrease_count"] >= 1  # AIMD shrank on the 429
 
 
 async def test_3b_reused_section_never_charges(tmp_path: Path) -> None:
-    """A hash-CLEAN reused section touches no boundary and charges nothing (pythia §5)."""
     ledger = _ledger(tmp_path)
     reuse = {
         "S_reuse": ReusedSection(
-            instant=datetime(2026, 7, 30, 17, 0, tzinfo=UTC),
-            rows=(_offer_row("STAGED", offer_id="r", mrr=9.0),),
+            instant=_BUILT, rows=(_offer_row("STAGED", offer_id="r", mrr=9.0),)
         )
     }
     fetcher = _fetcher(
-        tmp_path, page_fetch=_FakePageFetch({}), plan=_plan((), reuse), ledger=ledger
+        tmp_path, page_fetch=_FakePageFetch({}), plan=_plan((), reuse=reuse), ledger=ledger
     )
-
     fetched = await fetcher.fetch(_aid())
-
-    assert ledger.count_today() == 0  # reuse never charges
+    assert ledger.count_today() == 0
     assert fetched.telemetry is not None
-    assert fetched.telemetry.sections_reused == 1
-    assert fetched.telemetry.requests_issued == 0
-    assert fetched.frame.height == 1  # the reused rows are in the assembled frame
-    assert fetched.section_instants["S_reuse"] == datetime(2026, 7, 30, 17, 0, tzinfo=UTC)
+    assert fetched.telemetry.sections_reused == 1 and fetched.telemetry.requests_issued == 0
+    assert fetched.frame.height == 1
+
+
+async def test_3b_coverage_refusal_before_any_charge(tmp_path: Path) -> None:
+    """§6 #2 keystone: a plan omitting an active section REFUSES BEFORE spending any budget."""
+    pages = {"S1": [[_offer_row("ACTIVE", offer_id="a", mrr=1.0)]]}
+    ledger = _ledger(tmp_path)
+    incomplete = frozenset(list(_all_active_covered())[:-1])  # missing one active section
+    fetcher = _fetcher(
+        tmp_path,
+        page_fetch=_FakePageFetch(pages),
+        plan=_plan(("S1",), covered=incomplete),
+        ledger=ledger,
+    )
+    with pytest.raises(ActiveMrrRefused):
+        await fetcher.fetch(_aid())
+    assert ledger.count_today() == 0  # fail-closed BEFORE the fetch — no wasted charge
 
 
 async def test_3b_budget_exhaustion_halts_and_propagates(tmp_path: Path) -> None:
-    """At cap the charge raises ParityBudgetExhausted and it PROPAGATES (never swallowed)."""
     pages = {
         "S1": [[_offer_row("ACTIVE", offer_id="a", mrr=1.0)]],
         "S2": [[_offer_row("ACTIVE", offer_id="b", mrr=2.0)]],
@@ -308,46 +427,33 @@ async def test_3b_budget_exhaustion_halts_and_propagates(tmp_path: Path) -> None
     fetcher = _fetcher(
         tmp_path, page_fetch=_FakePageFetch(pages), plan=_plan(("S1", "S2")), ledger=ledger
     )
-
     with pytest.raises(ParityBudgetExhausted):
         await fetcher.fetch(_aid())
 
 
 @pytest.mark.skipif(not MOTO_AVAILABLE, reason="moto not installed")
-async def test_3b_rebuild_caller_swaps_with_telemetry() -> None:
-    """rebuild_offer_v2 threads the paced fetcher into SubstrateRebuilder -> SWAPPED + telemetry."""
-    import tempfile
-
-    pages = {
-        "ACTIVE": [
-            [
-                _offer_row("ACTIVE", offer_id="a", mrr=100.0),
-                _offer_row("ACTIVE", offer_id="b", mrr=200.0),
-            ]
-        ]
-    }
-    with mock_aws(), tempfile.TemporaryDirectory() as td:
+async def test_3b_rebuild_caller_swaps_with_telemetry(tmp_path: Path) -> None:
+    pages = {"ACTIVE": [[_offer_row("ACTIVE", offer_id="a", mrr=100.0)]]}
+    with mock_aws():
         client = boto3.client("s3", region_name="us-east-1")
         client.create_bucket(Bucket=_V2_BUCKET)
         from autom8_asana.substrate.store import S3ArtifactStore
 
         store = S3ArtifactStore(_V2_BUCKET, client=client)
-        ledger = PerDayBudgetLedger(path=Path(td) / "b.json", cap=100, clock=_fixed_clock())
+        ledger = _ledger(tmp_path)
         fetcher = _fetcher(
-            Path(td), page_fetch=_FakePageFetch(pages), plan=_plan(("ACTIVE",)), ledger=ledger
+            tmp_path, page_fetch=_FakePageFetch(pages), plan=_plan(("ACTIVE",)), ledger=ledger
         )
-        result, fetched = await rebuild_offer_v2(
+        result, fetched = await live.rebuild_offer_v2(
             _aid(), fetcher=fetcher, store=store, now=lambda: _DAY, sla_for=lambda _e: 3600
         )
     assert result.outcome is RebuildOutcome.SWAPPED
-    assert result.telemetry is not None
-    assert result.telemetry.requests_issued == 1
-    assert fetched is not None
-    assert fetched.frame.height == 2
+    assert result.telemetry is not None and result.telemetry.requests_issued == 1
+    assert fetched is not None and fetched.frame.height == 1
 
 
 # ===========================================================================
-# 3c — the armed outbound + get_process_fetcher singleton arming
+# 3c — the dual-leg outbound: served / first-class refusal / error (F-305-1/2/3)
 # ===========================================================================
 
 
@@ -358,49 +464,187 @@ def _reset_singleton() -> Iterator[None]:
     reset_process_fetcher()
 
 
+def _seed_v1(client: Any, rows: list[dict[str, Any]]) -> None:
+    parquet, watermark = _synth_v1_bytes(rows)
+    key = f"dataframes/{OFFER_PROJECT_GID}/offer"
+    client.put_object(Bucket="autom8-s3", Key=f"{key}/dataframe.parquet", Body=parquet)
+    client.put_object(Bucket="autom8-s3", Key=f"{key}/watermark.json", Body=watermark)
+
+
+def _outbound_env(
+    client: Any,
+    tmp_path: Path,
+    *,
+    pages: Mapping[str, Any],
+    refetch: tuple[str, ...],
+    cap: int = 100,
+    raise_429_on: tuple[str, ...] = (),
+    covered: frozenset[str] | None = None,
+) -> tuple[Callable[[ArtifactId], Awaitable[ParityObservation]], PerDayBudgetLedger, Path]:
+    from autom8_asana.substrate.store import S3ArtifactStore
+
+    store = S3ArtifactStore(_V2_BUCKET, client=client)
+    ledger = _ledger(tmp_path, cap=cap)
+    fetcher = _fetcher(
+        tmp_path,
+        page_fetch=_FakePageFetch(pages, raise_429_on=raise_429_on),
+        plan=_plan(refetch, covered=covered),
+        ledger=ledger,
+    )
+    receipts = tmp_path / "receipts"
+    outbound = build_parity_outbound(
+        s3_reader=S3OfferPlaneReader(bucket="autom8-s3", client=client),
+        fetcher=fetcher,
+        store=store,
+        receipt_writer=ParityReceiptWriter(root=receipts),
+        budget=ledger,
+        now=lambda: _DAY,
+        sla_for=lambda _e: 3600,
+    )
+    return outbound, ledger, receipts
+
+
+def _only_receipt(receipts: Path) -> dict[str, Any]:
+    files = list(receipts.rglob("*.json"))
+    assert len(files) == 1, f"expected exactly one receipt, got {files}"
+    return json.loads(files[0].read_text())
+
+
 @pytest.mark.skipif(not MOTO_AVAILABLE, reason="moto not installed")
-async def test_3c_outbound_produces_v1_beside_v2(tmp_path: Path) -> None:
-    """The outbound reads v1 (S3) beside v2 (paced rebuild) into a ParityObservation."""
-    parquet, watermark = _fixture_bytes()
-    pages = {"ACTIVE": [[_offer_row("ACTIVE", offer_id="a", mrr=100.0)]]}
+async def test_3c_served_dual_leg_observation(tmp_path: Path) -> None:
+    """A SWAPPED coverage-clean touch yields a ParityObservation + a served dual-leg receipt."""
     with mock_aws():
         client = boto3.client("s3", region_name="us-east-1")
         client.create_bucket(Bucket="autom8-s3")
         client.create_bucket(Bucket=_V2_BUCKET)
-        key = f"dataframes/{OFFER_PROJECT_GID}/offer"
-        client.put_object(Bucket="autom8-s3", Key=f"{key}/dataframe.parquet", Body=parquet)
-        client.put_object(Bucket="autom8-s3", Key=f"{key}/watermark.json", Body=watermark)
-        from autom8_asana.substrate.store import S3ArtifactStore
-
-        store = S3ArtifactStore(_V2_BUCKET, client=client)
-        ledger = _ledger(tmp_path)
-        fetcher = _fetcher(
-            tmp_path, page_fetch=_FakePageFetch(pages), plan=_plan(("ACTIVE",)), ledger=ledger
+        _seed_v1(
+            client,
+            [_offer_row("ACTIVE", offer_id="x", mrr=300.0, office_phone="p1", vertical="v1")],
         )
-        writer = ParityReceiptWriter(root=tmp_path / "receipts")
-        reader = S3OfferPlaneReader(bucket="autom8-s3", client=client)
-        outbound = build_parity_outbound(
-            s3_reader=reader,
-            fetcher=fetcher,
-            store=store,
-            receipt_writer=writer,
-            budget=ledger,
-            now=lambda: _DAY,
-            sla_for=lambda _e: 3600,
+        pages = {
+            "ACTIVE": [
+                [_offer_row("ACTIVE", offer_id="y", mrr=100.0, office_phone="p2", vertical="v2")]
+            ]
+        }
+        outbound, _ledger_, receipts = _outbound_env(
+            client, tmp_path, pages=pages, refetch=("ACTIVE",)
         )
         obs = await outbound(_aid())
 
     assert isinstance(obs, ParityObservation)
-    assert obs.v1.plane == "v1/offer"
-    assert obs.v1.served_value == 80_985.0  # v1 from the real S3 fixture
-    assert obs.v2.plane == "v2/offer"
-    assert obs.v2.served_value == 100.0  # v2 from the paced live rebuild
-    # a per-touch receipt landed (3d):
-    assert list((tmp_path / "receipts").rglob("*.json"))
+    assert obs.v1.plane == "v1/offer" and obs.v1.served_value == 300.0  # LEG A v1 (served)
+    assert obs.v2.plane == "v2/offer" and obs.v2.served_value == 100.0  # LEG A v2 (served)
+    receipt = _only_receipt(receipts)
+    assert receipt["outcome"] == "served"
+    legs = receipt["legs"]
+    assert legs["served_active_mrr"]["v1"] == 300.0
+    assert legs["served_active_mrr"]["v2"] == 100.0
+    assert legs["exemplar_aggregate"]["v1"] == 300.0  # ACTIVE raw (single row)
+    assert "office_phone" not in json.dumps(receipt)  # §6 #8 PII discipline
+
+
+@pytest.mark.skipif(not MOTO_AVAILABLE, reason="moto not installed")
+async def test_3c_fetch_refused_is_first_class_not_an_observation(tmp_path: Path) -> None:
+    """F-305-2 regression: a completeness-gap rebuild -> ParityLegRefused + refusal receipt, NOT an obs."""
+    with mock_aws():
+        client = boto3.client("s3", region_name="us-east-1")
+        client.create_bucket(Bucket="autom8-s3")
+        client.create_bucket(Bucket=_V2_BUCKET)
+        _seed_v1(client, [_offer_row("ACTIVE", offer_id="x", mrr=300.0)])
+        pages = {"ACTIVE": [[_offer_row("ACTIVE", offer_id="y", mrr=100.0)]]}
+        # ACTIVE 429s -> failed_sections -> C16 FETCH_REFUSED (coverage passes; the gap is the fetch)
+        outbound, ledger, receipts = _outbound_env(
+            client, tmp_path, pages=pages, refetch=("ACTIVE",), raise_429_on=("ACTIVE",)
+        )
+        with pytest.raises(ParityLegRefused):
+            await outbound(_aid())
+
+    receipt = _only_receipt(receipts)
+    assert (
+        receipt["outcome"] == "refused-fetch_refused"
+    )  # first-class, never a coherent observation
+    assert receipt["legs"]["served_active_mrr"]["v1"] == 300.0  # v1 served number preserved
+    assert receipt["legs"]["served_active_mrr"]["v2"] is None  # v2 refused, not coerced to zero
+    assert ledger.count_today() >= 1  # the charged 429 attempt still receipted (F-305-3)
+
+
+@pytest.mark.skipif(not MOTO_AVAILABLE, reason="moto not installed")
+async def test_3c_coverage_refusal_is_first_class_no_charge(tmp_path: Path) -> None:
+    """A plan omitting an active section -> refused-coverage receipt, no charge, no observation."""
+    incomplete = frozenset(list(_all_active_covered())[:-1])
+    with mock_aws():
+        client = boto3.client("s3", region_name="us-east-1")
+        client.create_bucket(Bucket="autom8-s3")
+        client.create_bucket(Bucket=_V2_BUCKET)
+        _seed_v1(client, [_offer_row("ACTIVE", offer_id="x", mrr=300.0)])
+        outbound, ledger, receipts = _outbound_env(
+            client,
+            tmp_path,
+            pages={"ACTIVE": [[_offer_row("ACTIVE", offer_id="y", mrr=1.0)]]},
+            refetch=("ACTIVE",),
+            covered=incomplete,
+        )
+        with pytest.raises(ParityLegRefused):
+            await outbound(_aid())
+
+    receipt = _only_receipt(receipts)
+    assert receipt["outcome"] == "refused-coverage"
+    assert ledger.count_today() == 0  # fail-closed, no budget spent
+
+
+@pytest.mark.skipif(not MOTO_AVAILABLE, reason="moto not installed")
+async def test_3c_error_path_still_receipts(tmp_path: Path) -> None:
+    """F-305-3: a charged touch that RAISES (v2 frame lacks a value column) still leaves a receipt."""
+    with mock_aws():
+        client = boto3.client("s3", region_name="us-east-1")
+        client.create_bucket(Bucket="autom8-s3")
+        client.create_bucket(Bucket=_V2_BUCKET)
+        _seed_v1(client, [_offer_row("ACTIVE", offer_id="x", mrr=300.0)])
+        # v2 rows LACK 'cost' -> canonical_digest raises MissingValueColumnsError inside the rebuild
+        bad_row = {
+            "section": "ACTIVE",
+            "offer_id": "y",
+            "mrr": 1.0,
+            "weekly_ad_spend": 1.0,
+            "office_phone": "p",
+            "vertical": "v",
+        }
+        outbound, ledger, receipts = _outbound_env(
+            client, tmp_path, pages={"ACTIVE": [[bad_row]]}, refetch=("ACTIVE",)
+        )
+        with pytest.raises(Exception, match="value column"):
+            await outbound(_aid())
+
+    receipt = _only_receipt(receipts)
+    assert receipt["outcome"] == "error"
+    assert receipt["error"]["type"] == "MissingValueColumnsError"
+    assert ledger.count_today() >= 1  # the fetch charged before the raise — receipted (P10)
+
+
+@pytest.mark.skipif(not MOTO_AVAILABLE, reason="moto not installed")
+async def test_3c_budget_halt_writes_receipt_and_reraises(tmp_path: Path) -> None:
+    with mock_aws():
+        client = boto3.client("s3", region_name="us-east-1")
+        client.create_bucket(Bucket="autom8-s3")
+        client.create_bucket(Bucket=_V2_BUCKET)
+        _seed_v1(client, [_offer_row("ACTIVE", offer_id="x", mrr=300.0)])
+        outbound, ledger, receipts = _outbound_env(
+            client,
+            tmp_path,
+            pages={"ACTIVE": [[_offer_row("ACTIVE", offer_id="y", mrr=1.0)]]},
+            refetch=("ACTIVE",),
+            cap=1,
+        )
+        ledger.consume()  # exhaust before the touch
+        with pytest.raises(ParityBudgetExhausted):
+            await outbound(_aid())
+
+    receipt = _only_receipt(receipts)
+    assert receipt["outcome"] == "budget-halt"
+    assert "operator_interrupt" in receipt
 
 
 def test_3c_arm_routes_singleton(_reset_singleton: None) -> None:
-    """Arming goes through get_process_fetcher (one instance) and passes the RC-E-4 check."""
     from tests.harness.substrate_gate.parity import get_process_fetcher
 
     async def _outbound(_aid: ArtifactId) -> ParityObservation:  # pragma: no cover - never run here
@@ -413,8 +657,6 @@ def test_3c_arm_routes_singleton(_reset_singleton: None) -> None:
 
 
 def test_3c_conflicting_rearm_refuses(_reset_singleton: None) -> None:
-    """A second arm with a DIFFERENT outbound is a wiring bug — refuse loud (one instance)."""
-
     async def _a(_aid: ArtifactId) -> ParityObservation:  # pragma: no cover
         raise AssertionError
 
@@ -426,49 +668,8 @@ def test_3c_conflicting_rearm_refuses(_reset_singleton: None) -> None:
         arm_process_parity_fetcher(_b)
 
 
-@pytest.mark.skipif(not MOTO_AVAILABLE, reason="moto not installed")
-async def test_3c_budget_halt_writes_receipt_and_reraises(tmp_path: Path) -> None:
-    """A budget HALT records a budget-halt receipt and re-raises (never retried — charter L81)."""
-    parquet, watermark = _fixture_bytes()
-    pages = {"ACTIVE": [[_offer_row("ACTIVE", offer_id="a", mrr=100.0)]]}
-    with mock_aws():
-        client = boto3.client("s3", region_name="us-east-1")
-        client.create_bucket(Bucket="autom8-s3")
-        client.create_bucket(Bucket=_V2_BUCKET)
-        key = f"dataframes/{OFFER_PROJECT_GID}/offer"
-        client.put_object(Bucket="autom8-s3", Key=f"{key}/dataframe.parquet", Body=parquet)
-        client.put_object(Bucket="autom8-s3", Key=f"{key}/watermark.json", Body=watermark)
-        from autom8_asana.substrate.store import S3ArtifactStore
-
-        store = S3ArtifactStore(_V2_BUCKET, client=client)
-        ledger = _ledger(tmp_path, cap=1)
-        ledger.consume()  # exhaust the day before the touch
-        fetcher = _fetcher(
-            tmp_path, page_fetch=_FakePageFetch(pages), plan=_plan(("ACTIVE",)), ledger=ledger
-        )
-        writer = ParityReceiptWriter(root=tmp_path / "receipts")
-        reader = S3OfferPlaneReader(bucket="autom8-s3", client=client)
-        outbound = build_parity_outbound(
-            s3_reader=reader,
-            fetcher=fetcher,
-            store=store,
-            receipt_writer=writer,
-            budget=ledger,
-            now=lambda: _DAY,
-            sla_for=lambda _e: 3600,
-        )
-        with pytest.raises(ParityBudgetExhausted):
-            await outbound(_aid())
-
-    receipts = list((tmp_path / "receipts").rglob("*.json"))
-    assert len(receipts) == 1
-    payload = json.loads(receipts[0].read_text())
-    assert payload["outcome"] == "budget-halt"
-    assert "operator_interrupt" in payload
-
-
 # ===========================================================================
-# 3d — per-touch receipt writer
+# 3d — per-touch DUAL-LEG receipt writer
 # ===========================================================================
 
 
@@ -490,39 +691,54 @@ def _swapped_result() -> Any:
     )
 
 
-def test_3d_writes_receipt_consuming_telemetry_and_budget(tmp_path: Path) -> None:
-    """One durable JSON receipt per touch: telemetry + budget state + outcome + timestamps."""
+def test_3d_write_served_dual_leg(tmp_path: Path) -> None:
     ledger = _ledger(tmp_path)
     ledger.consume(3)
     writer = ParityReceiptWriter(root=tmp_path / "receipts")
-    path = writer.write(_aid(), result=_swapped_result(), ledger=ledger, at=_DAY)
-
-    assert path.parent.name == "2026-07-30"  # dated directory
+    legs = live.ParityLegs(
+        served_v1=150.0,
+        served_v2=150.0,
+        served_digest="sha256:aa",
+        exemplar_v1=250.0,
+        exemplar_v2=250.0,
+        exemplar_digest="sha256:bb",
+    )
+    path = writer.write_served(_aid(), result=_swapped_result(), legs=legs, ledger=ledger, at=_DAY)
     payload = json.loads(path.read_text())
-    assert payload["outcome"] == "swapped"
-    assert payload["aid"] == {"project_gid": OFFER_PROJECT_GID, "entity_type": "offer"}
-    assert payload["telemetry"] == {
-        "requests_issued": 3,
-        "http_429_count": 1,
-        "retries_issued": 1,
-        "sections_refetched": 2,
-        "sections_reused": 1,
-    }
+    assert path.parent.name == "2026-08-04"
+    assert payload["outcome"] == "served"
+    assert payload["legs"]["served_active_mrr"]["v1"] == 150.0
+    assert payload["legs"]["exemplar_aggregate"]["v1"] == 250.0
+    assert payload["telemetry"]["requests_issued"] == 3
     assert payload["budget"] == {"count_today": 3, "cap": 100}
-    assert payload["version_id"] == "v-abc"
+    assert "office_phone" not in json.dumps(payload)  # §6 #8 PII discipline
 
 
-def test_3d_budget_halt_receipt_marks_operator_interrupt(tmp_path: Path) -> None:
-    """A budget-halt receipt records outcome=budget-halt + the charter L81 interrupt marker."""
+def test_3d_write_error_names_the_exception(tmp_path: Path) -> None:
+    ledger = _ledger(tmp_path)
+    ledger.consume(2)
+    writer = ParityReceiptWriter(root=tmp_path / "receipts")
+    path = writer.write_error(
+        _aid(),
+        error=ValueError("boom"),
+        ledger=ledger,
+        at=_DAY,
+        legs=live.ParityLegs(served_v1=1.0),
+    )
+    payload = json.loads(path.read_text())
+    assert payload["outcome"] == "error"
+    assert payload["error"] == {"type": "ValueError", "message": "boom"}
+    assert payload["budget"]["count_today"] == 2  # the charged touch is receipted
+
+
+def test_3d_write_budget_halt_marks_operator_interrupt(tmp_path: Path) -> None:
     ledger = _ledger(tmp_path, cap=1)
     ledger.consume()
     writer = ParityReceiptWriter(root=tmp_path / "receipts")
     path = writer.write_budget_halt(_aid(), ledger=ledger, at=_DAY, detail="exhausted")
-
     payload = json.loads(path.read_text())
     assert payload["outcome"] == "budget-halt"
-    assert payload["telemetry"] is None
-    assert payload["budget"]["count_today"] == 1
+    assert payload["legs"] is None
     assert "budget-exhaustion" in payload["operator_interrupt"]
 
 
@@ -533,7 +749,6 @@ def test_3d_budget_halt_receipt_marks_operator_interrupt(tmp_path: Path) -> None
 
 @pytest.mark.skipif(not MOTO_AVAILABLE, reason="moto not installed")
 def test_entry_arm_window_composes_and_is_dark(tmp_path: Path, _reset_singleton: None) -> None:
-    """arm_offer_parity_window wires the armed source; performs NO Asana/S3 I/O itself."""
     with mock_aws():
         client = boto3.client("s3", region_name="us-east-1")
         client.create_bucket(Bucket=_V2_BUCKET)

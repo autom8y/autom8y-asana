@@ -13,23 +13,31 @@ at the HTTP boundary (CARDINAL P10 boundary: zero live Asana calls in build or t
 
 Five minimal units (each P7-gated):
 
-* **3a** ``build_v1_offer_materialization`` — the CURRENT v1 offer plane (S3-read-only)
-  as a harness ``Materialization``, with the RECEIPT-s8-0 torn-read guard (refuse loud,
-  never a silent partial). Reads ``dataframes/{project}/offer/{dataframe.parquet,
-  watermark.json}``; recomputes ``active_mrr`` over the three offer-lifecycle sections
-  the O4 receipts pin ({ACTIVE, OPTIMIZE - Human Review, STAGED}).
-* **3b** ``PacedOfferSectionFetcher`` + ``rebuild_offer_v2`` — the concrete
-  ``PacedAsanaFetcher`` composing v1's G6 controllers (floor-gate admit -> AIMD slot ->
-  retry -> bounded gather) around the Asana HTTP boundary, charging the hardened
-  ``PerDayBudgetLedger`` per pagination-page ATTEMPT (429s + retries charge; reused/
-  hash-CLEAN sections and S3 ops NEVER charge — pythia §5 counsel), threaded into a
+The active_mrr referent is the PRODUCTION-SERVED number per
+RULING-pythia-f305-1-active-mrr-referent-2026-08-04 — a DUAL-LEG ledger: LEG A (the gate
+anchor) is the served-definition active_mrr (22-section classifier + dedup(office_phone,
+vertical) + mrr>0 + Float64 sum, via the real ``compute_metric`` machinery, computed
+identically on v1 and v2); LEG B (a tripwire, NOT the gate) is the 3-section raw exemplar
+aggregate. Nine capture-mechanics conditions (ruling §6) bind, the fail-closed fetch-plan
+coverage assertion being the anti-RC-C keystone.
+
+* **3a** ``materialize_v1_offer_plane`` / ``build_v1_offer_materialization`` — the CURRENT v1
+  offer plane (S3-read-only) as a served-definition (LEG A) ``Materialization`` with the
+  RECEIPT-s8-0 torn-read guard (+ §F-305-4 generation-monotonicity); ``exemplar_aggregate_value``
+  is LEG B.
+* **3b** ``PacedOfferSectionFetcher`` + ``rebuild_offer_v2`` — the concrete ``PacedAsanaFetcher``
+  composing v1's G6 controllers (floor-gate admit -> AIMD slot -> retry -> bounded gather) around
+  the Asana HTTP boundary, charging the hardened ``PerDayBudgetLedger`` per pagination-page
+  ATTEMPT (a 429 charges; reused/hash-CLEAN sections and S3 ops NEVER charge — pythia §5), with
+  the §6 #2 coverage assertion fail-closed BEFORE any charge; threaded into a
   ``SubstrateRebuilder.rebuild()`` caller.
 * **3c** ``build_parity_outbound`` / ``arm_process_parity_fetcher`` — the concrete armed
-  ``outbound`` for ``PacedLiveParitySource`` (v1 from 3a, v2 from 3b), armed through the
-  process singleton ``get_process_fetcher`` (never a second instance).
-* **3d** ``ParityReceiptWriter`` — one durable JSON receipt per prod touch (P10 "leave a
-  receipt"): ``FetchTelemetry`` + budget state + timestamps + outcome; a
-  ``ParityBudgetExhausted`` is RECORDED as ``outcome=budget-halt`` and NEVER retried.
+  ``outbound``: a DUAL-LEG record, a ``ParityObservation`` ONLY on a SWAPPED coverage-clean v2,
+  refusal + error as first-class recorded outcomes; armed through the process singleton
+  ``get_process_fetcher`` (never a second instance).
+* **3d** ``ParityReceiptWriter`` — one durable JSON receipt per prod touch on ALL paths
+  (served / refused / error / budget-halt): dual-leg PII-safe scalars + digests + ``FetchTelemetry``
+  + budget state; a charged raise still receipts (F-305-3); budget-halt NEVER retried.
 
 Seam discipline: this is seam-USE. No frozen seam (``rebuild.py`` /
 ``parity.py`` Protocols, ``RebuildOutcome`` / ``RebuildResult``) is changed — arming an
@@ -43,7 +51,7 @@ import json
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from functools import partial
+from functools import lru_cache, partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -63,6 +71,9 @@ from autom8_asana.core.retry import (
 )
 from autom8_asana.core.types import EntityType
 from autom8_asana.errors import RateLimitError
+from autom8_asana.metrics.compute import compute_metric
+from autom8_asana.metrics.registry import MetricRegistry
+from autom8_asana.models.business.activity import CLASSIFIERS, AccountActivity
 from autom8_asana.substrate.freshness import (
     FreshnessProof,
     fold_built_from_live_at,
@@ -73,6 +84,7 @@ from autom8_asana.substrate.rebuild import (
     DefaultAcceptancePredicates,
     FetchedSections,
     FetchTelemetry,
+    RebuildOutcome,
     RebuildResult,
     SubstrateRebuilder,
 )
@@ -90,22 +102,109 @@ if TYPE_CHECKING:
     from autom8_asana.substrate.store import S3ArtifactStore
 
 # ---------------------------------------------------------------------------
-# Shared offer-plane constants (pinned to the O4 receipts + exemplar #2)
+# Shared offer-plane constants + the DUAL-LEG active_mrr referent (F-305-1)
 # ---------------------------------------------------------------------------
+# Per RULING-pythia-f305-1-active-mrr-referent-2026-08-04: active_mrr DENOTES the
+# PRODUCTION-SERVED number. LEG A (the gate anchor, the leg PT-03 Q1 + the auto-flip hang
+# on) is the served-definition active_mrr — the 22-section classifier active set
+# (activity.py:181-208) + dedup by (office_phone, vertical) keep="first" + mrr>0 filter +
+# Float64 sum (offer.py:20-43 / compute.py:66-116) — computed IDENTICALLY on v1 and v2 via
+# the REAL ``compute_metric`` machinery (§6 #1-7 satisfied by construction: the section set
+# comes FROM THE CLASSIFIER, never a hardcoded list — a hardcoded subset is the RC-C drift
+# vector that produced the defect). LEG B (a corpus-continuity / byte-determinism TRIPWIRE,
+# NOT the gate) is the 3-section raw exemplar aggregate — RETAINED per ruling §4, re-labeled
+# "exemplar aggregate" (never "served_value"; the O4 "served_value" label was a misnomer).
 
 # The offer project whose active_mrr the parity gate re-derives (DEFECT :20-23; O4).
 OFFER_PROJECT_GID: str = "1143843662099250"
 
-# active_mrr = Σ mrr over the THREE offer-lifecycle sections the O4 leg-1/leg-2 receipts
-# pin (RECEIPT-s8-0-fixture-recapture L86-96 / L223-231; exemplar_two_materialization).
-# The section name is a plain HYPHEN (U+002D) in prod bytes — NOT an en-dash. This is the
-# receipted active_mrr definition for the substrate-v2 exemplar; it is deliberately
-# NARROWER than metrics.freshness' 22-section classifier active-set (a different signal
-# that shares the name) — the parity gate compares against the pinned exemplar, so the
-# exemplar's definition is the one this constructor reproduces.
-ACTIVE_MRR_SECTIONS: tuple[str, ...] = ("ACTIVE", "OPTIMIZE - Human Review", "STAGED")
+# LEG B tripwire sections (3-section raw; plain HYPHEN U+002D in prod bytes). This is the
+# exemplar/corpus aggregate — a strict subset of the 22-section classifier active set, raw
+# (no dedup, no mrr>0 filter). It is NOT active_mrr (ruling §4 label correction).
+EXEMPLAR_AGGREGATE_SECTIONS: tuple[str, ...] = ("ACTIVE", "OPTIMIZE - Human Review", "STAGED")
+
+# The columns the served leg REQUIRES present + typed on BOTH sides — section, mrr, and the
+# (office_phone, vertical) dedup keys (§6 #3/#8; offer.py:19/28 confirm the offer schema
+# declares them). A missing one is a FINDING (ActiveMrrColumnMissing), not a silent partial.
+_SERVED_REQUIRED_COLUMNS: tuple[str, ...] = ("section", "mrr", "office_phone", "vertical")
 
 _V1_OFFER_PLANE: str = "v1/offer"
+
+
+class ActiveMrrColumnMissing(RuntimeError):
+    """The served-definition columns (section, mrr, office_phone, vertical) are not all present.
+
+    The ruling's explicit "verify the served definition's columns are present + identically
+    typed on both sides; a missing dedup-key column is a FINDING to report, not to paper
+    over." Raised loudly rather than silently computing a wrong/partial number.
+    """
+
+
+class ActiveMrrRefused(RuntimeError):
+    """The served leg REFUSES — a first-class outcome, never coerced to zero/skipped (§6 #2/#9).
+
+    Fires when v2's fetch plan omits a classifier-active section (the anti-RC-C keystone: a
+    partial sum is the $14,360 silent-loss shape of the founding wound), or when any
+    classifier-active section is not present-and-fresh-and-torn-read-clean. In the parity
+    comparison this is preserved distinct from a served number (over-refusal W2 vs correct
+    refusal is a downstream pythia call).
+    """
+
+
+@lru_cache(maxsize=1)
+def _offer_active_metric() -> Any:
+    """The registered ``active_mrr`` Metric — the single authoritative served definition."""
+    return MetricRegistry().get_metric("active_mrr")
+
+
+@lru_cache(maxsize=1)
+def classifier_active_sections() -> frozenset[str]:
+    """The 22-section OFFER active set FROM THE CLASSIFIER (§6 #1 — never hardcoded).
+
+    Lowercased, exactly as ``compute.py:78`` derives + matches it, so the fetch-plan coverage
+    assertion keys off the same set the served metric filters on.
+    """
+    classifier = CLASSIFIERS.get("offer")
+    if classifier is None:  # pragma: no cover - the offer classifier is a module constant
+        raise ActiveMrrColumnMissing("no OFFER classifier registered; cannot resolve active set")
+    return frozenset(classifier.sections_for(AccountActivity("active")))
+
+
+def assert_plan_covers_active_set(covered_section_names: frozenset[str]) -> None:
+    """§6 #2 fail-closed coverage: the plan MUST be a superset of the classifier active set.
+
+    Any classifier-active section absent from the fetch plan → ``ActiveMrrRefused`` (never a
+    partial sum). Case-insensitive (both sides lowercased), mirroring the served metric's
+    ``.str.to_lowercase()`` match. This is what makes the silent-loss shape unconstructable.
+    """
+    covered = {name.lower() for name in covered_section_names}
+    missing = classifier_active_sections() - covered
+    if missing:
+        raise ActiveMrrRefused(
+            f"fetch plan omits {len(missing)} classifier-active section(s) {sorted(missing)} — "
+            "refusing a partial active_mrr (§6 #2 anti-RC-C keystone; the silent-loss shape of "
+            "the founding wound is unconstructable here)"
+        )
+
+
+def served_active_mrr(frame: pl.DataFrame) -> tuple[float, int]:
+    """LEG A: the served-definition active_mrr, via the REAL ``active_mrr`` metric machinery.
+
+    Reuses ``compute_metric`` (classifier 22-section filter → mrr>0 → dedup(office_phone,
+    vertical) → Float64 sum), so v1 and v2 are computed IDENTICALLY and conditions §6 #1-7 hold
+    by construction. Returns ``(active_mrr, deduped_row_count)``. Raises ``ActiveMrrColumnMissing``
+    if a served-definition column is absent (the ruling's "report, don't paper over").
+    """
+    missing = [c for c in _SERVED_REQUIRED_COLUMNS if c not in frame.columns]
+    if missing:
+        raise ActiveMrrColumnMissing(
+            f"served active_mrr requires columns {list(_SERVED_REQUIRED_COLUMNS)} present + typed; "
+            f"frame is missing {missing} (has {sorted(frame.columns)}) — reporting, not papering over"
+        )
+    metric = _offer_active_metric()
+    result = compute_metric(metric, frame)
+    total = result[metric.expr.column].sum()
+    return round(float(total if total is not None else 0.0), 6), result.height
 
 
 class TornOfferPlaneRead(RuntimeError):
@@ -135,14 +234,14 @@ def _parse_aware(raw: object, label: str) -> datetime:
 
 
 def _composition_digest(composition: Mapping[str, tuple[int, float]]) -> str:
-    """The O4 receipts' drift-tripwire digest: sha256 over sorted ``{section:[rows,value]}``.
+    """PII-safe drift-tripwire digest: sha256 over sorted ``{label:[rows,value]}`` (§6 #8).
 
-    Same S3 bytes -> same aggregate -> same digest (RECEIPT L93-96). Reproduces the
-    exemplar #2 ``content_digest`` exactly, so a determinism test can assert the
-    constructor re-derives the pinned digest from the fixture bytes.
+    Digests ONLY the per-classification (leg A) / per-section (leg B) scalar aggregates —
+    the PII dedup keys (``office_phone``) NEVER enter it. Same frame bytes -> same aggregate
+    -> same digest, so a determinism test can pin it.
     """
     canonical = json.dumps(
-        {section: list(cell) for section, cell in sorted(composition.items())},
+        {label: list(cell) for label, cell in sorted(composition.items())},
         separators=(",", ":"),
         ensure_ascii=False,
     )
@@ -154,20 +253,45 @@ def materialize_v1_offer_plane(
     watermark_bytes: bytes,
     *,
     project_gid: str = OFFER_PROJECT_GID,
-    active_sections: tuple[str, ...] = ACTIVE_MRR_SECTIONS,
     plane: str = _V1_OFFER_PLANE,
     sla_seconds: int | None = None,
+    min_build_instant: datetime | None = None,
 ) -> Materialization:
-    """3a (pure): build a v1-side ``Materialization`` from raw offer-plane bytes.
+    """3a (pure): build the v1-side served-definition (LEG A) ``Materialization`` from raw bytes.
 
     S3-read-only in prod (the bytes are a GET of ``dataframe.parquet`` + ``watermark.json``);
-    this pure core takes the bytes so it is fully provable offline with fixture bytes (no
-    I/O, no network — CARDINAL P10 boundary). Applies the RECEIPT-s8-0 torn-read guard,
-    then recomputes ``active_mrr`` over ``active_sections`` and packages the coherent
-    current state as a harness ``Materialization`` (``frame_digest == content_digest`` —
-    a healthy, non-corrupt plane).
+    this pure core takes the bytes so it is fully provable offline (no I/O — CARDINAL P10
+    boundary). Applies the RECEIPT-s8-0 torn-read guard, then computes the SERVED active_mrr
+    (LEG A, §6 #1-7) via ``offer_materialization_from_frame``.
 
-    Raises ``TornOfferPlaneRead`` on ANY inconsistency (never a silent partial).
+    ``min_build_instant`` (§F-305-4, optional): the build instant of the LAST accepted capture.
+    The bare row_count cross-check is blind to an equal-rowcount GENERATION SWAP (two distinct
+    generations that happen to share a row count); a build instant that has regressed below the
+    last accepted one is that swap and is REFUSED. WU-4 threads the prior receipt's build instant.
+
+    Raises ``TornOfferPlaneRead`` on inconsistency; ``ActiveMrrColumnMissing`` if the served
+    columns (section, mrr, office_phone, vertical) are absent (never a silent partial).
+    """
+    frame, built_at = guarded_v1_offer_frame(
+        parquet_bytes, watermark_bytes, project_gid=project_gid, min_build_instant=min_build_instant
+    )
+    resolved_sla = sla_seconds if sla_seconds is not None else sla_seconds_for(EntityType.OFFER)
+    return offer_materialization_from_frame(
+        plane=plane, frame=frame, built_from_live_at=built_at, sla_seconds=resolved_sla
+    )
+
+
+def guarded_v1_offer_frame(
+    parquet_bytes: bytes,
+    watermark_bytes: bytes,
+    *,
+    project_gid: str = OFFER_PROJECT_GID,
+    min_build_instant: datetime | None = None,
+) -> tuple[pl.DataFrame, datetime]:
+    """Parse + apply the RECEIPT-s8-0 torn-read guard ONCE; return ``(frame, build_instant)``.
+
+    Shared by the LEG-A materialization and the LEG-B exemplar aggregate so ONE parse feeds
+    both legs (no double read). Raises ``TornOfferPlaneRead`` on any inconsistency.
     """
     # ---- watermark: parse + internal-consistency (torn-read) guard -------------
     try:
@@ -190,6 +314,12 @@ def materialize_v1_offer_plane(
             f"watermark build instant {built_at.isoformat()} post-dates its own save "
             f"{saved_at.isoformat()} — internally inconsistent (torn write)"
         )
+    if min_build_instant is not None and built_at < min_build_instant:
+        raise TornOfferPlaneRead(
+            f"watermark build instant {built_at.isoformat()} regressed below the last accepted "
+            f"capture {min_build_instant.isoformat()} — an equal-rowcount generation swap the "
+            "row_count cross-check is blind to (§F-305-4)"
+        )
     row_count = watermark.get("row_count")
     if not isinstance(row_count, int) or isinstance(row_count, bool) or row_count < 0:
         raise TornOfferPlaneRead(f"watermark row_count is not a non-negative int: {row_count!r}")
@@ -204,21 +334,7 @@ def materialize_v1_offer_plane(
             f"frame row count {frame.height} != watermark row_count {row_count} — "
             "the parquet and watermark are from different generations (torn read)"
         )
-    for required in ("section", "mrr"):
-        if required not in frame.columns:
-            raise TornOfferPlaneRead(
-                f"offer dataframe.parquet lacks required column {required!r} "
-                f"(has {sorted(frame.columns)})"
-            )
-
-    resolved_sla = sla_seconds if sla_seconds is not None else sla_seconds_for(EntityType.OFFER)
-    return offer_materialization_from_frame(
-        plane=plane,
-        frame=frame,
-        built_from_live_at=built_at,
-        sla_seconds=resolved_sla,
-        active_sections=active_sections,
-    )
+    return frame, built_at
 
 
 def offer_materialization_from_frame(
@@ -227,38 +343,50 @@ def offer_materialization_from_frame(
     frame: pl.DataFrame,
     built_from_live_at: datetime,
     sla_seconds: int,
-    active_sections: tuple[str, ...] = ACTIVE_MRR_SECTIONS,
 ) -> Materialization:
-    """Compose an offer ``Materialization`` (active_mrr) from an assembled frame.
+    """Compose the served-definition (LEG A) offer ``Materialization`` — IDENTICAL v1/v2 (§6 #1-7).
 
-    ONE source of truth for the active_mrr composition math, shared by the v1 S3 read
-    (3a) and the v2 rebuild (3c) so both planes are apples-to-apples. Groups ``mrr`` by
-    ``section`` over the pinned in-scope sections, mints the drift-tripwire composition
-    digest, and packages a coherent (``frame_digest == content_digest``) plane.
+    ONE source of truth for the served number, called on BOTH the v1 S3 frame and the v2
+    rebuild frame, via the REAL ``active_mrr`` metric machinery. ``served_value`` is the served
+    active_mrr; the composition is the PII-safe per-classification cell ``{"active":
+    (deduped_rows, active_mrr)}`` (§6 #8 — no dedup key ever enters it); the digest is over that.
     """
     from tests.harness.substrate_gate.cases import Materialization, SectionCell
 
-    grouped = (
-        frame.filter(pl.col("section").is_in(list(active_sections)))
-        .group_by("section")
-        .agg(pl.len().alias("rows"), pl.col("mrr").sum().alias("mrr"))
-        .sort("section")
-    )
-    raw_cells: dict[str, tuple[int, float]] = {
-        row["section"]: (int(row["rows"]), float(row["mrr"])) for row in grouped.to_dicts()
-    }
-    composition = {section: SectionCell(rows=r, value=v) for section, (r, v) in raw_cells.items()}
-    served_value = round(sum(v for _r, v in raw_cells.values()), 6)
-    digest = _composition_digest(raw_cells)
+    active_mrr, deduped_rows = served_active_mrr(frame)
+    cells: dict[str, tuple[int, float]] = {"active": (deduped_rows, active_mrr)}
+    digest = _composition_digest(cells)
     return Materialization(
         plane=plane,
         proof=FreshnessProof(
             built_from_live_at=built_from_live_at, content_digest=digest, sla_seconds=sla_seconds
         ),
-        served_value=served_value,
-        composition=composition,
-        frame_digest=digest,  # digest-consistent: coherent current state, NOT corrupt
+        served_value=active_mrr,
+        composition={"active": SectionCell(rows=deduped_rows, value=active_mrr)},
+        frame_digest=digest,  # digest-consistent: coherent served state, NOT corrupt
     )
+
+
+def exemplar_aggregate_value(
+    frame: pl.DataFrame, *, sections: tuple[str, ...] = EXEMPLAR_AGGREGATE_SECTIONS
+) -> tuple[float, dict[str, tuple[int, float]]]:
+    """LEG B (a TRIPWIRE, NOT the gate): the 3-section RAW exemplar aggregate (ruling §4).
+
+    No dedup, no ``mrr>0`` filter — the corpus-continuity / byte-determinism number the O4
+    receipts track. Re-labeled "exemplar aggregate" per the ruling §4 label correction; it is
+    NEVER ``active_mrr`` / ``served_value``. Returns ``(aggregate, {section: (rows, value)})``.
+    """
+    grouped = (
+        frame.filter(pl.col("section").is_in(list(sections)))
+        .group_by("section")
+        .agg(pl.len().alias("rows"), pl.col("mrr").sum().alias("mrr"))
+        .sort("section")
+    )
+    cells: dict[str, tuple[int, float]] = {
+        row["section"]: (int(row["rows"]), float(row["mrr"])) for row in grouped.to_dicts()
+    }
+    total = round(sum(v for _r, v in cells.values()), 6)
+    return total, cells
 
 
 @dataclass(frozen=True, slots=True)
@@ -357,10 +485,16 @@ class OfferSectionPlan:
     ``reuse`` are hash-CLEAN sections carried from the prior frame (never charge). The union
     is the C16 ``requested_sections``. In prod the plan comes from the staleness/hash-CLEAN
     probe + prior-frame read (S3, no charge — a WU-4 wiring); in build/test it is injected.
+
+    ``covered_section_names`` are the section NAMES this plan guarantees it fetched-or-reused —
+    the coverage set the served leg checks against the classifier active set (§6 #2 fail-closed).
+    Section NAMES (not gids) because the classifier active set is by name; a classifier-active
+    section absent here means the plan would produce a partial served sum → REFUSE.
     """
 
     refetch: tuple[str, ...]
     reuse: Mapping[str, ReusedSection] = field(default_factory=dict)
+    covered_section_names: frozenset[str] = frozenset()
 
 
 @dataclass(slots=True)
@@ -378,7 +512,10 @@ class _TelemetryAccum:
     sections_reused: int = 0
 
     def finalize(self) -> FetchTelemetry:
-        # A retry is an attempt beyond the first success for a page: retries = attempts - pages.
+        # There is NO in-sweep retry: a boundary error is wrapped in ParityOutboundError, which
+        # core.retry classifies non-transient, so the orchestrator re-raises immediately (I-5).
+        # ``retries_issued`` therefore counts FAILED attempts (a 429 charges, shrinks AIMD, and
+        # fails this sweep's observation; the NEXT paced sweep is the retry) = attempts - pages.
         return FetchTelemetry(
             requests_issued=self.requests_issued,
             http_429_count=self.http_429_count,
@@ -404,13 +541,18 @@ class PacedOfferSectionFetcher:
     """Concrete ``PacedAsanaFetcher`` (rebuild.py) — the REAL v1-G6 pacing composition.
 
     Per refetched section: ``floor_gate.admit()`` (advisory static floor) ->
-    ``semaphore.acquire()`` (AIMD slot) -> per-page ``retry.execute_with_retry_async(...)``
-    (resilience) around the injected HTTP boundary; sections fan out through
-    ``gather_with_semaphore`` (bounded concurrency). Every page ATTEMPT charges the injected
-    ``PerDayBudgetLedger`` BEFORE the call (a 429'd/retried attempt still spent its unit —
-    pythia §5); reused/hash-CLEAN sections and the frame assembly touch no boundary and
-    never charge. Structurally implements the frozen Protocol; imports NO ``AsanaClient``
-    (RC-E-4) — the only Asana surface is the injected ``page_fetch``.
+    ``semaphore.acquire()`` (AIMD slot) -> ``retry.execute_with_retry_async(...)`` around the
+    injected HTTP boundary; sections fan out through ``gather_with_semaphore`` (bounded
+    concurrency). Every page ATTEMPT charges the injected ``PerDayBudgetLedger`` BEFORE the call
+    (a 429'd attempt still spent its unit — pythia §5); reused/hash-CLEAN sections and the frame
+    assembly touch no boundary and never charge.
+
+    NO in-sweep retry actually fires: a boundary error is bridged as a non-transient
+    ``ParityOutboundError`` (a raw ``AsanaError`` would crash core.retry's botocore-shaped
+    classifier), so the orchestrator re-raises immediately. A 429 charges, shrinks the AIMD
+    window, and FAILS this section's fetch (→ C16 FETCH_REFUSED); the NEXT paced sweep is the
+    retry. Structurally implements the frozen Protocol; imports NO ``AsanaClient`` (RC-E-4) —
+    the only Asana surface is the injected ``page_fetch``.
     """
 
     def __init__(
@@ -481,13 +623,16 @@ class PacedOfferSectionFetcher:
     async def _fetch_section(
         self, aid: ArtifactId, section_gid: str, telem: _TelemetryAccum
     ) -> tuple[str, list[Mapping[str, Any]], datetime]:
-        """Paginate one section live (paced): floor -> AIMD slot -> per-page retry."""
+        """Paginate one section live (paced): floor -> AIMD slot -> per-page boundary attempt."""
         await self._floor_gate.admit()  # advisory static floor
         async with await self._semaphore.acquire() as slot:  # AIMD concurrency slot
             rows: list[Mapping[str, Any]] = []
             cursor: str | None = None
             while True:
-                page, cursor = await self._retry.execute_with_retry_async(  # resilience
+                (
+                    page,
+                    cursor,
+                ) = await self._retry.execute_with_retry_async(  # non-transient: no retry fires
                     partial(self._attempt_page, aid, section_gid, cursor, slot, telem),
                     operation_name="substrate_offer_page",
                 )
@@ -500,6 +645,10 @@ class PacedOfferSectionFetcher:
     async def fetch(self, aid: ArtifactId) -> FetchedSections:
         """``PacedAsanaFetcher`` conformance: paced live fetch -> a complete ``FetchedSections``."""
         plan = await self._plan(aid)
+        # §6 #2 fail-closed coverage — BEFORE any HTTP charge: if the plan omits a
+        # classifier-active section, REFUSE LOUDLY (never spend budget on a partial sum whose
+        # served number would silently lose value — the anti-RC-C keystone).
+        assert_plan_covers_active_set(plan.covered_section_names)
         telem = _TelemetryAccum(
             sections_refetched=len(plan.refetch), sections_reused=len(plan.reuse)
         )
@@ -587,21 +736,64 @@ async def rebuild_offer_v2(
 
 
 # ===========================================================================
-# 3d — per-touch receipt writer (P10 "every prod touch leaves a receipt")
+# 3d — per-touch DUAL-LEG receipt writer (P10 "every prod touch leaves a receipt")
 # ===========================================================================
 
 # Same durable parent as the ledger pin (survives park-per-day across the P5 window).
 PARITY_RECEIPTS_ROOT: str = ".sos/wip/parity/receipts"
 
 
+class ParityLegRefused(RuntimeError):
+    """The v2 parity side REFUSED (first-class outcome, §6 #9) — no ``ParityObservation`` is made.
+
+    Raised by the outbound when the v2 rebuild did not SWAP (FETCH_REFUSED / STAGED_REJECTED)
+    or the served leg refused coverage (``ActiveMrrRefused``). The refusal is RECORDED (3d) as a
+    first-class outcome, never coerced to a zero-valued observation; the runner surfaces it and
+    pythia classifies over-refusal (W2) vs correct-refusal downstream.
+    """
+
+
+@dataclass(frozen=True, slots=True)
+class ParityLegs:
+    """The F-305-1 dual-leg ledger row — PII-safe scalars + digests ONLY (§6 #8).
+
+    LEG A ``served_*`` is the served-definition active_mrr (the gate anchor PT-03 Q1 hangs on);
+    LEG B ``exemplar_*`` is the 3-section raw exemplar aggregate (a corpus-continuity tripwire,
+    NEVER the served number). Dedup keys (``office_phone``) NEVER appear here.
+    """
+
+    served_v1: float | None = None
+    served_v2: float | None = None
+    served_digest: str | None = None
+    exemplar_v1: float | None = None
+    exemplar_v2: float | None = None
+    exemplar_digest: str | None = None
+
+    def as_block(self) -> dict[str, Any]:
+        return {
+            "served_active_mrr": {
+                "v1": self.served_v1,
+                "v2": self.served_v2,
+                "digest": self.served_digest,
+                "note": "LEG A — the gate anchor (22-section classifier + dedup + mrr>0)",
+            },
+            "exemplar_aggregate": {
+                "v1": self.exemplar_v1,
+                "v2": self.exemplar_v2,
+                "digest": self.exemplar_digest,
+                "note": "LEG B — 3-section raw tripwire, NOT active_mrr (ruling §4)",
+            },
+        }
+
+
 @dataclass(frozen=True, slots=True)
 class ParityReceiptWriter:
-    """Persists ONE dated JSON receipt per prod touch, consuming ``RebuildResult.telemetry``.
+    """Persists ONE dated JSON receipt per prod touch — a DUAL-LEG ledger row, on ALL paths.
 
-    Receipts land at ``{root}/{YYYY-MM-DD}/{entity}-{project}-{ts}-{uid}.json``. A
-    ``ParityBudgetExhausted`` is RECORDED (``outcome=budget-halt``) and NEVER retried — it
-    is non-transient by design and a charter L81 operator-interrupt trigger (budget
-    exhaustion): the runner surfaces it, the writer records it.
+    Receipts land at ``{root}/{YYYY-MM-DD}/{entity}-{project}-{ts}-{uid}.json``. Every CHARGED
+    touch leaves a receipt on EVERY path (served / refused / error / budget-halt) — F-305-3: a
+    raise path that charged the budget MUST still receipt (P10). A ``ParityBudgetExhausted`` is
+    ``outcome=budget-halt`` and NEVER retried (charter L81 operator interrupt).
     """
 
     root: Path
@@ -635,55 +827,114 @@ class ParityReceiptWriter:
             "sections_reused": telemetry.sections_reused,
         }
 
-    def write(
-        self, aid: ArtifactId, *, result: RebuildResult, ledger: PerDayBudgetLedger, at: datetime
-    ) -> Path:
-        """Record a completed prod touch (any ``RebuildOutcome``) + its budget state."""
-        payload = {
+    def _base(
+        self,
+        aid: ArtifactId,
+        *,
+        outcome: str,
+        ledger: PerDayBudgetLedger,
+        at: datetime,
+        result: RebuildResult | None,
+        legs: ParityLegs | None,
+        detail: str,
+    ) -> dict[str, Any]:
+        return {
             "aid": self._aid_block(aid),
             "touched_at": at.isoformat(),
-            "outcome": result.outcome.value,
-            "version_id": str(result.version_id) if result.version_id is not None else None,
-            "built_from_live_at": (
-                result.built_from_live_at.isoformat()
-                if result.built_from_live_at is not None
+            "outcome": outcome,
+            "version_id": (
+                str(result.version_id)
+                if result is not None and result.version_id is not None
                 else None
             ),
-            "detail": result.detail,
-            "telemetry": self._telemetry_block(result.telemetry),
+            "built_from_live_at": (
+                result.built_from_live_at.isoformat()
+                if result is not None and result.built_from_live_at is not None
+                else None
+            ),
+            "detail": detail or (result.detail if result is not None else ""),
+            "telemetry": self._telemetry_block(result.telemetry if result is not None else None),
             "budget": {"count_today": ledger.count_today(), "cap": ledger.cap},
+            "legs": legs.as_block() if legs is not None else None,
         }
+
+    def write_served(
+        self,
+        aid: ArtifactId,
+        *,
+        result: RebuildResult,
+        legs: ParityLegs,
+        ledger: PerDayBudgetLedger,
+        at: datetime,
+    ) -> Path:
+        """Record a SERVED touch (SWAPPED + coverage-ok): both legs, both sides."""
+        return self._persist(
+            aid,
+            at,
+            self._base(
+                aid, outcome="served", ledger=ledger, at=at, result=result, legs=legs, detail=""
+            ),
+        )
+
+    def write_refusal(
+        self,
+        aid: ArtifactId,
+        *,
+        outcome: str,
+        ledger: PerDayBudgetLedger,
+        at: datetime,
+        legs: ParityLegs | None = None,
+        result: RebuildResult | None = None,
+        detail: str = "",
+    ) -> Path:
+        """Record a first-class REFUSAL (§6 #9): v2 refused; v1's served number is preserved."""
+        return self._persist(
+            aid,
+            at,
+            self._base(
+                aid, outcome=outcome, ledger=ledger, at=at, result=result, legs=legs, detail=detail
+            ),
+        )
+
+    def write_error(
+        self,
+        aid: ArtifactId,
+        *,
+        error: BaseException,
+        ledger: PerDayBudgetLedger,
+        at: datetime,
+        legs: ParityLegs | None = None,
+        result: RebuildResult | None = None,
+    ) -> Path:
+        """F-305-3: a charged touch that RAISED still leaves a receipt (outcome=error, class named)."""
+        payload = self._base(
+            aid, outcome="error", ledger=ledger, at=at, result=result, legs=legs, detail=str(error)
+        )
+        payload["error"] = {"type": type(error).__name__, "message": str(error)}
         return self._persist(aid, at, payload)
 
     def write_budget_halt(
         self, aid: ArtifactId, *, ledger: PerDayBudgetLedger, at: datetime, detail: str
     ) -> Path:
         """Record a budget HALT (``outcome=budget-halt``). NEVER retried (charter L81)."""
-        payload = {
-            "aid": self._aid_block(aid),
-            "touched_at": at.isoformat(),
-            "outcome": "budget-halt",
-            "version_id": None,
-            "built_from_live_at": None,
-            "detail": detail,
-            "telemetry": None,
-            "budget": {"count_today": ledger.count_today(), "cap": ledger.cap},
-            "operator_interrupt": "budget-exhaustion (charter L81) — not retried",
-        }
+        payload = self._base(
+            aid, outcome="budget-halt", ledger=ledger, at=at, result=None, legs=None, detail=detail
+        )
+        payload["operator_interrupt"] = "budget-exhaustion (charter L81) — not retried"
         return self._persist(aid, at, payload)
 
 
 # ===========================================================================
-# 3c — the concrete armed outbound for PacedLiveParitySource
+# 3c — the concrete armed outbound for PacedLiveParitySource (dual-leg, F-305-1/2/3)
 # ===========================================================================
 
 
 def _v2_materialization(fetched: FetchedSections | None, result: RebuildResult) -> Materialization:
-    """Build the v2-side offer ``Materialization`` from the rebuild's captured frame.
+    """Build the v2-side served-definition (LEG A) ``Materialization`` from the rebuilt frame.
 
-    Uses the SAME active_mrr composition as v1 (apples-to-apples). ``built_from_live_at``
-    is the rebuild's validated instant (``result``), falling back to the S2 MIN-fold of the
-    fetched section instants.
+    Uses the SAME ``offer_materialization_from_frame`` as v1 (identical served computation,
+    §6 #1-7). ``built_from_live_at`` is the rebuild's validated instant, falling back to the
+    S2 MIN-fold of the fetched section instants.
     """
     if fetched is None:
         raise OfferSectionFetchError(
@@ -708,32 +959,123 @@ def build_parity_outbound(
     budget: PerDayBudgetLedger,
     now: NowFn | None = None,
     sla_for: SlaResolver | None = None,
+    min_build_instant: datetime | None = None,
 ) -> Callable[[ArtifactId], Awaitable[ParityObservation]]:
-    """3c: the concrete ``outbound`` — v1 (3a, S3) beside v2 (3b rebuild), receipted (3d).
+    """3c: the concrete ``outbound`` — a DUAL-LEG parity record (F-305-1) with first-class refusal.
 
-    v1 is an S3 read (no charge); v2 is the paced live rebuild (budget charged at the HTTP
-    boundary in 3b — the parity source itself is armed with ``budget=None`` so nothing is
-    double-counted per-aid, per pythia §5). A ``ParityBudgetExhausted`` is recorded as a
-    budget-halt receipt and re-raised (never retried — charter L81 operator interrupt).
+    LEG A (gate anchor): the SERVED active_mrr computed IDENTICALLY on the v1 S3 frame and the
+    v2 rebuild frame (§6). LEG B (tripwire): the 3-section exemplar aggregate on each side. v1 is
+    an S3 read (no charge); v2 is the paced live rebuild (budget charged at the HTTP boundary in
+    3b; the parity source is armed ``budget=None`` so nothing double-counts per-aid).
+
+    A ``ParityObservation`` is constructed ONLY on a SWAPPED, coverage-clean v2 (F-305-2). A
+    ``ParityBudgetExhausted`` → budget-halt receipt + re-raise (never retried). A non-SWAPPED
+    rebuild or a coverage ``ActiveMrrRefused`` → refusal receipt + ``ParityLegRefused`` (first
+    class, §6 #9). Any other exception on a (possibly charged) touch → error receipt + re-raise
+    (F-305-3). No raise path escapes without a receipt.
     """
+    from tests.harness.substrate_gate.budget import ParityBudgetExhausted
+
     clock: NowFn = now if now is not None else (lambda: datetime.now(UTC))
+    v1_sla = sla_for(EntityType.OFFER) if sla_for is not None else sla_seconds_for(EntityType.OFFER)
 
     async def _outbound(aid: ArtifactId) -> ParityObservation:
-        from tests.harness.substrate_gate.budget import ParityBudgetExhausted
         from tests.harness.substrate_gate.parity import ParityObservation
 
         touched_at = clock()
-        v1 = build_v1_offer_materialization(s3_reader, project_gid=aid.project_gid)
+        v1_served: float | None = None
+        v1_exemplar: float | None = None
+        v1_digest: str | None = None
         try:
+            # --- LEG A + LEG B on the v1 S3 plane (one guarded parse; no charge) -------------
+            parquet_bytes, watermark_bytes = s3_reader.read(aid.project_gid)
+            v1_frame, v1_built = guarded_v1_offer_frame(
+                parquet_bytes,
+                watermark_bytes,
+                project_gid=aid.project_gid,
+                min_build_instant=min_build_instant,
+            )
+            v1_mat = offer_materialization_from_frame(
+                plane="v1/offer", frame=v1_frame, built_from_live_at=v1_built, sla_seconds=v1_sla
+            )
+            v1_served, v1_digest = v1_mat.served_value, v1_mat.frame_digest
+            v1_exemplar = exemplar_aggregate_value(v1_frame)[0]
+            # --- LEG A + LEG B on the v2 rebuild (paced live; budget at the HTTP boundary) ----
             result, fetched = await rebuild_offer_v2(
                 aid, fetcher=fetcher, store=store, now=now, sla_for=sla_for
             )
         except ParityBudgetExhausted as exc:
             receipt_writer.write_budget_halt(aid, ledger=budget, at=touched_at, detail=str(exc))
             raise  # HALT — non-transient, never retried (charter L81 operator interrupt)
-        v2 = _v2_materialization(fetched, result)
-        receipt_writer.write(aid, result=result, ledger=budget, at=touched_at)
-        return ParityObservation(aid=aid, v1=v1, v2=v2)
+        except ActiveMrrRefused as exc:
+            # §6 #2 coverage refusal (raised in fetch BEFORE any charge) — first-class, recorded.
+            receipt_writer.write_refusal(
+                aid,
+                outcome="refused-coverage",
+                ledger=budget,
+                at=touched_at,
+                legs=ParityLegs(
+                    served_v1=v1_served, served_digest=v1_digest, exemplar_v1=v1_exemplar
+                ),
+                detail=str(exc),
+            )
+            raise ParityLegRefused(f"served leg refused coverage: {exc}") from exc
+        except Exception as exc:  # noqa: BLE001 — F-305-3: a (possibly charged) raise must receipt
+            receipt_writer.write_error(
+                aid,
+                error=exc,
+                ledger=budget,
+                at=touched_at,
+                legs=ParityLegs(
+                    served_v1=v1_served, served_digest=v1_digest, exemplar_v1=v1_exemplar
+                ),
+            )
+            raise
+
+        # F-305-2: a ParityObservation is constructed ONLY on SWAPPED. Non-SWAPPED is a
+        # first-class refusal in the record, never a normal (coherent-looking) observation.
+        if result.outcome is not RebuildOutcome.SWAPPED:
+            receipt_writer.write_refusal(
+                aid,
+                outcome=f"refused-{result.outcome.value}",
+                result=result,
+                ledger=budget,
+                at=touched_at,
+                legs=ParityLegs(
+                    served_v1=v1_served, served_digest=v1_digest, exemplar_v1=v1_exemplar
+                ),
+                detail=result.detail,
+            )
+            raise ParityLegRefused(f"v2 rebuild {result.outcome.value}: {result.detail}")
+
+        try:
+            v2_mat = _v2_materialization(fetched, result)
+            v2_exemplar, v2_ex_cells = (
+                exemplar_aggregate_value(fetched.frame) if fetched is not None else (None, {})
+            )
+        except Exception as exc:  # noqa: BLE001 — F-305-3: the charged rebuild must still receipt
+            receipt_writer.write_error(
+                aid,
+                error=exc,
+                result=result,
+                ledger=budget,
+                at=touched_at,
+                legs=ParityLegs(
+                    served_v1=v1_served, served_digest=v1_digest, exemplar_v1=v1_exemplar
+                ),
+            )
+            raise
+
+        legs = ParityLegs(
+            served_v1=v1_served,
+            served_v2=v2_mat.served_value,
+            served_digest=v2_mat.frame_digest,  # LEG A PII-safe per-classification digest
+            exemplar_v1=v1_exemplar,
+            exemplar_v2=v2_exemplar,
+            exemplar_digest=_composition_digest(v2_ex_cells) if v2_ex_cells else None,
+        )
+        receipt_writer.write_served(aid, result=result, legs=legs, ledger=budget, at=touched_at)
+        return ParityObservation(aid=aid, v1=v1_mat, v2=v2_mat)
 
     return _outbound
 
