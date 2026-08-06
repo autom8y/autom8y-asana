@@ -36,6 +36,7 @@ import pytest
 
 from autom8_asana.lambda_handlers import scheduling_stratum_snapshot as snap
 from autom8_asana.lambda_handlers.scheduling_stratum_snapshot import (
+    MIN_POSTURE_SIGNAL_ROWS,
     SnapshotRefusedError,
     assert_complete_office_set,
     assert_posture_signal_floor,
@@ -281,15 +282,25 @@ class TestLegBGuardsStillBite:
             assert_posture_signal_floor(joined)
 
     def test_b1_healthy_variant_passes_the_same_code_path(self) -> None:
-        """PAIRED HEALTHY: one non-null custom_cal_status clears the floor."""
-        rows: list[dict[str, Any]] = [{"gid": f"uh{i}", "parent_gid": f"biz{i}"} for i in range(50)]
-        rows[0][CUSTOM_CAL_STATUS_FIELD] = "Enabled"
+        """PAIRED HEALTHY: a populated custom_cal_status column clears the floor.
+
+        C5 (2026-08-06): the floor was raised 1 -> MIN_POSTURE_SIGNAL_ROWS, so the
+        healthy variant must carry a REALISTIC signal-bearing population. The former
+        one-row variant is now correctly REFUSED -- 1 signal-bearing office in a
+        50-office universe is a content collapse, not health.
+        """
+        size = MIN_POSTURE_SIGNAL_ROWS + 50
+        rows: list[dict[str, Any]] = [
+            {"gid": f"uh{i}", "parent_gid": f"biz{i}"} for i in range(size)
+        ]
+        for i in range(MIN_POSTURE_SIGNAL_ROWS):
+            rows[i][CUSTOM_CAL_STATUS_FIELD] = "Enabled"
         joined = join_office_spine(
             _unit_holder_frame(rows),
-            _business_frame([(f"biz{i}", f"guid-{i}") for i in range(50)]),
+            _business_frame([(f"biz{i}", f"guid-{i}") for i in range(size)]),
         )
 
-        assert posture_signal_row_count(joined) == 1
+        assert posture_signal_row_count(joined) == MIN_POSTURE_SIGNAL_ROWS
         assert_posture_signal_floor(joined)  # must NOT raise
 
     # --- Fixture 2: completeness contract --------------------------------------
