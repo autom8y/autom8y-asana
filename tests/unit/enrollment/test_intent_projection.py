@@ -566,8 +566,50 @@ class TestFreshnessRefusal:
             (name, self.NOW - 999_999.0 if name == stale_frame else self.FRESH)
             for name in ("unit_holder", "business", "offer")
         ]
-        with pytest.raises(EnrollmentRefusedError, match=f"frame '{stale_frame}'"):
+        with pytest.raises(EnrollmentRefusedError) as exc:
             assert_frames_fresh(ages, now_epoch=self.NOW, ceiling_seconds=self.CEILING)
+        reason = str(exc.value)
+        # ★ D-3: the reason must name the ACTUAL offending frame...
+        assert f"{stale_frame} (stale" in reason, reason
+        # ...and must NOT name a frame that is perfectly fresh. The reused WS-E
+        # predicate hardcodes "offer frame" in its own message, so echoing it sent
+        # the operator to warm the wrong frame.
+        for healthy in {"unit_holder", "business", "offer"} - {stale_frame}:
+            assert f"{healthy} (" not in reason, (
+                f"reason blamed the healthy frame {healthy!r}: {reason}"
+            )
+        assert "1 of 3 frames unusable" in reason
+
+    def test_RED_every_stale_frame_is_named_not_just_the_first(self) -> None:
+        """★ D-3: first-wins attribution hides the blast radius.
+
+        An operator who is told only about ``unit_holder`` warms it, re-runs, and
+        is refused again for ``business`` -- learning the true scope one cycle at a
+        time. Name them all at once.
+        """
+        stale = self.NOW - 999_999.0
+        ages = [("unit_holder", stale), ("business", stale), ("offer", self.FRESH)]
+        with pytest.raises(EnrollmentRefusedError) as exc:
+            assert_frames_fresh(ages, now_epoch=self.NOW, ceiling_seconds=self.CEILING)
+        reason = str(exc.value)
+        assert "2 of 3 frames unusable" in reason
+        assert "unit_holder (stale" in reason
+        assert "business (stale" in reason
+        assert "offer (" not in reason
+
+    def test_mixed_stale_and_unprovable_are_distinguished(self) -> None:
+        """The two failure modes need different operator actions: warm the frame vs
+        investigate why S3 returned no LastModified."""
+        ages = [
+            ("unit_holder", None),
+            ("business", self.NOW - 999_999.0),
+            ("offer", self.FRESH),
+        ]
+        with pytest.raises(EnrollmentRefusedError) as exc:
+            assert_frames_fresh(ages, now_epoch=self.NOW, ceiling_seconds=self.CEILING)
+        reason = str(exc.value)
+        assert "unit_holder (age unprovable" in reason
+        assert "business (stale" in reason
 
     @pytest.mark.parametrize("unprovable_frame", ["unit_holder", "business", "offer"])
     def test_RED_unprovable_age_is_itself_a_refusal(self, unprovable_frame: str) -> None:
@@ -576,8 +618,9 @@ class TestFreshnessRefusal:
             (name, None if name == unprovable_frame else self.FRESH)
             for name in ("unit_holder", "business", "offer")
         ]
-        with pytest.raises(EnrollmentRefusedError, match="unprovable"):
+        with pytest.raises(EnrollmentRefusedError) as exc:
             assert_frames_fresh(ages, now_epoch=self.NOW, ceiling_seconds=self.CEILING)
+        assert f"{unprovable_frame} (age unprovable" in str(exc.value)
 
 
 class TestUniverseFloorRefusal:
@@ -598,8 +641,12 @@ class TestUniverseFloorRefusal:
         932 -> 1-44 collapse untouched. A zero/unset floor here must therefore be a
         refusal, not a permissive default.
         """
-        with pytest.raises(EnrollmentRefusedError, match="unset or non-positive"):
+        with pytest.raises(EnrollmentRefusedError, match="unset or non-positive") as exc:
             assert_universe_floor(900, floor=0)
+        # ★ The refusal must NAME the observed universe, so a dry-run against an
+        # unset floor is the instrument that sizes it. A refusal that withholds the
+        # number needed to fix it is a dead end.
+        assert "900 phones" in str(exc.value)
 
     def test_a_one_row_floor_would_not_have_caught_the_observed_collapse(self) -> None:
         """Documents CARD WS-B/4 mechanically: why the producer's floor is decorative."""
@@ -620,8 +667,10 @@ class TestDeltaCeilingRefusal:
             assert_delta_within_ceiling(26, ceiling=25)
 
     def test_RED_unset_ceiling_refuses(self) -> None:
-        with pytest.raises(EnrollmentRefusedError, match="unset or non-positive"):
-            assert_delta_within_ceiling(1, ceiling=0)
+        with pytest.raises(EnrollmentRefusedError, match="unset or non-positive") as exc:
+            assert_delta_within_ceiling(7, ceiling=0)
+        # Same discipline: the pre-arm dry-run reports the delta it would have made.
+        assert "7 offices" in str(exc.value)
 
     def test_refusal_is_at_the_boundary_not_approximate(self) -> None:
         """Non-vacuity: the ceiling bites at exactly ceiling+1, not before."""

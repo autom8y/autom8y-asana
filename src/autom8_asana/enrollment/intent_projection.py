@@ -139,7 +139,8 @@ They must never be merged.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, NamedTuple
+import re
+from typing import TYPE_CHECKING, Any, Final, NamedTuple
 
 from autom8_asana.lambda_handlers.traffic_offer_divergence_tripwire import (
     EvaluationRefusedError,
@@ -331,6 +332,21 @@ def assert_frames_fresh(
     Raises:
         EnrollmentRefusedError: naming the frame that failed.
     """
+    # ★ D-3: attribute the reason to the ACTUAL frame, and name EVERY stale frame.
+    #
+    # The reused ``assert_frame_fresh`` remains the PREDICATE (so its age arithmetic
+    # and its "unprovable age is itself a refusal" leg stay single-sourced with the
+    # WS-E tripwire), but its message is hardcoded to "offer frame" -- it was written
+    # for a one-frame instrument. Echoing it here produced reasons that named two
+    # different frames in one breath ("frame 'unit_holder' unusable: offer frame is
+    # stale"), which is worse than no attribution: it sends the operator to warm the
+    # wrong frame.
+    #
+    # Collecting rather than raising on the first failure matters for the same
+    # reason. A first-wins refusal hides that the OTHER frames are also stale, so an
+    # operator fixes one, re-runs, and gets refused again -- learning the true blast
+    # radius one cycle at a time.
+    failures: list[str] = []
     for label, last_modified_epoch in frame_ages:
         try:
             assert_frame_fresh(
@@ -338,8 +354,18 @@ def assert_frames_fresh(
                 now_epoch=now_epoch,
                 ceiling_seconds=ceiling_seconds,
             )
-        except EvaluationRefusedError as exc:
-            raise EnrollmentRefusedError(f"frame '{label}' unusable: {exc}") from exc
+        except EvaluationRefusedError:
+            if last_modified_epoch is None:
+                failures.append(f"{label} (age unprovable -- no LastModified)")
+            else:
+                age = max(0.0, now_epoch - last_modified_epoch)
+                failures.append(f"{label} (stale: age {age:.0f}s > ceiling {ceiling_seconds:.0f}s)")
+    if failures:
+        raise EnrollmentRefusedError(
+            f"{len(failures)} of {len(frame_ages)} frames unusable: {'; '.join(failures)}. "
+            "The office spine cannot be proven fresh, and a fossil frame projects null "
+            "intent that R1 coerces to Enabled -- refusing the whole cycle."
+        )
 
 
 def assert_universe_floor(in_scope_phone_count: int, *, floor: int) -> None:
@@ -360,10 +386,14 @@ def assert_universe_floor(in_scope_phone_count: int, *, floor: int) -> None:
         EnrollmentRefusedError: when the in-scope universe is below the floor.
     """
     if floor <= 0:
+        # ★ A refusal that withholds the number needed to fix it is a dead end. The
+        # OBSERVED universe is named here so a dry-run against an unset floor tells
+        # the operator exactly what to set it from -- refuse loudly AND usefully.
         raise EnrollmentRefusedError(
             f"universe floor is unset or non-positive ({floor}) -- refusing rather "
-            "than running against an unbounded universe. Set it from the live "
-            "recovered universe (TDD build-entry measurement E-2); it is "
+            "than running against an unbounded universe. Observed in-scope universe "
+            f"this cycle: {in_scope_phone_count} phones. Set the floor from the live "
+            "recovered universe (TDD build-entry measurement E-2, phone-side); it is "
             "deliberately not defaulted, because a guessed floor is no floor."
         )
     if in_scope_phone_count < floor:
@@ -388,9 +418,14 @@ def assert_delta_within_ceiling(delta_count: int, *, ceiling: int) -> None:
         EnrollmentRefusedError: when ``delta_count > ceiling``.
     """
     if ceiling <= 0:
+        # ★ Same discipline as the floor: name the OBSERVED delta so a dry-run
+        # against an unset ceiling is the very instrument that sizes it. Without
+        # this, the pre-arm observation cycle could never report the number the
+        # operator needs, and the ceiling would end up guessed.
         raise EnrollmentRefusedError(
             f"delta ceiling is unset or non-positive ({ceiling}) -- refusing rather "
-            "than running without a mass-change brake."
+            "than running without a mass-change brake. Observed flip-delta this "
+            f"cycle: {delta_count} offices. Size the ceiling from a watched dry-run."
         )
     if delta_count > ceiling:
         raise EnrollmentRefusedError(
@@ -492,6 +527,37 @@ def norm_phone(value: Any) -> str:
     make LOUD.
     """
     return str(value).strip() if value is not None else ""
+
+
+#: ★★ The gate's OWN E.164 contract, reused VERBATIM rather than re-invented.
+#:
+#: Source: ``autom8y_api_schemas.identity.OfficePhoneField`` metadata
+#: ``pattern='^\\+[1-9]\\d{6,14}$'`` -- the pattern autom8y-scheduling's
+#: ``ConfigUpdateBody.office_phone`` validates against. Copying the server's own
+#: predicate is load-bearing in BOTH directions: a stricter local rule would
+#: silently exclude offices the gate would happily accept (a silent no-op class),
+#: and a looser one would ship 422s to production. One contract, one spelling.
+E164_PATTERN: Final[re.Pattern[str]] = re.compile(r"^\+[1-9]\d{6,14}$")
+
+
+def is_e164(office_phone: str | None) -> bool:
+    """Is this phone a well-formed E.164 gate key?
+
+    ★ SECURITY-LOAD-BEARING (D-1). ``office_phone`` originates from an
+    Asana-operator-editable custom field and reaches this code through
+    :func:`norm_phone`, which is deliberately STRIP-ONLY and performs no format
+    validation whatsoever. Without this predicate an operator-authored value like
+    ``"../../../admin"`` is a hostile path segment, not a phone number.
+
+    This is the STRUCTURAL narrowing half of the D-1 cure: a value that is not a
+    phone never reaches the wire at all. The percent-encoding in
+    :mod:`~autom8_asana.enrollment.scheduling_client` is the other half -- it
+    guarantees that even an admitted value can only ever occupy ONE path segment.
+    Defense in depth: the encode is the must-fix, this is the narrowing.
+    """
+    if office_phone is None:
+        return False
+    return E164_PATTERN.match(office_phone) is not None
 
 
 def derive_intent_source(custom_cal_status: str | None) -> str:
@@ -708,6 +774,7 @@ __all__ = [
     "REQUIRED_UNIT_HOLDER_COLUMNS",
     "UNIT_HOLDER_FRAME_KEY",
     "UNIT_HOLDER_PROJECT_GID",
+    "E164_PATTERN",
     "EnrollmentIntent",
     "EnrollmentProjection",
     "EnrollmentRefusedError",
@@ -719,6 +786,7 @@ __all__ = [
     "assert_universe_floor",
     "derive_intent_source",
     "frame_key",
+    "is_e164",
     "norm_phone",
     "project_enrollment_intent",
 ]
