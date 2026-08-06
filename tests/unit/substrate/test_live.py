@@ -22,6 +22,7 @@ import pytest
 from autom8_asana.core.types import EntityType
 from autom8_asana.models.business.activity import CLASSIFIERS, AccountActivity
 from autom8_asana.substrate import live
+from autom8_asana.substrate.freshness import FreshnessProof, canonical_digest
 from autom8_asana.substrate.identity import ArtifactId
 from autom8_asana.substrate.live import (
     OFFER_PROJECT_GID,
@@ -34,6 +35,7 @@ from autom8_asana.substrate.live import (
     ReusedSection,
     S3OfferPlaneReader,
     TornOfferPlaneRead,
+    active_offer_rows,
     arm_offer_parity_window,
     arm_process_parity_fetcher,
     assert_plan_covers_active_set,
@@ -45,7 +47,15 @@ from autom8_asana.substrate.live import (
     materialize_v1_offer_plane,
     served_active_mrr,
 )
-from autom8_asana.substrate.rebuild import RebuildOutcome
+from autom8_asana.substrate.rebuild import (
+    DefaultAcceptancePredicates,
+    RebuildOutcome,
+    StagedVersion,
+    ValidationFailure,
+    ValidationReceipt,
+    canonical_frame_bytes,
+)
+from autom8_asana.substrate.store import VersionId
 from tests.harness.substrate_gate.budget import ParityBudgetExhausted, PerDayBudgetLedger
 from tests.harness.substrate_gate.parity import ParityObservation, reset_process_fetcher
 
@@ -253,6 +263,147 @@ def test_coverage_follows_classifier_mutation(monkeypatch: pytest.MonkeyPatch) -
     with pytest.raises(ActiveMrrRefused, match="mutated-only"):
         assert_plan_covers_active_set(frozenset())  # the mutated section is now the requirement
     assert_plan_covers_active_set(frozenset({"mutated-only"}))  # covering it passes
+
+
+# ===========================================================================
+# population-floor active_predicate (F-305: the floor evaluates the classifier-active SERVED
+# denominator, not the whole frame whose inactive-section rows carry legitimate value-column nulls)
+# ===========================================================================
+
+_INACTIVE_SECTION = (
+    "z-retired-inactive"  # a section NOT in the classifier active set (asserted below)
+)
+
+
+def _validate_floor(
+    frame: pl.DataFrame, predicates: DefaultAcceptancePredicates
+) -> ValidationReceipt | ValidationFailure:
+    """Run ``predicates.validate`` with a well-formed proof so ONLY the population-floor is
+    exercised (digest-self-consistency + proof-well-formedness pass by construction)."""
+    proof = FreshnessProof(
+        built_from_live_at=_BUILT, content_digest=canonical_digest(frame), sla_seconds=3600
+    )
+    staged = StagedVersion(
+        version_id=VersionId("v-floor-test"),
+        frame=frame,
+        frame_bytes=canonical_frame_bytes(frame),
+        proof=proof,
+    )
+    return predicates.validate(staged, _DAY)
+
+
+def _mixed_active_inactive_frame() -> pl.DataFrame:
+    """v1-reality shape: 1 COMPLETE active-section row + 2 all-null INACTIVE-section rows.
+
+    The WHOLE frame carries value-column nulls (as v1's own daily-served frame does — ~2.9k of
+    them, all on inactive-section rows); the classifier-active subset is complete.
+    """
+    return pl.DataFrame(
+        {
+            "section": ["ACTIVE", _INACTIVE_SECTION, _INACTIVE_SECTION],
+            "offer_id": ["o-active", None, None],
+            "cost": [100.0, None, None],
+            "mrr": [500.0, None, None],
+            "weekly_ad_spend": [10.0, None, None],
+        }
+    )
+
+
+def test_population_floor_active_subset_passes_where_whole_frame_fails() -> None:
+    """Two-sided discriminating (the EXACT bar sweep-9 failed): value-column nulls on INACTIVE-section
+    rows + a COMPLETE active-section row.
+
+    - UNWIRED floor (active_predicate=None) evaluates the WHOLE frame -> population-floor REFUSES
+      (the incumbent's own frame fails the unfiltered floor — v2 could never serve).
+    - CLASSIFIER-ACTIVE-subset floor -> PASSES (the served denominator is complete).
+    """
+    assert _INACTIVE_SECTION not in classifier_active_sections()  # fixture guard
+    frame = _mixed_active_inactive_frame()
+
+    whole = _validate_floor(
+        frame, DefaultAcceptancePredicates()
+    )  # None -> whole frame (the defect)
+    assert isinstance(whole, ValidationFailure)
+    assert whole.check == "population-floor"
+
+    active = _validate_floor(frame, DefaultAcceptancePredicates(active_predicate=active_offer_rows))
+    assert isinstance(active, ValidationReceipt)  # active subset complete -> PASS
+
+
+def test_population_floor_refuses_null_value_column_on_active_row() -> None:
+    """The guard still bites two-sided: a null value column ON a classifier-active-section row
+    REFUSES, even though the co-present inactive-section row is irrelevant to the floor."""
+    frame = pl.DataFrame(
+        {
+            "section": ["ACTIVE", _INACTIVE_SECTION],
+            "offer_id": [None, "o-inactive"],  # offer_id NULL on the ACTIVE row
+            "cost": [100.0, 1.0],
+            "mrr": [500.0, 1.0],
+            "weekly_ad_spend": [10.0, 1.0],
+        }
+    )
+    result = _validate_floor(frame, DefaultAcceptancePredicates(active_predicate=active_offer_rows))
+    assert isinstance(result, ValidationFailure)
+    assert result.check == "population-floor"
+    assert "offer_id" in result.reason  # names the offending active-row value column
+
+
+def test_population_floor_active_predicate_follows_classifier_mutation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """§6 #1 proof-of-no-hardcode: the active_predicate's active set comes FROM THE CLASSIFIER.
+    Mutating ``classifier_active_sections`` flips the SAME frame between PASS and REFUSE."""
+    frame = pl.DataFrame(
+        {
+            "section": ["ACTIVE", "MUTATED-ONLY"],
+            "offer_id": ["o-active", None],  # null on the MUTATED-ONLY row only
+            "cost": [100.0, None],
+            "mrr": [500.0, None],
+            "weekly_ad_spend": [10.0, None],
+        }
+    )
+    predicates = DefaultAcceptancePredicates(active_predicate=active_offer_rows)
+    # baseline: ACTIVE is active, MUTATED-ONLY is not -> active subset {ACTIVE} complete -> PASS
+    assert isinstance(_validate_floor(frame, predicates), ValidationReceipt)
+
+    # mutate the active set to {mutated-only}: the ACTIVE row is now EXCLUDED and the null
+    # MUTATED-ONLY row becomes the active subset -> REFUSES. No hardcoded list survives.
+    monkeypatch.setattr(live, "classifier_active_sections", lambda: frozenset({"mutated-only"}))
+    mutated = _validate_floor(frame, predicates)
+    assert isinstance(mutated, ValidationFailure)
+    assert mutated.check == "population-floor"
+
+
+def test_active_offer_rows_falls_back_to_whole_frame_without_section() -> None:
+    """Fail-closed: a frame lacking a ``section`` column cannot be classified, so the predicate
+    returns the whole frame (strict floor) — NEVER weaker than the pre-wiring default."""
+    frame = pl.DataFrame({"offer_id": ["a"], "cost": [1.0], "mrr": [1.0], "weekly_ad_spend": [1.0]})
+    assert active_offer_rows(frame).height == frame.height  # unfiltered -> strict whole-frame floor
+
+
+async def test_rebuild_offer_v2_wires_classifier_active_predicate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Wiring regression: ``rebuild_offer_v2`` MUST construct the predicates with
+    ``active_predicate=active_offer_rows`` (not the whole-frame default) — the F-305 floor fix."""
+    captured: dict[str, Any] = {}
+
+    class _SpyRebuilder:
+        def __init__(self, store: Any, *, now: Any = None, sla_for: Any = None) -> None:
+            pass
+
+        async def rebuild(self, aid: Any, fetch: Any, predicates: Any) -> str:
+            captured["predicates"] = predicates
+            return "sentinel"
+
+    monkeypatch.setattr(live, "SubstrateRebuilder", _SpyRebuilder)
+    result, fetched = await live.rebuild_offer_v2(_aid(), fetcher=object(), store=object())
+
+    assert result == "sentinel"
+    assert fetched is None  # the spy never drove the capturing fetcher
+    predicates = captured["predicates"]
+    assert isinstance(predicates, DefaultAcceptancePredicates)
+    assert predicates.active_predicate is active_offer_rows
 
 
 # ===========================================================================
