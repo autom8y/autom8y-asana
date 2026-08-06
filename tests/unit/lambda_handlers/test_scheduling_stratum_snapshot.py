@@ -351,8 +351,19 @@ def test_value_floor_refuses_all_null_posture_universe() -> None:
 
 
 def test_value_floor_passes_when_status_signal_present() -> None:
-    """GREEN: a single non-null custom_cal_status clears the floor (mixed frame passes)."""
-    df = _frame_df([{GUID_FIELD: "g1", CUSTOM_CAL_STATUS_FIELD: "Enabled"}, {GUID_FIELD: "g2"}])
+    """GREEN: a fleet carrying custom_cal_status at scale clears the floor.
+
+    C5 (2026-08-06): the floor was raised 1 -> MIN_POSTURE_SIGNAL_ROWS, so this GREEN
+    case now needs a REALISTIC signal-bearing population rather than a single row. The
+    one-row variant is no longer green BY DESIGN -- 1 signal-bearing office out of a
+    921-office universe is the degenerate shape the raised floor exists to refuse (see
+    test_scheduling_stratum_snapshot_durability.py for that RED arm).
+    """
+    signal = [
+        {GUID_FIELD: f"g{i}", CUSTOM_CAL_STATUS_FIELD: "Enabled"}
+        for i in range(MIN_POSTURE_SIGNAL_ROWS)
+    ]
+    df = _frame_df([*signal, {GUID_FIELD: "g-null"}])
     assert posture_signal_row_count(df) >= MIN_POSTURE_SIGNAL_ROWS
     assert_posture_signal_floor(df)  # does not raise
 
@@ -361,12 +372,15 @@ def test_value_floor_passes_on_provider_only_signal() -> None:
     """GREEN (all-GHL fleet): status null everywhere but a provider is set -> passes.
 
     Distinguishes a degenerate source (NO signal anywhere) from a legitimate fleet whose
-    enrollment status happens to be null while a provider carries the destination.
+    enrollment status happens to be null while a provider carries the destination. The
+    population is scaled to the C5 floor for the same reason as the test above.
     """
-    df = _frame_df(
-        [{GUID_FIELD: "g1", CASCADE_PRIORITY[2]: "https://calendly/x"}, {GUID_FIELD: "g2"}]
-    )
-    assert posture_signal_row_count(df) == 1
+    signal = [
+        {GUID_FIELD: f"g{i}", CASCADE_PRIORITY[2]: "https://calendly/x"}
+        for i in range(MIN_POSTURE_SIGNAL_ROWS)
+    ]
+    df = _frame_df([*signal, {GUID_FIELD: "g-null"}])
+    assert posture_signal_row_count(df) == MIN_POSTURE_SIGNAL_ROWS
     assert_posture_signal_floor(df)  # does not raise
 
 
@@ -460,16 +474,20 @@ def _spine_cache(rows: list[dict[str, Any]]) -> _FakeCache:
 
 
 async def test_enumerate_projects_offices_from_office_spine() -> None:
-    """WS-B: the producer reads the unit_holder x business SPINE, not the offer frame."""
-    cache = _spine_cache(
-        [
-            {GUID_FIELD: "g1", "reviewwave_id": "rw"},
-            {GUID_FIELD: "g2", "sked_id": "sk"},
-        ]
-    )
+    """WS-B: the producer reads the unit_holder x business SPINE, not the offer frame.
+
+    The population is scaled past the C5 value floor so this test proves the SOURCE
+    (which frames are read), not the floor (which has its own tests).
+    """
+    # The sked row leads: polars infers column dtypes from the first 100 rows, so a
+    # column that is null across the whole inference window and populated after it
+    # raises ComputeError on construction.
+    rows: list[dict[str, Any]] = [{GUID_FIELD: "g-sked", "sked_id": "sk"}]
+    rows += [{GUID_FIELD: f"g{i}", "reviewwave_id": "rw"} for i in range(MIN_POSTURE_SIGNAL_ROWS)]
+    cache = _spine_cache(rows)
     extracted, complete = await snap._enumerate_offices_from_frame(cache, "UH_PROJ", "BIZ_PROJ")
     assert complete is True
-    assert {e.guid for e in extracted} == {"g1", "g2"}
+    assert {e.guid for e in extracted} == {r[GUID_FIELD] for r in rows}
     # Reads BOTH spine frames -- and the OFFER frame is never touched.
     assert cache.requests == [
         ("UH_PROJ", snap.SNAPSHOT_UNIT_HOLDER_ENTITY_TYPE),

@@ -139,13 +139,55 @@ SNAPSHOT_BUSINESS_ENTITY_TYPE = "business"
 #: The join key on the unit_holder side (rides BASE_COLUMNS); joins to business.gid.
 OFFICE_SPINE_JOIN_KEY = "parent_gid"
 
-#: Intended LOW-frequency cadence (hours) for the releaser-seam EventBridge rule.
+#: Intended cadence (hours) for the releaser-seam EventBridge rule.
 #: NOT enforced by the handler (EventBridge owns scheduling); surfaced here so the
 #: infra wiring has a single documented default.
-DEFAULT_SNAPSHOT_CADENCE_HOURS = 6
+#:
+#: C2 CADENCE/TTL MARGIN (2026-08-06). Was 6. The data side serves a posture only
+#: while ``synced_at`` is inside the 8h TTL (autom8y-data scheduling_posture.py
+#: ``_DEFAULT_TTL_SECONDS = 8 * 3600``; the deployed ECS taskdef carries no
+#: ``SCHEDULING_STRATUM_TTL_SECONDS`` override). At a 6h cadence a push at T expires
+#: at T+8h and the NEXT tick is T+6h -- so a SINGLE missed tick puts the following
+#: attempt at T+12h, four hours PAST the cliff, flipping all ~921 offices to
+#: ``fallback_ghl`` simultaneously. Missed-tick margin at 6h is ZERO.
+#:
+#: At 2h the ticks inside one TTL window are T+2 / T+4 / T+6: TWO consecutive ticks
+#: may fail before the substrate can go fossil. The cost is paid on the cheap axis --
+#: the producer is FRAME-FIRST (it reads already-warmed frames from the dataframe
+#: cache and issues ZERO per-office Asana reads), so raising the cadence adds NO
+#: Asana REST load; it adds two extra whole-source replaces per day on a 921-row
+#: table. Widening the TTL instead was REJECTED: the TTL is the serve-side staleness
+#: FUSE, and buying schedule margin by letting the substrate serve staler posture
+#: pays for producer unreliability with client-facing correctness.
+DEFAULT_SNAPSHOT_CADENCE_HOURS = 2
 
 #: Env override for the documented cadence (consumed by the releaser-seam infra).
 SNAPSHOT_CADENCE_HOURS_ENV_VAR = "SCHEDULING_STRATUM_SNAPSHOT_CADENCE_HOURS"
+
+#: Env override for the VALUE-FLOOR threshold (operator ratchet -- no deploy needed).
+#: Mirrors the data side's ``SCHEDULING_STRATUM_MAX_SHRINK_RATIO`` idiom.
+MIN_POSTURE_SIGNAL_ROWS_ENV_VAR = "SCHEDULING_STRATUM_MIN_POSTURE_SIGNAL_ROWS"
+
+#: Stage-1 DERIVED default for the value floor (C5). See :data:`MIN_POSTURE_SIGNAL_ROWS`.
+_DEFAULT_MIN_POSTURE_SIGNAL_ROWS = 100
+
+
+def _resolve_min_posture_signal_rows() -> int:
+    """Resolve the value-floor threshold (env-overridable; fail-safe to the default).
+
+    Read ONCE at import (Lambda env is fixed for a container's life). A malformed or
+    negative override degrades to the derived default rather than silently disabling
+    the floor -- an override of 0 would restore exactly the blindness C5 exists to cure.
+    """
+    raw = os.environ.get(MIN_POSTURE_SIGNAL_ROWS_ENV_VAR)
+    if raw is None:
+        return _DEFAULT_MIN_POSTURE_SIGNAL_ROWS
+    try:
+        parsed = int(raw)
+    except (TypeError, ValueError):
+        return _DEFAULT_MIN_POSTURE_SIGNAL_ROWS
+    return parsed if parsed >= 1 else _DEFAULT_MIN_POSTURE_SIGNAL_ROWS
+
 
 #: VALUE-FLOOR guard threshold (the degenerate-source completeness teeth). A healthy
 #: whole-source snapshot MUST carry a scheduling-posture SIGNAL on at least this many
@@ -156,7 +198,29 @@ SNAPSHOT_CADENCE_HOURS_ENV_VAR = "SCHEDULING_STRATUM_SNAPSHOT_CADENCE_HOURS"
 #: fleet -- even an all-GHL one that leaves the eight alt-providers null -- still
 #: carries a non-null custom_cal_status (the office-global binary enrollment enum) on
 #: every enrolled office, so a real universe never floors to zero.
-MIN_POSTURE_SIGNAL_ROWS = 1
+#:
+#: C5 RAISED 1 -> 100 (2026-08-06). A floor of 1 was minted when the universe was
+#: tens of offices; it is now evaluated over a 921-office population (own-hands:
+#: three consecutive ticks 2026-08-05T18:00Z / 08-06T00:00Z / 06:00Z each logged
+#: ``distinct_guids: 921``), i.e. a floor of 1/921 -- 920 offices could resolve to
+#: an all-null posture and the guard would still admit the whole-source overwrite.
+#: The DIAG's own Leg-A recommendation ("assert a floor materially above 1, e.g.
+#: >= 100") was never implemented; 100 IMPLEMENTS IT VERBATIM.
+#:
+#: Why 100 is the STAGE-1 value and not a tighter one: nothing in the fleet has ever
+#: MEASURED the live signal-bearing row count -- the guard only ever answered the
+#: boolean ">= 1", so the honest ceiling on a same-deploy derivation is what the
+#: instrument can prove. This change ships that instrument
+#: (:data:`METRIC_POSTURE_SIGNAL_ROWS`) alongside the floor. 100 is safe by
+#: construction against every observation in hand: it is 100x the prior floor, >2x
+#: the ENTIRE pre-WS-B era's maximum universe (max ``office_count`` 44 across the
+#: 18 ``pushed=false`` ticks of 2026-07-22..08-05), and carries ~5x downside headroom
+#: against the ~540 signal-bearing representatives the WS-B DIAG observed.
+#:
+#: STAGE-2 RATCHET (operator, no deploy): after >= 2 live ticks of
+#: ``SchedulingStratumPostureSignalRows``, set
+#: ``SCHEDULING_STRATUM_MIN_POSTURE_SIGNAL_ROWS`` to ~0.5x the observed value.
+MIN_POSTURE_SIGNAL_ROWS = _resolve_min_posture_signal_rows()
 
 #: The posture-signal columns the value floor inspects: custom_cal_status + the eight
 #: CASCADE_PRIORITY providers (i.e. every REQUIRED_FRAME_COLUMN except the identity
@@ -164,6 +228,87 @@ MIN_POSTURE_SIGNAL_ROWS = 1
 _POSTURE_SIGNAL_COLUMNS: tuple[str, ...] = tuple(
     c for c in REQUIRED_FRAME_COLUMNS if c != GUID_FIELD
 )
+
+# ==============================================================================
+# ★ CROSS-REPO EMIT->ALARM CONTRACT (byte-exact; the ONLY thing binding the pair)
+# ==============================================================================
+# COUNTERPART ALARMS (autom8y repo):
+#   terraform/services/asana/scheduling_stratum_producer_alarms.tf
+# The two halves live in DIFFERENT repos; the ONLY thing binding them is a
+# byte-exact match on {namespace + metric name + dimension}. A rename/typo on
+# EITHER side yields an alarm watching a metric nobody emits -- GREEN on both
+# halves, DEAD as a pair. autom8y's tests/test_scheduling_stratum_producer_alarms_
+# terraform.py pins these literals against the terraform, so a rename trips CI,
+# not production. (Same discipline as the R7 divergence tripwire pair.)
+#
+# ★ NAMESPACE: these ride the house default ``autom8/lambda`` (ASANA_CW_NAMESPACE).
+# ★ DIMENSION: emit_metric() stamps ``environment=<ASANA_CW_ENVIRONMENT>`` on EVERY
+#   metric. Until 2026-08-06 the production Lambda carried NO ASANA_CW_ENVIRONMENT,
+#   so it stamped the ObservabilitySettings default "staging" -- a PRODUCTION
+#   producer publishing into a staging dimension. The paired terraform change sets
+#   ASANA_CW_ENVIRONMENT = var.environment on the function; without it every alarm
+#   below binds a dimension-series nobody emits into.
+#
+# ★ NO HIGH-CARDINALITY DIMENSIONS. The pre-existing
+#   ``SchedulingStratumSnapshotPushed`` / ``...DryRun`` emissions stamp
+#   ``office_count=<N>`` as a DIMENSION, so every tick lands on a DIFFERENT metric
+#   series (live `cloudwatch list-metrics` on 2026-08-06 shows 12 distinct
+#   ...DryRun series, one per office_count value). Such a series is STRUCTURALLY
+#   unalarmable: an alarm must pin the dimension, and the pinned value goes
+#   INSUFFICIENT_DATA the moment the count moves by one. That is why the outage
+#   below was invisible AT THE METRIC LAYER even though the signal existed in the
+#   log. Every metric in this contract is emitted with NO dimensions beyond the
+#   environment stamp, and carries its payload in the VALUE.
+# ==============================================================================
+
+#: Heartbeat emitted on EVERY invocation (skipped / refused / dry-run / pushed /
+#: error) as the current epoch. LIVENESS deadman input: a PRESENT datapoint is
+#: never < 1, so a value-comparison never trips and ONLY MISSING data breaches.
+METRIC_RUN_EPOCH = "SchedulingStratumSnapshotRunEpoch"
+
+#: Heartbeat emitted ONLY when the data-service POST returned OK (``pushed=true``),
+#: as the current epoch. SUBSTRATE-FRESHNESS deadman input: a successful push is
+#: what re-stamps ``synced_at`` on all ~921 rows, so ABSENCE of this datapoint for
+#: longer than the data side's TTL is exactly "the substrate is about to go fossil
+#: and every office will flip to fallback_ghl". This is the metric whose absence
+#: would have been RED for the whole 2026-07-22..08-05 darkness.
+METRIC_PUSH_EPOCH = "SchedulingStratumSnapshotPushEpoch"
+
+#: 1 when a run reached the push and did NOT deliver (``pushed=false``), 0 when it
+#: delivered. THE SILENT-CLEAN FAILURE: the producer logs {"pushed": false} and
+#: exits 0, so AWS/Lambda Errors stays 0 and the DLQ stays empty. Nothing before
+#: this metric distinguished a refused delivery from a successful one.
+METRIC_PUSH_FAILED = "SchedulingStratumSnapshotPushFailed"
+
+#: Count of universe rows carrying ANY scheduling-posture signal -- the VALUE-FLOOR's
+#: own numerator, made observable. The floor has only ever answered the boolean
+#: ">= MIN_POSTURE_SIGNAL_ROWS"; nothing ever published the number it compared.
+METRIC_POSTURE_SIGNAL_ROWS = "SchedulingStratumPostureSignalRows"
+
+#: The universe height the floor divides into -- the denominator half of the pair.
+METRIC_POSTURE_UNIVERSE_ROWS = "SchedulingStratumPostureUniverseRows"
+
+#: Metrics an autom8y CloudWatch alarm is BOUND to. Renaming any of these without
+#: the matching terraform edit silently decouples the pair. The autom8y-side test
+#: asserts this frozenset equals the set of metric_names in the alarm file.
+#: ``SchedulingStratumUniverseCensus`` and ``SchedulingStratumSnapshotDegenerateSource``
+#: are PRE-EXISTING emissions (unchanged here) that the alarm half now binds.
+ALARM_BOUND_METRICS: frozenset[str] = frozenset(
+    {
+        METRIC_RUN_EPOCH,
+        METRIC_PUSH_EPOCH,
+        METRIC_PUSH_FAILED,
+        "SchedulingStratumUniverseCensus",
+        "SchedulingStratumSnapshotDegenerateSource",
+    }
+)
+
+
+def _now_epoch() -> int:
+    """Current UTC epoch seconds (the deadman heartbeat payload)."""
+    from datetime import UTC, datetime
+
+    return int(datetime.now(UTC).timestamp())
 
 
 class SnapshotRefusedError(Exception):
@@ -270,6 +415,16 @@ async def execute_snapshot_push(
         1,
         dimensions={"office_count": str(len(extracted))},
     )
+    # C1(b) THE SILENT-CLEAN FAILURE, made alarmable. The line above is RETAINED
+    # (dashboards/queries depend on it) but is unalarmable by construction: its
+    # office_count DIMENSION forks a new metric series on every tick. These two
+    # carry the same fact with NO high-cardinality dimension, so an alarm can
+    # actually bind them. PushFailed publishes a real 0 on delivery, so the alarm
+    # distinguishes "delivered" from "ran and delivered nothing"; PushEpoch is
+    # emitted ONLY on delivery, so its ABSENCE is the substrate-freshness signal.
+    emit_metric(METRIC_PUSH_FAILED, 0 if pushed else 1)
+    if pushed:
+        emit_metric(METRIC_PUSH_EPOCH, _now_epoch())
     return SnapshotRunResult(
         status="pushed" if pushed else "dry_run",
         reason=None,
@@ -552,6 +707,25 @@ def posture_signal_row_count(df: pl.DataFrame) -> int:
     return universe.filter(pl.any_horizontal([pl.col(c).is_not_null() for c in signal_cols])).height
 
 
+def _posture_universe_height(df: pl.DataFrame) -> int:
+    """The DENOMINATOR the value floor divides into: universe rows (C5 instrument).
+
+    NEW and additive -- it duplicates the universe predicate
+    :func:`assert_posture_signal_floor` already applies internally so the caller can
+    PUBLISH the denominator without reaching into (or altering) the certified guard
+    body. Same predicate as :func:`posture_signal_row_count`: rows whose
+    ``company_id`` is non-null and non-blank.
+    """
+    import polars as pl
+
+    if GUID_FIELD not in df.columns:
+        return 0
+    return df.filter(
+        pl.col(GUID_FIELD).is_not_null()
+        & (pl.col(GUID_FIELD).cast(pl.Utf8).str.strip_chars() != "")
+    ).height
+
+
 def assert_posture_signal_floor(df: pl.DataFrame) -> None:
     """VALUE-FLOOR guard: REFUSE a whole-source push whose projected posture is degenerate.
 
@@ -657,6 +831,28 @@ async def _enumerate_offices_from_frame(
     # and the SET gate would pass; only this value floor catches an all-empty projection
     # before it whole-source overwrites live posture. Evaluated on the JOINED frame --
     # the same rows the projection consumes. Raises SnapshotRefusedError.
+    #
+    # C5 DENOMINATOR INSTRUMENT. Publish the numbers the floor COMPARES, before it
+    # decides. The floor has only ever answered a boolean (">= MIN_POSTURE_SIGNAL_ROWS"),
+    # so no observation of the live signal-bearing count exists anywhere -- which is
+    # precisely why the floor could not be responsibly ratcheted past 1. Emitted
+    # BEFORE the guard so a REFUSING tick still publishes its measurement (the
+    # refusing ticks are exactly the ones an operator most needs the numbers for),
+    # and computed from the SAME helpers the guard uses so the two can never drift.
+    # assert_posture_signal_floor / posture_signal_row_count bodies are UNTOUCHED.
+    _signal_rows = posture_signal_row_count(joined)
+    _universe_rows = _posture_universe_height(joined)
+    logger.info(
+        "scheduling_stratum_posture_signal_census",
+        extra={
+            "signal_rows": _signal_rows,
+            "universe_rows": _universe_rows,
+            "floor": MIN_POSTURE_SIGNAL_ROWS,
+        },
+    )
+    emit_metric(METRIC_POSTURE_SIGNAL_ROWS, _signal_rows)
+    emit_metric(METRIC_POSTURE_UNIVERSE_ROWS, _universe_rows)
+
     try:
         assert_posture_signal_floor(joined)
     except SnapshotRefusedError:
@@ -828,6 +1024,12 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     import asyncio
 
     logger.info("scheduling_stratum_snapshot_invoked", extra={"has_context": context is not None})
+    # C1(a) LIVENESS deadman heartbeat -- emitted FIRST, on EVERY invocation
+    # (skipped / refused / dry-run / pushed / error), before anything that can
+    # raise. This is the "the producer's own absence must be detectable on a metric
+    # that EXISTS every run" discipline: an alarm watching a metric only emitted on
+    # the happy path cannot tell a dead producer from a busy one.
+    emit_metric(METRIC_RUN_EPOCH, _now_epoch())
     # ``dry_run`` may be forced via the event for a shadow run even once the gate is on.
     dry_run = event.get("dry_run") if isinstance(event, dict) else None
     try:
@@ -866,8 +1068,15 @@ def _documented_cadence_hours() -> int:
 
 
 __all__ = [
+    "ALARM_BOUND_METRICS",
     "DEFAULT_SNAPSHOT_CADENCE_HOURS",
+    "METRIC_POSTURE_SIGNAL_ROWS",
+    "METRIC_POSTURE_UNIVERSE_ROWS",
+    "METRIC_PUSH_EPOCH",
+    "METRIC_PUSH_FAILED",
+    "METRIC_RUN_EPOCH",
     "MIN_POSTURE_SIGNAL_ROWS",
+    "MIN_POSTURE_SIGNAL_ROWS_ENV_VAR",
     "OFFICE_SPINE_JOIN_KEY",
     "SNAPSHOT_BUSINESS_ENTITY_TYPE",
     "SNAPSHOT_CADENCE_HOURS_ENV_VAR",
