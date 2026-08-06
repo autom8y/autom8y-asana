@@ -65,11 +65,32 @@ FRESHNESS-REFUSE (I-REFUSE-NEVER-FABRICATE, spec §2):
     divergence from a broken read. A fabricated 0 would read "all clear" while the
     instrument is blind; a fabricated divergence would false-page. Both are refused.
 
+★ BOTH TRAFFIC LEGS ARE REQUIRED (no silent partial denominator):
+    ``traffic(O, W)`` is a UNION over two sources. A leg that cannot be read does NOT
+    degrade to the other leg -- it REFUSES the cycle (``EvaluationRefused=1``, no
+    verdict) and stamps ``TrafficLegUnavailable`` with a bounded ``leg`` dimension so
+    triage knows WHICH leg died. Rationale: a soft-degrading leg publishes a
+    CONFIDENT-LOOKING count over HALF a denominator while ``EvaluationRefused=0``
+    says all-clear -- the never-silent doctrine's exact inversion. This is the R-eps
+    hazard: post-cutover, bookings migrate ONTO the scheduling plane, so a dropped
+    scheduling leg degrades the instrument in DIRECT PROPORTION to the campaign
+    succeeding. A silent partial denominator is now structurally impossible.
+
 BASELINE-POISONING GUARD (spec §2 fast-burn):
     The committed hashed divergent phone-set (drives ``NewlyTradingWithoutActiveOffer
     Count``) is written ONLY on a NON-refused run. A refused run MUST NOT overwrite
     the baseline with an empty set -- else the next run reads every office as "newly
     divergent" and false-pages. This is a required unit tooth.
+
+★ BASELINE 403-vs-404 (the other half of the same poisoning guard):
+    An UNREADABLE baseline is only "first run" when S3 says the key is genuinely
+    ABSENT (``NoSuchKey``/404). Any other failure -- above all ``AccessDenied``/403 --
+    REFUSES. Without ``s3:ListBucket`` on the bucket S3 answers a MISSING key with 403,
+    so absent-key and denied-read are wire-indistinguishable; reading 403 as "first
+    run" makes the emitter re-seed from empty and publish
+    ``newly ~= <whole standing divergent population>`` into the >=1 fast-burn alarm =
+    a FALSE PAGE to a live SEV1 subscriber. The paired terraform grant makes the 404
+    truthful; :data:`BASELINE_ABSENT_ERROR_CODES` makes the 403 loud.
 
 READ-ONLY / NO ``Business()`` (WRITE trap):
     The evaluator reads the warmed offer frame as a pure Polars pass over raw S3
@@ -93,9 +114,11 @@ Environment Variables:
     TRAFFIC_OFFER_DIVERGENCE_FRAME_STALENESS_SECONDS: refuse ceiling on frame age
         (default 43200 = 12h = 2x the 6h warm cadence).
     TRAFFIC_OFFER_DIVERGENCE_EBI_LOG_GROUP: EBI intake log group
-        (default /aws/lambda/autom8-email-booking-intake -- verified live).
-    TRAFFIC_OFFER_DIVERGENCE_SCHEDULING_LOG_GROUP: scheduling monolith log group
-        (releaser-seam override; the monolith is a separate service).
+        (default /aws/lambda/autom8-email-booking-intake -- verified live). REQUIRED:
+        empty/unreadable REFUSES.
+    TRAFFIC_OFFER_DIVERGENCE_SCHEDULING_LOG_GROUP: autom8y-scheduling SERVICE log group
+        (default /ecs/autom8y-scheduling-service -- where ``booking_success`` is
+        emitted). REQUIRED: empty/unreadable REFUSES.
     TRAFFIC_OFFER_DIVERGENCE_BASELINE_BUCKET: baseline JSON bucket (default autom8-s3).
     ASANA_CACHE_S3_BUCKET: offer-frame bucket (house canonical, ADR-0002).
 """
@@ -116,7 +139,7 @@ from autom8_asana.models.business.activity import OFFER_CLASSIFIER
 from autom8_asana.storage_namespace import DATAFRAMES_V2
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
 
     import polars as pl
 
@@ -147,6 +170,11 @@ METRIC_TRADING_BOOKINGS = "TradingWithoutActiveOfferBookings"
 METRIC_TRADING_BY_CLASS = "TradingWithoutActiveOfferByClass"
 #: Dashboard (no alarm): traffic denominator (distinct offices that took traffic).
 METRIC_TRAFFIC_OFFICES = "TrafficOfficesEvaluated"
+#: Diagnostic (no alarm of its own): =1 for the NAMED traffic leg that could not be
+#: read this run. The REFUSE is what pages (via the armed ``EvaluationRefused`` alarm);
+#: this metric only ATTRIBUTES which leg died, carrying a bounded ``leg`` dimension
+#: (never a log-group ARN or any unbounded value).
+METRIC_TRAFFIC_LEG_UNAVAILABLE = "TrafficLegUnavailable"
 
 # The five alarm-bound metric names, pinned as a set so the terraform test / a
 # rename cross-check can assert the emit<->alarm contract mechanically.
@@ -219,26 +247,93 @@ FRAME_STALENESS_CEILING_ENV_VAR = "TRAFFIC_OFFER_DIVERGENCE_FRAME_STALENESS_SECO
 EBI_LOG_GROUP_ENV_VAR = "TRAFFIC_OFFER_DIVERGENCE_EBI_LOG_GROUP"
 DEFAULT_EBI_LOG_GROUP = "/aws/lambda/autom8-email-booking-intake"
 SCHEDULING_LOG_GROUP_ENV_VAR = "TRAFFIC_OFFER_DIVERGENCE_SCHEDULING_LOG_GROUP"
-#: Documented default; the monolith is a separate service so the exact group is a
-#: releaser-seam override. Absent an override the scheduling leg is skipped (EBI-only
-#: traffic), never fabricated.
-DEFAULT_SCHEDULING_LOG_GROUP = "/ecs/autom8-prod"
+#: ★ The ``booking_success`` emitter is the MODERN autom8y-scheduling ECS service --
+#: NOT the legacy monolith. Verified by file-read (no AWS needed):
+#:   * emit site: autom8y-scheduling ``src/autom8_scheduling/scheduling/booking.py:221``
+#:     -- ``logger.info("booking_success", extra={... "office_phone": office_phone ...})``
+#:   * log group: autom8y ``terraform/modules/platform/primitives/ecs-fargate-service/
+#:     main.tf:10`` name_prefix = ``autom8y-${service_name}-service`` (production) and
+#:     ``:54`` ``name = "/ecs/${local.name_prefix}"``; autom8y
+#:     ``terraform/services/scheduling/main.tf:42`` pins that prefix to
+#:     ``autom8y-scheduling-service``. Sibling literals corroborate the convention
+#:     (``/ecs/autom8y-{data,auth,asana}-service`` in terraform/shared/cloudwatch_queries.tf).
+#: The PRIOR default ``/ecs/autom8-prod`` was a PHANTOM: ``autom8-prod`` is the legacy
+#: ALB name, not a log group, and the group does not exist in the account -- every run
+#: logged ``ResourceNotFoundException`` and the leg was silently dropped.
+DEFAULT_SCHEDULING_LOG_GROUP = "/ecs/autom8y-scheduling-service"
+
+#: ★ The phantom the scheduling leg used to default to. Named (not merely deleted) so a
+#: unit tooth can prove the regression is caught rather than silently re-introduced.
+PHANTOM_SCHEDULING_LOG_GROUP = "/ecs/autom8-prod"
+
+#: Bounded ``leg`` dimension values for ``TrafficLegUnavailable`` + the refusal text.
+TRAFFIC_LEG_EBI = "ebi"
+TRAFFIC_LEG_SCHEDULING = "scheduling"
 
 BASELINE_BUCKET_ENV_VAR = "TRAFFIC_OFFER_DIVERGENCE_BASELINE_BUCKET"
 DEFAULT_BASELINE_BUCKET = "autom8-s3"
 BASELINE_KEY = "soak-sentinel/r7-divergence-baseline.json"
 
+#: S3/botocore error codes that mean the baseline object GENUINELY does not exist --
+#: the ONLY codes that may be read as "first run, seed the baseline".
+#:
+#: ★ Every OTHER failure (notably ``AccessDenied`` / 403) REFUSES. Without
+#: ``s3:ListBucket`` on the baseline bucket S3 answers a MISSING key with 403, not 404
+#: -- so an auth failure and a first run are WIRE-INDISTINGUISHABLE. Treating 403 as
+#: "first run" makes the emitter silently re-seed and publish ``newly ~= <the whole
+#: standing divergent population>`` into the >=1 fast-burn alarm: a FALSE PAGE. The
+#: paired terraform grant (``ListBucketForTruthful404OnBaselineKey``) is what makes the
+#: 404 truthful; this constant is what makes the 403 loud.
+BASELINE_ABSENT_ERROR_CODES: frozenset[str] = frozenset({"NoSuchKey", "404", "NotFound"})
+
 OFFER_BUCKET_ENV_VAR = "ASANA_CACHE_S3_BUCKET"
+
+#: Cap on per-office triage log lines per cycle. The divergent population is bounded by
+#: the traffic denominator (~63-70 offices observed), so this is generous headroom; a
+#: breach is LOUD (a distinct warning line), never a silent truncation.
+PER_OFFICE_LOG_CAP = 250
 
 
 class EvaluationRefusedError(Exception):
-    """The offer frame could not be proven fresh/complete -- REFUSE, emit no verdict.
+    """The run could not be proven complete -- REFUSE, emit no verdict.
 
-    Raised by the freshness / readability gates. The handler converts it to an
+    Raised by the frame freshness/readability gates, by an unreadable REQUIRED traffic
+    leg, and by a non-absent baseline read failure. The handler converts it to an
     ``EvaluationRefused=1`` emission and returns WITHOUT a divergence verdict (the
-    fail-safe: never fabricate a 0 or a divergence from a broken read). The baseline
-    is NOT committed on a refused run (poisoning guard).
+    fail-safe: never fabricate a 0, a divergence, or a HALF-DENOMINATOR count from a
+    broken read). The baseline is NOT committed on a refused run (poisoning guard).
     """
+
+
+class TrafficLegUnavailableError(EvaluationRefusedError):
+    """A REQUIRED traffic leg could not be read -- REFUSE, never a partial denominator.
+
+    A subclass of :class:`EvaluationRefusedError` so it routes through the SAME armed
+    ``EvaluationRefused`` alarm (no new alarm surface needed), while carrying ``leg``
+    so the refusal can be ATTRIBUTED via the ``TrafficLegUnavailable`` diagnostic.
+    """
+
+    def __init__(self, leg: str, log_group: str, detail: str) -> None:
+        self.leg = leg
+        self.log_group = log_group
+        super().__init__(
+            f"REQUIRED traffic leg {leg!r} unreadable (log group {log_group!r}): {detail}. "
+            "REFUSING the cycle: a partial traffic denominator would publish a "
+            "confident-looking divergence count over HALF the input while "
+            "EvaluationRefused=0 reads all-clear."
+        )
+
+
+class TrafficLeg(NamedTuple):
+    """One REQUIRED traffic source: a named log group + the query that reads it.
+
+    ``name`` is the bounded ``leg`` metric-dimension value (never the log-group ARN --
+    unbounded dimensions are a CloudWatch cardinality trap).
+    """
+
+    name: str
+    log_group: str
+    query: str
 
 
 class TrafficTally(NamedTuple):
@@ -417,8 +512,89 @@ def resolve_divergence(offer_df: pl.DataFrame, traffic: TrafficTally) -> Diverge
 
 
 # ==============================================================================
+# ★ Traffic union -- EVERY leg is REQUIRED (no silent partial denominator)
+# ==============================================================================
+
+
+def union_traffic_legs(
+    legs: Sequence[TrafficLeg],
+    *,
+    run_leg: Callable[[TrafficLeg], dict[str, int]],
+) -> TrafficTally:
+    """Union EVERY configured traffic leg. A leg that cannot be read REFUSES the cycle.
+
+    ``run_leg`` is injected so the leg-failure semantics are unit-testable with ZERO
+    live AWS.
+
+    ★ THE STRUCTURAL GUARD. The predecessor of this function swallowed a scheduling-leg
+    exception and degraded to EBI-only, publishing ``TradingWithoutActiveOfferCount``
+    (and ``EvaluationRefused=0``) over HALF the traffic denominator. That is
+    fail-SOFT: the instrument reports a confident number while half-blind. Here a leg
+    that is unset/blank or that raises REFUSES -- routed through the armed
+    ``EvaluationRefused`` alarm and ATTRIBUTED by ``TrafficLegUnavailable{leg}``.
+
+    An EMPTY result from a leg is NOT a failure (a genuinely quiet window is a real
+    read); only an unreadable leg refuses.
+    """
+    if not legs:
+        raise EvaluationRefusedError(
+            "no traffic legs configured; refusing to evaluate divergence against an "
+            "empty traffic denominator"
+        )
+
+    tally: dict[str, int] = {}
+    for leg in legs:
+        if not leg.log_group.strip():
+            raise TrafficLegUnavailableError(leg.name, leg.log_group, "log group is unset/blank")
+        try:
+            leg_tally = run_leg(leg)
+        except TrafficLegUnavailableError:
+            raise
+        except Exception as exc:  # ANY leg failure is a REFUSAL (re-raised), never a degrade
+            raise TrafficLegUnavailableError(
+                leg.name, leg.log_group, f"{type(exc).__name__}: {exc}"
+            ) from exc
+        for phone, count in leg_tally.items():
+            key = _norm_phone(phone)
+            if not key:
+                continue
+            tally[key] = tally.get(key, 0) + int(count)
+
+    return TrafficTally(phones=frozenset(tally), bookings_by_phone=tally)
+
+
+# ==============================================================================
 # Baseline (fast-burn delta) -- hashed phone-set, poisoning-guarded
 # ==============================================================================
+
+
+def baseline_error_code(exc: BaseException) -> str:
+    """Best-effort botocore error code for an S3 read failure (``""`` when unknown).
+
+    Reads ``ClientError.response["Error"]["Code"]`` (and the HTTP status as a fallback)
+    WITHOUT importing botocore -- the classifier stays unit-testable against a plain
+    stub and the module keeps its zero-heavy-import posture.
+    """
+    response = getattr(exc, "response", None)
+    if not isinstance(response, dict):
+        return ""
+    code = str((response.get("Error") or {}).get("Code", "")).strip()
+    if code:
+        return code
+    status = (response.get("ResponseMetadata") or {}).get("HTTPStatusCode")
+    return str(status).strip() if status is not None else ""
+
+
+def classify_baseline_read_failure(exc: BaseException) -> bool:
+    """``True`` iff the failure means the baseline key is GENUINELY ABSENT (seed once).
+
+    ★ Every other failure -- above all ``AccessDenied``/403 -- returns ``False`` and the
+    caller REFUSES. Absent ``s3:ListBucket`` S3 answers a MISSING key with 403, so
+    "denied" and "absent" are wire-indistinguishable; reading 403 as first-run re-seeds
+    the baseline from empty and publishes ``newly ~= <whole standing population>`` into
+    the >=1 fast-burn alarm -- a FALSE PAGE. Correct-by-luck once is not a guard.
+    """
+    return baseline_error_code(exc) in BASELINE_ABSENT_ERROR_CODES
 
 
 def phone_hash(phone: str) -> str:
@@ -460,17 +636,83 @@ def emit_heartbeat(now_epoch: float) -> None:
     _emit(METRIC_LAST_RUN_EPOCH, now_epoch)
 
 
-def emit_refused(reason: str) -> None:
-    """Refuse emission: EvaluationRefused=1 and NO verdict metrics (never a fabricated 0)."""
-    logger.warning("traffic_offer_divergence_refused", extra={"reason": reason})
+def emit_traffic_leg_unavailable(leg: str) -> None:
+    """Attribute a refusal to the NAMED traffic leg that could not be read.
+
+    Diagnostic only -- the REFUSE is what pages (the armed ``EvaluationRefused`` alarm).
+    ``leg`` is a bounded vocabulary value (:data:`TRAFFIC_LEG_EBI` /
+    :data:`TRAFFIC_LEG_SCHEDULING`), never a log-group ARN.
+    """
+    _emit(METRIC_TRAFFIC_LEG_UNAVAILABLE, 1, dimensions={"leg": leg})
+
+
+def emit_refused(reason: str, *, leg: str | None = None) -> None:
+    """Refuse emission: EvaluationRefused=1 and NO verdict metrics (never a fabricated 0).
+
+    When the refusal came from an unreadable REQUIRED traffic leg, ``leg`` names it and
+    ``TrafficLegUnavailable`` is stamped so triage does not have to grep the reason text.
+    """
+    logger.warning("traffic_offer_divergence_refused", extra={"reason": reason, "leg": leg})
     _emit(METRIC_EVALUATION_REFUSED, 1)
+    if leg is not None:
+        emit_traffic_leg_unavailable(leg)
 
 
-def emit_evaluated(verdict: DivergenceVerdict, newly_count: int) -> None:
+def emit_per_office_triage(
+    verdict: DivergenceVerdict,
+    prior_hashes: set[str],
+    bookings_by_phone: dict[str, int] | None = None,
+) -> int:
+    """Emit ONE bounded, non-PII structured line per divergent office. Returns the count.
+
+    ★ This is the surface the alarm runbooks point triage at. Before this existed the
+    runbooks named ``event=traffic_offer_divergence_evaluated`` for "the per-office
+    structured log" -- but that event is AGGREGATE-ONLY, so the documented triage path
+    did not exist.
+
+    NON-PII by construction: the office is identified by the SAME SHA-256 phone hash the
+    baseline commits (:func:`phone_hash`), never a plaintext phone or a guid. An operator
+    resolves a hash by hashing their candidate phones -- the identical join the baseline
+    already implies.
+
+    LOUD truncation: past :data:`PER_OFFICE_LOG_CAP` lines the remainder is dropped and a
+    distinct warning names how many were withheld (never a silent truncation).
+    """
+    bookings = bookings_by_phone or {}
+    divergent = sorted(verdict.divergent_phones)
+    emitted = 0
+    for phone in divergent[:PER_OFFICE_LOG_CAP]:
+        digest = phone_hash(phone)
+        logger.info(
+            "traffic_offer_divergence_office",
+            extra={
+                "phone_hash": digest,
+                "class": verdict.classes[phone],
+                "bookings": int(bookings.get(phone, 0)),
+                "newly": digest not in prior_hashes,
+            },
+        )
+        emitted += 1
+    withheld = len(divergent) - emitted
+    if withheld > 0:
+        logger.warning(
+            "traffic_offer_divergence_office_log_truncated",
+            extra={"emitted": emitted, "withheld": withheld, "cap": PER_OFFICE_LOG_CAP},
+        )
+    return emitted
+
+
+def emit_evaluated(
+    verdict: DivergenceVerdict,
+    newly_count: int,
+    *,
+    prior_hashes: set[str] | None = None,
+    bookings_by_phone: dict[str, int] | None = None,
+) -> None:
     """Verdict emission: the full R7 metric set for a non-refused run.
 
     ``EvaluationRefused=0`` publishes a real 0 so the refuse alarm sits in OK (not
-    INSUFFICIENT_DATA). The per-office triage lives in a structured LOG line (queried
+    INSUFFICIENT_DATA). The per-office triage lives in structured LOG lines (queried
     via Logs Insights), NEVER a CloudWatch dimension (I-NO-PII-METRIC: never a phone
     or guid as a dimension).
     """
@@ -482,7 +724,7 @@ def emit_evaluated(verdict: DivergenceVerdict, newly_count: int) -> None:
     _emit(METRIC_TRADING_BOOKINGS, verdict.divergent_bookings)
     for klass, count in verdict.class_counts.items():
         _emit(METRIC_TRADING_BY_CLASS, count, dimensions={"class": klass})
-    # Structured per-run triage line (bounded counts + class split; NO phone/guid).
+    # Structured per-RUN aggregate line (bounded counts + class split; NO phone/guid).
     logger.info(
         "traffic_offer_divergence_evaluated",
         extra={
@@ -496,6 +738,8 @@ def emit_evaluated(verdict: DivergenceVerdict, newly_count: int) -> None:
             "class_absent_from_frame": verdict.class_counts[CLASS_ABSENT_FROM_FRAME],
         },
     )
+    # Structured per-OFFICE triage lines (the surface the alarm runbooks name).
+    emit_per_office_triage(verdict, prior_hashes or set(), bookings_by_phone)
 
 
 # ==============================================================================
@@ -520,6 +764,10 @@ def run_divergence_evaluation(
     it (or the freshness/readability gates) may raise :class:`EvaluationRefusedError`.
     On refuse: emit ``EvaluationRefused=1``, NO verdict, and DO NOT commit the baseline
     (poisoning guard). ``LastRunEpoch`` is emitted on every path (incl. skipped).
+
+    ★ ``gather_traffic`` and ``read_baseline`` may ALSO refuse -- an unreadable REQUIRED
+    traffic leg (:class:`TrafficLegUnavailableError`) and a non-absent baseline read
+    failure (403) both land here. Both formerly degraded SILENTLY.
     """
     now = time.time() if now_epoch is None else now_epoch
     emit_heartbeat(now)
@@ -536,15 +784,21 @@ def run_divergence_evaluation(
         assert_frame_readable(offer_df)
         traffic = gather_traffic()
         verdict = resolve_divergence(offer_df, traffic)
-        newly_count, new_hashes = compute_newly_divergent(verdict.divergent_phones, read_baseline())
+        prior_hashes = read_baseline()
+        newly_count, new_hashes = compute_newly_divergent(verdict.divergent_phones, prior_hashes)
     except EvaluationRefusedError as exc:
-        emit_refused(str(exc))
+        emit_refused(str(exc), leg=getattr(exc, "leg", None))
         # POISONING GUARD: baseline NOT committed on a refused run.
         return RunResult(
             status="refused", reason=str(exc), divergent_count=0, newly_count=0, roster_size=0
         )
 
-    emit_evaluated(verdict, newly_count)
+    emit_evaluated(
+        verdict,
+        newly_count,
+        prior_hashes=set(prior_hashes),
+        bookings_by_phone=dict(traffic.bookings_by_phone),
+    )
     # Commit the fresh baseline ONLY now (non-refused run) so the next run's delta is honest.
     commit_baseline(new_hashes)
     return RunResult(
@@ -640,9 +894,9 @@ def _run_logs_insights(
 ) -> dict[str, int]:
     """Run one Logs Insights query, return ``{office_phone: bookings}``.
 
-    A query failure (missing log group / throttle) raises so the caller can decide
-    refuse-vs-partial; the caller treats a missing scheduling group as EBI-only, not
-    fabricated traffic."""
+    A query failure (missing log group / throttle / Failed status) RAISES.
+    :func:`union_traffic_legs` converts that into a cycle REFUSAL -- there is no
+    degrade-to-the-other-leg path (a partial denominator is structurally impossible)."""
     started = client.start_query(
         logGroupName=log_group, startTime=start, endTime=end, queryString=query
     )
@@ -668,41 +922,47 @@ def _run_logs_insights(
     return tally
 
 
+def resolve_traffic_legs(window_days: int) -> list[TrafficLeg]:
+    """Build the REQUIRED traffic legs from env config (both legs, always)."""
+    return [
+        TrafficLeg(
+            name=TRAFFIC_LEG_EBI,
+            log_group=os.environ.get(EBI_LOG_GROUP_ENV_VAR, DEFAULT_EBI_LOG_GROUP),
+            query=build_ebi_query(window_days),
+        ),
+        TrafficLeg(
+            name=TRAFFIC_LEG_SCHEDULING,
+            log_group=os.environ.get(SCHEDULING_LOG_GROUP_ENV_VAR, DEFAULT_SCHEDULING_LOG_GROUP),
+            query=build_scheduling_query(window_days),
+        ),
+    ]
+
+
 def _gather_traffic(window_days: int) -> TrafficTally:
     """Union EBI + scheduling traffic over window W (join-keyed by office_phone).
 
-    The scheduling leg is best-effort: if its log group is unset/unreachable the union
-    degrades to EBI-only (still a real traffic read), NEVER fabricated. A failure of
-    the EBI leg propagates (EBI is the primary traffic source)."""
+    ★ BOTH legs are REQUIRED. See :func:`union_traffic_legs` -- an unreadable leg
+    REFUSES the cycle rather than degrading to a half denominator."""
     import boto3
 
     client = boto3.client("logs")
     end = int(time.time())
     start = end - window_days * 86400
 
-    ebi_group = os.environ.get(EBI_LOG_GROUP_ENV_VAR, DEFAULT_EBI_LOG_GROUP)
-    tally = _run_logs_insights(
-        client, ebi_group, build_ebi_query(window_days), start=start, end=end
-    )
+    def run_leg(leg: TrafficLeg) -> dict[str, int]:
+        return _run_logs_insights(client, leg.log_group, leg.query, start=start, end=end)
 
-    sched_group = os.environ.get(SCHEDULING_LOG_GROUP_ENV_VAR, DEFAULT_SCHEDULING_LOG_GROUP)
-    if sched_group:
-        try:
-            sched = _run_logs_insights(
-                client, sched_group, build_scheduling_query(window_days), start=start, end=end
-            )
-            for phone, count in sched.items():
-                tally[phone] = tally.get(phone, 0) + count
-        except Exception as exc:  # noqa: BLE001 -- scheduling leg is best-effort; EBI-only degrade
-            logger.warning(
-                "traffic_offer_divergence_scheduling_leg_failed",
-                extra={"error": str(exc), "log_group": sched_group},
-            )
-    return TrafficTally(phones=frozenset(tally.keys()), bookings_by_phone=tally)
+    return union_traffic_legs(resolve_traffic_legs(window_days), run_leg=run_leg)
 
 
 def _read_baseline() -> set[str]:
-    """Read the prior committed hashed divergent phone-set from S3 (empty on miss)."""
+    """Read the prior committed hashed divergent phone-set from S3.
+
+    ★ A GENUINELY-ABSENT key (``NoSuchKey``/404) is the first run -> empty prior, seed
+    once. ANY other failure (notably ``AccessDenied``/403) REFUSES: absent
+    ``s3:ListBucket`` a missing key answers 403, so treating 403 as first-run would
+    silently re-seed and false-page the >=1 fast-burn alarm. The refusal NAMES the
+    observed error code so it is actionable rather than a wedge."""
     import boto3
 
     bucket = os.environ.get(BASELINE_BUCKET_ENV_VAR, DEFAULT_BASELINE_BUCKET)
@@ -710,8 +970,23 @@ def _read_baseline() -> set[str]:
     try:
         resp = client.get_object(Bucket=bucket, Key=BASELINE_KEY)
         data = json.loads(resp["Body"].read())
-    except Exception as exc:  # noqa: BLE001 -- first run / missing baseline => empty prior
-        logger.info("traffic_offer_divergence_baseline_absent", extra={"error": str(exc)})
+    except Exception as exc:  # classified below: proven-absent => seed once, else REFUSE
+        code = baseline_error_code(exc) or type(exc).__name__
+        if not classify_baseline_read_failure(exc):
+            raise EvaluationRefusedError(
+                f"baseline read at s3://{bucket}/{BASELINE_KEY} failed with {code!r} -- "
+                "NOT a proven-absent key, so this run must not be treated as a first run. "
+                "Re-seeding from an empty baseline would publish "
+                "NewlyTradingWithoutActiveOfferCount ~= the whole standing divergent "
+                "population into the >=1 fast-burn alarm (a false page). Grant "
+                "s3:ListBucket on the baseline bucket (terraform "
+                "traffic_offer_divergence_s3 / ListBucketForTruthful404OnBaselineKey) so "
+                "a missing key answers 404, or fix the object's access."
+            ) from exc
+        logger.info(
+            "traffic_offer_divergence_baseline_absent",
+            extra={"error": str(exc), "error_code": code, "seeding": True},
+        )
         return set()
     hashes = data.get("divergent_hashes", []) if isinstance(data, dict) else []
     return {str(h) for h in hashes}
@@ -776,8 +1051,11 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
 __all__ = [
     "ALARM_BOUND_METRICS",
+    "BASELINE_ABSENT_ERROR_CODES",
     "CLASS_ABSENT_FROM_FRAME",
     "CLASS_INFRAME_INACTIVE",
+    "DEFAULT_EBI_LOG_GROUP",
+    "DEFAULT_SCHEDULING_LOG_GROUP",
     "DivergenceVerdict",
     "EBI_RESOLVE_EVENTS",
     "EvaluationRefusedError",
@@ -788,23 +1066,36 @@ __all__ = [
     "METRIC_ROSTER_SIZE",
     "METRIC_TRADING_BY_CLASS",
     "METRIC_TRADING_COUNT",
+    "METRIC_TRAFFIC_LEG_UNAVAILABLE",
+    "PER_OFFICE_LOG_CAP",
+    "PHANTOM_SCHEDULING_LOG_GROUP",
     "RunResult",
     "SCHEDULING_BOOKING_EVENT",
     "SCHEDULING_R1_GATE_EVENT_EXCLUDED",
+    "TRAFFIC_LEG_EBI",
+    "TRAFFIC_LEG_SCHEDULING",
+    "TrafficLeg",
+    "TrafficLegUnavailableError",
     "TrafficTally",
     "active_roster_phones",
     "assert_frame_fresh",
     "assert_frame_readable",
+    "baseline_error_code",
     "build_ebi_query",
     "build_scheduling_query",
+    "classify_baseline_read_failure",
     "classify_divergent",
     "compute_newly_divergent",
     "emit_evaluated",
     "emit_heartbeat",
+    "emit_per_office_triage",
     "emit_refused",
+    "emit_traffic_leg_unavailable",
     "handler",
     "inframe_phones",
     "phone_hash",
     "resolve_divergence",
+    "resolve_traffic_legs",
     "run_divergence_evaluation",
+    "union_traffic_legs",
 ]
