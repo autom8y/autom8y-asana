@@ -57,6 +57,17 @@ THE R7 PREDICATE (spec §1):
     ``SCHEDULING_R1_GATE_EVENT_EXCLUDED`` names the excluded event so the unit teeth
     can prove R7 does not conflate with R1.
 
+★ CANARY-SENTINEL EXCLUSION (numerator integrity):
+    The calendly-intake canary tenant is seeded with a synthetic business/unit/contact
+    but NO offer row, so its reserved phone (``CANARY_SENTINEL_PHONE``) is absent from
+    the active-offer roster BY CONSTRUCTION while every canary cycle logs traffic for
+    it. BOTH traffic queries therefore carry an explicit exclusion clause -- otherwise
+    a synthetic office scores DIVERGENT (``absent_from_frame``) forever, poisoning a
+    business-of-record numerator with a row no operator can reconcile. Ruled in the
+    ``autom8y`` repo at
+    ``.ledge/decisions/ADR-resolve-cure-F1-canary-vertical-2026-08-08.md``
+    (§ "Denominator-leak check", part (b)).
+
 FRESHNESS-REFUSE (I-REFUSE-NEVER-FABRICATE, spec §2):
     The S3 offer-frame parquet etag drifts continuously (live re-warm -- observed
     245,844 B -> 245,779 B within one probe session, spec §5). On a stale /
@@ -230,6 +241,39 @@ SCHEDULING_BOOKING_EVENT = "booking_success"
 # with the R1 intent-vs-gate instrument. Grounded live by spec §5 census
 # (scheduling_gate_rejected=679/30d, reason=business_disabled).
 SCHEDULING_R1_GATE_EVENT_EXCLUDED = "scheduling_gate_rejected"
+
+# ==============================================================================
+# Canary-sentinel exclusion (numerator integrity)
+# ==============================================================================
+#: The calendly-intake canary tenant's RESERVED synthetic office phone, in the E.164
+#: form the seed writes and every canary cycle logs.
+#:
+#: ★ WHY BOTH TRAFFIC QUERIES MUST EXCLUDE IT. The canary seed creates a synthetic
+#: business + unit + contact in the Businesses project but NO offer row, so the
+#: sentinel is ABSENT from the active-offer roster BY CONSTRUCTION. Every canary cycle
+#: logs it on the EBI resolve leg, so absent this exclusion the synthetic office lands
+#: as DIVERGENT (class ``absent_from_frame``), adds +1 to ``TradingWithoutActiveOfferCount``
+#: and burns a unit of the CARD-D ratchet-to-zero budget -- permanently poisoning a
+#: business-of-record numerator with an "office" that is not a client and can never be
+#: reconciled away. Ruled in the ``autom8y`` repo at
+#: ``.ledge/decisions/ADR-resolve-cure-F1-canary-vertical-2026-08-08.md``
+#: (§ "Denominator-leak check", part (b)).
+#:
+#: PRECEDENT for this explicit-exclusion-with-written-rationale pattern: the ``autom8y``
+#: repo's ``terraform/services/auth/token_exchange_alarms.tf:172-183`` excludes the
+#: ``calendly-intake-canary-seed`` service account from the token-exchange alarm roster
+#: for the structurally identical reason -- a synthetic actor must never enter a
+#: business-of-record instrument's population.
+#:
+#: EXACT-MATCH BY INTENT: the clause is ``!=`` on the full literal, never a prefix or
+#: wildcard. A broadened match could silently swallow a REAL office; this is the one
+#: reserved sentinel and nothing else.
+CANARY_SENTINEL_PHONE = "+15550000000"
+
+#: The Logs Insights filter clause carried by BOTH traffic queries. Built ONCE from
+#: :data:`CANARY_SENTINEL_PHONE` so the two legs cannot drift apart -- traffic is a
+#: UNION, so a single leg that lost the clause would re-open the whole leak.
+CANARY_SENTINEL_EXCLUSION_CLAUSE = f'| filter office_phone != "{CANARY_SENTINEL_PHONE}"'
 
 # ==============================================================================
 # Config knobs (env-overridable; releaser-seam sets these at deploy time)
@@ -865,12 +909,26 @@ def build_ebi_query(window_days: int) -> str:
     """Logs Insights query: distinct EBI-resolved offices + per-office booking counts.
 
     Selects ONLY the EBI resolve events (top-level ``office_phone``). NEVER selects
-    ``scheduling_gate_rejected`` (that is R1, not R7)."""
+    ``scheduling_gate_rejected`` (that is R1, not R7). EXCLUDES the canary sentinel
+    so the synthetic tenant cannot enter the divergence numerator."""
     events = " or ".join(f'event = "{e}"' for e in EBI_RESOLVE_EVENTS)
+    # ★ CANARY-SENTINEL EXCLUSION (this is the leg the canary actually logs on).
+    #   * sentinel      -- CANARY_SENTINEL_PHONE ("+15550000000"), the calendly-intake
+    #     canary tenant's synthetic office phone: logged by every canary cycle, and
+    #     seeded with NO offer row, so unexcluded it scores DIVERGENT/absent_from_frame.
+    #   * ruling        -- autom8y repo,
+    #     `.ledge/decisions/ADR-resolve-cure-F1-canary-vertical-2026-08-08.md`
+    #     § "Denominator-leak check" (b).
+    #   * precedent     -- autom8y repo,
+    #     `terraform/services/auth/token_exchange_alarms.tf:172-183` (same synthetic
+    #     actor excluded from the SA alarm roster, with the same written why).
+    # It is a FILTER stage in the chain (before `| stats`), NOT a comment -- Logs
+    # Insights `#` comments do not filter anything. The unit teeth pin both facts.
     return (
         "fields office_phone\n"
         f"| filter {events}\n"
         "| filter ispresent(office_phone)\n"
+        f"{CANARY_SENTINEL_EXCLUSION_CLAUSE}\n"
         "| stats count() as bookings by office_phone"
     )
 
@@ -880,11 +938,26 @@ def build_scheduling_query(window_days: int) -> str:
 
     Selects ONLY ``booking_success`` (a committed write on ``extra.office_phone``).
     NEVER selects ``scheduling_gate_rejected`` -- keying on a gate outcome would
-    conflate R7 with the R1 intent-vs-gate instrument (the sharpest tooth, spec §1)."""
+    conflate R7 with the R1 intent-vs-gate instrument (the sharpest tooth, spec §1).
+    EXCLUDES the canary sentinel so the synthetic tenant cannot enter the numerator."""
+    # ★ CANARY-SENTINEL EXCLUSION -- carried on BOTH legs, not just the EBI one.
+    #   traffic(O, W) is a UNION: an exclusion on one leg only would still let a
+    #   canary-shaped booking on the other leg poison the numerator, so the clause is
+    #   unconditional here even though today's canary cycle exercises the EBI leg.
+    #   * sentinel  -- CANARY_SENTINEL_PHONE ("+15550000000"), the calendly-intake
+    #     canary tenant's synthetic office phone; seeded with NO offer row.
+    #   * ruling    -- autom8y repo,
+    #     `.ledge/decisions/ADR-resolve-cure-F1-canary-vertical-2026-08-08.md`
+    #     § "Denominator-leak check" (b).
+    #   * precedent -- autom8y repo,
+    #     `terraform/services/auth/token_exchange_alarms.tf:172-183`.
+    # Applied AFTER the `extra.office_phone as office_phone` alias, so the clause
+    # binds the aliased field. It is a FILTER stage, NOT a comment.
     return (
         "fields extra.office_phone as office_phone\n"
         f'| filter event = "{SCHEDULING_BOOKING_EVENT}"\n'
         "| filter ispresent(office_phone)\n"
+        f"{CANARY_SENTINEL_EXCLUSION_CLAUSE}\n"
         "| stats count() as bookings by office_phone"
     )
 
@@ -1052,6 +1125,8 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 __all__ = [
     "ALARM_BOUND_METRICS",
     "BASELINE_ABSENT_ERROR_CODES",
+    "CANARY_SENTINEL_EXCLUSION_CLAUSE",
+    "CANARY_SENTINEL_PHONE",
     "CLASS_ABSENT_FROM_FRAME",
     "CLASS_INFRAME_INACTIVE",
     "DEFAULT_EBI_LOG_GROUP",

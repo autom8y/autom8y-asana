@@ -12,6 +12,7 @@ and NEVER scheduling_gate_rejected), and the byte-exact cross-repo emit<->alarm 
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import polars as pl
@@ -19,6 +20,8 @@ import pytest
 
 from autom8_asana.lambda_handlers import traffic_offer_divergence_tripwire as r7
 from autom8_asana.lambda_handlers.traffic_offer_divergence_tripwire import (
+    CANARY_SENTINEL_EXCLUSION_CLAUSE,
+    CANARY_SENTINEL_PHONE,
     CLASS_ABSENT_FROM_FRAME,
     CLASS_INFRAME_INACTIVE,
     EBI_RESOLVE_EVENTS,
@@ -397,3 +400,141 @@ class TestCrossRepoContract:
         assert METRIC_ROSTER_SIZE == "ActiveOfferRosterSize"
         assert METRIC_EVALUATION_REFUSED == "EvaluationRefused"
         assert METRIC_LAST_RUN_EPOCH == "LastRunEpoch"
+
+
+# ---------------------------------------------------------------------------
+# ★ Canary-sentinel exclusion -- two-sided teeth on the divergence NUMERATOR
+#
+# The canary tenant is seeded with no offer row, so its reserved phone is absent
+# from the roster BY CONSTRUCTION while canary cycles log traffic for it. Both
+# traffic queries must exclude it or a synthetic office scores DIVERGENT forever.
+# Ruled: autom8y repo `.ledge/decisions/ADR-resolve-cure-F1-canary-vertical-2026-08-08.md`
+# § "Denominator-leak check" (b). Precedent: autom8y repo
+# `terraform/services/auth/token_exchange_alarms.tf:172-183`.
+# ---------------------------------------------------------------------------
+
+#: Matches ONE Logs Insights ``| filter <field> != "<literal>"`` stage.
+_EXCLUSION_STAGE_RE = re.compile(r'^\|\s*filter\s+([A-Za-z0-9_.]+)\s*!=\s*"([^"]*)"$')
+
+
+def _exclusion_stages(query: str) -> set[tuple[str, str]]:
+    """Extract the inequality-exclusion stages ``(field, excluded_literal)`` from a query.
+
+    DELIBERATELY PARTIAL -- it models ONLY the exclusion stage under test. Any stage it
+    does not recognize simply contributes no exclusion, so this reader can only ever be
+    MORE permissive than CloudWatch, never less. That one-sided error is what makes the
+    RED arm below a genuine leak proof rather than a simulator artifact: if the reader
+    is wrong, it fails toward "the row survives", i.e. toward FAILING the cured query.
+    """
+    return {
+        (m.group(1), m.group(2))
+        for m in (_EXCLUSION_STAGE_RE.match(line.strip()) for line in query.splitlines())
+        if m is not None
+    }
+
+
+def _phone_survives(query: str, office_phone: str) -> bool:
+    """True iff a row carrying ``office_phone`` survives the query's exclusion stages."""
+    return all(
+        excluded != office_phone
+        for field, excluded in _exclusion_stages(query)
+        if field == "office_phone"
+    )
+
+
+def _strip_the_clause(query: str) -> str:
+    """The PRE-CURE query: the built query with the exclusion stage removed.
+
+    The count assertion is the mutation ANCHOR -- without it a reformat that changed the
+    clause text would make the strip a silent no-op and this file would report a false
+    GREEN on the RED arm (proving only that the probe missed).
+    """
+    assert query.count(CANARY_SENTINEL_EXCLUSION_CLAUSE) == 1
+    mutated = query.replace(CANARY_SENTINEL_EXCLUSION_CLAUSE + "\n", "", 1)
+    assert mutated != query
+    assert CANARY_SENTINEL_EXCLUSION_CLAUSE not in mutated
+    return mutated
+
+
+class TestCanarySentinelExclusion:
+    def test_sentinel_literal_is_the_reserved_canary_phone(self) -> None:
+        """Byte-exact pin: this is the phone the canary seed writes (E.164)."""
+        assert CANARY_SENTINEL_PHONE == "+15550000000"
+
+    def test_clause_is_derived_from_the_constant(self) -> None:
+        """One source of truth -- the clause is built FROM the sentinel, not retyped."""
+        derived = f'| filter office_phone != "{CANARY_SENTINEL_PHONE}"'
+        assert derived == CANARY_SENTINEL_EXCLUSION_CLAUSE
+
+    def test_both_traffic_queries_carry_the_exclusion(self) -> None:
+        """traffic(O,W) is a UNION -- an exclusion on one leg only still leaks."""
+        for query in (build_ebi_query(7), build_scheduling_query(7)):
+            assert query.count(CANARY_SENTINEL_EXCLUSION_CLAUSE) == 1
+
+    def test_exclusion_is_a_filter_stage_not_a_comment(self) -> None:
+        """It must sit IN the filter chain, before ``| stats`` -- a ``#`` comment filters
+        nothing, and a stage after the aggregation would never see the raw rows."""
+        for query in (build_ebi_query(7), build_scheduling_query(7)):
+            lines = [line.strip() for line in query.splitlines()]
+            idx = lines.index(CANARY_SENTINEL_EXCLUSION_CLAUSE)
+            stats_idx = next(i for i, line in enumerate(lines) if line.startswith("| stats"))
+            assert lines[idx].startswith("| filter")
+            assert not lines[idx].startswith("#")
+            assert idx < stats_idx
+            # The reader agrees it is a real exclusion stage (not just a matching string).
+            assert ("office_phone", CANARY_SENTINEL_PHONE) in _exclusion_stages(query)
+
+    def test_scheduling_clause_binds_the_ALIASED_field(self) -> None:
+        """The scheduling leg reads ``extra.office_phone``; the alias must precede the
+        clause or the exclusion would bind a field that does not exist on that leg."""
+        lines = [line.strip() for line in build_scheduling_query(7).splitlines()]
+        alias_idx = next(
+            i for i, line in enumerate(lines) if "extra.office_phone as office_phone" in line
+        )
+        assert alias_idx < lines.index(CANARY_SENTINEL_EXCLUSION_CLAUSE)
+
+    def test_RED_the_pre_cure_query_would_admit_a_sentinel_row(self) -> None:
+        """★ The mutation arm. Strip the clause (the exact pre-cure shape at origin/main)
+        and a sentinel-shaped row SURVIVES -- that surviving row is the +1 on
+        TradingWithoutActiveOfferCount the cure exists to prevent."""
+        for query in (build_ebi_query(7), build_scheduling_query(7)):
+            pre_cure = _strip_the_clause(query)
+            assert _phone_survives(pre_cure, CANARY_SENTINEL_PHONE) is True  # the LEAK
+            assert _phone_survives(query, CANARY_SENTINEL_PHONE) is False  # cured
+
+    def test_GREEN_real_offices_still_survive_the_exclusion(self) -> None:
+        """The complement: the exclusion must not be over-broad. Real offices -- including
+        the RED/absent divergence exemplars this instrument exists to catch -- pass."""
+        for query in (build_ebi_query(7), build_scheduling_query(7)):
+            for phone in (RED_PHONE, GREEN_PHONE, R1_PHONE, ABSENT_PHONE):
+                assert _phone_survives(query, phone) is True
+
+    def test_exclusion_is_EXACT_match_never_a_prefix(self) -> None:
+        """A prefix/wildcard exclusion could swallow a real office. Near-misses survive."""
+        near_misses = (
+            CANARY_SENTINEL_PHONE + "1",  # longer
+            CANARY_SENTINEL_PHONE[:-1],  # shorter
+            "15550000000",  # unprefixed
+        )
+        for query in (build_ebi_query(7), build_scheduling_query(7)):
+            for phone in near_misses:
+                assert _phone_survives(query, phone) is True
+
+    def test_an_unexcluded_sentinel_scores_DIVERGENT_absent_from_frame(self) -> None:
+        """Grounds the consequence in the REAL predicate, not prose: run the sentinel
+        through resolve_divergence against a roster that (correctly) has no offer row
+        for it -- it lands +1 divergent, class absent_from_frame. That is exactly the
+        numerator poisoning the query-level exclusion prevents upstream."""
+        df = _offer_df([{"office_phone": GREEN_PHONE, "section": "ACTIVE"}])
+        leaked = TrafficTally(
+            phones=frozenset({CANARY_SENTINEL_PHONE}),
+            bookings_by_phone={CANARY_SENTINEL_PHONE: 1},
+        )
+        verdict = resolve_divergence(df, leaked)
+        assert verdict.divergent_phones == frozenset({CANARY_SENTINEL_PHONE})
+        assert verdict.classes[CANARY_SENTINEL_PHONE] == CLASS_ABSENT_FROM_FRAME
+        assert verdict.class_counts[CLASS_ABSENT_FROM_FRAME] == 1
+
+        # And the cured path: the sentinel never reaches the tally at all.
+        clean = TrafficTally(phones=frozenset({GREEN_PHONE}), bookings_by_phone={GREEN_PHONE: 1})
+        assert resolve_divergence(df, clean).divergent_phones == frozenset()
