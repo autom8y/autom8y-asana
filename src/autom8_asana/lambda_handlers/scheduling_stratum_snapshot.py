@@ -259,6 +259,29 @@ _POSTURE_SIGNAL_COLUMNS: tuple[str, ...] = tuple(
 #   below was invisible AT THE METRIC LAYER even though the signal existed in the
 #   log. Every metric in this contract is emitted with NO dimensions beyond the
 #   environment stamp, and carries its payload in the VALUE.
+#
+# ★ EVERY TERMINAL PATH PUBLISHES (D-1, 2026-08-06). A chaos experiment proved the
+#   push-failure metric covers only the REACHED-PUSH arm: over the real darkness
+#   window 2026-07-06..2026-08-01 there were 94 ``..._refused`` ticks (verbatim
+#   unvarying reason "empty active-office set (refusing an empty whole-source
+#   push)") against 8 ``..._complete`` ticks with pushed=false -- and the refusal arm
+#   RETURNS upstream of that metric. With the alarm on treat_missing_data=
+#   notBreaching, absence read as OK through 92% of the outage it was named for.
+#   The cure is structural, not a widened threshold: the refusal and skip emissions
+#   lost their ``reason`` DIMENSION (dimension matching is EXACT -- a
+#   ``{environment, reason}`` series is unreadable by an ``{environment}`` alarm,
+#   the same trap ``office_count`` sprang), and ``...Refused`` / ``...SchemaLag``
+#   joined ALARM_BOUND_METRICS. The reason string still rides the log line, which is
+#   where a high-cardinality value belongs.
+#
+# ★ DELIBERATE ACTIONS ARE NOT FAULTS (D-2, 2026-08-06). A forced dry-run
+#   (``event["dry_run"]``, an explicitly supported operation) used to publish
+#   ``PushFailed=1`` -- byte-identical at the metric layer to a real outage, and two
+#   inside consecutive 2h windows would page SEV-1 to a live SMS subscriber for a
+#   non-incident. Shadow runs now publish ``...ShadowRun`` and NOTHING on the failure
+#   series. Their substrate-staleness cost is deliberately UNCHANGED: they do not
+#   deliver, so ``...PushEpoch`` stays absent and the freshness dead-man keeps
+#   counting toward the 8h TTL cliff.
 # ==============================================================================
 
 #: Heartbeat emitted on EVERY invocation (skipped / refused / dry-run / pushed /
@@ -274,11 +297,70 @@ METRIC_RUN_EPOCH = "SchedulingStratumSnapshotRunEpoch"
 #: would have been RED for the whole 2026-07-22..08-05 darkness.
 METRIC_PUSH_EPOCH = "SchedulingStratumSnapshotPushEpoch"
 
-#: 1 when a run reached the push and did NOT deliver (``pushed=false``), 0 when it
+#: 1 when a run REACHED THE PUSH and genuinely failed to deliver, 0 when it
 #: delivered. THE SILENT-CLEAN FAILURE: the producer logs {"pushed": false} and
-#: exits 0, so AWS/Lambda Errors stays 0 and the DLQ stays empty. Nothing before
-#: this metric distinguished a refused delivery from a successful one.
+#: exits 0, so AWS/Lambda Errors stays 0 and the DLQ stays empty.
+#:
+#: ★ SCOPE (D-1, corrected 2026-08-06). This metric is emitted ONLY on the
+#: reached-push arm. The ``refused`` and ``skipped`` arms ``return`` upstream of it,
+#: so it is BLIND to them BY CONSTRUCTION -- and its alarm is
+#: treat_missing_data=notBreaching, so that blindness reads as OK. Measured over the
+#: real darkness window 2026-07-06..2026-08-01: 94 refusals vs 8 reached-push
+#: non-deliveries, i.e. this metric covers 8% of the outage it is named for. The
+#: refusal arm is covered by :data:`METRIC_REFUSED` (and its sub-class markers);
+#: total absence is the two dead-men's remit. Do NOT widen this metric to cover the
+#: refusal arm -- an alarm whose scope drifts from its name is how the blindness was
+#: minted. Keep each terminal path on its own honest series.
+#:
+#: ★ NOT emitted on a deliberate shadow run (D-2). See :data:`METRIC_SHADOW_RUN`.
 METRIC_PUSH_FAILED = "SchedulingStratumSnapshotPushFailed"
+
+#: 1 on EVERY refusal terminal path -- the union of every reason
+#: :class:`SnapshotRefusedError` can carry (empty/incomplete office set, schema lag,
+#: degenerate source, and any refusal class added later).
+#:
+#: ★ D-1 THE 92% PATH. Emitted with NO DIMENSIONS. It previously carried
+#: ``dimensions={"reason": ...}``, and CloudWatch dimension matching is EXACT: an
+#: alarm pinning ``{environment}`` alone can never read a ``{environment, reason}``
+#: series, so the signal existed and was STRUCTURALLY unalarmable -- the same trap
+#: ``office_count`` sprang on ...Pushed/...DryRun. The reason still rides the
+#: ``scheduling_stratum_snapshot_refused`` log line verbatim, which is where a
+#: high-cardinality string belongs.
+#:
+#: This is the UNION leg deliberately: :data:`METRIC_SCHEMA_LAG` and
+#: ``SchedulingStratumSnapshotDegenerateSource`` are SUB-CLASS discriminators that
+#: tell an operator WHICH refusal without a log dive, but a future refusal class
+#: would be silent if only the sub-classes were bound. The union closes the class.
+METRIC_REFUSED = "SchedulingStratumSnapshotRefused"
+
+#: 1 when the DARK gate short-circuited the run. Emitted with NO DIMENSIONS for the
+#: same structural reason as :data:`METRIC_REFUSED` (it previously carried
+#: ``reason=gate_off``), so it is BINDABLE -- but NO alarm binds it, deliberately:
+#: a dark gate is an operator STATE, not a fault, and paging for it is exactly the
+#: deliberate-action-looks-like-a-failure conflation D-2 cures. A gate left off by
+#: accident is caught by the substrate-freshness dead-man within ~7h.
+METRIC_SKIPPED = "SchedulingStratumSnapshotSkipped"
+
+#: 1 when a refusal was caused by SCHEMA LAG (the warmed frame predates the posture
+#: schema). Already dimension-free; it simply had no alarm bound to it -- an
+#: instrument that exists and watches nothing. Bound as of D-1.
+METRIC_SCHEMA_LAG = "SchedulingStratumSnapshotSchemaLag"
+
+#: 1 when the run was a DELIBERATE operator shadow run (``event["dry_run"]`` forced).
+#:
+#: ★ D-2. Observed live 2026-08-06T09:05:15Z (RequestId
+#: 8fde3ea0-0436-4492-b2cc-031368bf904e): a forced dry-run published
+#: ``PushFailed=1`` and suppressed ``PushEpoch`` -- byte-identical at the metric
+#: layer to a real delivery failure. Once actions are armed, two shadow runs inside
+#: consecutive 2h windows would page SEV-1 (live SMS subscriber) for a non-incident.
+#: A shadow run now publishes THIS marker and NOTHING on the failure series.
+#:
+#: ★ DELIBERATELY UNBOUND, and the substrate-staleness axis is deliberately
+#: UNCHANGED: a shadow run does not deliver, so it ages the substrate toward the 8h
+#: TTL cliff exactly like any other non-delivery and ``PushEpoch`` stays absent.
+#: Curing D-2 by fabricating a heartbeat would trade a false page for a fossil
+#: substrate served silently -- a strictly worse bargain.
+METRIC_SHADOW_RUN = "SchedulingStratumSnapshotShadowRun"
 
 #: Count of universe rows carrying ANY scheduling-posture signal -- the VALUE-FLOOR's
 #: own numerator, made observable. The floor has only ever answered the boolean
@@ -292,12 +374,19 @@ METRIC_POSTURE_UNIVERSE_ROWS = "SchedulingStratumPostureUniverseRows"
 #: the matching terraform edit silently decouples the pair. The autom8y-side test
 #: asserts this frozenset equals the set of metric_names in the alarm file.
 #: ``SchedulingStratumUniverseCensus`` and ``SchedulingStratumSnapshotDegenerateSource``
-#: are PRE-EXISTING emissions (unchanged here) that the alarm half now binds.
+#: are PRE-EXISTING emissions (unchanged here) that the alarm half binds.
+#:
+#: ★ :data:`METRIC_SHADOW_RUN` and :data:`METRIC_SKIPPED` are intentionally ABSENT:
+#: both mark deliberate operator states, and an alarm on a deliberate state is the
+#: false-page shape. They are dimension-free so they remain bindable if that
+#: judgement ever changes.
 ALARM_BOUND_METRICS: frozenset[str] = frozenset(
     {
         METRIC_RUN_EPOCH,
         METRIC_PUSH_EPOCH,
         METRIC_PUSH_FAILED,
+        METRIC_REFUSED,
+        METRIC_SCHEMA_LAG,
         "SchedulingStratumUniverseCensus",
         "SchedulingStratumSnapshotDegenerateSource",
     }
@@ -369,6 +458,7 @@ async def execute_snapshot_push(
     gate: Callable[[], bool],
     enumerate_offices: Callable[[], Awaitable[tuple[list[ExtractedScheduling], bool]]],
     push: Callable[[list[ExtractedScheduling]], Awaitable[StratumPushResult | None]],
+    shadow_run: bool = False,
 ) -> SnapshotRunResult:
     """Orchestrate one whole-snapshot push under the DARK gate + completeness contract.
 
@@ -381,10 +471,27 @@ async def execute_snapshot_push(
     SCHEMA-LAG (a pre-1.5.0 frame). :func:`assert_complete_office_set` gates the guid
     set (REFUSE on incomplete source OR empty). Both refusal paths converge on the
     ``refused`` outcome (byte-compatible with the gid-based predecessor).
+
+    ★ EVERY TERMINAL PATH PUBLISHES (D-1). ``skipped`` / ``refused`` / ``shadow`` /
+    non-delivery / delivery each emit a dimension-free marker, so the ABSENCE of a
+    signal never has to be interpreted as health. The refusal and skip arms ``return``
+    upstream of the push emissions, which is exactly why the push-failure metric alone
+    covered only 8% of the historical outage.
+
+    Args:
+        shadow_run: True when the OPERATOR deliberately forced a dry run via
+            ``event["dry_run"]`` (D-2). A shadow run is not a delivery failure: it
+            publishes :data:`METRIC_SHADOW_RUN` and NOTHING on
+            :data:`METRIC_PUSH_FAILED`. It still delivers nothing, so
+            :data:`METRIC_PUSH_EPOCH` stays absent and the substrate-freshness
+            dead-man keeps counting -- deliberately.
     """
     if not gate():
         logger.info("scheduling_stratum_snapshot_skipped", extra={"reason": "gate_off"})
-        emit_metric("SchedulingStratumSnapshotSkipped", 1, dimensions={"reason": "gate_off"})
+        # D-1: dimension-free. The reason rides the log line above; a `reason`
+        # DIMENSION puts the datapoint on a series no {environment}-pinned alarm can
+        # match, which is how a present signal becomes an unalarmable one.
+        emit_metric(METRIC_SKIPPED, 1)
         return SnapshotRunResult(status="skipped", reason="gate_off", entry_count=0)
 
     try:
@@ -396,11 +503,14 @@ async def execute_snapshot_push(
         assert_complete_office_set([o.guid for o in extracted], source_complete=source_complete)
     except SnapshotRefusedError as exc:
         logger.warning("scheduling_stratum_snapshot_refused", extra={"reason": str(exc)})
-        emit_metric(
-            "SchedulingStratumSnapshotRefused",
-            1,
-            dimensions={"reason": "incomplete_office_set"},
-        )
+        # ★ D-1 THE 92% PATH, made alarmable. 94 of the 102 terminal ticks over
+        # 2026-07-06..2026-08-01 landed HERE, every one of them logging the verbatim
+        # reason "empty active-office set (refusing an empty whole-source push)" --
+        # and returning before the push-failure emission below. The metric was emitted
+        # with dimensions={"reason": "incomplete_office_set"}, which forks it onto a
+        # series no alarm binding {environment} can read. Dimension-free now, and
+        # BOUND on the autom8y side (asana-stratum-push-refused).
+        emit_metric(METRIC_REFUSED, 1)
         return SnapshotRunResult(status="refused", reason=str(exc), entry_count=0)
 
     result = await push(extracted)
@@ -408,7 +518,12 @@ async def execute_snapshot_push(
     pushed = bool(result is not None and result.pushed)
     logger.info(
         "scheduling_stratum_snapshot_complete",
-        extra={"office_count": len(extracted), "entry_count": entry_count, "pushed": pushed},
+        extra={
+            "office_count": len(extracted),
+            "entry_count": entry_count,
+            "pushed": pushed,
+            "shadow_run": shadow_run,
+        },
     )
     emit_metric(
         "SchedulingStratumSnapshotPushed" if pushed else "SchedulingStratumSnapshotDryRun",
@@ -417,12 +532,25 @@ async def execute_snapshot_push(
     )
     # C1(b) THE SILENT-CLEAN FAILURE, made alarmable. The line above is RETAINED
     # (dashboards/queries depend on it) but is unalarmable by construction: its
-    # office_count DIMENSION forks a new metric series on every tick. These two
-    # carry the same fact with NO high-cardinality dimension, so an alarm can
-    # actually bind them. PushFailed publishes a real 0 on delivery, so the alarm
-    # distinguishes "delivered" from "ran and delivered nothing"; PushEpoch is
-    # emitted ONLY on delivery, so its ABSENCE is the substrate-freshness signal.
-    emit_metric(METRIC_PUSH_FAILED, 0 if pushed else 1)
+    # office_count DIMENSION forks a new metric series on every tick. These carry the
+    # same fact with NO high-cardinality dimension, so an alarm can actually bind
+    # them. PushFailed publishes a real 0 on delivery, so the alarm distinguishes
+    # "delivered" from "ran and delivered nothing"; PushEpoch is emitted ONLY on
+    # delivery, so its ABSENCE is the substrate-freshness signal.
+    #
+    # ★ D-2. A DELIBERATE shadow run reaches here with pushed=False and is NOT a
+    # failure. It publishes the shadow marker and NOTHING on the failure series --
+    # not even a 0, which would assert a delivery that did not happen. Observed live
+    # 2026-08-06T09:05:15Z: a forced dry-run emitted PushFailed=1, byte-identical to a
+    # real outage; two of those inside consecutive 2h windows page SEV-1 to a live SMS
+    # subscriber for a non-incident.
+    if shadow_run:
+        emit_metric(METRIC_SHADOW_RUN, 1)
+    else:
+        emit_metric(METRIC_PUSH_FAILED, 0 if pushed else 1)
+    # Unconditional on delivery (never inside the shadow branch): the freshness
+    # heartbeat tracks what was actually DELIVERED, and a shadow run delivers
+    # nothing, so it correctly ages the substrate toward the 8h TTL cliff.
     if pushed:
         emit_metric(METRIC_PUSH_EPOCH, _now_epoch())
     return SnapshotRunResult(
@@ -822,7 +950,11 @@ async def _enumerate_offices_from_frame(
         # identity columns. REFUSE honestly -- never fabricate posture from a frame that
         # cannot carry it. This is the PR-1-before-PR-2 safety and it MUST fire.
         logger.warning("scheduling_stratum_snapshot_frame_schema_lag", extra={"reason": str(exc)})
-        emit_metric("SchedulingStratumSnapshotSchemaLag", 1)
+        # D-1: promoted to a named constant and BOUND on the autom8y side
+        # (asana-stratum-schema-lag). It was already dimension-free -- it simply had
+        # no alarm watching it. The refusal it raises also lands on METRIC_REFUSED,
+        # so this is the sub-class discriminator, not the coverage leg.
+        emit_metric(METRIC_SCHEMA_LAG, 1)
         raise SnapshotRefusedError(str(exc)) from exc
 
     # VALUE-FLOOR: the columns are PRESENT (schema-lag passed) but their CONTENT may be
@@ -1011,6 +1143,13 @@ async def run_snapshot_push_async(
         gate=_is_stratum_push_enabled,
         enumerate_offices=_enumerate,
         push=_push,
+        # ★ D-2. A SHADOW RUN is one the operator forced via the event. Truthiness
+        # mirrors _resolve_and_push_snapshot_authed's own effective-dry-run rule
+        # EXACTLY: reaching the push means the gate is ON, so there
+        # `effective_dry_run = (not enabled) if dry_run is None else dry_run`
+        # collapses to `bool(dry_run)`. A run that is dry because the GATE is off is
+        # not a shadow run -- it never reaches the push at all (it returns `skipped`).
+        shadow_run=bool(dry_run),
     )
 
 
@@ -1074,7 +1213,11 @@ __all__ = [
     "METRIC_POSTURE_UNIVERSE_ROWS",
     "METRIC_PUSH_EPOCH",
     "METRIC_PUSH_FAILED",
+    "METRIC_REFUSED",
     "METRIC_RUN_EPOCH",
+    "METRIC_SCHEMA_LAG",
+    "METRIC_SHADOW_RUN",
+    "METRIC_SKIPPED",
     "MIN_POSTURE_SIGNAL_ROWS",
     "MIN_POSTURE_SIGNAL_ROWS_ENV_VAR",
     "OFFICE_SPINE_JOIN_KEY",

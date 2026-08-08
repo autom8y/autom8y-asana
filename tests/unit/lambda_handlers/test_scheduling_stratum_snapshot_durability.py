@@ -190,7 +190,9 @@ class _PushResult:
         self.entry_count = n
 
 
-async def _run(*, gate: bool, pushed: bool | None, offices: int = 921) -> Any:
+async def _run(
+    *, gate: bool, pushed: bool | None, offices: int = 921, shadow_run: bool = False
+) -> Any:
     extracted = [_Office(f"guid-{i}") for i in range(offices)]
 
     async def _enumerate() -> tuple[list[Any], bool]:
@@ -202,7 +204,36 @@ async def _run(*, gate: bool, pushed: bool | None, offices: int = 921) -> Any:
         return None if pushed is None else _PushResult(pushed, offices)
 
     return await mod.execute_snapshot_push(
-        gate=lambda: gate, enumerate_offices=_enumerate, push=_push
+        gate=lambda: gate,
+        enumerate_offices=_enumerate,
+        push=_push,
+        shadow_run=shadow_run,
+    )
+
+
+#: The VERBATIM refusal reason observed on 94 of the 102 terminal ticks over the
+#: real darkness window 2026-07-06..2026-08-01 on
+#: /aws/lambda/autom8-asana-scheduling-stratum-snapshot -- unvarying, and produced
+#: by ``assert_complete_office_set``'s empty-set arm.
+_LIVE_REFUSAL_REASON = "empty active-office set (refusing an empty whole-source push)"
+
+
+async def _run_refused_empty_office_set() -> Any:
+    """The EXACT live refusal shape: source readable, deduped guid set EMPTY.
+
+    This is the 92% path. ``enumerate_offices`` succeeds (``source_complete=True``)
+    and ``assert_complete_office_set`` raises on the empty list -- so the run
+    ``return``s from the refusal arm and NEVER reaches the push emissions.
+    """
+
+    async def _enumerate() -> tuple[list[Any], bool]:
+        return [], True
+
+    async def _push(_: list[Any]) -> Any:  # pragma: no cover - never reached
+        raise AssertionError("push must not run after a refusal")
+
+    return await mod.execute_snapshot_push(
+        gate=lambda: True, enumerate_offices=_enumerate, push=_push
     )
 
 
@@ -316,6 +347,8 @@ class TestCrossRepoContract:
                     "SchedulingStratumSnapshotRunEpoch",
                     "SchedulingStratumSnapshotPushEpoch",
                     "SchedulingStratumSnapshotPushFailed",
+                    "SchedulingStratumSnapshotRefused",
+                    "SchedulingStratumSnapshotSchemaLag",
                     "SchedulingStratumUniverseCensus",
                     "SchedulingStratumSnapshotDegenerateSource",
                 }
@@ -323,16 +356,29 @@ class TestCrossRepoContract:
             == mod.ALARM_BOUND_METRICS
         )
 
+    def test_the_shadow_run_marker_is_deliberately_unbound(self) -> None:
+        """D-2's new marker is an OPERATIONAL fact, not a fault. Binding an alarm to
+        it would page for a deliberate operator action -- the very conflation D-2
+        cures, re-introduced on the other side. It must NOT be in the alarm set."""
+        assert mod.METRIC_SHADOW_RUN not in mod.ALARM_BOUND_METRICS
+
     def test_alarm_bound_metrics_carry_no_high_cardinality_dimension(
         self, rec: _Recorder, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """★ RED-class guard. The pre-existing ...Pushed/...DryRun emissions stamp
         office_count as a DIMENSION, forking a new metric series per tick and making
         them structurally unalarmable (live list-metrics on 2026-08-06: 12 distinct
-        ...DryRun series). No ALARM_BOUND metric may repeat that mistake."""
+        ...DryRun series). No ALARM_BOUND metric may repeat that mistake.
+
+        Swept over EVERY terminal path, not just the delivering one: D-1 was exactly
+        an alarm-bound-worthy signal that carried a ``reason`` dimension on a path the
+        delivering sweep never visits."""
         import asyncio
 
         asyncio.run(_run(gate=True, pushed=True))
+        asyncio.run(_run(gate=True, pushed=False))
+        asyncio.run(_run(gate=False, pushed=True))
+        asyncio.run(_run_refused_empty_office_set())
         for name, _value, dims in rec.calls:
             if name in mod.ALARM_BOUND_METRICS:
                 assert not dims, f"{name} carries alarm-breaking dimensions {dims}"
@@ -345,6 +391,219 @@ class TestCrossRepoContract:
         asyncio.run(_run(gate=True, pushed=True))
         legacy = [c for c in rec.calls if c[0] == "SchedulingStratumSnapshotPushed"]
         assert legacy and legacy[0][2] == {"office_count": "921"}
+
+
+# ---------------------------------------------------------------------------
+# ★ D-1 -- the REFUSED path must drive an alarm (92% of the historical outage)
+# ---------------------------------------------------------------------------
+# Measured own-hands by the chaos-engineer over the real darkness window
+# 2026-07-06..2026-08-01 on /aws/lambda/autom8-asana-scheduling-stratum-snapshot:
+#
+#     94 ticks  scheduling_stratum_snapshot_refused   (verbatim, unvarying reason:
+#               "empty active-office set (refusing an empty whole-source push)")
+#      8 ticks  scheduling_stratum_snapshot_complete with pushed=false
+#
+# ``SchedulingStratumSnapshotPushFailed`` is emitted only AFTER the push call, and
+# the refusal arm ``return``s before it -- so the alarm NAMED for this outage was
+# blind to 94/102 = 92% of it. Its alarm is treat_missing_data=notBreaching, so
+# that absence read as OK for the whole month.
+
+
+class TestD1RefusalDrivesAnAlarmableSignal:
+    @pytest.mark.asyncio
+    async def test_the_live_refusal_shape_is_reproduced_exactly(self) -> None:
+        """Anchor the fixture to the measured reality before asserting anything about
+        it: this is the byte-exact reason string all 94 refusing ticks logged."""
+        result = await _run_refused_empty_office_set()
+        assert result.status == "refused"
+        assert result.reason == _LIVE_REFUSAL_REASON
+
+    @pytest.mark.asyncio
+    async def test_refusing_tick_emits_an_ALARM_BOUND_signal_RED(self, rec: _Recorder) -> None:
+        """★ THE D-1 ACCEPTANCE TEST. A tick that refuses with "empty active-office
+        set" must publish a signal an alarm can actually bind. Pre-fix the refusal
+        emitted a metric that was NOT in ALARM_BOUND_METRICS, so no alarm watched it
+        and its absence on the push-failure series read as OK."""
+        await _run_refused_empty_office_set()
+        bound_emitted = [n for n in rec.names() if n in mod.ALARM_BOUND_METRICS]
+        assert bound_emitted, (
+            "a refusing tick published NO alarm-bound metric -- the 92% blind path. "
+            f"emitted={rec.names()}"
+        )
+        assert mod.METRIC_REFUSED in bound_emitted
+
+    @pytest.mark.asyncio
+    async def test_the_refusal_signal_is_dimension_free_RED(self, rec: _Recorder) -> None:
+        """★ THE STRUCTURAL HALF. An alarm pins {environment} and nothing else, and
+        CloudWatch dimension matching is EXACT -- a ``reason`` DIMENSION puts the
+        datapoint on a series no such alarm can ever read. Pre-fix the refusal carried
+        ``dimensions={"reason": "incomplete_office_set"}``: the same trap
+        ``office_count`` sprang on ...Pushed/...DryRun. The reason belongs in the LOG
+        line (which still carries it verbatim), never in the metric's identity."""
+        await _run_refused_empty_office_set()
+        emitted = [c for c in rec.calls if c[0] == mod.METRIC_REFUSED]
+        assert emitted, f"{mod.METRIC_REFUSED} never emitted; emitted={rec.names()}"
+        name, value, dims = emitted[-1]
+        assert value == 1
+        assert dims is None, (
+            f"{name} carries dimension(s) {dims} -- an alarm binding {{environment}} "
+            "alone cannot match this series, so the signal is unalarmable"
+        )
+
+    @pytest.mark.asyncio
+    async def test_the_gate_off_skip_is_also_dimension_free_RED(self, rec: _Recorder) -> None:
+        """Same structural cure on the sibling terminal path. No alarm binds Skipped
+        (a DARK gate is an operator state, not a fault -- substrate-stale is its
+        catcher), but leaving a ``reason`` dimension on it would make it permanently
+        UNBINDABLE, which is how this class of blindness is minted in the first place."""
+        await _run(gate=False, pushed=True)
+        emitted = [c for c in rec.calls if c[0] == mod.METRIC_SKIPPED]
+        assert emitted and emitted[-1][2] is None, f"Skipped carries dimensions: {emitted}"
+
+    @pytest.mark.asyncio
+    async def test_a_healthy_delivering_tick_does_NOT_emit_the_refusal_signal_GREEN(
+        self, rec: _Recorder
+    ) -> None:
+        """★ THE MUST-NOT-TRIP HALF. A guard that fires on healthy traffic is worse
+        than no guard. A delivering tick publishes the push heartbeat and NOTHING on
+        the refusal series, so the new alarm stays OK through steady state."""
+        result = await _run(gate=True, pushed=True)
+        assert result.status == "pushed"
+        assert mod.METRIC_REFUSED not in rec.names()
+        assert rec.value_of(mod.METRIC_PUSH_EPOCH) > 1_700_000_000
+
+    @pytest.mark.asyncio
+    async def test_push_failed_remains_blind_to_the_refusal_path_by_design(
+        self, rec: _Recorder
+    ) -> None:
+        """The scope correction, asserted rather than merely described. PushFailed is
+        the REACHED-PUSH class and stays that way -- the refusal arm returns before
+        it. That is precisely why its alarm_description had to be corrected and why a
+        SEPARATE refusal binding (not a widened PushFailed) is the cure."""
+        await _run_refused_empty_office_set()
+        assert mod.METRIC_PUSH_FAILED not in rec.names()
+        assert mod.METRIC_PUSH_EPOCH not in rec.names()
+
+    @pytest.mark.asyncio
+    async def test_the_schema_lag_marker_is_alarm_bound_and_dimension_free(self) -> None:
+        """The second refusal sub-class. ...SchemaLag was already emitted with no
+        dimensions and was simply never bound to an alarm -- an instrument that exists
+        and watches nothing. It joins the contract here."""
+        assert mod.METRIC_SCHEMA_LAG in mod.ALARM_BOUND_METRICS
+        assert mod.METRIC_SCHEMA_LAG == "SchedulingStratumSnapshotSchemaLag"
+
+
+# ---------------------------------------------------------------------------
+# ★ D-2 -- a deliberate shadow run is NOT a delivery failure
+# ---------------------------------------------------------------------------
+# Observed LIVE in production 2026-08-06T09:05:15Z (RequestId
+# 8fde3ea0-0436-4492-b2cc-031368bf904e): a forced dry-run (``event["dry_run"]``, an
+# explicitly supported operation) emitted SchedulingStratumSnapshotPushFailed=1 and
+# suppressed PushEpoch -- byte-identical at the metric layer to a real failure. Once
+# actions are armed, two shadow runs inside consecutive 2h windows page SEV-1 (live
+# SMS subscriber) for a non-incident.
+
+
+class TestD2ShadowRunIsDistinguishableFromFailure:
+    @pytest.mark.asyncio
+    async def test_forced_dry_run_emits_shadow_run_and_NOT_push_failed_RED(
+        self, rec: _Recorder
+    ) -> None:
+        """★ THE D-2 ACCEPTANCE TEST. Pre-fix this exact path emitted PushFailed=1
+        (the live 09:05:15Z observation). It must now publish the ShadowRun marker and
+        publish NOTHING on the failure series -- not even a 0, which would assert a
+        delivery that did not happen."""
+        await _run(gate=True, pushed=False, shadow_run=True)
+        assert rec.value_of(mod.METRIC_SHADOW_RUN) == 1
+        assert mod.METRIC_PUSH_FAILED not in rec.names(), (
+            "a deliberate shadow run published on the failure series -- two shadow "
+            "runs in consecutive 2h windows would page SEV-1 for a non-incident"
+        )
+
+    @pytest.mark.asyncio
+    async def test_a_GENUINE_non_delivery_still_emits_push_failed_GREEN(
+        self, rec: _Recorder
+    ) -> None:
+        """★ THE MUST-STILL-TRIP HALF. The cure must not buy quiet by going blind:
+        the same run WITHOUT the forced flag is a real failure and still publishes
+        PushFailed=1 with no ShadowRun marker."""
+        await _run(gate=True, pushed=False, shadow_run=False)
+        assert rec.value_of(mod.METRIC_PUSH_FAILED) == 1
+        assert mod.METRIC_SHADOW_RUN not in rec.names()
+
+    @pytest.mark.asyncio
+    async def test_mint_failure_is_a_genuine_failure_not_a_shadow_run_GREEN(
+        self, rec: _Recorder
+    ) -> None:
+        """The honest-skip path (push returns None) is a NON-delivery nobody asked
+        for. It must keep looking like the failure it is."""
+        await _run(gate=True, pushed=None, shadow_run=False)
+        assert rec.value_of(mod.METRIC_PUSH_FAILED) == 1
+        assert mod.METRIC_SHADOW_RUN not in rec.names()
+
+    @pytest.mark.asyncio
+    async def test_shadow_run_does_NOT_fabricate_a_push_heartbeat(self, rec: _Recorder) -> None:
+        """★ DELIBERATELY PRESERVED. A shadow run does not deliver, so it advances the
+        substrate toward the 8h TTL cliff exactly like any other non-delivery.
+        substrate-stale MUST keep seeing no PushEpoch. Curing D-2 by emitting a fake
+        heartbeat would trade a false page for a fossil substrate served silently."""
+        await _run(gate=True, pushed=False, shadow_run=True)
+        assert mod.METRIC_PUSH_EPOCH not in rec.names()
+
+    @pytest.mark.asyncio
+    async def test_a_delivering_run_never_emits_the_shadow_marker_GREEN(
+        self, rec: _Recorder
+    ) -> None:
+        await _run(gate=True, pushed=True, shadow_run=False)
+        assert mod.METRIC_SHADOW_RUN not in rec.names()
+        assert rec.value_of(mod.METRIC_PUSH_FAILED) == 0
+
+    def test_the_event_forced_dry_run_reaches_the_orchestrator_as_a_shadow_run_RED(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """★ THE WIRING. Proves the production path end-to-end from the Lambda event:
+        handler -> run_snapshot_push_async -> execute_snapshot_push(shadow_run=True).
+        Without this leg the new metric could be correct and never reached."""
+        seen: dict[str, Any] = {}
+
+        async def _capture(**kwargs: Any) -> Any:
+            seen.update(kwargs)
+            return mod.SnapshotRunResult("dry_run", None, 0)
+
+        monkeypatch.setattr(mod, "execute_snapshot_push", _capture)
+        mod.handler({"dry_run": True}, None)
+        assert seen.get("shadow_run") is True
+
+    def test_a_scheduled_tick_is_NEVER_a_shadow_run_GREEN(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """RED-complement: the EventBridge tick carries no ``dry_run`` key, so a real
+        delivery failure on the scheduled cadence still routes to PushFailed. A
+        shadow_run that defaulted true would silence the alarm entirely."""
+        seen: dict[str, Any] = {}
+
+        async def _capture(**kwargs: Any) -> Any:
+            seen.update(kwargs)
+            return mod.SnapshotRunResult("pushed", None, 921)
+
+        monkeypatch.setattr(mod, "execute_snapshot_push", _capture)
+        mod.handler({}, None)
+        assert seen.get("shadow_run") is False
+
+    def test_an_explicit_dry_run_false_event_is_not_a_shadow_run_GREEN(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A confused/malicious {"dry_run": False} must not be able to mark a real
+        failure as a shadow run and suppress its alarm."""
+        seen: dict[str, Any] = {}
+
+        async def _capture(**kwargs: Any) -> Any:
+            seen.update(kwargs)
+            return mod.SnapshotRunResult("pushed", None, 921)
+
+        monkeypatch.setattr(mod, "execute_snapshot_push", _capture)
+        mod.handler({"dry_run": False}, None)
+        assert seen.get("shadow_run") is False
 
 
 class TestCertifiedBodiesUntouched:
@@ -362,3 +621,24 @@ class TestCertifiedBodiesUntouched:
 
         src = inspect.getsource(mod.project_posture_rows)
         assert 'unique(subset=[GUID_FIELD], keep="first", maintain_order=True)' in src
+
+    def test_completeness_contract_body_is_untouched(self) -> None:
+        """★ THE FENCE, MADE MECHANICAL. The D-1/D-2 observability cure changes what
+        the orchestrator PUBLISHES about a refusal, never what causes one. This body
+        is the whole-source-DELETE safety and must stay byte-identical -- including
+        the verbatim reason string 94 live ticks logged."""
+        import inspect
+
+        src = inspect.getsource(mod.assert_complete_office_set)
+        assert 'raise SnapshotRefusedError("empty active-office set ' in src
+        assert "if not source_complete:" in src
+        assert "emit_metric" not in src, "the guard body must not grow an emission"
+
+    def test_posture_signal_counter_body_is_untouched(self) -> None:
+        """Same fence on the value floor's numerator: the instrument moved, the
+        arithmetic did not."""
+        import inspect
+
+        src = inspect.getsource(mod.posture_signal_row_count)
+        assert "pl.any_horizontal([pl.col(c).is_not_null() for c in signal_cols])" in src
+        assert "emit_metric" not in src
