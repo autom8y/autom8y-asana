@@ -17,6 +17,8 @@ from fastapi.testclient import TestClient
 from autom8_asana.api.main import create_app
 from autom8_asana.auth.bot_pat import clear_bot_pat_cache
 from autom8_asana.auth.jwt_validator import reset_auth_client
+from autom8_asana.core.entity_registry import get_registry
+from autom8_asana.services.intake_resolve_service import BusinessIndexUnavailableError
 from autom8_asana.services.resolver import EntityProjectRegistry
 
 # ---------------------------------------------------------------------------
@@ -29,6 +31,12 @@ AUTH_HEADER = {"Authorization": f"Bearer {JWT_TOKEN}"}
 BUSINESS_GID = "1234567890123456"
 CONTACT_GID = "9876543210123456"
 CONTACT_HOLDER_GID = "5555555555555555"
+
+# Per ADR-resolve-cure-design-2026-08-08 D-1b, a resolved GID is only claimed as
+# found=True after it is positively asserted to be a member of the registry's
+# business project. Sourced from the descriptor, never a literal.
+BUSINESS_PROJECT_GID = get_registry().require("business").primary_project_gid
+BUSINESS_MEMBERSHIPS = [{"project": {"gid": BUSINESS_PROJECT_GID, "name": "Business"}}]
 
 
 # ---------------------------------------------------------------------------
@@ -108,8 +116,19 @@ def _make_mock_asana_client(
     return mock_client
 
 
-def _resolve_patches(mock_client: MagicMock | None = None, index_gid: str | None = None):
-    """Create context manager patches for JWT, bot PAT, AsanaClient, and index."""
+def _resolve_patches(
+    mock_client: MagicMock | None = None,
+    index_gid: str | None = None,
+    build_on_miss: AsyncMock | None = None,
+):
+    """Create context manager patches for JWT, bot PAT, AsanaClient, and index.
+
+    ``build_on_miss`` stubs the authoritative post-fast-path resolve. Its default
+    -- return ``None`` -- is the ABSENT outcome (index consulted successfully,
+    key genuinely missing). Pass an ``AsyncMock(side_effect=...)`` to exercise
+    the UNAVAILABLE outcome. The mechanism itself is covered by the real-index
+    fixtures in tests/unit/services/test_intake_resolve_business_index.py.
+    """
     jwt_patch = patch(
         "autom8_asana.api.routes.internal.validate_service_token",
         _mock_jwt_validation(),
@@ -140,6 +159,12 @@ def _resolve_patches(mock_client: MagicMock | None = None, index_gid: str | None
         return_value=index_gid,
     )
 
+    build_patch = patch(
+        "autom8_asana.services.intake_resolve_service."
+        "IntakeResolveService._resolve_gid_build_on_miss",
+        build_on_miss or AsyncMock(return_value=None),
+    )
+
     return (
         jwt_patch,
         jwt_patch_canonical,
@@ -147,6 +172,7 @@ def _resolve_patches(mock_client: MagicMock | None = None, index_gid: str | None
         pat_patch_deps,
         client_patch,
         index_patch,
+        build_patch,
     )
 
 
@@ -216,7 +242,7 @@ class TestResolveBusinessEndpoint:
                 "custom_fields": [
                     {"name": "company_id", "text_value": "guid-123", "gid": "cf_1"},
                 ],
-                "memberships": [],
+                "memberships": BUSINESS_MEMBERSHIPS,
             },
             subtasks=[
                 {"gid": "sub_1", "name": "unit_holder"},
@@ -225,7 +251,7 @@ class TestResolveBusinessEndpoint:
         )
         patches = _resolve_patches(mock_client=mock_asana, index_gid=BUSINESS_GID)
 
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
             resp = client.post(
                 "/v1/resolve/business",
                 json={"office_phone": "+15551234567"},
@@ -246,10 +272,11 @@ class TestResolveBusinessEndpoint:
         assert data["has_contact_holder"] is True
 
     def test_not_found_returns_found_false(self, client: TestClient) -> None:
-        """Unknown phone returns found=False, NOT a 404 (ADR-INT-001)."""
+        """ABSENT: index consulted OK, key genuinely missing -> 200 found=False,
+        NOT a 404 (ADR-INT-001)."""
         patches = _resolve_patches(index_gid=None)
 
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
             resp = client.post(
                 "/v1/resolve/business",
                 json={"office_phone": "+19999999999"},
@@ -262,6 +289,98 @@ class TestResolveBusinessEndpoint:
         assert data["task_gid"] is None
         assert data["office_phone"] == "+19999999999"
 
+    def test_index_unavailable_is_503_not_found_false(self, client: TestClient) -> None:
+        """UNAVAILABLE: the index could not be consulted or built -> 503
+        INDEX_NOT_READY.
+
+        This is the OTHER half of the A-2 discriminator, and the wire difference
+        is the whole point: the request above is byte-identical apart from the
+        world-state. Pre-cure BOTH produced 200 found=false, and the calendly
+        pipeline answers found=false with CREATE -- so fail-open guaranteed a
+        duplicate production business on every index gap.
+        """
+        patches = _resolve_patches(
+            index_gid=None,
+            build_on_miss=AsyncMock(
+                side_effect=BusinessIndexUnavailableError(
+                    "resolution strategy reported INDEX_UNAVAILABLE"
+                )
+            ),
+        )
+
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+            resp = client.post(
+                "/v1/resolve/business",
+                json={"office_phone": "+19999999999"},
+                headers=AUTH_HEADER,
+            )
+
+        assert resp.status_code == 503
+        body = resp.json()
+        assert "INDEX_NOT_READY" in str(body)
+        assert "found" not in str(body.get("data", ""))
+
+    def test_unverified_business_is_503_not_found_true(self, client: TestClient) -> None:
+        """A resolved GID that is not a member of the business project is refused.
+
+        Pre-cure the fetch-failure branch answered found=True with an unverified
+        bare GID; the unit fallback could put a UNIT gid there. Both are now
+        fail-closed.
+        """
+        wrong_project_task = {
+            "gid": BUSINESS_GID,
+            "name": "A Unit, Not A Business",
+            "custom_fields": [],
+            "memberships": [{"project": {"gid": "1201081073731555", "name": "Business Units"}}],
+        }
+        mock_asana = _make_mock_asana_client(task_data=wrong_project_task, subtasks=[])
+        patches = _resolve_patches(mock_client=mock_asana, index_gid=BUSINESS_GID)
+
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+            resp = client.post(
+                "/v1/resolve/business",
+                json={"office_phone": "+15551234567"},
+                headers=AUTH_HEADER,
+            )
+
+        assert resp.status_code == 503
+        assert "BUSINESS_VERIFY_FAILED" in str(resp.json())
+
+    def test_meta_request_id_is_a_real_correlation_id(self, client: TestClient) -> None:
+        """D-2c / O-1: RequestIDMiddleware is now MOUNTED on the production app.
+
+        It was previously mounted only by its own unit test's private FastAPI
+        instance, so get_request_id resolved its "unknown" fallback on every
+        response and X-Request-ID was never emitted.
+        """
+        patches = _resolve_patches(index_gid=None)
+
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+            resp = client.post(
+                "/v1/resolve/business",
+                json={"office_phone": "+19999999999"},
+                headers=AUTH_HEADER,
+            )
+
+        request_id = resp.json()["meta"]["request_id"]
+        assert request_id != "unknown"
+        assert len(request_id) == 16
+        # The response header and the envelope join on the same value.
+        assert resp.headers["X-Request-ID"] == request_id
+
+    def test_inbound_request_id_header_is_honoured(self, client: TestClient) -> None:
+        """Cross-service correlation: a caller-supplied X-Request-ID propagates."""
+        patches = _resolve_patches(index_gid=None)
+
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+            resp = client.post(
+                "/v1/resolve/business",
+                json={"office_phone": "+19999999999"},
+                headers={**AUTH_HEADER, "X-Request-ID": "abcdef0123456789"},
+            )
+
+        assert resp.json()["meta"]["request_id"] == "abcdef0123456789"
+
     def test_with_vertical_filter(self, client: TestClient) -> None:
         """Vertical is passed through to the response."""
         mock_asana = _make_mock_asana_client(
@@ -269,13 +388,13 @@ class TestResolveBusinessEndpoint:
                 "gid": BUSINESS_GID,
                 "name": "Multi Vertical Biz",
                 "custom_fields": [],
-                "memberships": [],
+                "memberships": BUSINESS_MEMBERSHIPS,
             },
             subtasks=[],
         )
         patches = _resolve_patches(mock_client=mock_asana, index_gid=BUSINESS_GID)
 
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
             resp = client.post(
                 "/v1/resolve/business",
                 json={"office_phone": "+15551234567", "vertical": "dental"},
@@ -296,7 +415,7 @@ class TestResolveBusinessEndpoint:
         """
         patches = _resolve_patches()
 
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
             resp = client.post(
                 "/v1/resolve/business",
                 json={"office_phone": "555-1234567"},
@@ -337,7 +456,7 @@ class TestResolveBusinessEndpoint:
                 "gid": BUSINESS_GID,
                 "name": "Biz",
                 "custom_fields": [],
-                "memberships": [],
+                "memberships": BUSINESS_MEMBERSHIPS,
             },
             subtasks=[
                 {"gid": "sub_unit", "name": "unit_holder"},
@@ -345,7 +464,7 @@ class TestResolveBusinessEndpoint:
         )
         patches = _resolve_patches(mock_client=mock_asana, index_gid=BUSINESS_GID)
 
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
             resp = client.post(
                 "/v1/resolve/business",
                 json={"office_phone": "+15551234567"},
@@ -363,7 +482,7 @@ class TestResolveBusinessEndpoint:
                 "gid": BUSINESS_GID,
                 "name": "Biz",
                 "custom_fields": [],
-                "memberships": [],
+                "memberships": BUSINESS_MEMBERSHIPS,
             },
             subtasks=[
                 {"gid": CONTACT_HOLDER_GID, "name": "contact_holder"},
@@ -371,7 +490,7 @@ class TestResolveBusinessEndpoint:
         )
         patches = _resolve_patches(mock_client=mock_asana, index_gid=BUSINESS_GID)
 
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
             resp = client.post(
                 "/v1/resolve/business",
                 json={"office_phone": "+15551234567"},
@@ -418,7 +537,7 @@ class TestResolveContactEndpoint:
         )
         patches = _resolve_patches(mock_client=mock_asana)
 
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
             resp = client.post(
                 "/v1/resolve/contact",
                 json={
@@ -466,7 +585,7 @@ class TestResolveContactEndpoint:
         )
         patches = _resolve_patches(mock_client=mock_asana)
 
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
             resp = client.post(
                 "/v1/resolve/contact",
                 json={
@@ -524,7 +643,7 @@ class TestResolveContactEndpoint:
         )
         patches = _resolve_patches(mock_client=mock_asana)
 
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
             resp = client.post(
                 "/v1/resolve/contact",
                 json={
@@ -568,7 +687,7 @@ class TestResolveContactEndpoint:
         )
         patches = _resolve_patches(mock_client=mock_asana)
 
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
             resp = client.post(
                 "/v1/resolve/contact",
                 json={
@@ -588,7 +707,7 @@ class TestResolveContactEndpoint:
         """Neither email nor phone returns 422 MISSING_CRITERIA."""
         patches = _resolve_patches()
 
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
             resp = client.post(
                 "/v1/resolve/contact",
                 json={"business_gid": BUSINESS_GID},
@@ -609,7 +728,7 @@ class TestResolveContactEndpoint:
         )
         patches = _resolve_patches(mock_client=mock_asana)
 
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
             resp = client.post(
                 "/v1/resolve/contact",
                 json={
@@ -656,7 +775,7 @@ class TestResolveContactEndpoint:
         )
         patches = _resolve_patches(mock_client=mock_asana)
 
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
             resp = client.post(
                 "/v1/resolve/contact",
                 json={

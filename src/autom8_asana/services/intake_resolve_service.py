@@ -1,10 +1,22 @@
 """Service for intake resolution operations.
 
-Handles business resolution (phone -> GID via GidLookupIndex)
-and contact resolution (email/phone -> contact within business scope).
+Handles business resolution (office_phone -> GID via the shared
+DynamicIndexCache) and contact resolution (email/phone -> contact within
+business scope).
 
 Per ADR-INT-001: Never return 404 for not-found; use found=False.
 Per ADR-INT-002: Email-then-phone priority, NO name matching.
+
+Per ADR-resolve-cure-design-2026-08-08 the business resolve path has a
+THREE-outcome contract, not a two-outcome one:
+
+    RESOLVED     index consulted, key hit          -> 200 found=true + gid
+    ABSENT       index consulted OK, key missing   -> 200 found=false
+    UNAVAILABLE  index unconsultable / unverified  -> 503 (never found=*)
+
+UNAVAILABLE fails CLOSED (D-2b): the calendly pipeline answers ``found=false``
+with CREATE, so downgrading an unknown world-state to ``found=false`` would
+guarantee a duplicate production business on every index gap.
 """
 
 from __future__ import annotations
@@ -33,6 +45,79 @@ _CONTACT_EMAIL_FIELD = "contact_email"
 _CONTACT_PHONE_FIELD = "contact_phone"
 _COMPANY_ID_FIELD = "company_id"
 
+# Registry entity name for the business-of-record. Key columns, project GID and
+# schema all come from the descriptor -- never from a literal in this module.
+_BUSINESS_ENTITY = "business"
+
+# Errors a fast-path index READ may legitimately raise. Deliberately narrow:
+# anything outside this set is a fail-closed condition, not a cache miss
+# (the blanket ``except Exception: pass`` this replaces collapsed cold-index,
+# expired-index, build-failed and genuinely-absent into one silent None).
+_INDEX_READ_ERRORS = (ImportError, AttributeError, KeyError, TypeError, ValueError)
+
+
+class BusinessIndexUnavailableError(RuntimeError):
+    """UNAVAILABLE: the business index could not be consulted or built.
+
+    Subclasses ``RuntimeError`` and always carries "not ready" in its message
+    so the pre-existing 503 ``INDEX_NOT_READY`` branch in
+    ``api/routes/intake_resolve.py`` converts it -- the branch is resurrected,
+    not replaced.
+    """
+
+    def __init__(self, reason: str) -> None:
+        self.reason = reason
+        super().__init__(f"business index is not ready: {reason}")
+
+
+class BusinessVerificationError(Exception):
+    """UNAVAILABLE: a GID was resolved but could not be verified as a business.
+
+    Raised when the resolved task cannot be fetched, or when it is not a member
+    of the registry's business project (wrong-entity). Never downgraded to
+    ``found=false`` -- that answer drives CREATE downstream.
+    """
+
+    def __init__(self, reason: str, gid: str) -> None:
+        self.reason = reason
+        self.gid = gid
+        super().__init__(f"business verification failed ({reason}) for gid={gid}")
+
+
+def _business_descriptor() -> Any:
+    """Registry descriptor for the business entity (DIP: no hardcoded ids)."""
+    from autom8_asana.core.entity_registry import get_registry
+
+    return get_registry().require(_BUSINESS_ENTITY)
+
+
+def _business_criterion(office_phone: str) -> dict[str, str]:
+    """Build the business lookup criterion from the REGISTRY's key columns.
+
+    The defect this cure closes is a hardcoded key list that diverged from the
+    registry (a permanent, silent, structural index miss). So the key columns
+    are read from the descriptor, and a divergence the caller cannot satisfy is
+    refused LOUDLY rather than issuing a structurally-doomed lookup.
+
+    Args:
+        office_phone: E.164 phone number -- the only value this surface holds.
+
+    Returns:
+        Criterion dict whose keys are exactly the registry's key columns.
+
+    Raises:
+        BusinessIndexUnavailableError: If the registry keys ``business`` on
+            anything other than ``office_phone`` alone, i.e. on a criterion this
+            surface cannot form. Fail-closed by construction.
+    """
+    key_columns = list(_business_descriptor().key_columns or ())
+    if key_columns != ["office_phone"]:
+        raise BusinessIndexUnavailableError(
+            f"registry keys {_BUSINESS_ENTITY!r} on {key_columns!r}; this surface can only "
+            "form a criterion from office_phone"
+        )
+    return {"office_phone": office_phone}
+
 
 def is_valid_e164(phone: str) -> bool:
     """Validate E.164 phone format."""
@@ -53,55 +138,59 @@ def _extract_custom_field(custom_fields: list[dict[str, Any]], field_name: str) 
     return None
 
 
-def resolve_gid_from_index(office_phone: str, vertical: str | None = None) -> str | None:
-    """Resolve GID from the DynamicIndex cache.
+def resolve_gid_from_index(office_phone: str) -> str | None:
+    """Fast-path read of an ALREADY-WARM business index.
 
     Module-level function to enable clean patching in tests.
 
-    Attempts DynamicIndex cache for "business" entity type first,
-    then falls back to "unit" entity type (since business entries
-    are typically in the unit index).
+    Consults the shared ``DynamicIndexCache`` for the ``business`` entity,
+    keyed on the columns the entity registry declares (``office_phone`` alone
+    today). There is deliberately NO unit fallback: ``business`` is a ROOT
+    entity with its own project and its own key columns, and ``unit`` is its
+    CHILD -- a business is never "indexed under unit", so the fallback could
+    only ever return a UNIT gid to a caller that assigns it to ``business_gid``.
+
+    A ``None`` here is NOT an answer. It means "not served from the warm
+    index" and the caller MUST fall through to
+    :meth:`IntakeResolveService.resolve_business`'s build-on-miss, which is the
+    only surface that can discriminate ABSENT from UNAVAILABLE.
 
     Args:
         office_phone: E.164 phone number.
-        vertical: Optional vertical filter.
 
     Returns:
-        GID string if found, None otherwise.
+        GID string on a warm-index hit, ``None`` otherwise.
+
+    Raises:
+        BusinessIndexUnavailableError: If the registry's business key columns
+            diverge from what this surface can supply (see
+            :func:`_business_criterion`).
     """
+    criterion = _business_criterion(office_phone)
+
     try:
         from autom8_asana.services.universal_strategy import get_shared_index_cache
 
-        cache = get_shared_index_cache()
-        criterion = {
-            "office_phone": office_phone,
-            "vertical": vertical or "",
-        }
+        index = get_shared_index_cache().get(_BUSINESS_ENTITY, list(criterion))
+        if index is None:
+            return None
+        gids = index.lookup(criterion)
+    except _INDEX_READ_ERRORS as exc:
+        logger.warning(
+            "business_index_fast_path_failed",
+            extra={"error": str(exc), "error_type": type(exc).__name__},
+        )
+        return None
 
-        # Try business index first
-        index = cache.get("business", ["office_phone", "vertical"])
-        if index is not None:
-            gids = index.lookup(criterion)
-            if gids:
-                return str(gids[0])
-
-        # Fall back to unit index (businesses are often indexed under unit)
-        index = cache.get("unit", ["office_phone", "vertical"])
-        if index is not None:
-            gids = index.lookup(criterion)
-            if gids:
-                return str(gids[0])
-    except Exception:  # noqa: BLE001
-        pass
-
-    return None
+    return str(gids[0]) if gids else None
 
 
 class IntakeResolveService:
     """Service for intake resolution operations.
 
     Handles:
-    - Business resolution: phone -> GID via GidLookupIndex O(1)
+    - Business resolution: office_phone -> GID via the shared DynamicIndexCache,
+      with a build-on-miss through the universal resolution strategy
     - Contact resolution: email/phone -> contact within business scope
     """
 
@@ -113,17 +202,40 @@ class IntakeResolveService:
         office_phone: str,
         vertical: str | None = None,
     ) -> BusinessResolveResponse:
-        """Resolve business by phone via GidLookupIndex O(1).
+        """Resolve a business of record by office phone.
+
+        Three-outcome contract (ADR-resolve-cure-design-2026-08-08 D-2a):
+
+        1. Fast path -- read an already-warm business index (O(1), no I/O).
+        2. On a fast-path miss, the universal resolution strategy is
+           authoritative: it serves the cached index if warm, otherwise builds
+           one and caches it. Its result discriminates ABSENT (NOT_FOUND) from
+           UNAVAILABLE (index unbuildable).
+        3. Any GID that reaches the caller is positively asserted to be a member
+           of the registry's business project before ``found=True`` is claimed.
 
         Args:
             office_phone: E.164 formatted phone number.
-            vertical: Optional vertical filter.
+            vertical: Echoed onto the response. NOT part of the business index
+                key -- the registry keys business on office_phone alone.
 
         Returns:
-            BusinessResolveResponse with found=True/False.
+            BusinessResolveResponse with found=True (RESOLVED) or found=False
+            (ABSENT).
+
+        Raises:
+            BusinessIndexUnavailableError: UNAVAILABLE -- the index could not be
+                consulted or built. Fails closed (503), never ``found=false``.
+            BusinessVerificationError: UNAVAILABLE -- a GID was resolved but
+                could not be verified as a business of record.
         """
-        # O(1) lookup via module-level function (testable via patch)
-        gid = resolve_gid_from_index(office_phone, vertical)
+        # O(1) fast path via module-level function (testable via patch).
+        gid = resolve_gid_from_index(office_phone)
+
+        # Fast-path miss is not an answer -- the strategy is authoritative and
+        # is the only surface that separates ABSENT from UNAVAILABLE.
+        if gid is None:
+            gid = await self._resolve_gid_build_on_miss(office_phone)
 
         if gid is None:
             return BusinessResolveResponse(
@@ -131,23 +243,25 @@ class IntakeResolveService:
                 office_phone=OfficePhone(office_phone) if office_phone else None,
             )
 
-        # GID found - fetch task details from Asana
+        # GID found - fetch task details from Asana.
+        # opt_fields is UNCHANGED: TasksClient unions `memberships.project.gid`
+        # into every narrowed fetch (clients/tasks.py _MINIMUM_OPT_FIELDS), so
+        # the entity assertion below costs zero extra API calls.
         try:
             task_data = await self._client.tasks.get_async(
                 gid,
                 opt_fields=["name", "custom_fields", "memberships"],
             )
-        except Exception as exc:  # noqa: BLE001
-            logger.warning(
+        except Exception as exc:
+            logger.error(
                 "business_task_fetch_failed",
-                extra={"gid": gid, "error": str(exc)},
+                extra={"gid": gid, "error": str(exc), "error_type": type(exc).__name__},
             )
-            # Return found with just the GID if we can't fetch details
-            return BusinessResolveResponse(
-                found=True,
-                task_gid=gid,
-                office_phone=OfficePhone(office_phone) if office_phone else None,
-            )
+            # FAIL CLOSED. Returning `found=True` with an unverified bare GID is
+            # the silent-wrong-outcome class on the business-of-record path.
+            raise BusinessVerificationError("task_fetch_failed", gid) from exc
+
+        self._assert_business_entity(gid, task_data)
 
         # Extract fields from task
         if isinstance(task_data, dict):
@@ -190,6 +304,123 @@ class IntakeResolveService:
             has_unit=has_unit,
             has_contact_holder=has_contact_holder,
         )
+
+    async def _resolve_gid_build_on_miss(self, office_phone: str) -> str | None:
+        """Authoritative resolve: serve the cached index, or build it.
+
+        Routed through ``UniversalResolutionStrategy.resolve`` rather than
+        ``DynamicIndexCache.get_or_build`` (ADR D-4): only the strategy carries
+        DataFrame acquisition, criterion validation, cascade-health gating, and
+        the ``put`` back into the SHARED index cache -- so a build warms the
+        index for subsequent requests instead of producing a throwaway. Using
+        ``get_or_build`` directly would add a second writer to that singleton
+        with different validation semantics.
+
+        ``active_only=False`` (C-10, RATIFIED): an INACTIVE business still
+        EXISTS. Filtering it out yields ``found=false``, which the calendly
+        pipeline answers with CREATE -- re-opening DOUBLE-BUSINESSES for every
+        churned office. That is the exact class this cure closes.
+
+        Args:
+            office_phone: E.164 phone number.
+
+        Returns:
+            GID string (RESOLVED) or ``None`` (ABSENT -- index consulted
+            successfully, key genuinely missing).
+
+        Raises:
+            BusinessIndexUnavailableError: UNAVAILABLE.
+        """
+        from autom8_asana.services.universal_strategy import get_universal_strategy
+
+        criterion = _business_criterion(office_phone)
+        project_gid = _business_descriptor().primary_project_gid
+        if not project_gid:
+            raise BusinessIndexUnavailableError(
+                f"registry descriptor for {_BUSINESS_ENTITY!r} carries no primary_project_gid"
+            )
+
+        strategy = get_universal_strategy(_BUSINESS_ENTITY)
+        try:
+            results = await strategy.resolve(
+                criteria=[criterion],
+                project_gid=project_gid,
+                client=self._client,
+                active_only=False,
+            )
+        except Exception as exc:
+            logger.exception(
+                "business_index_build_raised",
+                extra={"error": str(exc), "error_type": type(exc).__name__},
+            )
+            raise BusinessIndexUnavailableError(
+                f"resolution strategy raised {type(exc).__name__}"
+            ) from exc
+
+        if not results:
+            raise BusinessIndexUnavailableError("resolution strategy returned no result slot")
+
+        result = results[0]
+        if result.error is None:
+            return result.gid
+        if result.error == "NOT_FOUND":
+            # The index WAS consulted successfully; the key is genuinely absent.
+            return None
+
+        # INDEX_UNAVAILABLE / LOOKUP_ERROR / INVALID_CRITERIA / null slot: the
+        # index could not be consulted. Fail closed.
+        raise BusinessIndexUnavailableError(f"resolution strategy reported {result.error}")
+
+    @staticmethod
+    def _assert_business_entity(gid: str, task_data: Any) -> None:
+        """Assert the resolved task is a member of the business project.
+
+        Deleting the unit fallback removes the KNOWN wrong-entity path; this
+        makes wrong-entity structurally unrepresentable on the way out. The
+        expected project GID comes from the registry descriptor, never a literal.
+
+        Args:
+            gid: Resolved task GID.
+            task_data: Task payload from ``tasks.get_async``.
+
+        Raises:
+            BusinessVerificationError: If the task is not a member of the
+                business project (wrong entity, or memberships unavailable).
+        """
+        expected_gid = _business_descriptor().primary_project_gid
+        if not expected_gid:
+            raise BusinessVerificationError("business_project_gid_unknown", gid)
+
+        if isinstance(task_data, dict):
+            memberships = task_data.get("memberships") or []
+        else:
+            memberships = getattr(task_data, "memberships", None) or []
+
+        observed: set[str] = set()
+        for membership in memberships:
+            project = (
+                membership.get("project")
+                if isinstance(membership, dict)
+                else getattr(membership, "project", None)
+            )
+            if project is None:
+                continue
+            project_gid = (
+                project.get("gid") if isinstance(project, dict) else getattr(project, "gid", None)
+            )
+            if project_gid:
+                observed.add(str(project_gid))
+
+        if expected_gid not in observed:
+            logger.error(
+                "business_entity_assertion_failed",
+                extra={
+                    "gid": gid,
+                    "expected_project_gid": expected_gid,
+                    "observed_project_gids": sorted(observed),
+                },
+            )
+            raise BusinessVerificationError("not_in_business_project", gid)
 
     async def resolve_contact(
         self,
@@ -340,6 +571,8 @@ class IntakeResolveService:
 
 
 __all__ = [
+    "BusinessIndexUnavailableError",
+    "BusinessVerificationError",
     "IntakeResolveService",
     "is_valid_e164",
     "resolve_gid_from_index",

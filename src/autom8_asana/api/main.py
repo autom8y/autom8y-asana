@@ -52,6 +52,7 @@ from starlette.middleware import Middleware
 from .config import get_settings
 from .errors import register_exception_handlers
 from .lifespan import lifespan
+from .middleware import RequestIDMiddleware
 from .rate_limit import limiter
 from .routes import (
     admin_router,
@@ -538,6 +539,19 @@ def create_app() -> FastAPI:
     from autom8y_api_schemas.middleware import SecurityHeadersMiddleware
 
     app.add_middleware(SecurityHeadersMiddleware)
+
+    # Request-ID middleware (ADR-resolve-cure-design-2026-08-08 D-2c / O-1).
+    # RequestIDMiddleware is the ONLY production writer of
+    # request.state.request_id (api/middleware/core.py:93), and until now it was
+    # never mounted on this app -- it was mounted only by its own unit test's
+    # private FastAPI instance. Consequently get_request_id (api/dependencies.py)
+    # resolved its "unknown" fallback on EVERY response's meta.request_id, and
+    # the X-Request-ID response header was never emitted. Mounted here, AFTER
+    # SecurityHeadersMiddleware, so it is the outermost app-level layer and
+    # request.state.request_id is populated before any inner middleware or route
+    # dependency reads it. (instrument_app's MetricsMiddleware is added later and
+    # wraps this one; it does not read request_id.)
+    app.add_middleware(RequestIDMiddleware)
 
     # WS-B1+B2 P1-D: FleetError catch-all handler routes any AsanaError
     # subclass (AsanaValidationError, AsanaNotFoundError, AsanaAuthenticationError,
