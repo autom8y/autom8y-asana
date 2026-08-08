@@ -38,6 +38,7 @@ from autom8_asana.api.routes.internal import (
     require_service_claims,
 )
 from autom8_asana.services.intake_resolve_service import (
+    BusinessVerificationError,
     IntakeResolveService,
     is_valid_e164,
 )
@@ -72,22 +73,31 @@ async def resolve_business(
     auth: AuthContextDep,
     claims: Annotated[ServiceClaims, Depends(require_service_claims)],
 ) -> SuccessResponse[BusinessResolveResponse]:
-    """Resolve business by phone via GidLookupIndex O(1).
+    """Resolve a business of record by office phone (O(1) index lookup).
 
     Authentication: S2S JWT only (require_service_claims dependency).
+
+    Three-outcome contract (ADR-resolve-cure-design-2026-08-08 D-2a). ABSENT and
+    UNAVAILABLE are DISTINCT answers: a 200 found=false asserts the index was
+    consulted successfully and the office is genuinely absent, and downstream
+    consumers may act on it (the calendly pipeline answers it with CREATE). An
+    index that could not be consulted, or a GID that could not be verified as a
+    business, fails CLOSED with a 503 -- never found=false.
 
     Request Body:
         BusinessResolveRequest with office_phone and optional vertical.
 
     Returns:
-        BusinessResolveResponse with found=True/False.
-        Never returns 404 for not-found (ADR-INT-001).
+        BusinessResolveResponse with found=True (RESOLVED) or found=False
+        (ABSENT). Never returns 404 for not-found (ADR-INT-001).
 
     Error Responses:
         - 400 INVALID_PHONE_FORMAT: Phone not in E.164 format
         - 401 MISSING_AUTH: No Authorization header
         - 401 SERVICE_TOKEN_REQUIRED: PAT token provided (S2S only)
-        - 503 INDEX_NOT_READY: GidLookupIndex not initialized
+        - 503 INDEX_NOT_READY: business index could not be consulted or built
+        - 503 BUSINESS_VERIFY_FAILED: a GID resolved but is unverified
+        - 503 ASANA_UNAVAILABLE: Asana call failed
     """
     start_time = time.monotonic()
 
@@ -118,13 +128,32 @@ async def resolve_business(
                 office_phone=body.office_phone,
                 vertical=body.vertical,
             )
+    except BusinessVerificationError as exc:
+        # A GID resolved but could not be verified as a business of record.
+        # Fail CLOSED: found=false here would drive a duplicate CREATE.
+        logger.error(
+            "intake_resolve_business_unverified",
+            extra={
+                "request_id": request_id,
+                "gid": exc.gid,
+                "reason": exc.reason,
+            },
+        )
+        raise_api_error(
+            request_id,
+            503,
+            "BUSINESS_VERIFY_FAILED",
+            "A candidate business was found but could not be verified as a business "
+            "of record. No result is returned rather than an unverified one.",
+        )
     except RuntimeError as exc:
         if "not initialized" in str(exc).lower() or "not ready" in str(exc).lower():
             raise_api_error(
                 request_id,
                 503,
                 "INDEX_NOT_READY",
-                "GidLookupIndex is not yet populated. Retry after service initialization.",
+                "The business index could not be consulted for this request. "
+                "This is a transient service condition -- retry shortly.",
             )
         raise
     except Exception as exc:  # BROAD-CATCH: boundary
