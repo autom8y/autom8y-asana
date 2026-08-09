@@ -233,16 +233,27 @@ class IntakeCreateService:
         request: IntakeBusinessCreateRequest,
         project_gid: str,
     ) -> str:
-        """Phase 1: Create Business task in the business project.
+        """Phase 1: Create the Business task and stamp its Office Phone field.
 
-        Custom fields set: office_phone, num_reviews, website, hours.
+        The task is created with ``name``/``projects``; ``office_phone``,
+        ``website`` and ``num_reviews`` are additionally echoed into the
+        human-readable notes blob. ``hours`` is not persisted.
+
+        The ``Office Phone`` custom field (``cf:Office Phone``) is then stamped
+        post-create via fetch-then-update (see
+        :meth:`_phase1b_stamp_office_phone`). That custom field is the SINGLE
+        source of the business resolver index key, so a notes-only write would
+        leave the index row null and break the create->resolve round-trip for
+        net-new offices. No other custom field is set here: ``website`` /
+        ``num_reviews`` remain notes-only, and ``company_id`` is not a create
+        input.
         """
         task_data: dict[str, Any] = {
             "name": request.name,
             "projects": [project_gid],
         }
 
-        # Build custom fields for enrichment data
+        # Echo enrichment data into the human-readable notes blob.
         notes_parts: list[str] = []
         if request.office_phone:
             notes_parts.append(f"Office Phone: {request.office_phone}")
@@ -259,8 +270,66 @@ class IntakeCreateService:
             projects=task_data.get("projects"),
             notes=task_data.get("notes"),
         )
+        business_gid = self._extract_gid(result)
 
-        return self._extract_gid(result)
+        # Stamp cf:Office Phone on the just-created Business task. office_phone
+        # is a required request field, so this write is unconditional.
+        await self._phase1b_stamp_office_phone(business_gid, request.office_phone)
+
+        return business_gid
+
+    async def _phase1b_stamp_office_phone(
+        self,
+        business_gid: str,
+        office_phone: str,
+    ) -> None:
+        """Stamp the Office Phone custom field on the Business task.
+
+        Post-create fetch-then-update, mirroring
+        :meth:`_phase6_write_social_profiles`: fetch the task's custom fields,
+        resolve the ``Office Phone`` field gid by name (case-insensitive), and
+        write the E.164 value with the text-CF payload shape ``{gid: value}``
+        (NOT the enum-option shape ``{gid: {"gid": option}}``).
+
+        ``cf:Office Phone`` is the single source of the business resolver index
+        key (``dataframes/schemas/business.py``), so this write is what makes an
+        intake-created business resolvable by its office phone on the next
+        booking.
+
+        Non-fatal: logs a warning and returns if the field gid cannot be
+        resolved, consistent with the other custom-field writers in this
+        service (the two-sided regression test is the real guard).
+        """
+        task_data = await self._client.tasks.get_async(
+            business_gid,
+            opt_fields=["custom_fields"],
+        )
+        custom_fields = (
+            task_data.get("custom_fields", [])
+            if isinstance(task_data, dict)
+            else getattr(task_data, "custom_fields", []) or []
+        )
+
+        # Build name -> GID mapping
+        field_name_to_gid: dict[str, str] = {}
+        for cf in custom_fields:
+            cf_name = cf.get("name", "") if isinstance(cf, dict) else getattr(cf, "name", "")
+            cf_gid = cf.get("gid", "") if isinstance(cf, dict) else getattr(cf, "gid", "")
+            if cf_name and cf_gid:
+                field_name_to_gid[cf_name.lower()] = cf_gid
+
+        office_phone_gid = field_name_to_gid.get("office phone")
+        if not office_phone_gid:
+            logger.warning(
+                "office_phone_cf_not_found",
+                extra={"business_gid": business_gid},
+            )
+            return
+
+        await self._client.tasks.update_async(
+            business_gid,
+            data={"custom_fields": {office_phone_gid: office_phone}},
+        )
 
     async def _phase2_create_holders(self, business_gid: str) -> dict[str, str]:
         """Phase 2: Create 7 holder subtasks under Business (parallel).

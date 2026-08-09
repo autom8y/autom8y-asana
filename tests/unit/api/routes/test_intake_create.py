@@ -883,6 +883,12 @@ class TestCreateBusinessHierarchyOrchestration:
 
         mock_client = MagicMock()
         mock_client.tasks.create_async = AsyncMock(side_effect=create_side_effect)
+        # Phase 1b stamps cf:Office Phone via get/update before Phase 2 runs;
+        # provide async mocks so the failure point remains the dna_holder create.
+        mock_client.tasks.get_async = AsyncMock(
+            return_value={"gid": BUSINESS_GID, "custom_fields": []}
+        )
+        mock_client.tasks.update_async = AsyncMock()
 
         with patch(
             "autom8_asana.services.intake_create_service.resolve_business_project_gid",
@@ -937,3 +943,165 @@ class TestCreateBusinessHierarchyOrchestration:
 
         assert route_process_called is False
         assert response.process_gid is None
+
+
+# ---------------------------------------------------------------------------
+# Unit-level tests for Phase 1b Office Phone custom field write (INTAKE-CF-1)
+# ---------------------------------------------------------------------------
+
+
+class TestPhase1OfficePhoneCustomField:
+    """Tests for the Office Phone custom-field stamp in Phase 1.
+
+    cf:Office Phone is the SINGLE source of the business resolver index key
+    (ADR-intake-cf-1-office-phone-2026-08-09). Before the cure, Phase 1 wrote
+    office_phone into notes only, leaving the index row null and breaking the
+    satellite create->resolve round-trip for net-new offices.
+    """
+
+    @staticmethod
+    def _make_request():
+        from autom8_asana.api.routes.intake_create_models import (
+            IntakeBusinessCreateRequest,
+            IntakeContact,
+        )
+
+        return IntakeBusinessCreateRequest(
+            name="Test Dental Practice",
+            office_phone="+15551234567",
+            vertical="dental",
+            contact=IntakeContact(name="Jane Smith"),
+        )
+
+    async def test_phase1_stamps_office_phone_custom_field(self) -> None:
+        """Phase 1 issues the Office Phone CF update with the right gid + value.
+
+        Verifies the post-create fetch-then-update: get_async fetches the
+        custom fields, and update_async stamps ONLY Office Phone using the
+        text-CF payload shape ({gid: value}) with the exact E.164 value.
+        Company ID is present on the task but is NOT written (ADR R2 excludes
+        it -- no source data, not a resolver key).
+        """
+        from autom8_asana.services.intake_create_service import IntakeCreateService
+
+        mock_client = MagicMock()
+        mock_client.tasks.create_async = AsyncMock(return_value={"gid": BUSINESS_GID})
+        mock_client.tasks.get_async = AsyncMock(
+            return_value={
+                "gid": BUSINESS_GID,
+                "custom_fields": [
+                    {
+                        "gid": "cf_office_phone",
+                        "name": "Office Phone",
+                        "resource_subtype": "text",
+                    },
+                    {
+                        "gid": "cf_company_id",
+                        "name": "Company ID",
+                        "resource_subtype": "text",
+                    },
+                ],
+            },
+        )
+        mock_client.tasks.update_async = AsyncMock(return_value=MagicMock())
+
+        service = IntakeCreateService(mock_client)
+        business_gid = await service._phase1_create_business(
+            self._make_request(), BUSINESS_PROJECT_GID
+        )
+
+        assert business_gid == BUSINESS_GID
+
+        # Fetched the business task's custom fields (mirrors Phase 6/7 shape).
+        mock_client.tasks.get_async.assert_called_once_with(
+            BUSINESS_GID,
+            opt_fields=["custom_fields"],
+        )
+
+        # Stamped ONLY Office Phone, text-CF shape, exact E.164 value.
+        mock_client.tasks.update_async.assert_called_once_with(
+            BUSINESS_GID,
+            data={"custom_fields": {"cf_office_phone": "+15551234567"}},
+        )
+
+    async def test_phase1_office_phone_round_trips_through_resolver_extractor(
+        self,
+    ) -> None:
+        """Two-sided: the stamped value is exactly what the resolver reads.
+
+        (+) leg: the value Phase 1 writes into cf:Office Phone, read back
+        through the PRODUCTION resolver extractor (_extract_custom_field --
+        never a re-implementation), equals the request office_phone. That is
+        the value the DynamicIndex sources as the office_phone key column.
+
+        (-) leg: the same field present-but-unwritten yields None -> a null
+        index row -> the criterion {"office_phone": ...} can never match,
+        which is the exact defect this cure closes.
+        """
+        from autom8_asana.services.intake_create_service import IntakeCreateService
+        from autom8_asana.services.intake_resolve_service import _extract_custom_field
+
+        office_phone = "+15551234567"
+        mock_client = MagicMock()
+        mock_client.tasks.create_async = AsyncMock(return_value={"gid": BUSINESS_GID})
+        mock_client.tasks.get_async = AsyncMock(
+            return_value={
+                "gid": BUSINESS_GID,
+                "custom_fields": [
+                    {
+                        "gid": "cf_office_phone",
+                        "name": "Office Phone",
+                        "resource_subtype": "text",
+                    },
+                ],
+            },
+        )
+        mock_client.tasks.update_async = AsyncMock(return_value=MagicMock())
+
+        service = IntakeCreateService(mock_client)
+        await service._phase1_create_business(self._make_request(), BUSINESS_PROJECT_GID)
+
+        written = mock_client.tasks.update_async.call_args.kwargs["data"]["custom_fields"]
+        assert written == {"cf_office_phone": office_phone}
+
+        # (+) leg: Asana echoes the write back as text_value; the resolver's
+        # own extractor reads exactly the request office_phone.
+        stamped_cfs = [
+            {
+                "gid": "cf_office_phone",
+                "name": "Office Phone",
+                "text_value": written["cf_office_phone"],
+            },
+        ]
+        assert _extract_custom_field(stamped_cfs, "Office Phone") == office_phone
+
+        # (-) leg: field present but never written -> null index key -> no match.
+        unwritten_cfs = [{"gid": "cf_office_phone", "name": "Office Phone"}]
+        assert _extract_custom_field(unwritten_cfs, "Office Phone") is None
+
+    async def test_phase1_office_phone_cf_not_found_no_raise(self) -> None:
+        """Graceful degradation when the Office Phone custom field is absent.
+
+        Mirrors the Phase 3 not-found siblings: the service logs a warning but
+        does not raise; the business task is still created and its GID
+        returned; no update is issued.
+        """
+        from autom8_asana.services.intake_create_service import IntakeCreateService
+
+        mock_client = MagicMock()
+        mock_client.tasks.create_async = AsyncMock(return_value={"gid": BUSINESS_GID})
+        mock_client.tasks.get_async = AsyncMock(
+            return_value={
+                "gid": BUSINESS_GID,
+                "custom_fields": [{"gid": "cf_other", "name": "Some Other Field"}],
+            },
+        )
+        mock_client.tasks.update_async = AsyncMock(return_value=MagicMock())
+
+        service = IntakeCreateService(mock_client)
+        business_gid = await service._phase1_create_business(
+            self._make_request(), BUSINESS_PROJECT_GID
+        )
+
+        assert business_gid == BUSINESS_GID
+        mock_client.tasks.update_async.assert_not_called()
