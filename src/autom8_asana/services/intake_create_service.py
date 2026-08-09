@@ -271,6 +271,12 @@ class IntakeCreateService:
             notes=task_data.get("notes"),
         )
         business_gid = self._extract_gid(result)
+        # Emit the created gid BEFORE the CF stamp so a stamp failure leaves a
+        # FINDABLE orphan in the logs, not an invisible one (DEF-QA-2).
+        logger.info(
+            "intake_create_phase1_business_created",
+            extra={"business_gid": business_gid},
+        )
 
         # Stamp cf:Office Phone on the just-created Business task. office_phone
         # is a required request field, so this write is unconditional.
@@ -316,7 +322,9 @@ class IntakeCreateService:
             cf_name = cf.get("name", "") if isinstance(cf, dict) else getattr(cf, "name", "")
             cf_gid = cf.get("gid", "") if isinstance(cf, dict) else getattr(cf, "gid", "")
             if cf_name and cf_gid:
-                field_name_to_gid[cf_name.lower()] = cf_gid
+                # strip() so a trailing/leading-space CF rename ("Office Phone ")
+                # cannot silently miss and mint an unresolvable business (DEF-QA-3).
+                field_name_to_gid[cf_name.strip().lower()] = cf_gid
 
         office_phone_gid = field_name_to_gid.get("office phone")
         if not office_phone_gid:
@@ -326,10 +334,20 @@ class IntakeCreateService:
             )
             return
 
-        await self._client.tasks.update_async(
-            business_gid,
-            data={"custom_fields": {office_phone_gid: office_phone}},
-        )
+        # A write failure here (Asana API error) MUST propagate loud, never be
+        # swallowed: a silent stamp failure is an unresolvable-orphan birth.
+        # Emit a findable failure event, then re-raise (DEF-QA-1 / DEF-QA-2).
+        try:
+            await self._client.tasks.update_async(
+                business_gid,
+                data={"custom_fields": {office_phone_gid: office_phone}},
+            )
+        except Exception:
+            logger.exception(
+                "office_phone_cf_stamp_failed",
+                extra={"business_gid": business_gid},
+            )
+            raise
 
     async def _phase2_create_holders(self, business_gid: str) -> dict[str, str]:
         """Phase 2: Create 7 holder subtasks under Business (parallel).

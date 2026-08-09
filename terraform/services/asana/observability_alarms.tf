@@ -1,5 +1,5 @@
 # ============================================================================
-# autom8y-asana observability alarm suite (AL-1 .. AL-4)
+# autom8y-asana observability alarm suite (AL-1 .. AL-6)
 # ============================================================================
 #
 # Source of truth: .ledge/reviews/sre-observability-design.md §B-2 (N1) +
@@ -83,7 +83,7 @@ variable "arm_paging" {
 
 variable "paging_armed_alarms" {
   description = <<-EOT
-    Per-alarm opt-in for paging. Subset of {AL-1, AL-2, AL-3, AL-4}. Only alarms
+    Per-alarm opt-in for paging. Subset of {AL-1 .. AL-6}. Only alarms
     listed here (and only when arm_paging=true) receive the page SNS action.
     Default [] -- TICKET-only / no action.
   EOT
@@ -117,6 +117,7 @@ locals {
   al3_actions = contains(var.paging_armed_alarms, "AL-3") ? local.page_action : local.ticket_action
   al4_actions = contains(var.paging_armed_alarms, "AL-4") ? local.page_action : local.ticket_action
   al5_actions = contains(var.paging_armed_alarms, "AL-5") ? local.page_action : local.ticket_action
+  al6_actions = contains(var.paging_armed_alarms, "AL-6") ? local.page_action : local.ticket_action
 }
 
 # ----------------------------------------------------------------------------
@@ -330,6 +331,12 @@ variable "substrate_freshness_namespace" {
   default     = "Autom8y/AsanaSubstrateFreshness"
 }
 
+variable "intake_office_phone_namespace" {
+  description = "CloudWatch namespace for the intake Office Phone CF stamp alarm (AL-6)."
+  type        = string
+  default     = "Autom8y/AsanaIntakeCF"
+}
+
 variable "asana_service_log_group" {
   description = "ECS asana-service log group that emits dataframe_cache_memory_lkg_serve."
   type        = string
@@ -389,6 +396,48 @@ resource "aws_cloudwatch_metric_alarm" "al5_offer_frame_stale" {
 }
 
 # ----------------------------------------------------------------------------
+# AL-6 -- intake Office Phone CF stamp unresolved (never-silent birth guard).
+# A net-new business created via /v1/intake/business whose cf:Office Phone is
+# never stamped is UNRESOLVABLE -> the calendly path mints a duplicate. Two
+# silent-failure modes are made observable via a single metric:
+#   - office_phone_cf_not_found   : the field gid could not be resolved (no write)
+#   - office_phone_cf_stamp_failed: the update_async write raised (then re-raised)
+# INTAKE-CF-1 / DEF-QA-1. TICKET-first; authored/un-armed like AL-1..AL-5.
+# ----------------------------------------------------------------------------
+
+resource "aws_cloudwatch_log_metric_filter" "al6_office_phone_stamp_unresolved" {
+  name           = "asana-AL6-office-phone-stamp-unresolved"
+  log_group_name = var.asana_service_log_group
+  pattern        = "{ ($.event = \"office_phone_cf_not_found\") || ($.event = \"office_phone_cf_stamp_failed\") }"
+
+  metric_transformation {
+    name          = "OfficePhoneStampUnresolved"
+    namespace     = var.intake_office_phone_namespace
+    value         = "1"
+    default_value = 0
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "al6_office_phone_stamp_unresolved" {
+  alarm_name          = "asana-AL6-office-phone-stamp-unresolved"
+  alarm_description   = "Intake Office Phone CF stamp unresolved (office_phone_cf_not_found | office_phone_cf_stamp_failed) > 0 in 1h: a net-new business was created without its resolver index key -> unresolvable -> calendly duplicate. RB-INTAKE-CF-1. TICKET-first; authored/un-armed (confirm-first). NON-PAGING until AL-6 armed."
+  namespace           = var.intake_office_phone_namespace
+  metric_name         = "OfficePhoneStampUnresolved"
+  statistic           = "Sum"
+  comparison_operator = "GreaterThanThreshold"
+  threshold           = 0
+  period              = 3600
+  evaluation_periods  = 1
+  datapoints_to_alarm = 1
+  treat_missing_data  = "notBreaching" # no births != stamp-failure; blind until first emit
+
+  alarm_actions = local.al6_actions
+  ok_actions    = local.al6_actions
+
+  depends_on = [aws_cloudwatch_log_metric_filter.al6_office_phone_stamp_unresolved]
+}
+
+# ----------------------------------------------------------------------------
 # Outputs -- expose the authored alarm names (for a downstream apply pipeline).
 # ----------------------------------------------------------------------------
 
@@ -400,6 +449,7 @@ output "authored_alarm_names" {
     [aws_cloudwatch_metric_alarm.al3_insights_lst_stale.alarm_name],
     [for a in aws_cloudwatch_metric_alarm.al4_prod_bridge_fleet_health : a.alarm_name],
     [for a in aws_cloudwatch_metric_alarm.al5_offer_frame_stale : a.alarm_name],
+    [aws_cloudwatch_metric_alarm.al6_office_phone_stamp_unresolved.alarm_name],
   )
 }
 

@@ -160,6 +160,11 @@ def _make_mock_asana_client(
                 "gid": BUSINESS_GID,
                 "custom_fields": [
                     {
+                        "gid": "cf_office_phone",
+                        "name": "Office Phone",
+                        "resource_subtype": "text",
+                    },
+                    {
                         "gid": "cf_facebook",
                         "name": "Facebook URL",
                         "resource_subtype": "text",
@@ -414,6 +419,35 @@ class TestCreateIntakeBusinessEndpoint:
                 social_written = True
                 break
         assert social_written, "Social profiles were not written to custom fields"
+
+    def test_office_phone_cf_written_to_business(self, client: TestClient) -> None:
+        """Office Phone CF is stamped on the business via POST /v1/intake/business.
+
+        End-to-end route coverage (DEF-QA-6): after the create, an update_async
+        carries {cf_office_phone: <E.164>} -- the resolver index key -- so a
+        net-new office is resolvable on its next booking.
+        """
+        mock_asana = _make_mock_asana_client()
+        patches = _create_patches(mock_asana)
+
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
+            resp = client.post(
+                "/v1/intake/business",
+                json=MINIMAL_CREATE_BODY,
+                headers=AUTH_HEADER,
+            )
+
+        assert resp.status_code == 201
+
+        update_calls = mock_asana.tasks.update_async.call_args_list
+        office_phone_written = False
+        for call in update_calls:
+            call_data = call.kwargs.get("data", {}) if call.kwargs else {}
+            cf = call_data.get("custom_fields", {})
+            if cf.get("cf_office_phone") == "+15551234567":
+                office_phone_written = True
+                break
+        assert office_phone_written, "Office Phone CF was not written to the business task"
 
     def test_address_written_to_location_holder(self, client: TestClient) -> None:
         """Address fields written to location_holder via custom fields."""
@@ -1075,9 +1109,82 @@ class TestPhase1OfficePhoneCustomField:
         ]
         assert _extract_custom_field(stamped_cfs, "Office Phone") == office_phone
 
+        # DEF-QA-3: a trailing-space rename on the READ side still resolves
+        # (strip() both sides in _extract_custom_field).
+        spaced_cfs = [
+            {"gid": "cf_office_phone", "name": "Office Phone ", "text_value": office_phone},
+        ]
+        assert _extract_custom_field(spaced_cfs, "Office Phone") == office_phone
+
         # (-) leg: field present but never written -> null index key -> no match.
         unwritten_cfs = [{"gid": "cf_office_phone", "name": "Office Phone"}]
         assert _extract_custom_field(unwritten_cfs, "Office Phone") is None
+
+    async def test_phase1_office_phone_stamp_failure_propagates(self) -> None:
+        """An update_async failure in the stamp PROPAGATES (loud, not swallowed).
+
+        A silently-swallowed stamp write leaves an unresolvable orphan whose
+        caller retries into a duplicate business. This pins the fail-loud
+        semantics and KILLS the MUT-1 mutant (try/except: pass around the
+        update). The created gid is emitted BEFORE the failure (DEF-QA-2a) so
+        the orphan is findable even though the stamp raised.
+        """
+        from autom8_asana.services.intake_create_service import IntakeCreateService
+
+        mock_client = MagicMock()
+        mock_client.tasks.create_async = AsyncMock(return_value={"gid": BUSINESS_GID})
+        mock_client.tasks.get_async = AsyncMock(
+            return_value={
+                "gid": BUSINESS_GID,
+                "custom_fields": [
+                    {
+                        "gid": "cf_office_phone",
+                        "name": "Office Phone",
+                        "resource_subtype": "text",
+                    },
+                ],
+            },
+        )
+        mock_client.tasks.update_async = AsyncMock(
+            side_effect=RuntimeError("Asana API 500 on custom_fields update"),
+        )
+
+        service = IntakeCreateService(mock_client)
+        with pytest.raises(RuntimeError, match="500 on custom_fields update"):
+            await service._phase1_create_business(self._make_request(), BUSINESS_PROJECT_GID)
+
+    async def test_phase1_office_phone_cf_trailing_space_still_stamped(self) -> None:
+        """A whitespace CF rename ("  Office Phone ") still resolves and stamps.
+
+        DEF-QA-3 hardening: strip() on the stamp-side name-match key prevents a
+        whitespace rename from silently missing and minting an unresolvable
+        business (compounding with the DEF-QA-1 defensive-branch silence).
+        """
+        from autom8_asana.services.intake_create_service import IntakeCreateService
+
+        mock_client = MagicMock()
+        mock_client.tasks.create_async = AsyncMock(return_value={"gid": BUSINESS_GID})
+        mock_client.tasks.get_async = AsyncMock(
+            return_value={
+                "gid": BUSINESS_GID,
+                "custom_fields": [
+                    {
+                        "gid": "cf_office_phone",
+                        "name": "  Office Phone ",
+                        "resource_subtype": "text",
+                    },
+                ],
+            },
+        )
+        mock_client.tasks.update_async = AsyncMock(return_value=MagicMock())
+
+        service = IntakeCreateService(mock_client)
+        await service._phase1_create_business(self._make_request(), BUSINESS_PROJECT_GID)
+
+        mock_client.tasks.update_async.assert_called_once_with(
+            BUSINESS_GID,
+            data={"custom_fields": {"cf_office_phone": "+15551234567"}},
+        )
 
     async def test_phase1_office_phone_cf_not_found_no_raise(self) -> None:
         """Graceful degradation when the Office Phone custom field is absent.
