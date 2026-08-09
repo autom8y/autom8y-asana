@@ -127,7 +127,9 @@ def is_valid_e164(phone: str) -> bool:
 def _extract_custom_field(custom_fields: list[dict[str, Any]], field_name: str) -> str | None:
     """Extract a custom field value by name from Asana custom_fields list."""
     for cf in custom_fields:
-        if cf.get("name", "").lower() == field_name.lower():
+        # strip() both sides so a trailing/leading-space CF rename cannot silently
+        # miss on the read side and compound the stamp-side miss (DEF-QA-3).
+        if cf.get("name", "").strip().lower() == field_name.strip().lower():
             # Check text_value first, then number_value, then enum display value
             if cf.get("text_value") is not None:
                 return str(cf["text_value"])
