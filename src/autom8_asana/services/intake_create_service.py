@@ -455,9 +455,12 @@ class IntakeCreateService:
             )
             return
 
+        # Enum CF WRITE value is the PLAIN option gid string (ADR F-1 ruling),
+        # NOT the nested {"gid": ...} READ shape. Mirrors the forwarding-stage
+        # writer (receipts_service.py) which lands a plain option gid.
         await self._client.tasks.update_async(
             task_gid,
-            custom_fields={cf_gid: {"gid": enum_option_gid}},
+            custom_fields={cf_gid: enum_option_gid},
         )
 
     async def _phase4_create_contact(

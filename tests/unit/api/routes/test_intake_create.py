@@ -662,7 +662,7 @@ class TestPhase3VerticalCustomField:
         # Verify update_async was called with correct enum custom field payload
         mock_client.tasks.update_async.assert_called_once_with(
             UNIT_GID,
-            custom_fields={"cf_vertical": {"gid": "enum_dental"}},
+            custom_fields={"cf_vertical": "enum_dental"},
         )
 
     async def test_phase3_vertical_cf_not_found_no_raise(self) -> None:
@@ -779,7 +779,7 @@ class TestPhase3VerticalCustomField:
         assert result_gid == UNIT_GID
         mock_client.tasks.update_async.assert_called_once_with(
             UNIT_GID,
-            custom_fields={"cf_vertical": {"gid": "enum_dental"}},
+            custom_fields={"cf_vertical": "enum_dental"},
         )
 
 
@@ -1297,8 +1297,13 @@ class TestUpdateAsyncTransportSeamAntiMockLie:
         sent = mock_http.put.await_args.kwargs["json"]
         assert "data" not in sent["data"], "double-nested body -- GATE-1 bug present"
 
-    async def test_vertical_enum_marshals_single_nested_body(self) -> None:
-        """The enum-shape site: value is ``{gid: {"gid": option_gid}}`` (nested)."""
+    async def test_vertical_enum_marshals_plain_string_body(self) -> None:
+        """Enum CF WRITE value is the PLAIN option gid string (ADR F-1), NOT the
+        nested ``{"gid": option_gid}`` READ shape. The READ payload (from
+        get_async) carries the nested enum_options; the WRITE payload carries the
+        bare option gid -- writing the read shape is the F-1 defect this test
+        catches (two-way mutation-proof: nested->RED, data=->RED).
+        """
         tasks, mock_http = _real_tasks_client()
         tasks.get_async = AsyncMock(
             return_value={
@@ -1318,9 +1323,14 @@ class TestUpdateAsyncTransportSeamAntiMockLie:
 
         mock_http.put.assert_awaited_once_with(
             f"/tasks/{UNIT_GID}",
-            json={"data": {"custom_fields": {"cf_vertical": {"gid": "enum_dental"}}}},
+            json={"data": {"custom_fields": {"cf_vertical": "enum_dental"}}},
         )
         sent = mock_http.put.await_args.kwargs["json"]
+        # F-1 guard: the written value is the bare gid string, never the nested
+        # read-shape object.
+        assert sent["data"]["custom_fields"]["cf_vertical"] == "enum_dental"
+        assert not isinstance(sent["data"]["custom_fields"]["cf_vertical"], dict)
+        # Double-nest guard (GATE-1): the inner payload is the task-field dict.
         assert "data" not in sent["data"], "double-nested body -- GATE-1 bug present"
 
     async def test_social_profiles_marshal_single_nested_body(self) -> None:
