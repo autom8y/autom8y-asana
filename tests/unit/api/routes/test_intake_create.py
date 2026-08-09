@@ -413,8 +413,9 @@ class TestCreateIntakeBusinessEndpoint:
         # At least one update call should contain social profile fields
         social_written = False
         for call in update_calls:
-            call_data = call.kwargs.get("data", {}) if call.kwargs else {}
-            cf = call_data.get("custom_fields", {})
+            # Assert the CORRECT kwarg the real client consumes (custom_fields=),
+            # never the broken data= wrapper (GATE-1 anti-mock-lie discipline, D4#2).
+            cf = call.kwargs.get("custom_fields", {}) if call.kwargs else {}
             if "cf_facebook" in cf or "cf_instagram" in cf:
                 social_written = True
                 break
@@ -442,8 +443,8 @@ class TestCreateIntakeBusinessEndpoint:
         update_calls = mock_asana.tasks.update_async.call_args_list
         office_phone_written = False
         for call in update_calls:
-            call_data = call.kwargs.get("data", {}) if call.kwargs else {}
-            cf = call_data.get("custom_fields", {})
+            # Correct kwarg (custom_fields=), not the broken data= wrapper (D4#2).
+            cf = call.kwargs.get("custom_fields", {}) if call.kwargs else {}
             if cf.get("cf_office_phone") == "+15551234567":
                 office_phone_written = True
                 break
@@ -476,8 +477,8 @@ class TestCreateIntakeBusinessEndpoint:
         update_calls = mock_asana.tasks.update_async.call_args_list
         address_written = False
         for call in update_calls:
-            call_data = call.kwargs.get("data", {}) if call.kwargs else {}
-            cf = call_data.get("custom_fields", {})
+            # Correct kwarg (custom_fields=), not the broken data= wrapper (D4#2).
+            cf = call.kwargs.get("custom_fields", {}) if call.kwargs else {}
             if "cf_city" in cf or "cf_state" in cf or "cf_postal" in cf:
                 address_written = True
                 break
@@ -661,7 +662,7 @@ class TestPhase3VerticalCustomField:
         # Verify update_async was called with correct enum custom field payload
         mock_client.tasks.update_async.assert_called_once_with(
             UNIT_GID,
-            data={"custom_fields": {"cf_vertical": {"gid": "enum_dental"}}},
+            custom_fields={"cf_vertical": "enum_dental"},
         )
 
     async def test_phase3_vertical_cf_not_found_no_raise(self) -> None:
@@ -778,7 +779,7 @@ class TestPhase3VerticalCustomField:
         assert result_gid == UNIT_GID
         mock_client.tasks.update_async.assert_called_once_with(
             UNIT_GID,
-            data={"custom_fields": {"cf_vertical": {"gid": "enum_dental"}}},
+            custom_fields={"cf_vertical": "enum_dental"},
         )
 
 
@@ -1055,7 +1056,7 @@ class TestPhase1OfficePhoneCustomField:
         # Stamped ONLY Office Phone, text-CF shape, exact E.164 value.
         mock_client.tasks.update_async.assert_called_once_with(
             BUSINESS_GID,
-            data={"custom_fields": {"cf_office_phone": "+15551234567"}},
+            custom_fields={"cf_office_phone": "+15551234567"},
         )
 
     async def test_phase1_office_phone_round_trips_through_resolver_extractor(
@@ -1095,7 +1096,7 @@ class TestPhase1OfficePhoneCustomField:
         service = IntakeCreateService(mock_client)
         await service._phase1_create_business(self._make_request(), BUSINESS_PROJECT_GID)
 
-        written = mock_client.tasks.update_async.call_args.kwargs["data"]["custom_fields"]
+        written = mock_client.tasks.update_async.call_args.kwargs["custom_fields"]
         assert written == {"cf_office_phone": office_phone}
 
         # (+) leg: Asana echoes the write back as text_value; the resolver's
@@ -1183,7 +1184,7 @@ class TestPhase1OfficePhoneCustomField:
 
         mock_client.tasks.update_async.assert_called_once_with(
             BUSINESS_GID,
-            data={"custom_fields": {"cf_office_phone": "+15551234567"}},
+            custom_fields={"cf_office_phone": "+15551234567"},
         )
 
     async def test_phase1_office_phone_cf_not_found_no_raise(self) -> None:
@@ -1212,3 +1213,185 @@ class TestPhase1OfficePhoneCustomField:
 
         assert business_gid == BUSINESS_GID
         mock_client.tasks.update_async.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Anti-mock-lie transport-seam tests (ADR-intake-cf-1 GATE-1 addendum, D4)
+# ---------------------------------------------------------------------------
+
+
+def _real_tasks_client() -> tuple[Any, AsyncMock]:
+    """Build a REAL ``TasksClient`` whose ONLY mocked seam is ``self._http.put``.
+
+    The GATE-1 defect (PR #327) shipped because every intake CF-write test
+    stubbed ``tasks.update_async`` wholesale (an ``AsyncMock`` that accepts any
+    signature) and then asserted the SAME ``data=`` kwarg the buggy code passed
+    -- a mock-lie: the test proved the code does what the code does, while the
+    real client marshaled ``json={"data": {"data": {...}}}`` (double-nested) and
+    Asana silently wrote nothing (HTTP 200).
+
+    These tests instead mock ONE LAYER LOWER (the httpx transport,
+    ``self._http.put``) and let the REAL ``TasksClient.update_async`` run its
+    ``json={"data": kwargs}`` marshaling. The asserted request body is therefore
+    the EXACT payload the client would send to Asana. Reverting any production
+    call to the broken ``data={...}`` form re-double-nests the body and turns
+    these assertions RED (mutation-proof against the exact bug that shipped).
+
+    ``self._http.put`` returns a schema-valid Task dict (numeric gid) so the real
+    ``update()``'s ``Task.model_validate(result)`` succeeds.
+    """
+    from autom8_asana.clients.tasks import TasksClient
+
+    mock_http = MagicMock()
+    mock_http.put = AsyncMock(return_value={"gid": "1217301971794137"})
+    tasks = TasksClient(http=mock_http, config=MagicMock(), auth_provider=MagicMock())
+    return tasks, mock_http
+
+
+def _service_with_real_tasks(tasks: Any):
+    """Wrap a real TasksClient in the service under a minimal AsanaClient shim."""
+    from types import SimpleNamespace
+
+    from autom8_asana.services.intake_create_service import IntakeCreateService
+
+    return IntakeCreateService(SimpleNamespace(tasks=tasks))
+
+
+class TestUpdateAsyncTransportSeamAntiMockLie:
+    """Body-build assertions at the httpx transport seam (D4#1, load-bearing).
+
+    Each test drives a REAL production write method and asserts the verbatim
+    ``self._http.put`` request body -- single-nested ``{"data": {...}}``. A
+    wholesale-mocked ``update_async`` cannot detect the GATE-1 double-nest; these
+    tests can, and each carries an explicit double-nest guard.
+    """
+
+    async def test_office_phone_stamp_marshals_single_nested_body(self) -> None:
+        """THE load-bearing one: office_phone is the resolver's single index key.
+
+        Drives the production ``_phase1b_stamp_office_phone`` (only get_async is
+        stubbed -- NOT update_async) and asserts the real transport body.
+        """
+        office_phone = "+15551234567"
+        tasks, mock_http = _real_tasks_client()
+        tasks.get_async = AsyncMock(
+            return_value={
+                "gid": BUSINESS_GID,
+                "custom_fields": [
+                    {"gid": "cf_office_phone", "name": "Office Phone"},
+                ],
+            },
+        )
+        service = _service_with_real_tasks(tasks)
+
+        await service._phase1b_stamp_office_phone(BUSINESS_GID, office_phone)
+
+        # Verbatim, SINGLE-nested body -- the exact seam the mocked-client tests
+        # skipped. Reverting production to data={...} makes this RED.
+        mock_http.put.assert_awaited_once_with(
+            f"/tasks/{BUSINESS_GID}",
+            json={"data": {"custom_fields": {"cf_office_phone": office_phone}}},
+        )
+        # Explicit double-nest guard: the inner payload is the task-field dict,
+        # never another {"data": ...} wrapper (the GATE-1 bug's signature).
+        sent = mock_http.put.await_args.kwargs["json"]
+        assert "data" not in sent["data"], "double-nested body -- GATE-1 bug present"
+
+    async def test_vertical_enum_marshals_plain_string_body(self) -> None:
+        """Enum CF WRITE value is the PLAIN option gid string (ADR F-1), NOT the
+        nested ``{"gid": option_gid}`` READ shape. The READ payload (from
+        get_async) carries the nested enum_options; the WRITE payload carries the
+        bare option gid -- writing the read shape is the F-1 defect this test
+        catches (two-way mutation-proof: nested->RED, data=->RED).
+        """
+        tasks, mock_http = _real_tasks_client()
+        tasks.get_async = AsyncMock(
+            return_value={
+                "gid": UNIT_GID,
+                "custom_fields": [
+                    {
+                        "gid": "cf_vertical",
+                        "name": "Vertical",
+                        "enum_options": [{"gid": "enum_dental", "name": "Dental"}],
+                    },
+                ],
+            },
+        )
+        service = _service_with_real_tasks(tasks)
+
+        await service._write_vertical_custom_field(UNIT_GID, "dental")
+
+        mock_http.put.assert_awaited_once_with(
+            f"/tasks/{UNIT_GID}",
+            json={"data": {"custom_fields": {"cf_vertical": "enum_dental"}}},
+        )
+        sent = mock_http.put.await_args.kwargs["json"]
+        # F-1 guard: the written value is the bare gid string, never the nested
+        # read-shape object.
+        assert sent["data"]["custom_fields"]["cf_vertical"] == "enum_dental"
+        assert not isinstance(sent["data"]["custom_fields"]["cf_vertical"], dict)
+        # Double-nest guard (GATE-1): the inner payload is the task-field dict.
+        assert "data" not in sent["data"], "double-nested body -- GATE-1 bug present"
+
+    async def test_social_profiles_marshal_single_nested_body(self) -> None:
+        """Social profiles are Text CFs: ``{gid: url}``."""
+        tasks, mock_http = _real_tasks_client()
+        tasks.get_async = AsyncMock(
+            return_value={
+                "gid": BUSINESS_GID,
+                "custom_fields": [{"gid": "cf_facebook", "name": "Facebook URL"}],
+            },
+        )
+        service = _service_with_real_tasks(tasks)
+
+        await service._phase6_write_social_profiles(
+            BUSINESS_GID,
+            [{"platform": "facebook", "url": "https://facebook.com/testbiz"}],
+        )
+
+        mock_http.put.assert_awaited_once_with(
+            f"/tasks/{BUSINESS_GID}",
+            json={"data": {"custom_fields": {"cf_facebook": "https://facebook.com/testbiz"}}},
+        )
+        sent = mock_http.put.await_args.kwargs["json"]
+        assert "data" not in sent["data"], "double-nested body -- GATE-1 bug present"
+
+    async def test_address_marshals_single_nested_body(self) -> None:
+        """Address fields are Text CFs on location_holder: ``{gid: value}``."""
+        tasks, mock_http = _real_tasks_client()
+        tasks.get_async = AsyncMock(
+            return_value={
+                "gid": "loc_holder_001",
+                "custom_fields": [{"gid": "cf_city", "name": "City"}],
+            },
+        )
+        service = _service_with_real_tasks(tasks)
+
+        await service._phase7_write_address("loc_holder_001", {"city": "Springfield"})
+
+        mock_http.put.assert_awaited_once_with(
+            "/tasks/loc_holder_001",
+            json={"data": {"custom_fields": {"cf_city": "Springfield"}}},
+        )
+        sent = mock_http.put.await_args.kwargs["json"]
+        assert "data" not in sent["data"], "double-nested body -- GATE-1 bug present"
+
+    async def test_process_assignee_marshals_single_nested_body(self) -> None:
+        """The non-CF site: assignee is a plain task field (``{"assignee": gid}``)."""
+        tasks, mock_http = _real_tasks_client()
+        tasks.get_async = AsyncMock(return_value={"gid": UNIT_GID})
+        tasks.create_async = AsyncMock(return_value={"gid": PROCESS_GID})
+        service = _service_with_real_tasks(tasks)
+        # Stub the two service helpers so route_process reaches the assignee write
+        # with update_async left REAL.
+        service._find_existing_process = AsyncMock(return_value=None)  # type: ignore[method-assign]
+        service._resolve_assignee = AsyncMock(return_value="user_alice")  # type: ignore[method-assign]
+
+        await service.route_process(UNIT_GID, "sales", assignee_name="Alice")
+
+        mock_http.put.assert_awaited_once_with(
+            f"/tasks/{PROCESS_GID}",
+            json={"data": {"assignee": "user_alice"}},
+        )
+        sent = mock_http.put.await_args.kwargs["json"]
+        assert "data" not in sent["data"], "double-nested body -- GATE-1 bug present"
