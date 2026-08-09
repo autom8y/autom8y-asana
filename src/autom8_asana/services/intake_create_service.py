@@ -340,7 +340,7 @@ class IntakeCreateService:
         try:
             await self._client.tasks.update_async(
                 business_gid,
-                data={"custom_fields": {office_phone_gid: office_phone}},
+                custom_fields={office_phone_gid: office_phone},
             )
         except Exception:
             logger.exception(
@@ -457,7 +457,7 @@ class IntakeCreateService:
 
         await self._client.tasks.update_async(
             task_gid,
-            data={"custom_fields": {cf_gid: {"gid": enum_option_gid}}},
+            custom_fields={cf_gid: {"gid": enum_option_gid}},
         )
 
     async def _phase4_create_contact(
@@ -531,7 +531,7 @@ class IntakeCreateService:
         if custom_fields_payload:
             await self._client.tasks.update_async(
                 business_gid,
-                data={"custom_fields": custom_fields_payload},
+                custom_fields=custom_fields_payload,
             )
 
     async def _phase7_write_address(
@@ -573,7 +573,7 @@ class IntakeCreateService:
         if custom_fields_payload:
             await self._client.tasks.update_async(
                 location_holder_gid,
-                data={"custom_fields": custom_fields_payload},
+                custom_fields=custom_fields_payload,
             )
 
     # -----------------------------------------------------------------------
@@ -662,7 +662,7 @@ class IntakeCreateService:
                 try:
                     await self._client.tasks.update_async(
                         process_gid,
-                        data={"assignee": resolved_assignee},
+                        assignee=resolved_assignee,
                     )
                 except Exception as exc:  # noqa: BLE001
                     logger.warning(
