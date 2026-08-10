@@ -19,6 +19,7 @@ from fastapi.testclient import TestClient
 from autom8_asana.api.main import create_app
 from autom8_asana.auth.bot_pat import clear_bot_pat_cache
 from autom8_asana.auth.jwt_validator import reset_auth_client
+from autom8_asana.core.project_registry import UNIT_HOLDER_PROJECT
 from autom8_asana.services.intake_create_service import HOLDER_TYPES
 from autom8_asana.services.resolver import EntityProjectRegistry
 
@@ -151,16 +152,16 @@ def _make_mock_asana_client(
     if raise_on_create:
         mock_client.tasks.create_async = AsyncMock(side_effect=raise_on_create)
     else:
-        # Unified create_async mock that distinguishes by keyword args:
-        # - projects= kwarg -> Phase 1 business task creation
-        # - parent= kwarg -> Phase 2-5 subtask creation (holders, unit, contact, process)
+        # Unified create_async mock that distinguishes by keyword args. A
+        # SUBTASK always carries parent= (holders, unit, contact, process); the
+        # Phase-1 Business create carries projects= but NO parent. BR3B: the
+        # unit_holder subtask now ALSO carries projects=[units], so parent MUST
+        # be checked FIRST or the unit_holder would be mis-dispatched as the
+        # Phase-1 Business create.
         subtask_call_count = {"n": 0}
 
         async def create_async_side_effect(*, name, **kwargs):
-            if "projects" in kwargs and kwargs["projects"]:
-                # Phase 1: Business task creation (has projects kwarg)
-                return {"gid": BUSINESS_GID}
-            elif "parent" in kwargs and kwargs["parent"]:
+            if kwargs.get("parent"):
                 # Phase 2-5: Subtask creation (has parent kwarg)
                 subtask_call_count["n"] += 1
                 n = subtask_call_count["n"]
@@ -175,6 +176,9 @@ def _make_mock_asana_client(
                     return {"gid": CONTACT_GID}
                 # 10th call is process (Phase 5)
                 return {"gid": PROCESS_GID}
+            if kwargs.get("projects"):
+                # Phase 1: Business task creation (projects, no parent)
+                return {"gid": BUSINESS_GID}
             # Fallback
             return {"gid": "unknown_gid"}
 
@@ -241,17 +245,24 @@ def _make_mock_asana_client(
     mock_client.tasks.add_to_project_async = AsyncMock(return_value=MagicMock())
     mock_client.tasks.move_to_section_async = AsyncMock(return_value=MagicMock())
 
-    # projects.get_sections_async -> PageIterator-like with .collect(): the
-    # Business Units sections. Onboarding present (resolved by name); Templates
-    # is the excluded first section that a section-less add would fall into.
-    mock_client.projects.get_sections_async = MagicMock(
-        return_value=_make_collect_mock(
+    # projects.get_sections_async -> PageIterator-like with .collect(), keyed by
+    # project GID:
+    #   * Business Units (UNIT_PROJECT): Templates + Onboarding. Onboarding is
+    #     resolved by name in BR-3 phase 3; Templates is the excluded first
+    #     section a section-less add would fall into.
+    #   * Units (UNIT_HOLDER_PROJECT): a single flat "Untitled section" -- the
+    #     BR3B single-section invariant the phase-2 tripwire asserts.
+    def _sections_for(project_gid, *_args, **_kwargs):
+        if project_gid == UNIT_HOLDER_PROJECT:
+            return _make_collect_mock([{"gid": "1204433992667197", "name": "Untitled section"}])
+        return _make_collect_mock(
             [
                 {"gid": "section_templates", "name": "Templates"},
                 {"gid": "section_onboarding", "name": "Onboarding"},
             ]
-        ),
-    )
+        )
+
+    mock_client.projects.get_sections_async = MagicMock(side_effect=_sections_for)
 
     # custom_fields.get_settings_for_project_async -> PageIterator-like with
     # .collect(): the Business Units custom-field DEFINITION (O6 resolution
@@ -668,6 +679,213 @@ class TestCreateIntakeBusinessEndpoint:
 
 
 # ---------------------------------------------------------------------------
+# Unit-level tests for Phase 2 unit_holder -> Units membership (BR3B / DIC O-B1)
+# ---------------------------------------------------------------------------
+
+
+def _make_phase2_mock_client(
+    *,
+    units_sections: list[dict] | None = None,
+) -> MagicMock:
+    """Mock AsanaClient for direct ``_phase2_create_holders`` unit tests.
+
+    - ``tasks.create_async`` returns the per-name holder GID (dispatch-free: the
+      service passes each holder name).
+    - ``projects.get_sections_async`` returns the Units project's single flat
+      section; override via ``units_sections`` to exercise the tripwire.
+    - ``tasks.update_async`` / ``add_to_project_async`` / ``move_to_section_async``
+      are stubbed so a spurious field-write or explicit placement would be a
+      visible (asserted-against) call, not an AttributeError.
+    """
+    if units_sections is None:
+        units_sections = [{"gid": "1204433992667197", "name": "Untitled section"}]
+
+    async def create_async_side_effect(*, name, **kwargs):
+        return {"gid": HOLDER_GIDS.get(name, f"holder_{name}")}
+
+    mock_client = MagicMock()
+    mock_client.tasks.create_async = AsyncMock(side_effect=create_async_side_effect)
+    mock_client.tasks.update_async = AsyncMock(return_value=MagicMock())
+    mock_client.tasks.add_to_project_async = AsyncMock(return_value=MagicMock())
+    mock_client.tasks.move_to_section_async = AsyncMock(return_value=MagicMock())
+    mock_client.projects.get_sections_async = MagicMock(
+        return_value=_make_collect_mock(units_sections),
+    )
+    return mock_client
+
+
+def _real_tasks_client_for_post() -> tuple:
+    """Build a REAL ``TasksClient`` whose ONLY mocked seam is ``self._http.post``.
+
+    The real ``create()`` runs its own ``json={"data": data}`` marshaling, so the
+    captured POST body is byte-for-byte what Asana would receive -- the
+    realized-wire readback (BF-1) for the unit_holder's Units membership. The
+    fixture response GID is a throwaway (NOT the reserved keeper task).
+    """
+    from autom8_asana.clients.tasks import TasksClient
+
+    mock_http = MagicMock()
+    mock_http.post = AsyncMock(return_value={"gid": "wire_holder_fixture"})
+    tasks = TasksClient(http=mock_http, config=MagicMock(), auth_provider=MagicMock())
+    return tasks, mock_http
+
+
+class TestPhase2UnitHolderUnitsMembership:
+    """Phase 2 places ONLY the unit_holder in the Units project (BR3B / DIC O-B1).
+
+    An intake-created office enters Domain B's intent frame as a Custom Cal
+    Status carrier via the unit_holder's MEMBERSHIP in the Units project. The
+    placement is membership-only (no field values), unit_holder-only (the other
+    six holders keep their own projects), and guarded by a single-section
+    tripwire and a fail-loud registry resolution.
+    """
+
+    async def test_resolver_returns_units_gid_from_registry(self) -> None:
+        """Amendment 1: the Units GID is resolved from the registry, never hard-coded.
+
+        Guards against a literal drifting from the ``unit_holder`` entity
+        descriptor's ``primary_project_gid``.
+        """
+        from autom8_asana.services.intake_create_service import (
+            resolve_unit_holder_project_gid,
+        )
+
+        resolved = resolve_unit_holder_project_gid()
+        assert resolved == UNIT_HOLDER_PROJECT
+        assert resolved == "1204433992667196"
+
+    async def test_unit_holder_joins_units_project(self) -> None:
+        """L1: the unit_holder is created as a MEMBER of the Units project.
+
+        The realized-wire readback of membership is the create call carrying
+        ``projects=[Units GID]`` (a live GET is UV-P, owed to SUB-3 GATE-2).
+        """
+        from autom8_asana.services.intake_create_service import IntakeCreateService
+
+        mock_client = _make_phase2_mock_client()
+        service = IntakeCreateService(mock_client)
+        holders = await service._phase2_create_holders("biz_001")
+
+        assert holders["unit_holder"] == HOLDER_GIDS["unit_holder"]
+        calls = mock_client.tasks.create_async.call_args_list
+        unit_holder_calls = [c for c in calls if c.kwargs.get("name") == "unit_holder"]
+        assert len(unit_holder_calls) == 1
+        assert unit_holder_calls[0].kwargs.get("projects") == [UNIT_HOLDER_PROJECT]
+        assert unit_holder_calls[0].kwargs.get("parent") == "biz_001"
+
+    async def test_only_unit_holder_joins_units(self) -> None:
+        """Amendment 1 / two-sided: ONLY the unit_holder joins Units.
+
+        The other six holders are created as bare subtasks (no ``projects``
+        argument) -- their call is unchanged from the pre-BR3B path.
+        """
+        from autom8_asana.services.intake_create_service import IntakeCreateService
+
+        mock_client = _make_phase2_mock_client()
+        service = IntakeCreateService(mock_client)
+        holders = await service._phase2_create_holders("biz_001")
+
+        assert len(holders) == 7
+        calls = mock_client.tasks.create_async.call_args_list
+        assert len(calls) == 7
+        joined = {c.kwargs["name"] for c in calls if c.kwargs.get("projects")}
+        assert joined == {"unit_holder"}
+        for c in calls:
+            if c.kwargs.get("name") != "unit_holder":
+                assert c.kwargs.get("projects") is None
+
+    async def test_membership_only_writes_no_field_value(self) -> None:
+        """Amendment 2: MEMBERSHIP ONLY -- phase 2 writes NO custom field value.
+
+        A value-write would re-open the PR-4 inherited-CF projection race AND
+        touch the walled Custom GHL ID field (RUL-6). Membership confers the
+        (empty) Units CFs; no update / add_to_project / move_to_section occurs.
+        """
+        from autom8_asana.services.intake_create_service import IntakeCreateService
+
+        mock_client = _make_phase2_mock_client()
+        service = IntakeCreateService(mock_client)
+        await service._phase2_create_holders("biz_001")
+
+        mock_client.tasks.update_async.assert_not_called()
+        mock_client.tasks.add_to_project_async.assert_not_called()
+        mock_client.tasks.move_to_section_async.assert_not_called()
+
+    async def test_units_multi_section_refuses_before_any_create(self) -> None:
+        """Amendment 3 tripwire: >1 section refuses LOUD, before any mutation.
+
+        Two-sided with the happy path: one section -> membership-only proceeds;
+        a second section -> the whole phase raises rather than silently landing
+        the holder in an unpinned first section (the Templates silent-green trap).
+        """
+        from autom8_asana.services.intake_create_service import IntakeCreateService
+
+        mock_client = _make_phase2_mock_client(
+            units_sections=[
+                {"gid": "1204433992667197", "name": "Untitled section"},
+                {"gid": "sec_two", "name": "Second Section"},
+            ],
+        )
+        service = IntakeCreateService(mock_client)
+        with pytest.raises(RuntimeError, match="single-section invariant"):
+            await service._phase2_create_holders("biz_001")
+
+        mock_client.tasks.create_async.assert_not_called()
+
+    async def test_units_project_unresolved_refuses(self) -> None:
+        """Amendment 1 fail-LOUD: an unresolvable Units project refuses phase 2.
+
+        No holder is created and the section tripwire is never reached.
+        """
+        from autom8_asana.services.intake_create_service import IntakeCreateService
+
+        mock_client = _make_phase2_mock_client()
+        service = IntakeCreateService(mock_client)
+        with patch(
+            "autom8_asana.services.intake_create_service.resolve_unit_holder_project_gid",
+            return_value="",
+        ):
+            with pytest.raises(LookupError, match="unit_holder"):
+                await service._phase2_create_holders("biz_001")
+
+        mock_client.tasks.create_async.assert_not_called()
+        mock_client.projects.get_sections_async.assert_not_called()
+
+    async def test_unit_holder_membership_on_the_wire(self) -> None:
+        """L1 realized-wire (BF-1): the POST /tasks body carries Units membership.
+
+        Runs the REAL ``TasksClient.create`` marshaling (only ``_http.post`` is
+        stubbed) so the captured request body is byte-for-byte what Asana would
+        receive. Two-sided on the wire: the unit_holder body carries
+        ``projects=[Units GID]``; every other holder body carries NO projects key.
+        """
+        from autom8_asana.services.intake_create_service import IntakeCreateService
+
+        real_tasks, mock_http = _real_tasks_client_for_post()
+        mock_client = MagicMock()
+        mock_client.tasks = real_tasks
+        mock_client.projects.get_sections_async = MagicMock(
+            return_value=_make_collect_mock(
+                [{"gid": "1204433992667197", "name": "Untitled section"}]
+            ),
+        )
+
+        service = IntakeCreateService(mock_client)
+        await service._phase2_create_holders("biz_001")
+
+        bodies = [c.kwargs["json"]["data"] for c in mock_http.post.await_args_list]
+        assert len(bodies) == 7
+        unit_holder_bodies = [b for b in bodies if b.get("name") == "unit_holder"]
+        assert len(unit_holder_bodies) == 1
+        assert unit_holder_bodies[0].get("projects") == [UNIT_HOLDER_PROJECT]
+        assert unit_holder_bodies[0].get("parent") == "biz_001"
+        # Containment on the wire: no other holder body carries Units membership.
+        for b in bodies:
+            if b.get("name") != "unit_holder":
+                assert "projects" not in b
+
+
+# ---------------------------------------------------------------------------
 # Unit-level tests for _write_vertical_custom_field (Phase 3)
 # ---------------------------------------------------------------------------
 
@@ -1008,9 +1226,9 @@ class TestCreateBusinessHierarchyOrchestration:
         call_order: list[str] = []
 
         async def create_side_effect(**kwargs):
-            if "projects" in kwargs:
-                call_order.append("phase1_business")
-                return {"gid": BUSINESS_GID}
+            # Parent-first: a subtask always carries parent=. BR3B makes the
+            # unit_holder subtask ALSO carry projects=, so the Phase-1 Business
+            # create (projects=, NO parent) is discriminated LAST.
             parent = kwargs.get("parent")
             name = kwargs.get("name", "")
             if parent == BUSINESS_GID:
@@ -1022,6 +1240,9 @@ class TestCreateBusinessHierarchyOrchestration:
             if parent == HOLDER_GIDS["contact_holder"]:
                 call_order.append("phase4_contact")
                 return {"gid": CONTACT_GID}
+            if kwargs.get("projects"):
+                call_order.append("phase1_business")
+                return {"gid": BUSINESS_GID}
             return {"gid": "unknown"}
 
         mock_client = MagicMock()
@@ -1070,14 +1291,16 @@ class TestCreateBusinessHierarchyOrchestration:
 
         async def create_side_effect(**kwargs):
             nonlocal phase3_called
-            if "projects" in kwargs:
-                return {"gid": BUSINESS_GID}
+            # Parent-first (BR3B): the unit_holder subtask carries projects= too,
+            # so the Phase-1 Business create (projects=, NO parent) is last.
             parent = kwargs.get("parent")
             name = kwargs.get("name", "")
             if parent == BUSINESS_GID:
                 if name == "dna_holder":
                     raise RuntimeError("Asana API 500 on dna_holder creation")
                 return {"gid": HOLDER_GIDS.get(name, "unknown")}
+            if kwargs.get("projects"):
+                return {"gid": BUSINESS_GID}
             # Phase 3+ should never be reached if Phase 2 fails
             phase3_called = True
             return {"gid": "should_not_exist"}
@@ -1090,6 +1313,13 @@ class TestCreateBusinessHierarchyOrchestration:
             return_value={"gid": BUSINESS_GID, "custom_fields": []}
         )
         mock_client.tasks.update_async = AsyncMock()
+        # BR3B: the phase-2 single-section tripwire reads the Units project
+        # sections before creating holders. Units has one flat section.
+        mock_client.projects.get_sections_async = MagicMock(
+            return_value=_make_collect_mock(
+                [{"gid": "1204433992667197", "name": "Untitled section"}]
+            )
+        )
 
         with patch(
             "autom8_asana.services.intake_create_service.resolve_business_project_gid",
@@ -1108,8 +1338,7 @@ class TestCreateBusinessHierarchyOrchestration:
         route_process_called = False
 
         async def create_side_effect(**kwargs):
-            if "projects" in kwargs:
-                return {"gid": BUSINESS_GID}
+            # Parent-first (BR3B): the unit_holder subtask carries projects= too.
             parent = kwargs.get("parent")
             name = kwargs.get("name", "")
             if parent == BUSINESS_GID:
@@ -1118,6 +1347,8 @@ class TestCreateBusinessHierarchyOrchestration:
                 return {"gid": UNIT_GID}
             if parent == HOLDER_GIDS["contact_holder"]:
                 return {"gid": CONTACT_GID}
+            if kwargs.get("projects"):
+                return {"gid": BUSINESS_GID}
             return {"gid": "unknown"}
 
         mock_client = MagicMock()
