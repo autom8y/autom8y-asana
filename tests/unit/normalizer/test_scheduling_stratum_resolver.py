@@ -45,6 +45,7 @@ _PHASE1_STRATUM_ENUM = {
     "ehr",
     "trackstat",
     "sked",
+    "gcal",  # RUL-22 ninth source field -> gcal plane (autom8y-data STRATUM_VALUES, migration 026)
     "ghl",
     "inactive",
 }
@@ -64,6 +65,7 @@ def _empty_inputs() -> dict[str, str | None]:
         ("ehr_cal_url", "ehr"),
         ("trackstat_id", "trackstat"),
         ("sked_id", "sked"),
+        ("google_cal_id", "gcal"),
         ("custom_ghl_id", "ghl"),
     ],
 )
@@ -134,6 +136,9 @@ def test_ghl_terminal_derives_url() -> None:
         custom_ghl_id="cal-xyz",
         ghl_calendar_id=f"{GHL_PREFIX}/cal-xyz",
         canonical_destination_url=f"{GHL_PREFIX}/cal-xyz",
+        # v2.1: a ghl winner carries served_calendar_id = the RAW effective id, NOT the
+        # widget URL on ghl_calendar_id (leg2/leg3 join at raw calendar-id grain).
+        served_calendar_id="cal-xyz",
     )
 
 

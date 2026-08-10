@@ -38,8 +38,10 @@ from autom8_asana.dataframes.schemas.unit_holder import (
 )
 from autom8_asana.models.business.unit import UnitHolder
 
-# The nine posture columns: DataFrame column name -> EXACT live Asana display name.
-# Verified live (DIAG R-7) on two independent ACTIVE offices' UnitHolder tasks.
+# The ten posture columns: DataFrame column name -> EXACT live Asana display name.
+# Nine verified live (DIAG R-7) on two independent ACTIVE offices' UnitHolder tasks;
+# google_cal_id is the RUL-22 ninth intent field (display name normalizes to
+# "googlecalid" on the cf: path).
 EXPECTED_POSTURE_SOURCES: dict[str, str] = {
     "custom_cal_status": "Custom Cal Status",
     "reviewwave_id": "ReviewWave ID",
@@ -49,6 +51,7 @@ EXPECTED_POSTURE_SOURCES: dict[str, str] = {
     "ehr_cal_url": "EHR Cal URL",
     "trackstat_id": "TrackStat ID",
     "sked_id": "Sked ID",
+    "google_cal_id": "Google Cal ID",
     "custom_ghl_id": "Custom GHL ID",
 }
 
@@ -56,12 +59,12 @@ EXPECTED_POSTURE_SOURCES: dict[str, str] = {
 class TestUnitHolderSchemaShape:
     """Structural contract of the frame the producer will read."""
 
-    def test_declares_exactly_nine_posture_columns(self) -> None:
-        assert len(UNIT_HOLDER_COLUMNS) == 9
+    def test_declares_exactly_ten_posture_columns(self) -> None:
+        assert len(UNIT_HOLDER_COLUMNS) == 10
         assert {c.name for c in UNIT_HOLDER_COLUMNS} == set(EXPECTED_POSTURE_SOURCES)
 
-    def test_column_count_is_base_plus_nine(self) -> None:
-        assert len(UNIT_HOLDER_SCHEMA.columns) == len(BASE_COLUMNS) + 9
+    def test_column_count_is_base_plus_ten(self) -> None:
+        assert len(UNIT_HOLDER_SCHEMA.columns) == len(BASE_COLUMNS) + 10
 
     def test_task_type_matches_registry_pascal_name(self) -> None:
         assert UNIT_HOLDER_SCHEMA.task_type == "UnitHolder"

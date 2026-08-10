@@ -2,9 +2,14 @@
 
 This module reconceives the legacy CustomCalUrl cascade (the monolith
 ``autom8`` text-field model, cascade at lines 198-219) as a declarative,
-side-effect-free function: a first-non-empty-wins walk over the eight provider
-source fields, producing the resolved scheduling stratum plus the derived GHL
-fail-closed fallback coordinates.
+side-effect-free function: a first-non-empty-wins walk over the provider source
+fields, producing the resolved scheduling stratum plus the derived GHL fail-closed
+fallback coordinates and the winner's ``served_calendar_id`` calendar identity.
+
+The cascade carries a ninth, INTENT-sourced source field ``google_cal_id``
+(RUL-22; the monolith has no Google-Calendar slot, so it is a new plane, not a
+port). Its cascade POSITION is an OPEN operator ruling (FORK-CASCADE-POS / RUL-6),
+not settled here; it lives in the single :data:`CASCADE_PRIORITY` index.
 
 PURITY CONTRACT (TL-A1 / B1 / B2 / B5 -- enforced by the normalizer fitness tests).
 This module is import-pure and side-effect-free by construction:
@@ -71,6 +76,16 @@ CASCADE_PRIORITY: list[str] = [
     "ehr_cal_url",
     "trackstat_id",
     "sked_id",
+    # RUL-22 ninth source field (INTENT-sourced Google Calendar identity). Its cascade
+    # POSITION is FORK-CASCADE-POS -- an OPEN operator ruling, NOT frozen here. In a
+    # first-non-empty-wins cascade, a position ahead of ``custom_ghl_id`` IS the
+    # "gcal beats ghl" precedence, which is operator-walled by RUL-6 and an ADR may not
+    # settle it (ARCHITECT AMENDMENT-001 §A-1). The position lives in THIS ONE list
+    # index alone -- the served-calendar-id derivation and the canonical-URL guard both
+    # key on the winning-field NAME, never on cascade order -- so the operator relocates
+    # it with a single-line edit. Built at the interim index-7 RECOMMENDATION pending
+    # RUL-6; INERT on day one (null on every office until an operator populates it).
+    "google_cal_id",
     "custom_ghl_id",
 ]
 
@@ -86,6 +101,10 @@ SOURCE_TO_STRATUM: dict[str, str] = {
     "ehr_cal_url": "ehr",
     "trackstat_id": "trackstat",
     "sked_id": "sked",
+    # RUL-22 ninth source field -> the ``gcal`` plane. ``gcal`` is already a member of
+    # autom8y-data ``STRATUM_VALUES`` (RUL-16 vocabulary cure, migration 026), so this
+    # adds no drift against the contract-match assertion.
+    "google_cal_id": "gcal",
     "custom_ghl_id": "ghl",
 }
 
@@ -149,6 +168,13 @@ class StratumResult(NamedTuple):
     enrolled: bool = True
     canonical_destination_url: str | None = None
     ghl_ownership: str = GHL_OWNERSHIP_NONE
+    #: v2.1 addition (RUL-22 ninth source field). The cascade winner's calendar
+    #: identity at RAW calendar-id grain, INTENT-SOURCED ONLY (see
+    #: :func:`_derive_served_calendar_id`): the stripped ``google_cal_id`` when it
+    #: wins, the RAW effective GHL id when ``custom_ghl_id`` wins, ``None`` for every
+    #: other winner and the inactive terminal. Appended LAST so existing positional
+    #: construction is unaffected. Defaults ``None`` (the pre-flag / no-identity posture).
+    served_calendar_id: str | None = None
 
 
 def _is_empty(value: str | None) -> bool:
@@ -257,6 +283,17 @@ _URL_FORMATTERS: dict[str, Callable[[str], str]] = {
     "sked_id": format_sked_url,
 }
 
+#: Cascade winners that have NO provider-hosted booking page: their winning value is
+#: a calendar IDENTITY, never a destination URL, so :func:`_build_canonical_url`
+#: returns ``None`` for them rather than raw-forwarding the value into
+#: ``canonical_destination_url`` (the field the downstream consumer pushes as the
+#: Webflow booking embed). The ``gcal`` plane books through our own scheduling service
+#: and has no provider booking page -- publishing a bare Google Calendar id there
+#: would be a garbage client-facing embed. Frozen by
+#: ADR-gcal-intent-surface-contract §2.2(c) (mitigates R3). Keys on the winning-field
+#: NAME, so it is independent of the FORK-CASCADE-POS cascade position.
+NO_CANONICAL_URL_FIELDS: frozenset[str] = frozenset({"google_cal_id"})
+
 
 def _build_canonical_url(
     winning_field: str | None,
@@ -283,7 +320,40 @@ def _build_canonical_url(
     formatter = _URL_FORMATTERS.get(winning_field)
     if formatter is not None:
         return formatter(winning_value)
+    # Guard (ADR §2.2(c)): an identity-only winner (e.g. ``google_cal_id``) has no
+    # booking URL -- do NOT raw-forward its calendar id as ``canonical_destination_url``.
+    if winning_field in NO_CANONICAL_URL_FIELDS:
+        return None
     return winning_value
+
+
+def _derive_served_calendar_id(
+    winning_field: str | None,
+    winning_value: str | None,
+    effective_ghl_id: str | None,
+) -> str | None:
+    """Derive the cascade winner's ``served_calendar_id`` (PURE, INTENT-SOURCED ONLY).
+
+    The plane-general calendar identity at RAW calendar-id grain (RUL-22 ninth source
+    field; ADR-gcal-intent-surface-contract §2.2(b)):
+
+      * ``google_cal_id`` winner -> its stripped winning value (the Google Calendar id);
+      * ``custom_ghl_id`` winner  -> the RAW effective GHL id, NOT ``build_ghl_url`` --
+        the widget URL carried on ``ghl_calendar_id`` is a different grain and would
+        fail the downstream exact-string JOIN by construction;
+      * every other winner, and the inactive terminal -> ``None`` (those planes' identity
+        is a destination URL already carried on ``canonical_destination_url``; they have
+        no calendar-id-grain identifier).
+
+    Keys on the winning-field NAME, so it is INDEPENDENT of the FORK-CASCADE-POS cascade
+    position. NEVER sourced, joined, defaulted, or backfilled from an operations table
+    (C-1): the only input is the winner already selected from the intent-sourced frame.
+    """
+    if winning_field == "google_cal_id":
+        return winning_value  # already stripped in the cascade walk
+    if winning_field == "custom_ghl_id":
+        return effective_ghl_id  # raw effective id, NOT the widget URL
+    return None
 
 
 def resolve_stratum(
@@ -355,4 +425,5 @@ def resolve_stratum(
         enrolled=enrolled,
         canonical_destination_url=_build_canonical_url(winning_field, winning_value, custom_ghl_id),
         ghl_ownership=ghl_ownership,
+        served_calendar_id=_derive_served_calendar_id(winning_field, winning_value, custom_ghl_id),
     )
