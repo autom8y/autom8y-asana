@@ -281,19 +281,21 @@ class AssetEditHolderRow(TaskRow):
 
 
 class UnitHolderRow(TaskRow):
-    """UnitHolder-specific row with 9 additional fields.
+    """UnitHolder-specific row with 10 additional fields.
 
-    WS-B (DIAG-ws-b-offer-frame-collapse-2026-08-05): the nine scheduling-posture
-    fields live NATIVELY on the UnitHolder task (R-7 live read), so they are read
-    ``cf:`` off its own manifest — no ancestor traversal, hence immune to the
-    depth-1 ancestor-walk defect that darkened the same columns on the offer frame.
+    WS-B (DIAG-ws-b-offer-frame-collapse-2026-08-05) + gcal-S2 (RUL-22): the
+    scheduling-posture fields live NATIVELY on the UnitHolder task (R-7 live read),
+    so they are read ``cf:`` off its own manifest — no ancestor traversal, hence
+    immune to the depth-1 ancestor-walk defect that darkened the same columns on the
+    offer frame.
 
     The model is ``extra="forbid"``, so every projected schema column MUST be
     declared here or DataFrame construction raises. See
     ``dataframes/schemas/unit_holder.py`` for the source contract.
 
-    Custom fields (9):
-        custom_cal_status + the eight CASCADE_PRIORITY provider source fields
+    Custom fields (10):
+        custom_cal_status + the nine CASCADE_PRIORITY provider source fields
+        (incl. the RUL-22 google_cal_id intent field)
 
     Cascade fields: NONE. UnitHolder is a cascade PROVIDER, not a consumer.
     ``company_id`` is deliberately absent — it lives on the Business ancestor and
@@ -302,7 +304,7 @@ class UnitHolderRow(TaskRow):
 
     type: str = "UnitHolder"
 
-    # Scheduling-posture custom fields (9 -- read cf: off UnitHolder's own manifest)
+    # Scheduling-posture custom fields (10 -- read cf: off UnitHolder's own manifest)
     custom_cal_status: str | None = None
     reviewwave_id: str | None = None
     acuity_cal_url: str | None = None
@@ -311,4 +313,5 @@ class UnitHolderRow(TaskRow):
     ehr_cal_url: str | None = None
     trackstat_id: str | None = None
     sked_id: str | None = None
+    google_cal_id: str | None = None  # RUL-22 ninth CASCADE_PRIORITY source field
     custom_ghl_id: str | None = None

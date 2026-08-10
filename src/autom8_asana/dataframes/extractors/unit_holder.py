@@ -1,4 +1,4 @@
-"""UnitHolder task extractor with base + 9 scheduling-posture fields.
+"""UnitHolder task extractor with base + 10 scheduling-posture fields.
 
 Follows the AssetEditHolderExtractor pattern: extends BaseExtractor with
 UnitHolder-specific row construction and type pinning.
@@ -22,9 +22,10 @@ if TYPE_CHECKING:
 class UnitHolderExtractor(BaseExtractor):
     """Extractor for UnitHolder task type.
 
-    Custom-field (cf:) columns (9):
+    Custom-field (cf:) columns (10):
         custom_cal_status, reviewwave_id, acuity_cal_url, calendly_url,
-        janeapp_url, ehr_cal_url, trackstat_id, sked_id, custom_ghl_id
+        janeapp_url, ehr_cal_url, trackstat_id, sked_id, google_cal_id,
+        custom_ghl_id
 
     Cascade columns: NONE. This entity is a cascade PROVIDER, not a consumer.
     """

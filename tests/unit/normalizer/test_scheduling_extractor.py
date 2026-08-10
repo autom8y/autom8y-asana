@@ -1,9 +1,9 @@
 """Tests for the scheduling-source extractor (the I/O boundary).
 
-Covers: the PURE ``map_resolved_to_inputs`` projection (the eight fields by name +
-guid + duration fold + the wire-contract-v2 enrolled / ghl_ownership axes), the
-``derive_enrolled`` INACTIVE/absent semantics, a REAL GFR dynvocab by-name
-robustness pass (the eight logical names match differently-cased/spaced Asana
+Covers: the PURE ``map_resolved_to_inputs`` projection (the nine CASCADE_PRIORITY
+fields by name + guid + duration fold + the wire-contract-v2 enrolled / ghl_ownership
+axes), the ``derive_enrolled`` INACTIVE/absent semantics, a REAL GFR dynvocab by-name
+robustness pass (the nine logical names match differently-cased/spaced Asana
 display names), and the async ``extract_scheduling_inputs`` happy /
 defensive-reresolve / guid-absent paths.
 """
@@ -133,7 +133,7 @@ def test_map_ghl_ownership_none_when_neither() -> None:
 # --- PURE mapping ---------------------------------------------------------------
 
 
-def test_map_resolved_maps_eight_by_name() -> None:
+def test_map_resolved_maps_cascade_fields_by_name() -> None:
     values: dict[str, object] = {GUID_FIELD: "guid-1"}
     for field in CASCADE_PRIORITY:
         values[field] = f"v-{field}"
@@ -180,12 +180,13 @@ def test_map_resolved_no_guid_raises() -> None:
 # --- REAL dynvocab by-name robustness (NameNormalizer case/space/underscore) -----
 
 
-def test_eight_logical_names_match_varied_asana_display_names() -> None:
-    """The eight logical names resolve against differently-cased Asana cf names.
+def test_nine_logical_names_match_varied_asana_display_names() -> None:
+    """The nine logical names resolve against differently-cased Asana cf names.
 
     Proves the by-name path is NameNormalizer-robust end-to-end (not just trusting a
     mock): the Asana display names below differ in case/spacing/underscore from the
-    CASCADE_PRIORITY logical names, yet all eight resolve.
+    CASCADE_PRIORITY logical names, yet all nine resolve. Includes the RUL-22
+    ``google_cal_id`` intake read (WS-INTENT): "Google Cal ID" -> google_cal_id.
     """
     custom_fields: list[dict[str, Any]] = [
         {"gid": "1", "name": "ReviewWave ID", "resource_subtype": "text", "text_value": "rw-9"},
@@ -195,7 +196,8 @@ def test_eight_logical_names_match_varied_asana_display_names() -> None:
         {"gid": "5", "name": "EHR Cal URL", "resource_subtype": "text", "text_value": "eh-9"},
         {"gid": "6", "name": "TrackStat ID", "resource_subtype": "text", "text_value": "tr-9"},
         {"gid": "7", "name": "Sked ID", "resource_subtype": "text", "text_value": "sk-9"},
-        {"gid": "8", "name": "Custom GHL ID", "resource_subtype": "text", "text_value": "gh-9"},
+        {"gid": "8", "name": "google_cal_id", "resource_subtype": "text", "text_value": "gc-9"},
+        {"gid": "9", "name": "Custom GHL ID", "resource_subtype": "text", "text_value": "gh-9"},
     ]
     anchor = EntryAnchor(
         gid="O9",
@@ -214,6 +216,7 @@ def test_eight_logical_names_match_varied_asana_display_names() -> None:
         "ehr_cal_url": "eh-9",
         "trackstat_id": "tr-9",
         "sked_id": "sk-9",
+        "google_cal_id": "gc-9",  # snake_case display name still normalizes to google_cal_id
         "custom_ghl_id": "gh-9",
     }
 
@@ -262,7 +265,7 @@ async def test_extract_async_reraises_when_guid_absent() -> None:
 
 
 async def test_extract_async_requests_custom_cal_status() -> None:
-    """The entry resolve requests the enrollment-status field alongside the eight."""
+    """The entry resolve requests the enrollment-status field alongside the cascade set."""
     values = {GUID_FIELD: "guid-1", CUSTOM_CAL_STATUS_FIELD: "Active"}
     mock = AsyncMock(return_value=_resolved("O1", values))
     with patch(f"{_EXTRACTOR_MOD}.resolve_async", new=mock):

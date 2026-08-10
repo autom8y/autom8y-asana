@@ -1,4 +1,4 @@
-"""UnitHolder Schema extending BASE_SCHEMA with the nine scheduling-posture fields.
+"""UnitHolder Schema extending BASE_SCHEMA with the ten scheduling-posture fields.
 
 WS-B / DIAG-ws-b-offer-frame-collapse-2026-08-05: the scheduling-posture producer
 cannot reach these values through the OFFER frame. The offer frame sources them
@@ -67,8 +67,9 @@ from __future__ import annotations
 from autom8_asana.dataframes.models.schema import ColumnDef, DataFrameSchema
 from autom8_asana.dataframes.schemas.base import BASE_COLUMNS
 
-# UnitHolder columns — the nine scheduling-posture fields, read cf: off the
-# UnitHolder's OWN manifest (R-7 live-verified; see module docstring).
+# UnitHolder columns — the ten scheduling-posture fields (nine live-verified in the
+# WS-B DIAG R-7 + the RUL-22 google_cal_id intent field), read cf: off the
+# UnitHolder's OWN manifest (see module docstring).
 UNIT_HOLDER_COLUMNS: list[ColumnDef] = [
     ColumnDef(
         name="custom_cal_status",
@@ -127,10 +128,17 @@ UNIT_HOLDER_COLUMNS: list[ColumnDef] = [
         description="Scheduling source: sked id",
     ),
     ColumnDef(
+        name="google_cal_id",
+        dtype="Utf8",
+        nullable=True,
+        source="cf:Google Cal ID",  # CASCADE_PRIORITY member (RUL-22 ninth intent field)
+        description="Scheduling source: Google Calendar id",
+    ),
+    ColumnDef(
         name="custom_ghl_id",
         dtype="Utf8",
         nullable=True,
-        source="cf:Custom GHL ID",  # CASCADE_PRIORITY[7]
+        source="cf:Custom GHL ID",  # CASCADE_PRIORITY (GHL terminal)
         description="Scheduling source: custom ghl id",
     ),
 ]
@@ -143,5 +151,5 @@ UNIT_HOLDER_SCHEMA = DataFrameSchema(
         *BASE_COLUMNS,
         *[c for c in UNIT_HOLDER_COLUMNS if c.name not in {col.name for col in BASE_COLUMNS}],
     ],
-    version="1.0.0",  # WS-B: first UnitHolder frame schema (nine cf: posture columns)
+    version="1.1.0",  # gcal-S2 (RUL-22): +google_cal_id -> ten cf: posture columns
 )

@@ -46,6 +46,7 @@ class _WireStratumEnum(StrEnum):
     EHR = "ehr"
     TRACKSTAT = "trackstat"
     SKED = "sked"
+    GCAL = "gcal"  # RUL-22 ninth source field -> gcal plane (autom8y-data STRATUM_VALUES)
     GHL = "ghl"
     INACTIVE = "inactive"
 
@@ -57,7 +58,12 @@ class _WireGhlOwnership(StrEnum):
 
 
 class _WireV2Entry(BaseModel):
-    """extra=forbid replica of the FROZEN wire contract v2 entry surface."""
+    """extra=forbid replica of the FROZEN wire contract v2.1 entry surface.
+
+    v2.1 adds ONE optional field (``served_calendar_id``). It is optional (default
+    None) so a flag-OFF entry that OMITS the key still validates, while a stray/unknown
+    key is still rejected (extra=forbid teeth preserved).
+    """
 
     model_config = ConfigDict(extra="forbid")
     guid: str = Field(min_length=1, max_length=36)
@@ -69,6 +75,8 @@ class _WireV2Entry(BaseModel):
     enrolled: bool
     canonical_destination_url: str | None = None
     ghl_ownership: _WireGhlOwnership
+    # v2.1 addition (RUL-22 ninth source field) — OPTIONAL, default null.
+    served_calendar_id: str | None = Field(default=None, max_length=255)
 
 
 class _WireV2SyncRequest(BaseModel):
@@ -135,6 +143,72 @@ def test_entry_count_integrity_witness() -> None:
     entries = [build_stratum_entry(f"g{i}", _sample_result(), None) for i in range(3)]
     payload = build_sync_payload(entries, datetime.now(UTC).isoformat())
     assert payload["entry_count"] == len(payload["entries"]) == 3
+
+
+# --- F-5: served_calendar_id emission gate (v2.1, DEFAULT-OFF omits the KEY) ------
+
+_GCAL_ID = "c_3f7a9@group.calendar.google.com"
+
+
+def _gcal_result() -> StratumResult:
+    return StratumResult(
+        stratum="gcal",
+        custom_ghl_id=None,
+        ghl_calendar_id=None,
+        enrolled=True,
+        canonical_destination_url=None,
+        ghl_ownership="none",
+        served_calendar_id=_GCAL_ID,
+    )
+
+
+def test_f5_flag_off_omits_served_calendar_id_key() -> None:
+    """Flag OFF (default) -> the KEY is absent, not present-with-None (extra=forbid).
+
+    ``extra="forbid"`` rejects unknown KEYS regardless of value, so a pre-migration
+    data image would 422 on ``served_calendar_id=None`` just as on a real value. The
+    wire must stay byte-identical to v2 when off.
+    """
+    entry = build_stratum_entry("g1", _gcal_result(), datetime.now(UTC))
+    assert "served_calendar_id" not in entry
+    assert set(entry) == _ENTRY_FIELDS
+    _WireV2Entry.model_validate(entry)
+
+
+def test_f5_flag_on_includes_served_calendar_id_value() -> None:
+    """Flag ON -> the key is present and carries the identity; v2.1 replica accepts it."""
+    entry = build_stratum_entry(
+        "g1", _gcal_result(), datetime.now(UTC), emit_served_calendar_id=True
+    )
+    assert "served_calendar_id" in entry
+    assert entry["served_calendar_id"] == _GCAL_ID
+    assert set(entry) == _ENTRY_FIELDS | {"served_calendar_id"}
+    _WireV2Entry.model_validate(entry)
+
+
+def test_f5_resolve_office_entries_defaults_to_env_gate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """resolve_office_entries defers to SCHEDULING_STRATUM_SERVED_CALENDAR_ID_ENABLED.
+
+    Unset -> omit; truthy -> include. Two-sided over the SAME office so only the gate
+    differs.
+    """
+    office = ExtractedScheduling(
+        guid="g-gcal",
+        normalized_inputs={**{f: None for f in CASCADE_PRIORITY}, "google_cal_id": _GCAL_ID},
+    )
+
+    monkeypatch.delenv(
+        push_mod.SCHEDULING_STRATUM_SERVED_CALENDAR_ID_ENABLED_ENV_VAR, raising=False
+    )
+    (off_entry,) = resolve_office_entries([office])
+    assert "served_calendar_id" not in off_entry
+
+    monkeypatch.setenv(push_mod.SCHEDULING_STRATUM_SERVED_CALENDAR_ID_ENABLED_ENV_VAR, "true")
+    (on_entry,) = resolve_office_entries([office])
+    assert on_entry["served_calendar_id"] == _GCAL_ID
+    assert on_entry["stratum"] == "gcal"
 
 
 # --- resolve_office_entries (pure dry-run pipeline) ------------------------------

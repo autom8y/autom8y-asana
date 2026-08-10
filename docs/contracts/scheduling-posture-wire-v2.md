@@ -55,3 +55,48 @@ trigger is a HARD pre-activation gate (FORK-2, DEFER-with-watch): the EventBridg
 schedule wiring is a **releaser-seam** item (this repo carries no IaC for it) —
 see `lambda_handlers/scheduling_stratum_snapshot.py`. Apply / merge / activate /
 schedule remain reserved operator levers.
+
+---
+
+## v2.1 AMENDMENT (2026-08-10, RUL-22 ninth source field)
+
+> Additive to v2. Nothing above changes. Authority:
+> `.ledge/decisions/ADR-gcal-intent-surface-contract-2026-08-10.md` §2.4. This block
+> MUST be byte-identical to the autom8y-data copy of this contract.
+
+```
+SCHEDULING-POSTURE WIRE CONTRACT v2.1 (AMENDED 2026-08-10, RUL-22 ninth source field)
+Additive to v2. SchedulingStratumEntry gains ONE optional field:
+  served_calendar_id: string|null   # OPTIONAL (default null). The calendar identity of the CASCADE WINNER at raw calendar-id grain, INTENT-SOURCED ONLY.
+                                    # google_cal_id wins -> the stripped Google Calendar ID. custom_ghl_id wins -> the RAW effective GHL id (NOT the widget URL).
+                                    # Every other winner, and the inactive terminal -> null. NEVER sourced, joined, defaulted or backfilled from business_offers.
+Read side: SchedulingStratumReadResponse gains served_calendar_id (nullable); it is NULL on every fail-closed GHL branch.
+Producer emission is gated by SCHEDULING_STRATUM_SERVED_CALENDAR_ID_ENABLED (DEFAULT-OFF); when off the KEY IS OMITTED (extra="forbid" rejects unknown keys, not values).
+Envelope unchanged: {snapshot_source, entries, source_timestamp, entry_count}; entry model extra="forbid" — UNCHANGED and NOT relaxed.
+```
+
+## v2.1 producer realization (this repo)
+
+| Contract field | Producer home | Receipt |
+|----------------|---------------|---------|
+| `served_calendar_id` | `normalizer/scheduling_stratum.py` — `resolve_stratum` derives it via `_derive_served_calendar_id` (google_cal_id winner → stripped id; custom_ghl_id winner → RAW effective GHL id, NOT `build_ghl_url`; else `null`). Carried on `StratumResult`; emitted by `services/scheduling_stratum_push.build_stratum_entry` only when the emission flag is on. | RUL-22 |
+
+## v2.1 load-bearing invariants
+
+- **INTENT-SOURCED ONLY (C-1).** `served_calendar_id` is NEVER sourced, joined,
+  defaulted, inferred, or backfilled from `business_offers` (or `master_cal` /
+  `master_cal_id` / any operations table), in any repo, on any code path. Its only
+  input is the cascade winner already selected from the Asana-intent frame.
+- **`NO_CANONICAL_URL_FIELDS`.** A `google_cal_id` winner has no provider booking
+  page: `canonical_destination_url` is `null` for it (never the raw calendar id).
+- **DEFAULT-OFF emission + flag-OFF-first rollback.** The key is OMITTED (not
+  `null`) until `SCHEDULING_STRATUM_SERVED_CALENDAR_ID_ENABLED` is truthy. Land
+  order: data migration 027 → data image → producer (flag off) → operator flip on.
+  Rollback flips the flag OFF first, confirms one clean push, then rolls images.
+- **PII.** The raw value MAY be a primary-calendar mailbox address. It is NEVER
+  logged, trace-attributed, or metric-dimensioned by the producer; only the
+  `served_calendar_id_emitted` bool is observable.
+- **Cascade position is OPEN (FORK-CASCADE-POS / RUL-6).** `google_cal_id`'s
+  priority relative to `custom_ghl_id` is an operator ruling, not frozen here; it
+  lives in a single `CASCADE_PRIORITY` index. Built at the interim index-7
+  recommendation, INERT until an office is populated.

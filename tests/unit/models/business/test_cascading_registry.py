@@ -59,9 +59,10 @@ class TestCascadingFieldRegistry:
     def test_registry_contains_unit_holder_scheduling_fields(self) -> None:
         """Registry includes UnitHolder.CascadingFields (OFFER_SCHEMA 1.6.0 re-source).
 
-        The scheduling-posture status + eight provider fields live on the UnitHolder
-        (office) ancestor; the offer frame reads them cascade: off this owner. Owner
-        MUST be UnitHolder -- the level where the value is populated live.
+        The scheduling-posture status + nine source fields (eight providers + the
+        RUL-22 google_cal_id intent field) live on the UnitHolder (office) ancestor;
+        the offer frame reads them cascade: off this owner. Owner MUST be
+        UnitHolder -- the level where the value is populated live.
         """
         from autom8_asana.models.business.unit import UnitHolder
 
@@ -75,6 +76,7 @@ class TestCascadingFieldRegistry:
             "ehr cal url",
             "trackstat id",
             "sked id",
+            "google cal id",
             "custom ghl id",
         ]
         for field_name in expected_unit_holder_fields:
@@ -84,9 +86,13 @@ class TestCascadingFieldRegistry:
             assert isinstance(field_def, CascadingFieldDef)
 
     def test_registry_field_count(self) -> None:
-        """Registry total field count (4 Business + 5 Unit + 9 UnitHolder scheduling)."""
+        """Registry total field count (4 Business + 5 Unit + 10 UnitHolder scheduling).
+
+        The tenth UnitHolder entry is the RUL-22 ninth intent source field
+        (``Google Cal ID``), added by the gcal-S2 producer chain.
+        """
         registry = get_cascading_field_registry()
-        assert len(registry) == 18
+        assert len(registry) == 19
 
     def test_registry_is_cached(self) -> None:
         """Registry is built once and cached for subsequent calls."""

@@ -511,6 +511,10 @@ class UnitHolder(
         EHR_CAL_URL = CascadingFieldDef(name="EHR Cal URL")
         TRACKSTAT_ID = CascadingFieldDef(name="TrackStat ID")
         SKED_ID = CascadingFieldDef(name="Sked ID")
+        # RUL-22 ninth source field. Title Case is LOAD-BEARING on the cascade path:
+        # the matcher is ``cf_utils.get_custom_field_value`` (``lower().strip()`` only,
+        # inner separators preserved), so a snake_case name would resolve nothing here.
+        GOOGLE_CAL_ID = CascadingFieldDef(name="Google Cal ID")
         CUSTOM_GHL_ID = CascadingFieldDef(name="Custom GHL ID")
 
         @classmethod
@@ -525,6 +529,7 @@ class UnitHolder(
                 cls.EHR_CAL_URL,
                 cls.TRACKSTAT_ID,
                 cls.SKED_ID,
+                cls.GOOGLE_CAL_ID,
                 cls.CUSTOM_GHL_ID,
             ]
 

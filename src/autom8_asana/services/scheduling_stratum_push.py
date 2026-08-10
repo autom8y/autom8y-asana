@@ -47,6 +47,18 @@ logger = get_logger(__name__)
 #: requires an explicit truthy value (deploy-time operator decision).
 SCHEDULING_STRATUM_PUSH_ENABLED_ENV_VAR = "SCHEDULING_STRATUM_PUSH_ENABLED"
 
+#: Emission gate for the v2.1 ``served_calendar_id`` field (RUL-22 ninth source
+#: field).  DEFAULT-OFF, and DECOUPLED from the push gate above: it exists solely to
+#: keep the two repos' deploy order safe against the data side's ``extra="forbid"``
+#: entry model.  When OFF, ``build_stratum_entry`` OMITS the key ENTIRELY (not
+#: ``None``) -- ``extra="forbid"`` rejects unknown KEYS regardless of value, so a
+#: producer that emitted ``served_calendar_id=None`` against a pre-migration data
+#: image would still 422 the whole-source snapshot.  The wire shape is byte-identical
+#: to v2 while this is off.  Flag-OFF-first is the rollback rule (ADR §2.2(d) / §5).
+SCHEDULING_STRATUM_SERVED_CALENDAR_ID_ENABLED_ENV_VAR = (
+    "SCHEDULING_STRATUM_SERVED_CALENDAR_ID_ENABLED"
+)
+
 #: The Phase-1 sync route (PR #218, bounded prefix -- NOT fused into /businesses/).
 _SYNC_ENDPOINT_PATH = "/api/v1/scheduling-stratum/sync"
 
@@ -84,14 +96,30 @@ def _is_stratum_push_enabled() -> bool:
     }
 
 
+def _is_served_calendar_id_enabled() -> bool:
+    """Whether the v2.1 ``served_calendar_id`` field is emitted (DEFAULT-OFF).
+
+    Returns ``True`` only when ``SCHEDULING_STRATUM_SERVED_CALENDAR_ID_ENABLED`` is an
+    explicit truthy value.  Absent / any other value -> the key is OMITTED from the
+    entry (byte-identical-to-v2 wire), decoupling the two repos' deploy order.
+    """
+    return os.environ.get(SCHEDULING_STRATUM_SERVED_CALENDAR_ID_ENABLED_ENV_VAR, "").lower() in {
+        "true",
+        "1",
+        "yes",
+    }
+
+
 def build_stratum_entry(
     guid: str,
     result: StratumResult,
     resolved_at: datetime | None,
+    *,
+    emit_served_calendar_id: bool = False,
 ) -> dict[str, Any]:
-    """Build ONE contract-shaped ``SchedulingStratumEntry`` (wire contract v2).
+    """Build ONE contract-shaped ``SchedulingStratumEntry`` (wire contract v2 / v2.1).
 
-    The field set is EXACTLY the frozen v2 surface: the v1 keys
+    The v2 field set: the v1 keys
     ``{guid, stratum, custom_ghl_id, ghl_calendar_id, resolved_at}`` PLUS the v2
     additions ``{enrolled, canonical_destination_url, ghl_ownership}``
     (docs/contracts/scheduling-posture-wire-v2.md).  The entry model is
@@ -99,8 +127,15 @@ def build_stratum_entry(
     ``source_timestamp`` / the server-assigned ``synced_at``) MUST NOT appear on an
     entry or the sync 422s.  A de-enrolled office is emitted with
     ``enrolled=False`` -- PRESENT, never omitted.
+
+    v2.1 (RUL-22 ninth source field): when ``emit_served_calendar_id`` is True the
+    optional ``served_calendar_id`` key is added; when False the key is OMITTED
+    ENTIRELY (NOT present-with-``None``) so the wire stays byte-identical to v2 and a
+    pre-migration ``extra="forbid"`` data image does not reject the batch on an unknown
+    KEY.  The gate is resolved by the caller from
+    ``SCHEDULING_STRATUM_SERVED_CALENDAR_ID_ENABLED`` (DEFAULT-OFF).
     """
-    return {
+    entry: dict[str, Any] = {
         "guid": guid,
         "stratum": result.stratum,
         "custom_ghl_id": result.custom_ghl_id,
@@ -110,6 +145,9 @@ def build_stratum_entry(
         "canonical_destination_url": result.canonical_destination_url,
         "ghl_ownership": result.ghl_ownership,
     }
+    if emit_served_calendar_id:
+        entry["served_calendar_id"] = result.served_calendar_id
+    return entry
 
 
 def build_sync_payload(
@@ -161,6 +199,9 @@ async def push_stratum_snapshot(
                 "endpoint": _SYNC_ENDPOINT_PATH,
                 "enabled_flag": enabled,
                 "reason": "dry_run" if dry_run else "gate_default_off",
+                # v2.1 flag STATE only -- a bool, NEVER the raw served_calendar_id value
+                # (a primary Google Calendar id is a mailbox address / PII; AMENDMENT-001 §A-2).
+                "served_calendar_id_emitted": _is_served_calendar_id_enabled(),
             },
         )
         return StratumPushResult(
@@ -197,14 +238,25 @@ def resolve_office_entries(
     extracted_offices: Sequence[ExtractedScheduling],
     *,
     resolved_at: datetime | None = None,
+    emit_served_calendar_id: bool | None = None,
 ) -> list[dict[str, Any]]:
-    """Resolve a batch of already-extracted offices into contract-shaped entries (PURE).
+    """Resolve a batch of already-extracted offices into contract-shaped entries.
 
     Splits the resolve/build step out of the I/O loop so the snapshot pipeline is
     demonstrable as a dry-run WITHOUT any live Asana call: feed sample
     :class:`ExtractedScheduling` rows and get the exact entries that would be pushed.
+
+    ``emit_served_calendar_id`` resolution mirrors the push-gate idiom: an explicit
+    argument wins; ``None`` defers to the DEFAULT-OFF
+    ``SCHEDULING_STRATUM_SERVED_CALENDAR_ID_ENABLED`` gate.  When off, the v2.1 key is
+    omitted from every entry (byte-identical-to-v2 wire).
     """
     stamp = resolved_at if resolved_at is not None else datetime.now(UTC)
+    emit = (
+        _is_served_calendar_id_enabled()
+        if emit_served_calendar_id is None
+        else emit_served_calendar_id
+    )
     entries: list[dict[str, Any]] = []
     for office in extracted_offices:
         # Thread the producer-derived v2 axes (enrolled / ghl_ownership) from the
@@ -215,7 +267,9 @@ def resolve_office_entries(
             enrolled=office.enrolled,
             ghl_ownership=office.ghl_ownership,
         )
-        entries.append(build_stratum_entry(office.guid, result, stamp))
+        entries.append(
+            build_stratum_entry(office.guid, result, stamp, emit_served_calendar_id=emit)
+        )
     return entries
 
 
@@ -253,6 +307,7 @@ async def resolve_and_push_snapshot(
 
 __all__ = [
     "SCHEDULING_STRATUM_PUSH_ENABLED_ENV_VAR",
+    "SCHEDULING_STRATUM_SERVED_CALENDAR_ID_ENABLED_ENV_VAR",
     "SNAPSHOT_SOURCE",
     "SchedulingStratumSyncResponse",
     "StratumPushResult",

@@ -149,6 +149,32 @@ def test_frame_schema_lag_fabricating_variant_is_the_danger() -> None:
     assert fabricated is True
 
 
+# --- F-6: the RUL-22 ninth column joined REQUIRED_FRAME_COLUMNS (ordering hazard) --
+
+
+def test_f6_green_frame_with_google_cal_id_projects_the_identity() -> None:
+    """A frame carrying google_cal_id projects it cleanly into normalized_inputs."""
+    assert "google_cal_id" in REQUIRED_FRAME_COLUMNS  # ninth key auto-extended the guard
+    row = _frame_row(guid="g-gcal", google_cal_id="c_3f7a9@group.calendar.google.com")
+    extracted = map_frame_row_to_inputs(row)
+    assert extracted.normalized_inputs["google_cal_id"] == "c_3f7a9@group.calendar.google.com"
+
+
+def test_f6_red_frame_missing_only_google_cal_id_refuses() -> None:
+    """A frame carrying every OTHER posture column but NOT google_cal_id REFUSES.
+
+    Proves the ordering-hazard coherence (R2): once google_cal_id is a
+    REQUIRED_FRAME_COLUMN, a warmed frame that lacks exactly it raises the honest
+    FrameSchemaLagError rather than fabricating a null identity. Had the CASCADE_PRIORITY
+    member landed WITHOUT the UNIT_HOLDER_SCHEMA column (split across PRs), this would
+    refuse forever -- which is why they land together.
+    """
+    row = _frame_row()
+    del row["google_cal_id"]
+    with pytest.raises(FrameSchemaLagError, match="google_cal_id"):
+        map_frame_row_to_inputs(row)
+
+
 # --- VECTORIZED-vs-REFERENCE equivalence (frame adapter == GFR-path adapter) -----
 
 

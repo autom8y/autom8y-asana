@@ -1330,10 +1330,11 @@ EXPECTED_SCHEMA_COLUMN_COUNTS: list[tuple[str, int]] = [
     ("offer", 33),  # 13 base + 10 offer-specific + 10 scheduling-posture projection (1.5.0)
     ("asset_edit", 34),  # 13 base + 21 asset_edit-specific
     ("asset_edit_holder", 14),  # 13 base + 1 asset_edit_holder-specific
-    # WS-B: 13 base + 9 cf: scheduling-posture columns (custom_cal_status + the
-    # eight CASCADE_PRIORITY providers). company_id is NOT here — it lives on the
-    # Business ancestor and is joined via parent_gid, not cascaded.
-    ("unit_holder", 22),
+    # WS-B + gcal-S2: 13 base + 10 cf: scheduling-posture columns (custom_cal_status +
+    # the nine CASCADE_PRIORITY providers incl. the RUL-22 google_cal_id intent field).
+    # company_id is NOT here — it lives on the Business ancestor and is joined via
+    # parent_gid, not cascaded.
+    ("unit_holder", 23),
     ("process_sales", 16),  # 13 base + 3 process-specific
     ("process_outreach", 16),  # 13 base + 3 process-specific
     ("process_onboarding", 16),  # 13 base + 3 process-specific
