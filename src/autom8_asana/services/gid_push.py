@@ -472,6 +472,16 @@ def extract_status_from_dataframe(
         List of entry dicts with keys: phone, vertical, pipeline_type,
         account_activity, pipeline_section, stage_entered_at.
     """
+    # CANARY_SENTINEL_PHONE: single source of truth for the reserved
+    # canary-tenant office phone -- the SAME sentinel the R7 divergence tripwire
+    # (#326) excludes from the active-offer numerator: a synthetic office must
+    # never enter a business-of-record ledger. Now that BR-3 adds the canary
+    # unit to the Business Units project, it would otherwise be swept into the
+    # account-status snapshot (this project's pipeline_type is "unit"), so the
+    # sentinel is excluded below, at the single row->entry funnel, too.
+    from autom8_asana.lambda_handlers.traffic_offer_divergence_tripwire import (
+        CANARY_SENTINEL_PHONE,
+    )
     from autom8_asana.models.business.activity import (
         AccountActivity,
         extract_section_name,
@@ -518,6 +528,14 @@ def extract_status_from_dataframe(
     for row_idx in range(len(df)):
         phone = df["office_phone"][row_idx]
         if not phone:
+            continue
+
+        # Canary-sentinel exclusion (business-of-record integrity): the synthetic
+        # canary unit carries this reserved phone and, post BR-3, is a member of
+        # the Business Units project -- but it must NEVER emit an account-status
+        # row into the business-of-record ledger. Excluded here so no synthetic
+        # entry is ever built (mirrors the R7 tripwire exclusion, #326).
+        if phone == CANARY_SENTINEL_PHONE:
             continue
 
         vertical = df["vertical"][row_idx] if has_vertical else ""

@@ -25,11 +25,21 @@ from autom8_asana.api.routes.intake_create_models import (
     IntakeBusinessCreateResponse,
     IntakeRouteResponse,
 )
+from autom8_asana.core.project_registry import UNIT_PROJECT
 
 if TYPE_CHECKING:
     from autom8_asana import AsanaClient
 
 logger = get_logger(__name__)
+
+# Name of the Business Units section a freshly-created unit is pinned into
+# (BR-3). Resolved to a live GID BY NAME at intake time -- never a hardcoded
+# section GID -- so an Asana section rename fails LOUD instead of silently
+# landing the unit in the project's first section ("Templates"), which every
+# reconciliation reader excludes (an unresolvable-unit birth). "Onboarding" is
+# an "activating" bucket in the section registry, so an Onboarding unit is
+# active under /v1/resolve/unit(active_only=True).
+ONBOARDING_SECTION_NAME = "Onboarding"
 
 # Fixed set of holder types per IMPL spec
 HOLDER_TYPES: list[str] = [
@@ -371,7 +381,16 @@ class IntakeCreateService:
         unit_name: str,
         vertical: str,
     ) -> str:
-        """Phase 3: Create Unit subtask under unit_holder."""
+        """Phase 3: Create Unit subtask under unit_holder.
+
+        The unit is created as a subtask of ``unit_holder`` and then ALSO added
+        to the Business Units project in the Onboarding section (BR-3). The
+        project-add is what makes the unit carry the project's ``Vertical``
+        custom field and appear in the unit index / resolve. It MUST happen
+        BEFORE :meth:`_write_vertical_custom_field`: the Vertical CF is only
+        applicable to a task once it is a member of the Vertical-defining
+        project.
+        """
         result = await self._client.tasks.create_async(
             name=unit_name,
             parent=unit_holder_gid,
@@ -379,10 +398,92 @@ class IntakeCreateService:
         )
         unit_gid = self._extract_gid(result)
 
-        # Write Vertical enum custom field on the newly created unit task
+        # BR-3: carry the Vertical field onto the unit by adding it to the
+        # Business Units project (Onboarding section) BEFORE writing the CF. A
+        # bare subtask has no Vertical CF, so the old fetch-then-write no-op'd
+        # silently and left the unit unindexable on its 2nd key column
+        # ("vertical", unit.py:64 -> cf:Vertical).
+        await self._place_unit_in_business_units(unit_gid)
+
+        # Write Vertical enum custom field on the unit (now a project member).
         await self._write_vertical_custom_field(unit_gid, vertical)
 
         return unit_gid
+
+    async def _place_unit_in_business_units(self, unit_gid: str) -> None:
+        """Add the unit to the Business Units project, pinned to Onboarding.
+
+        Two-step by design (BR-3 / A'-1):
+
+        1. Resolve the Onboarding section GID BY NAME from the LIVE project
+           definition and fail LOUD if it is absent -- resolved FIRST, before
+           any mutation, so a missing section never leaves the unit stranded in
+           the excluded "Templates" section.
+        2. ``add_to_project_async`` establishes project membership; the client's
+           ``section_gid`` argument is a no-op on the SaveSession path
+           (``task_operations.add_to_project`` drops it), so it CANNOT be relied
+           on to place the section -- a section-less add lands in the project's
+           FIRST section ("Templates"), which every reconciliation reader
+           EXCLUDES. ``move_to_section_async`` then explicitly places the unit
+           in Onboarding.
+
+        Landing in "Templates" is the silent-green trap this method exists to
+        avoid: the Vertical CF readback (L1) would still pass, but the unit
+        would never appear in the unit index and ``/v1/resolve/unit`` would
+        return NOT_FOUND.
+        """
+        section_gid = await self._resolve_onboarding_section_gid()
+        # Membership first (lands in the default/first section), then explicit
+        # placement into Onboarding. The transient default-section membership is
+        # invisible to the SCHEDULED reconciliation sweep.
+        await self._client.tasks.add_to_project_async(unit_gid, UNIT_PROJECT)
+        await self._client.tasks.move_to_section_async(
+            unit_gid,
+            section_gid,
+            UNIT_PROJECT,
+        )
+
+    async def _resolve_onboarding_section_gid(self) -> str:
+        """Resolve the Onboarding section GID BY NAME from the LIVE project.
+
+        Reads the Business Units project's sections (the project DEFINITION,
+        per O6) and matches ``Onboarding`` case/space-insensitively. Fails LOUD
+        (raises) if no such section exists -- refusing the silent Templates
+        landing (A'-1).
+
+        Raises:
+            RuntimeError: If the Business Units project has no Onboarding
+                section.
+        """
+        sections = await self._client.projects.get_sections_async(
+            UNIT_PROJECT,
+            opt_fields=["name", "gid"],
+        ).collect()
+
+        available: list[str] = []
+        for section in sections:
+            name = (
+                section.get("name", "")
+                if isinstance(section, dict)
+                else getattr(section, "name", "")
+            ) or ""
+            available.append(name)
+            if name.strip().lower() == ONBOARDING_SECTION_NAME.lower():
+                gid = (
+                    section.get("gid", "")
+                    if isinstance(section, dict)
+                    else getattr(section, "gid", "")
+                )
+                if gid:
+                    return str(gid)
+
+        raise RuntimeError(
+            f"Business Units project {UNIT_PROJECT} has no "
+            f"{ONBOARDING_SECTION_NAME!r} section; refusing to add the unit. A "
+            "section-less project add lands in the excluded 'Templates' "
+            "section, which silently drops the unit from the unit index and "
+            f"/v1/resolve/unit. Available sections: {sorted(set(available))}"
+        )
 
     async def _write_vertical_custom_field(
         self,
@@ -391,61 +492,72 @@ class IntakeCreateService:
     ) -> None:
         """Resolve and write the Vertical enum custom field on a unit task.
 
-        Fetches the task's custom fields, locates the field named "Vertical"
-        (case-insensitive), matches the vertical parameter to an enum option
-        by name (case-insensitive), and writes via tasks.update_async.
+        Resolves the ``Vertical`` field gid and the target enum-option gid from
+        the Business Units project's custom-field DEFINITION (O6) -- NOT from a
+        fresh read of ``task_gid``. The task was added to the project moments
+        ago (:meth:`_place_unit_in_business_units`); Asana's inherited-CF
+        projection lags membership by up to ~26h, so a fresh task read can
+        return ``custom_fields == []`` and the field-name match would no-op
+        (the BR-3 / PR-4 read-your-own-write race). The project field
+        definition is stable and race-free, and membership makes the write
+        itself land immediately.
 
-        Non-fatal: logs warning and returns if field or enum option not found.
+        Non-fatal: logs a warning and returns if the field or the enum option
+        is not in the project definition (matches the other CF writers in this
+        service -- the two-sided regression test is the real guard).
         """
-        task_data = await self._client.tasks.get_async(
-            task_gid,
+        settings = await self._client.custom_fields.get_settings_for_project_async(
+            UNIT_PROJECT,
             opt_fields=[
-                "custom_fields.gid",
-                "custom_fields.name",
-                "custom_fields.enum_options.gid",
-                "custom_fields.enum_options.name",
+                "custom_field.gid",
+                "custom_field.name",
+                "custom_field.enum_options.gid",
+                "custom_field.enum_options.name",
             ],
-        )
-        custom_fields = (
-            task_data.get("custom_fields", [])
-            if isinstance(task_data, dict)
-            else getattr(task_data, "custom_fields", []) or []
-        )
+        ).collect()
 
-        # Find the "Vertical" custom field entry
-        vertical_cf = None
-        for cf in custom_fields:
-            cf_name = cf.get("name", "") if isinstance(cf, dict) else getattr(cf, "name", "")
-            if cf_name and cf_name.lower() == "vertical":
-                vertical_cf = cf
+        # Find the "Vertical" custom field in the PROJECT definition.
+        cf_gid = ""
+        enum_options: list[Any] = []
+        for setting in settings:
+            cf = (
+                setting.get("custom_field")
+                if isinstance(setting, dict)
+                else getattr(setting, "custom_field", None)
+            )
+            if cf is None:
+                continue
+            cf_name = (
+                cf.get("name", "") if isinstance(cf, dict) else getattr(cf, "name", "")
+            ) or ""
+            if cf_name.lower() == "vertical":
+                cf_gid = (
+                    cf.get("gid", "") if isinstance(cf, dict) else getattr(cf, "gid", "")
+                ) or ""
+                enum_options = (
+                    cf.get("enum_options", [])
+                    if isinstance(cf, dict)
+                    else getattr(cf, "enum_options", []) or []
+                )
                 break
 
-        if vertical_cf is None:
+        if not cf_gid:
             logger.warning(
-                "vertical_cf_not_found",
-                extra={"task_gid": task_gid},
+                "vertical_cf_not_found_in_project",
+                extra={"task_gid": task_gid, "project_gid": UNIT_PROJECT},
             )
             return
 
-        cf_gid = (
-            vertical_cf.get("gid", "")
-            if isinstance(vertical_cf, dict)
-            else getattr(vertical_cf, "gid", "")
-        )
-        enum_options = (
-            vertical_cf.get("enum_options", [])
-            if isinstance(vertical_cf, dict)
-            else getattr(vertical_cf, "enum_options", []) or []
-        )
-
         # Match enum option by name (case-insensitive)
-        enum_option_gid = None
+        enum_option_gid = ""
         for opt in enum_options:
-            opt_name = opt.get("name", "") if isinstance(opt, dict) else getattr(opt, "name", "")
-            if opt_name and opt_name.lower() == vertical.lower():
+            opt_name = (
+                opt.get("name", "") if isinstance(opt, dict) else getattr(opt, "name", "")
+            ) or ""
+            if opt_name.lower() == vertical.lower():
                 enum_option_gid = (
                     opt.get("gid", "") if isinstance(opt, dict) else getattr(opt, "gid", "")
-                )
+                ) or ""
                 break
 
         if not enum_option_gid:
