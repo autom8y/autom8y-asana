@@ -7,6 +7,7 @@ Validates field resolution, partial failure handling, and auth requirements.
 
 from __future__ import annotations
 
+import copy
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -17,6 +18,12 @@ from autom8_asana.auth.bot_pat import clear_bot_pat_cache
 from autom8_asana.auth.jwt_validator import reset_auth_client
 from autom8_asana.errors import NotFoundError, RateLimitError
 from autom8_asana.services.resolver import EntityProjectRegistry
+from tests._shared.cf_write_readback import (
+    apply_write_body,
+    captured_put_body,
+    read_custom_field,
+    real_tasks_client,
+)
 
 # ---------------------------------------------------------------------------
 # Test data constants
@@ -277,10 +284,13 @@ class TestWriteCustomFieldsEndpoint:
         assert data["task_gid"] == TASK_GID
         assert data["fields_written"] == 1
 
-        # Verify the Asana update was called with the right field GID
+        # Verify the Asana update was called with the right field GID, passed as
+        # a ``custom_fields=`` KWARG. Reading ``kwargs["data"]`` here is banned:
+        # that was the mock-lie that let CLASS-DEFECT-CF-WRITE ship green.
         mock_asana.tasks.update_async.assert_called_once()
         call_data = mock_asana.tasks.update_async.call_args
-        custom_fields = call_data.kwargs["data"]["custom_fields"]
+        assert "data" not in call_data.kwargs, "data= kwarg double-nests -- silent no-op"
+        custom_fields = call_data.kwargs["custom_fields"]
         assert "cf_company_id" in custom_fields
         assert custom_fields["cf_company_id"] == "company-guid-abc"
 
@@ -363,7 +373,8 @@ class TestWriteCustomFieldsEndpoint:
         # Verify null was passed through to Asana
         mock_asana.tasks.update_async.assert_called_once()
         call_data = mock_asana.tasks.update_async.call_args
-        custom_fields = call_data.kwargs["data"]["custom_fields"]
+        assert "data" not in call_data.kwargs, "data= kwarg double-nests -- silent no-op"
+        custom_fields = call_data.kwargs["custom_fields"]
         assert custom_fields["cf_company_id"] is None
 
     def test_social_profile_field_write(self, client: TestClient) -> None:
@@ -404,3 +415,172 @@ class TestWriteCustomFieldsEndpoint:
         data = resp.json()
         assert data["fields_written"] == 0
         assert len(data["errors"]) == 2
+
+
+# ---------------------------------------------------------------------------
+# Anti-mock-lie transport seam + READBACK receipt (DIC/SUB-2, CLASS-DEFECT-CF-WRITE)
+# ---------------------------------------------------------------------------
+#
+# The tests above stub ``tasks.update_async`` wholesale -- an AsyncMock accepts
+# ANY signature, so they can only prove "the code passes what the code passes".
+# That is exactly how ``data={"custom_fields": ...}`` shipped green while the
+# real client marshaled ``json={"data": {"data": {...}}}`` and Asana answered
+# 200 having written NOTHING.
+#
+# The tests below mock ONE LAYER LOWER (``self._http.put``), run the REAL
+# ``TasksClient.update_async`` body-build, and then READ THE FIELD BACK through
+# the production extractor. HTTP status is never the receipt.
+
+
+def _direct_service(tasks):
+    """Drive ``IntakeCustomFieldService`` over a real TasksClient shim."""
+    from types import SimpleNamespace
+
+    from autom8_asana.services.intake_custom_field_service import IntakeCustomFieldService
+
+    return IntakeCustomFieldService(SimpleNamespace(tasks=tasks))
+
+
+def _task_read_doc() -> dict:
+    """A fresh, wholly-unwritten task-read document."""
+    return {"gid": TASK_GID, "custom_fields": copy.deepcopy(MOCK_CUSTOM_FIELDS)}
+
+
+class TestCustomFieldWriteTransportSeamAntiMockLie:
+    """Verbatim outbound-body assertions at the httpx transport seam."""
+
+    async def test_text_field_marshals_single_nested_body(self) -> None:
+        """Text CF write reaches the wire as ``{"data": {"custom_fields": {...}}}``."""
+        tasks, mock_http = real_tasks_client()
+        tasks.get_async = AsyncMock(return_value=_task_read_doc())
+        service = _direct_service(tasks)
+
+        with patch(
+            "autom8_asana.services.intake_custom_field_service"
+            ".IntakeCustomFieldService._enrich_from_schema_registry"
+        ):
+            await service.write_fields(TASK_GID, {"company_id": "company-guid-abc"})
+
+        mock_http.put.assert_awaited_once_with(
+            f"/tasks/{TASK_GID}",
+            json={"data": {"custom_fields": {"cf_company_id": "company-guid-abc"}}},
+        )
+        sent = captured_put_body(mock_http)
+        # GATE-1 guard: the inner payload is the task-field map, never another
+        # {"data": ...} wrapper. Reverting production to data={...} turns this RED.
+        assert "data" not in sent["data"], "double-nested body -- CF write is a silent no-op"
+
+    async def test_enum_field_marshals_plain_option_gid(self) -> None:
+        """DIC/F-1: an enum CF WRITE value is the bare option gid string."""
+        tasks, mock_http = real_tasks_client()
+        tasks.get_async = AsyncMock(return_value=_task_read_doc())
+        service = _direct_service(tasks)
+
+        with patch(
+            "autom8_asana.services.intake_custom_field_service"
+            ".IntakeCustomFieldService._enrich_from_schema_registry"
+        ):
+            await service.write_fields(TASK_GID, {"Status": "Active"})
+
+        mock_http.put.assert_awaited_once_with(
+            f"/tasks/{TASK_GID}",
+            json={"data": {"custom_fields": {"cf_status": "opt_active"}}},
+        )
+        sent = captured_put_body(mock_http)
+        written = sent["data"]["custom_fields"]["cf_status"]
+        assert written == "opt_active"
+        assert not isinstance(written, dict), "enum READ shape on the WRITE path (DIC/F-1)"
+        assert "data" not in sent["data"], "double-nested body -- CF write is a silent no-op"
+
+    async def test_multi_field_write_marshals_one_flat_map(self) -> None:
+        """All resolved fields ride a single flat ``custom_fields`` map."""
+        tasks, mock_http = real_tasks_client()
+        tasks.get_async = AsyncMock(return_value=_task_read_doc())
+        service = _direct_service(tasks)
+
+        with patch(
+            "autom8_asana.services.intake_custom_field_service"
+            ".IntakeCustomFieldService._enrich_from_schema_registry"
+        ):
+            await service.write_fields(
+                TASK_GID,
+                {"UTM Source": "google", "UTM Medium": "cpc"},
+            )
+
+        mock_http.put.assert_awaited_once_with(
+            f"/tasks/{TASK_GID}",
+            json={
+                "data": {
+                    "custom_fields": {
+                        "cf_utm_source": "google",
+                        "cf_utm_medium": "cpc",
+                    }
+                }
+            },
+        )
+
+
+class TestCustomFieldWriteReadback:
+    """READBACK receipt: the written field is read back out, not the HTTP status.
+
+    Asana answers 200 for the broken body AND the correct one -- status proves
+    nothing. Each test applies the VERBATIM captured body to a task-read
+    document via the strict-subset oracle and reads the field back through the
+    PRODUCTION extractor (``intake_resolve_service._extract_custom_field``).
+
+    The two arms are non-vacuous only as a pair: the cured arm proves the oracle
+    applies a correct body at all; the broken arm proves the pre-cure body is
+    not applied. The live-Asana half of this receipt is owed to SUB-3 GATE-2.
+    """
+
+    async def test_text_field_reads_back_after_write(self) -> None:
+        """CURED arm: the production write lands and the value reads back."""
+        task_doc = _task_read_doc()
+        tasks, mock_http = real_tasks_client()
+        tasks.get_async = AsyncMock(return_value=copy.deepcopy(task_doc))
+        service = _direct_service(tasks)
+
+        with patch(
+            "autom8_asana.services.intake_custom_field_service"
+            ".IntakeCustomFieldService._enrich_from_schema_registry"
+        ):
+            await service.write_fields(TASK_GID, {"company_id": "company-guid-abc"})
+
+        assert read_custom_field(task_doc, "company_id") is None  # unwritten to start
+
+        after = apply_write_body(task_doc, captured_put_body(mock_http))
+        assert read_custom_field(after, "company_id") == "company-guid-abc"
+
+    async def test_enum_field_reads_back_after_write(self) -> None:
+        """CURED arm, enum: the option NAME reads back after a plain-gid write."""
+        task_doc = _task_read_doc()
+        tasks, mock_http = real_tasks_client()
+        tasks.get_async = AsyncMock(return_value=copy.deepcopy(task_doc))
+        service = _direct_service(tasks)
+
+        with patch(
+            "autom8_asana.services.intake_custom_field_service"
+            ".IntakeCustomFieldService._enrich_from_schema_registry"
+        ):
+            await service.write_fields(TASK_GID, {"Status": "Active"})
+
+        after = apply_write_body(task_doc, captured_put_body(mock_http))
+        assert read_custom_field(after, "Status") == "Active"
+
+    async def test_pre_cure_double_nested_body_reads_back_none(self) -> None:
+        """BROKEN arm: the pre-cure body is a 200 that writes nothing."""
+        task_doc = _task_read_doc()
+        pre_cure_body = {"data": {"data": {"custom_fields": {"cf_company_id": "company-guid-abc"}}}}
+
+        after = apply_write_body(task_doc, pre_cure_body)
+
+        assert read_custom_field(after, "company_id") is None
+
+    async def test_enum_read_shape_on_write_path_reads_back_none(self) -> None:
+        """BROKEN arm, DIC/F-1: the nested ``{"gid": opt}`` shape writes nothing."""
+        task_doc = _task_read_doc()
+        read_shape_body = {"data": {"custom_fields": {"cf_status": {"gid": "opt_active"}}}}
+
+        after = apply_write_body(task_doc, read_shape_body)
+
+        assert read_custom_field(after, "Status") is None
