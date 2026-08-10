@@ -101,6 +101,35 @@ def _make_collect_mock(return_value):
     return collector
 
 
+def _stub_phase3_placement(mock_client: MagicMock) -> None:
+    """Stub the BR-3 Phase-3 calls on an existing MagicMock AsanaClient.
+
+    Full-hierarchy orchestration tests that exercise Phase 3 need the unit
+    project-add + Onboarding placement + project-definition Vertical resolution
+    stubbed, or the awaited coroutines are bare MagicMocks.
+    """
+    mock_client.tasks.add_to_project_async = AsyncMock(return_value=MagicMock())
+    mock_client.tasks.move_to_section_async = AsyncMock(return_value=MagicMock())
+    mock_client.projects.get_sections_async = MagicMock(
+        return_value=_make_collect_mock(
+            [{"gid": "section_onboarding", "name": "Onboarding"}],
+        ),
+    )
+    mock_client.custom_fields.get_settings_for_project_async = MagicMock(
+        return_value=_make_collect_mock(
+            [
+                {
+                    "custom_field": {
+                        "gid": "cf_vertical",
+                        "name": "Vertical",
+                        "enum_options": [{"gid": "enum_dental", "name": "Dental"}],
+                    },
+                },
+            ]
+        ),
+    )
+
+
 def _make_mock_asana_client(
     *,
     raise_on_create: Exception | None = None,
@@ -206,6 +235,44 @@ def _make_mock_asana_client(
         )
 
     mock_client.tasks.update_async = AsyncMock(return_value=MagicMock())
+
+    # BR-3 Phase 3: the unit is added to the Business Units project and pinned
+    # into the Onboarding section before the Vertical CF is written.
+    mock_client.tasks.add_to_project_async = AsyncMock(return_value=MagicMock())
+    mock_client.tasks.move_to_section_async = AsyncMock(return_value=MagicMock())
+
+    # projects.get_sections_async -> PageIterator-like with .collect(): the
+    # Business Units sections. Onboarding present (resolved by name); Templates
+    # is the excluded first section that a section-less add would fall into.
+    mock_client.projects.get_sections_async = MagicMock(
+        return_value=_make_collect_mock(
+            [
+                {"gid": "section_templates", "name": "Templates"},
+                {"gid": "section_onboarding", "name": "Onboarding"},
+            ]
+        ),
+    )
+
+    # custom_fields.get_settings_for_project_async -> PageIterator-like with
+    # .collect(): the Business Units custom-field DEFINITION (O6 resolution
+    # source for the Vertical field + enum options).
+    mock_client.custom_fields.get_settings_for_project_async = MagicMock(
+        return_value=_make_collect_mock(
+            [
+                {
+                    "custom_field": {
+                        "gid": "cf_vertical",
+                        "name": "Vertical",
+                        "enum_options": [
+                            {"gid": "enum_dental", "name": "Dental"},
+                            {"gid": "enum_chiropractic", "name": "Chiropractic"},
+                            {"gid": "enum_medical", "name": "Medical"},
+                        ],
+                    },
+                },
+            ]
+        ),
+    )
 
     # subtasks_async returns a PageIterator-like object with .collect() method
     mock_client.tasks.subtasks_async = MagicMock(
@@ -605,39 +672,75 @@ class TestCreateIntakeBusinessEndpoint:
 # ---------------------------------------------------------------------------
 
 
+def _make_phase3_mock_client(
+    *,
+    sections: list[dict] | None = None,
+    vertical_settings: list[dict] | None = None,
+) -> MagicMock:
+    """Mock AsanaClient for direct ``_phase3_create_unit`` unit tests.
+
+    Stubs the full BR-3 Phase-3 chain: create -> resolve Onboarding section ->
+    add to project -> move to section -> resolve Vertical field from the PROJECT
+    definition -> write. ``sections`` / ``vertical_settings`` override the
+    Onboarding-section and Vertical-field-definition fixtures respectively.
+    """
+    if sections is None:
+        sections = [
+            {"gid": "section_templates", "name": "Templates"},
+            {"gid": "section_onboarding", "name": "Onboarding"},
+        ]
+    if vertical_settings is None:
+        vertical_settings = [
+            {
+                "custom_field": {
+                    "gid": "cf_vertical",
+                    "name": "Vertical",
+                    "enum_options": [
+                        {"gid": "enum_dental", "name": "Dental"},
+                        {"gid": "enum_medical", "name": "Medical"},
+                        {"gid": "enum_legal", "name": "Legal"},
+                    ],
+                },
+            },
+        ]
+
+    mock_client = MagicMock()
+    mock_client.tasks.create_async = AsyncMock(return_value={"gid": UNIT_GID})
+    mock_client.tasks.add_to_project_async = AsyncMock(return_value=MagicMock())
+    mock_client.tasks.move_to_section_async = AsyncMock(return_value=MagicMock())
+    mock_client.tasks.update_async = AsyncMock(return_value=MagicMock())
+    mock_client.projects.get_sections_async = MagicMock(
+        return_value=_make_collect_mock(sections),
+    )
+    mock_client.custom_fields.get_settings_for_project_async = MagicMock(
+        return_value=_make_collect_mock(vertical_settings),
+    )
+    return mock_client
+
+
 class TestPhase3VerticalCustomField:
-    """Tests for the Vertical enum custom field write in Phase 3."""
+    """Tests for the Vertical enum custom field write in Phase 3 (BR-3).
+
+    Post BR-3 the Vertical field + enum option are resolved from the Business
+    Units project DEFINITION (``get_settings_for_project_async``), NEVER from a
+    fresh read of the just-created unit task -- that fresh read is subject to
+    Asana's inherited-CF projection lag and is exactly what produced the silent
+    BR-3 no-op.
+    """
 
     async def test_phase3_writes_vertical_custom_field(self) -> None:
         """Verifies update_async is called with correct custom_fields payload.
 
-        When the Vertical enum custom field exists and the vertical parameter
-        matches an enum option, the service writes the enum option GID.
+        When the Vertical enum custom field exists in the PROJECT definition and
+        the vertical parameter matches an enum option, the service writes the
+        plain enum option GID.
         """
-        mock_client = MagicMock()
-        mock_client.tasks.create_async = AsyncMock(
-            return_value={"gid": UNIT_GID},
-        )
-        # get_async returns task with Vertical enum custom field
-        mock_client.tasks.get_async = AsyncMock(
-            return_value={
-                "gid": UNIT_GID,
-                "custom_fields": [
-                    {
-                        "gid": "cf_vertical",
-                        "name": "Vertical",
-                        "enum_options": [
-                            {"gid": "enum_dental", "name": "Dental"},
-                            {"gid": "enum_medical", "name": "Medical"},
-                            {"gid": "enum_legal", "name": "Legal"},
-                        ],
-                    },
-                ],
-            },
-        )
-        mock_client.tasks.update_async = AsyncMock(return_value=MagicMock())
+        mock_client = _make_phase3_mock_client()
 
-        from autom8_asana.services.intake_create_service import IntakeCreateService
+        from autom8_asana.services.intake_create_service import (
+            UNIT_PROJECT,
+            IntakeCreateService,
+        )
 
         service = IntakeCreateService(mock_client)
         result_gid = await service._phase3_create_unit(
@@ -648,43 +751,124 @@ class TestPhase3VerticalCustomField:
 
         assert result_gid == UNIT_GID
 
-        # Verify get_async was called to fetch custom fields
-        mock_client.tasks.get_async.assert_called_once_with(
-            UNIT_GID,
-            opt_fields=[
-                "custom_fields.gid",
-                "custom_fields.name",
-                "custom_fields.enum_options.gid",
-                "custom_fields.enum_options.name",
-            ],
+        # The Vertical field is resolved from the PROJECT definition, not the
+        # fresh task (O6). get_async is NEVER used for the vertical resolution.
+        mock_client.custom_fields.get_settings_for_project_async.assert_called_once()
+        assert (
+            mock_client.custom_fields.get_settings_for_project_async.call_args.args[0]
+            == UNIT_PROJECT
         )
 
-        # Verify update_async was called with correct enum custom field payload
+        # Verify update_async was called with the plain enum option gid.
         mock_client.tasks.update_async.assert_called_once_with(
             UNIT_GID,
             custom_fields={"cf_vertical": "enum_dental"},
         )
 
-    async def test_phase3_vertical_cf_not_found_no_raise(self) -> None:
-        """Verifies graceful degradation when Vertical custom field is absent.
+    async def test_phase3_places_unit_in_onboarding_not_templates(self) -> None:
+        """The unit is added to Business Units and pinned to Onboarding.
 
-        The service logs a warning but does not raise. The unit task is still
-        created and its GID returned.
+        A section-less add would land in the excluded "Templates" section (the
+        silent-green trap): the CF readback (L1) still passes but the unit never
+        appears in the index / resolve. So placement is explicit.
         """
-        mock_client = MagicMock()
-        mock_client.tasks.create_async = AsyncMock(
-            return_value={"gid": UNIT_GID},
+        mock_client = _make_phase3_mock_client()
+
+        from autom8_asana.services.intake_create_service import (
+            UNIT_PROJECT,
+            IntakeCreateService,
         )
-        # get_async returns task WITHOUT a Vertical custom field
+
+        service = IntakeCreateService(mock_client)
+        await service._phase3_create_unit(
+            unit_holder_gid="holder_unit",
+            unit_name="Test Practice -- Dental",
+            vertical="dental",
+        )
+
+        # Added to the Business Units project.
+        mock_client.tasks.add_to_project_async.assert_called_once_with(UNIT_GID, UNIT_PROJECT)
+        # Explicitly moved into the Onboarding section (by resolved gid), NOT
+        # left in the default Templates section.
+        mock_client.tasks.move_to_section_async.assert_called_once_with(
+            UNIT_GID,
+            "section_onboarding",
+            UNIT_PROJECT,
+        )
+
+    async def test_phase3_missing_onboarding_section_raises(self) -> None:
+        """FAIL-LOUD (A'-1): no Onboarding section -> raise, never silent-green.
+
+        Two-sided with the happy path above: an Onboarding section present ->
+        placed; absent -> the whole phase raises rather than landing the unit in
+        the excluded Templates section. Critically, the project-add is NEVER
+        attempted when the section is missing (resolution happens first).
+        """
+        mock_client = _make_phase3_mock_client(
+            sections=[
+                {"gid": "section_templates", "name": "Templates"},
+                {"gid": "section_active", "name": "Active"},
+            ],
+        )
+
+        from autom8_asana.services.intake_create_service import IntakeCreateService
+
+        service = IntakeCreateService(mock_client)
+        with pytest.raises(RuntimeError, match="Onboarding"):
+            await service._phase3_create_unit(
+                unit_holder_gid="holder_unit",
+                unit_name="Test Practice -- Dental",
+                vertical="dental",
+            )
+
+        # No mutation happened: resolution fails BEFORE the project-add.
+        mock_client.tasks.add_to_project_async.assert_not_called()
+        mock_client.tasks.move_to_section_async.assert_not_called()
+        mock_client.tasks.update_async.assert_not_called()
+
+    async def test_phase3_resolves_from_project_not_fresh_task(self) -> None:
+        """O6 / PR-4: resolution ignores the fresh task's projected CFs.
+
+        Discriminating test for the race fix: the fresh task read returns an
+        EMPTY custom_fields list (the exact projection-lag state that produced
+        the BR-3 false []). Because the service resolves from the PROJECT
+        definition, the write STILL happens. The pre-fix code (reading the fresh
+        task) would have no-op'd here.
+        """
+        mock_client = _make_phase3_mock_client()
+        # Even if something read the fresh task, it would see [] -- the race.
         mock_client.tasks.get_async = AsyncMock(
-            return_value={
-                "gid": UNIT_GID,
-                "custom_fields": [
-                    {"gid": "cf_other", "name": "Some Other Field"},
-                ],
-            },
+            return_value={"gid": UNIT_GID, "custom_fields": []},
         )
-        mock_client.tasks.update_async = AsyncMock(return_value=MagicMock())
+
+        from autom8_asana.services.intake_create_service import IntakeCreateService
+
+        service = IntakeCreateService(mock_client)
+        await service._phase3_create_unit(
+            unit_holder_gid="holder_unit",
+            unit_name="Test Practice -- Dental",
+            vertical="dental",
+        )
+
+        # The write landed despite the empty fresh-task projection.
+        mock_client.tasks.update_async.assert_called_once_with(
+            UNIT_GID,
+            custom_fields={"cf_vertical": "enum_dental"},
+        )
+        # The vertical resolution never depended on a fresh task read.
+        mock_client.tasks.get_async.assert_not_called()
+
+    async def test_phase3_vertical_cf_not_found_no_raise(self) -> None:
+        """Graceful degradation when the PROJECT has no Vertical field.
+
+        The service logs a warning but does not raise; the unit task is still
+        created and its GID returned. (Placement still succeeds.)
+        """
+        mock_client = _make_phase3_mock_client(
+            vertical_settings=[
+                {"custom_field": {"gid": "cf_other", "name": "Some Other Field"}},
+            ],
+        )
 
         from autom8_asana.services.intake_create_service import IntakeCreateService
 
@@ -695,29 +879,20 @@ class TestPhase3VerticalCustomField:
             vertical="dental",
         )
 
-        # Unit is still created successfully
         assert result_gid == UNIT_GID
-
-        # update_async should NOT have been called (no field to write)
         mock_client.tasks.update_async.assert_not_called()
 
     async def test_phase3_vertical_enum_option_not_found_no_raise(self) -> None:
-        """Verifies graceful degradation when enum option does not match.
+        """Graceful degradation when the vertical matches no enum option.
 
-        The Vertical custom field exists but the vertical parameter does not
-        match any of its enum options. The service logs a warning and returns
-        without writing.
+        The Vertical custom field exists in the project but the vertical
+        parameter does not match any of its enum options. The service logs a
+        warning and returns without writing.
         """
-        mock_client = MagicMock()
-        mock_client.tasks.create_async = AsyncMock(
-            return_value={"gid": UNIT_GID},
-        )
-        # get_async returns Vertical field but with no matching enum option
-        mock_client.tasks.get_async = AsyncMock(
-            return_value={
-                "gid": UNIT_GID,
-                "custom_fields": [
-                    {
+        mock_client = _make_phase3_mock_client(
+            vertical_settings=[
+                {
+                    "custom_field": {
                         "gid": "cf_vertical",
                         "name": "Vertical",
                         "enum_options": [
@@ -725,10 +900,9 @@ class TestPhase3VerticalCustomField:
                             {"gid": "enum_legal", "name": "Legal"},
                         ],
                     },
-                ],
-            },
+                },
+            ],
         )
-        mock_client.tasks.update_async = AsyncMock(return_value=MagicMock())
 
         from autom8_asana.services.intake_create_service import IntakeCreateService
 
@@ -739,33 +913,24 @@ class TestPhase3VerticalCustomField:
             vertical="dental",  # Not in enum_options
         )
 
-        # Unit is still created successfully
         assert result_gid == UNIT_GID
-
-        # update_async should NOT have been called (no matching enum option)
         mock_client.tasks.update_async.assert_not_called()
 
     async def test_phase3_vertical_case_insensitive_match(self) -> None:
         """Verifies case-insensitive matching of vertical to enum option."""
-        mock_client = MagicMock()
-        mock_client.tasks.create_async = AsyncMock(
-            return_value={"gid": UNIT_GID},
-        )
-        mock_client.tasks.get_async = AsyncMock(
-            return_value={
-                "gid": UNIT_GID,
-                "custom_fields": [
-                    {
+        mock_client = _make_phase3_mock_client(
+            vertical_settings=[
+                {
+                    "custom_field": {
                         "gid": "cf_vertical",
                         "name": "VERTICAL",  # uppercase field name
                         "enum_options": [
                             {"gid": "enum_dental", "name": "Dental"},  # title case
                         ],
                     },
-                ],
-            },
+                },
+            ],
         )
-        mock_client.tasks.update_async = AsyncMock(return_value=MagicMock())
 
         from autom8_asana.services.intake_create_service import IntakeCreateService
 
@@ -863,6 +1028,7 @@ class TestCreateBusinessHierarchyOrchestration:
         mock_client.tasks.create_async = AsyncMock(side_effect=create_side_effect)
         mock_client.tasks.get_async = AsyncMock(return_value={"gid": UNIT_GID, "custom_fields": []})
         mock_client.tasks.update_async = AsyncMock()
+        _stub_phase3_placement(mock_client)
 
         with patch(
             "autom8_asana.services.intake_create_service.resolve_business_project_gid",
@@ -958,6 +1124,7 @@ class TestCreateBusinessHierarchyOrchestration:
         mock_client.tasks.create_async = AsyncMock(side_effect=create_side_effect)
         mock_client.tasks.get_async = AsyncMock(return_value={"gid": UNIT_GID, "custom_fields": []})
         mock_client.tasks.update_async = AsyncMock()
+        _stub_phase3_placement(mock_client)
 
         service = IntakeCreateService(mock_client)
 
@@ -1248,13 +1415,30 @@ def _real_tasks_client() -> tuple[Any, AsyncMock]:
     return tasks, mock_http
 
 
-def _service_with_real_tasks(tasks: Any):
-    """Wrap a real TasksClient in the service under a minimal AsanaClient shim."""
+def _service_with_real_tasks(
+    tasks: Any,
+    *,
+    custom_fields: Any = None,
+    projects: Any = None,
+):
+    """Wrap a real TasksClient in the service under a minimal AsanaClient shim.
+
+    ``custom_fields`` / ``projects`` collaborators are supplied for the BR-3
+    Phase-3 path (project-definition resolution + section placement); the
+    text-CF transport tests that only exercise ``tasks`` leave them as bare
+    mocks.
+    """
     from types import SimpleNamespace
 
     from autom8_asana.services.intake_create_service import IntakeCreateService
 
-    return IntakeCreateService(SimpleNamespace(tasks=tasks))
+    return IntakeCreateService(
+        SimpleNamespace(
+            tasks=tasks,
+            custom_fields=custom_fields if custom_fields is not None else MagicMock(),
+            projects=projects if projects is not None else MagicMock(),
+        )
+    )
 
 
 class TestUpdateAsyncTransportSeamAntiMockLie:
@@ -1299,25 +1483,31 @@ class TestUpdateAsyncTransportSeamAntiMockLie:
 
     async def test_vertical_enum_marshals_plain_string_body(self) -> None:
         """Enum CF WRITE value is the PLAIN option gid string (ADR F-1), NOT the
-        nested ``{"gid": option_gid}`` READ shape. The READ payload (from
-        get_async) carries the nested enum_options; the WRITE payload carries the
-        bare option gid -- writing the read shape is the F-1 defect this test
-        catches (two-way mutation-proof: nested->RED, data=->RED).
+        nested ``{"gid": option_gid}`` READ shape. The READ payload (the project
+        custom-field DEFINITION) carries the nested enum_options; the WRITE
+        payload carries the bare option gid -- writing the read shape is the F-1
+        defect this test catches (two-way mutation-proof: nested->RED, data=->RED).
+
+        Post BR-3 the field is resolved from the PROJECT definition
+        (get_settings_for_project_async), not the fresh task -- so the enum
+        options are supplied there.
         """
         tasks, mock_http = _real_tasks_client()
-        tasks.get_async = AsyncMock(
-            return_value={
-                "gid": UNIT_GID,
-                "custom_fields": [
+        custom_fields = MagicMock()
+        custom_fields.get_settings_for_project_async = MagicMock(
+            return_value=_make_collect_mock(
+                [
                     {
-                        "gid": "cf_vertical",
-                        "name": "Vertical",
-                        "enum_options": [{"gid": "enum_dental", "name": "Dental"}],
+                        "custom_field": {
+                            "gid": "cf_vertical",
+                            "name": "Vertical",
+                            "enum_options": [{"gid": "enum_dental", "name": "Dental"}],
+                        },
                     },
-                ],
-            },
+                ]
+            ),
         )
-        service = _service_with_real_tasks(tasks)
+        service = _service_with_real_tasks(tasks, custom_fields=custom_fields)
 
         await service._write_vertical_custom_field(UNIT_GID, "dental")
 
