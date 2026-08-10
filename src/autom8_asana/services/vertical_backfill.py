@@ -248,10 +248,20 @@ class VerticalBackfillService:
             )
             return False
 
-        # Write the custom field
+        # Write the custom field.
+        #
+        # TWO shape rules, both load-bearing (this site carried BOTH defects):
+        #  1. ``TasksClient.update`` body-builds ``json={"data": kwargs}``, so task
+        #     fields go as KWARGS. A ``data=`` kwarg double-nests into
+        #     ``{"data": {"data": {...}}}`` -- Asana returns 200 and writes NOTHING.
+        #  2. An enum custom field READS as ``{gid, name, enum_options: [...]}`` but
+        #     WRITES as the PLAIN option gid string. Writing the read shape
+        #     ``{"gid": opt}`` also lands a silent no-op.
+        # Positive controls for both rules: ``receipts_service`` and the
+        # forwarding-stage ``backfill`` (plain option gid under ``custom_fields=``).
         await self._client.tasks.update_async(
             task_gid,
-            data={"custom_fields": {cf_gid: {"gid": enum_option_gid}}},
+            custom_fields={cf_gid: enum_option_gid},
         )
 
         self._log.info(

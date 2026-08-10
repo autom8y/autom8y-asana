@@ -114,13 +114,20 @@ class IntakeCustomFieldService:
             )
             custom_fields_payload[gid] = formatted_value
 
-        # Write resolved fields in a single Asana API call
+        # Write resolved fields in a single Asana API call.
+        #
+        # ``TasksClient.update`` body-builds ``json={"data": kwargs}``, so task
+        # fields are passed as KWARGS -- a ``data=`` kwarg would be wrapped AGAIN
+        # into ``{"data": {"data": {...}}}``, which Asana answers 200 and writes
+        # NOTHING (the CLASS-DEFECT-CF-WRITE silent no-op; cf. the GATE-1 cure in
+        # PR #328 and the correct sibling form in ``receipts_service`` /
+        # forwarding-stage ``backfill``). HTTP status is NOT a receipt here.
         fields_written = 0
         if custom_fields_payload:
             try:
                 await self._client.tasks.update_async(
                     task_gid,
-                    data={"custom_fields": custom_fields_payload},
+                    custom_fields=custom_fields_payload,
                 )
                 fields_written = len(custom_fields_payload)
             except Exception as exc:
