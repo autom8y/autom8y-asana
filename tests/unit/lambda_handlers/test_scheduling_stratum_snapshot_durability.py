@@ -465,11 +465,27 @@ class TestD1RefusalDrivesAnAlarmableSignal:
         self, rec: _Recorder
     ) -> None:
         """★ THE MUST-NOT-TRIP HALF. A guard that fires on healthy traffic is worse
-        than no guard. A delivering tick publishes the push heartbeat and NOTHING on
-        the refusal series, so the new alarm stays OK through steady state."""
+        than no guard. A delivering tick publishes the push heartbeat and does not
+        TRIP the refusal series, so the alarm stays OK through steady state.
+
+        ★ AMENDED BY L2 (2026-08-11), teeth STRENGTHENED not relaxed. This assertion
+        was ``METRIC_REFUSED not in rec.names()`` -- which conflated ``did not fire``
+        with ``published nothing``, and it was that second property (silence) which
+        left the alarm OK-by-missing-data rather than OK-by-measurement. A healthy
+        tick now publishes a real 0. The must-not-trip claim is asserted directly
+        against the alarm's own comparison (GreaterThanThreshold(0)): the emitted
+        value must be 0, which is a STRICTLY stronger statement than absence, since
+        absence was also satisfied by a dead emitter."""
         result = await _run(gate=True, pushed=True)
         assert result.status == "pushed"
-        assert mod.METRIC_REFUSED not in rec.names()
+        assert _values_of(rec, mod.METRIC_REFUSED) == [0], (
+            "a delivering tick must publish exactly one MEASURED non-firing 0 on the "
+            f"refusal series; emitted={rec.names()}"
+        )
+        assert not any(v > 0 for v in _values_of(rec, mod.METRIC_REFUSED)), (
+            "the refusal alarm is GreaterThanThreshold(0) -- any value above 0 on a "
+            "healthy delivering tick would page SEV-1 for steady state"
+        )
         assert rec.value_of(mod.METRIC_PUSH_EPOCH) > 1_700_000_000
 
     @pytest.mark.asyncio
@@ -642,3 +658,376 @@ class TestCertifiedBodiesUntouched:
         src = inspect.getsource(mod.posture_signal_row_count)
         assert "pl.any_horizontal([pl.col(c).is_not_null() for c in signal_cols])" in src
         assert "emit_metric" not in src
+
+
+# ---------------------------------------------------------------------------
+# ★ L2 -- the OK-by-MISSING-DATA blindness on the three FIRE-ONLY series
+# ---------------------------------------------------------------------------
+# Three alarm-bound series published ONLY on their fault path and NOTHING otherwise:
+# SchedulingStratumSnapshotDegenerateSource, ...Refused, ...SchemaLag. Their alarms
+# are GreaterThanThreshold(0) + treat_missing_data=notBreaching, so on a healthy tick
+# the alarm saw NO DATA and sat OK *by the missing-data rule*. That OK is BLIND: it is
+# byte-identical to the OK produced by a dead emitter, a renamed metric, a
+# wrong-dimension emission, or a revoked cloudwatch:PutMetricData.
+#
+# Measured own-hands 2026-08-10 via get-metric-statistics on {environment=production}:
+# NONE of the three had EVER published a datapoint on the series its alarm binds.
+# Over the same window SchedulingStratumSnapshotPushFailed published 13 consecutive
+# real 0s at the 2h cadence -- which is exactly why ITS OK is value-driven. These
+# tests are the teeth on porting that template to the other three.
+#
+# SCOPE, do not over-read: a real 0 makes the OK VALUE-DRIVEN. It does NOT prove the
+# alarm can reach ALARM. The RED legs are owed to the operator-attended injection
+# (CARD-RUL19-INJECTION) because driving these alarms pages a live SEV-1 SMS
+# subscriber.
+
+
+def _uh_business_spine(
+    n_rows: int, n_signal_rows: int, *, posture_columns: bool = True
+) -> tuple[pl.DataFrame, pl.DataFrame]:
+    """Build the (unit_holder, business) SPINE the producer actually reads.
+
+    ``posture_columns=False`` yields the SCHEMA-LAG shape: a base-columns-only
+    unit_holder frame that predates UNIT_HOLDER_SCHEMA, which is what a warmer that
+    has not completed a cycle since a schema change serves.
+    """
+    import datetime as dt
+
+    from autom8_asana.normalizer.scheduling_extractor import (
+        GUID_FIELD,
+        REQUIRED_FRAME_COLUMNS,
+    )
+
+    unit_holder: dict[str, list[Any]] = {
+        "gid": [f"uh{i}" for i in range(n_rows)],
+        "parent_gid": [f"b{i}" for i in range(n_rows)],
+        "last_modified": [dt.datetime(2026, 1, 1, tzinfo=dt.UTC)] * n_rows,
+    }
+    if posture_columns:
+        for col in REQUIRED_FRAME_COLUMNS:
+            if col == GUID_FIELD:
+                continue  # company_id lives on the BUSINESS side of the spine
+            unit_holder[col] = [None] * n_rows
+        # Signal is carried on custom_cal_status, the column the value floor counts.
+        unit_holder["custom_cal_status"] = [
+            "enabled" if i < n_signal_rows else None for i in range(n_rows)
+        ]
+    business = pl.DataFrame(
+        {"gid": [f"b{i}" for i in range(n_rows)], GUID_FIELD: [f"g{i}" for i in range(n_rows)]}
+    )
+    return pl.DataFrame(unit_holder), business
+
+
+class _FakeEntry:
+    def __init__(self, dataframe: Any) -> None:
+        self.dataframe = dataframe
+
+
+class _FakeSpineCache:
+    """Serves the two spine frames by entity_type (the producer reads BOTH)."""
+
+    def __init__(self, unit_holder: Any, business: Any) -> None:
+        self._entries = {
+            mod.SNAPSHOT_UNIT_HOLDER_ENTITY_TYPE: _FakeEntry(unit_holder),
+            mod.SNAPSHOT_BUSINESS_ENTITY_TYPE: _FakeEntry(business),
+        }
+
+    async def get_async(self, _project_gid: str, entity_type: str) -> Any:
+        return self._entries.get(entity_type)
+
+
+async def _run_through_real_enumerate(
+    n_rows: int, n_signal_rows: int, *, posture_columns: bool = True
+) -> Any:
+    """Drive execute_snapshot_push through the REAL ``_enumerate_offices_from_frame``.
+
+    The three 1-emissions live INSIDE that function, so a proof that the companion 0
+    never coincides with them has to traverse the real fire sites -- an injectable
+    stub would prove only the orchestrator's half.
+    """
+    unit_holder, business = _uh_business_spine(
+        n_rows, n_signal_rows, posture_columns=posture_columns
+    )
+    cache = _FakeSpineCache(unit_holder, business)
+
+    async def _push(_: list[Any]) -> Any:
+        return _PushResult(True, n_rows)
+
+    return await mod.execute_snapshot_push(
+        gate=lambda: True,
+        enumerate_offices=lambda: mod._enumerate_offices_from_frame(cache, "UH", "BIZ"),
+        push=_push,
+    )
+
+
+def _values_of(rec: _Recorder, name: str) -> list[float]:
+    return [c[1] for c in rec.calls if c[0] == name]
+
+
+class TestL2CompanionSeriesContract:
+    def test_the_companion_set_is_exactly_the_three_fire_only_series(self) -> None:
+        """The seam, pinned. These three -- and ONLY these three -- were alarm-bound
+        with no real-0 publisher. RunEpoch/UniverseCensus already publish a value on
+        every tick; PushFailed already publishes ``0 if pushed else 1``; PushEpoch is
+        deliberately absence-signalling (the freshness dead-man reads its silence)."""
+        assert set(mod.SOURCE_HEALTH_COMPANION_METRICS) == {
+            "SchedulingStratumSnapshotDegenerateSource",
+            "SchedulingStratumSnapshotRefused",
+            "SchedulingStratumSnapshotSchemaLag",
+        }
+
+    def test_every_companion_is_alarm_bound(self) -> None:
+        """A 0 published on a name no alarm binds is storage nobody reads; a companion
+        missing from the alarm set means an alarm was retired without its companion."""
+        assert set(mod.SOURCE_HEALTH_COMPANION_METRICS) <= mod.ALARM_BOUND_METRICS
+
+    def test_the_absence_signalling_metrics_are_NOT_given_companions_RED(self) -> None:
+        """★ RED: PushEpoch's whole detection mechanism IS its absence -- the
+        substrate-freshness dead-man is treat_missing_data=breaching and converts
+        silence into a page ~1h before every office flips to fallback_ghl. Publishing
+        a companion 0 there (or on RunEpoch, the liveness dead-man) would hold both
+        dead-men permanently green over a dead producer. This is the single most
+        dangerous way to over-apply this cure."""
+        assert mod.METRIC_PUSH_EPOCH not in mod.SOURCE_HEALTH_COMPANION_METRICS
+        assert mod.METRIC_RUN_EPOCH not in mod.SOURCE_HEALTH_COMPANION_METRICS
+        assert mod.METRIC_PUSH_FAILED not in mod.SOURCE_HEALTH_COMPANION_METRICS
+
+
+class TestL2HealthyTickPublishesRealZeros:
+    @pytest.mark.asyncio
+    async def test_a_delivering_tick_publishes_a_real_zero_on_all_three_GREEN(
+        self, rec: _Recorder
+    ) -> None:
+        """★ THE L2 ACCEPTANCE TEST. Pre-fix a healthy tick published NOTHING on these
+        three and the alarms sat OK purely because treat_missing_data=notBreaching
+        said so. Each must now carry a measured 0."""
+        result = await _run(gate=True, pushed=True)
+        assert result.status == "pushed"
+        for name in mod.SOURCE_HEALTH_COMPANION_METRICS:
+            assert _values_of(rec, name) == [0], (
+                f"{name} did not publish exactly one real 0 on a healthy tick; "
+                f"emitted={rec.names()}"
+            )
+
+    @pytest.mark.asyncio
+    async def test_the_zeros_are_DIMENSION_FREE_RED(self, rec: _Recorder) -> None:
+        """★ THE STRUCTURAL HALF, and the ORIGINAL SCAR. CloudWatch dimension matching
+        is EXACT: the alarms bind {environment} ALONE. A companion carrying a second
+        dimension (the {environment, reason} shape that made the refusal signal
+        unalarmable in the first place) would publish onto a series no alarm can read
+        -- the alarm would stay OK-by-missing-data and the cure would be theatre."""
+        await _run(gate=True, pushed=True)
+        for name in mod.SOURCE_HEALTH_COMPANION_METRICS:
+            emitted = [c for c in rec.calls if c[0] == name]
+            assert emitted, f"{name} never emitted"
+            for _n, _v, dims in emitted:
+                assert dims is None, (
+                    f"{name} companion carries dimension(s) {dims} -- an alarm binding "
+                    "{environment} alone cannot match this series"
+                )
+
+    @pytest.mark.asyncio
+    async def test_a_shadow_run_still_publishes_the_source_zeros_GREEN(
+        self, rec: _Recorder
+    ) -> None:
+        """These three measure SOURCE health, not DELIVERY health. A deliberate shadow
+        run DID enumerate and DID clear every guard, so ``no refusal occurred`` is an
+        honest fact about it. This is NOT the D-2 shape: D-2 refused to publish
+        PushFailed=0 on a shadow run because that would assert a DELIVERY that never
+        happened -- here the evaluation genuinely happened."""
+        await _run(gate=True, pushed=False, shadow_run=True)
+        for name in mod.SOURCE_HEALTH_COMPANION_METRICS:
+            assert _values_of(rec, name) == [0]
+        assert mod.METRIC_PUSH_FAILED not in rec.names()
+
+    @pytest.mark.asyncio
+    async def test_a_non_delivering_tick_still_publishes_the_source_zeros_GREEN(
+        self, rec: _Recorder
+    ) -> None:
+        """A push that reached the data side and failed is a DELIVERY fault. The source
+        was still evaluated and still clean, so the source series must say so while
+        PushFailed=1 carries the delivery fault on its own honest axis."""
+        await _run(gate=True, pushed=False)
+        for name in mod.SOURCE_HEALTH_COMPANION_METRICS:
+            assert _values_of(rec, name) == [0]
+        assert rec.value_of(mod.METRIC_PUSH_FAILED) == 1
+
+    @pytest.mark.asyncio
+    async def test_a_gate_off_tick_publishes_NO_companion_zero_RED(self, rec: _Recorder) -> None:
+        """★ THE OVER-CLAIM REFUSAL. A DARK gate never enumerates -- no frame is read,
+        no guard runs. Publishing ``DegenerateSource=0`` there would assert ``we
+        evaluated the source and it was sound`` on a tick that never looked. Same
+        discipline D-2 applied when it declined to publish PushFailed=0 on a shadow
+        run. A gate left off by accident is the substrate-freshness dead-man's remit."""
+        result = await _run(gate=False, pushed=True)
+        assert result.status == "skipped"
+        for name in mod.SOURCE_HEALTH_COMPANION_METRICS:
+            assert name not in rec.names(), (
+                f"{name} published on a tick that never evaluated the source"
+            )
+
+
+class TestL2CompanionsCanNeverMaskAFiring:
+    """RED side, driven through the REAL fire sites in ``_enumerate_offices_from_frame``."""
+
+    @pytest.mark.asyncio
+    async def test_a_refusing_tick_emits_the_1_and_NO_zero_RED(self, rec: _Recorder) -> None:
+        """★ The live 92% shape (empty active-office set). Refused must carry 1 and
+        NOTHING else -- a 0 alongside it would let the Maximum statistic still see the
+        1, but a 0 emitted INSTEAD of the 1 would silence the alarm outright."""
+        result = await _run_refused_empty_office_set()
+        assert result.status == "refused"
+        assert _values_of(rec, mod.METRIC_REFUSED) == [1]
+        assert 0 not in _values_of(rec, mod.METRIC_REFUSED)
+
+    @pytest.mark.asyncio
+    async def test_a_schema_lag_tick_emits_SchemaLag_1_and_NO_zero_RED(
+        self, rec: _Recorder
+    ) -> None:
+        """RED through the REAL fire site: a base-columns-only unit_holder frame raises
+        FrameSchemaLagError inside the enumeration, which emits SchemaLag=1 and
+        re-raises as a refusal -- so the orchestrator returns from the except arm and
+        the companion line is never reached."""
+        result = await _run_through_real_enumerate(5, 5, posture_columns=False)
+        assert result.status == "refused"
+        assert _values_of(rec, mod.METRIC_SCHEMA_LAG) == [1]
+        assert _values_of(rec, mod.METRIC_REFUSED) == [1]
+        assert 0 not in _values_of(rec, mod.METRIC_SCHEMA_LAG)
+
+    @pytest.mark.asyncio
+    async def test_a_degenerate_source_tick_emits_the_1_and_NO_zero_RED(
+        self, rec: _Recorder
+    ) -> None:
+        """RED through the REAL fire site: a full universe whose posture content is
+        all-null trips the value floor, which emits DegenerateSource=1 and re-raises."""
+        result = await _run_through_real_enumerate(mod.MIN_POSTURE_SIGNAL_ROWS + 20, 0)
+        assert result.status == "refused"
+        assert _values_of(rec, "SchedulingStratumSnapshotDegenerateSource") == [1]
+        assert 0 not in _values_of(rec, "SchedulingStratumSnapshotDegenerateSource")
+
+    @pytest.mark.asyncio
+    async def test_a_healthy_tick_through_the_REAL_enumerate_publishes_zeros_GREEN(
+        self, rec: _Recorder
+    ) -> None:
+        """★ THE MUST-NOT-TRIP HALF of the two RED legs above, through the same code
+        path: a spine that clears the floor publishes 0 on all three and 1 on none.
+        Without this the RED legs could be passing on an incidental fixture property."""
+        n = mod.MIN_POSTURE_SIGNAL_ROWS + 20
+        result = await _run_through_real_enumerate(n, n)
+        assert result.status == "pushed"
+        for name in mod.SOURCE_HEALTH_COMPANION_METRICS:
+            assert _values_of(rec, name) == [0]
+
+    def test_no_terminal_path_ever_publishes_BOTH_a_zero_and_a_one_RED(self) -> None:
+        """★ THE MUTUAL-EXCLUSION SWEEP. Per TICK (a fresh recorder each run, because
+        a shared one would merge ticks and manufacture a false violation), no companion
+        series may carry both a 0 and a 1. A tick emitting both would let the Maximum
+        statistic keep the firing, but it would also make the series self-contradictory
+        and unreviewable -- and any future reordering that put the 0 last would silence
+        a real fault under Minimum/Average."""
+        import asyncio
+
+        n = mod.MIN_POSTURE_SIGNAL_ROWS + 20
+        paths: dict[str, Any] = {
+            "delivering": lambda: _run(gate=True, pushed=True),
+            "non_delivering": lambda: _run(gate=True, pushed=False),
+            "mint_failure": lambda: _run(gate=True, pushed=None),
+            "shadow_run": lambda: _run(gate=True, pushed=False, shadow_run=True),
+            "gate_off": lambda: _run(gate=False, pushed=True),
+            "refused_empty_set": _run_refused_empty_office_set,
+            "schema_lag": lambda: _run_through_real_enumerate(5, 5, posture_columns=False),
+            "degenerate_source": lambda: _run_through_real_enumerate(n, 0),
+            "healthy_real_enumerate": lambda: _run_through_real_enumerate(n, n),
+        }
+        for label, make in paths.items():
+            recorder = _Recorder()
+            original = mod.emit_metric
+            mod.emit_metric = recorder  # type: ignore[assignment]
+            try:
+                asyncio.run(make())
+            finally:
+                mod.emit_metric = original  # type: ignore[assignment]
+            for name in mod.SOURCE_HEALTH_COMPANION_METRICS:
+                values = set(_values_of(recorder, name))
+                assert not ({0, 1} <= values), (
+                    f"terminal path {label!r} published BOTH a 0 and a 1 on {name} in a "
+                    f"single tick -- the companion can mask (or contradict) a firing"
+                )
+                assert len(values) <= 1, f"{label!r} published {values} on {name} in one tick"
+
+
+class TestL2CompanionCannotSwallowAnExceptionIntoAFalseZero:
+    @pytest.mark.asyncio
+    async def test_a_NON_refusal_exception_publishes_NO_zero_and_PROPAGATES_RED(
+        self, rec: _Recorder
+    ) -> None:
+        """★ THE FALSE-ZERO GUARD. The nightmare shape: an enumeration that blows up
+        for a non-refusal reason (unreadable cache, boto timeout, a bug) gets caught,
+        swallowed, and reported as ``no refusal detected`` -- a 0 that asserts source
+        health nobody ever measured. It would hold all three alarms value-driven-GREEN
+        through a total enumeration outage, which is strictly WORSE than the
+        missing-data blindness this package cures.
+
+        The exception must escape to the handler (which publishes
+        SchedulingStratumSnapshotError=1 and returns an honest 500) and NOT ONE
+        companion 0 may be published on the way out."""
+
+        async def _enumerate() -> tuple[list[Any], bool]:
+            raise RuntimeError("substrate exploded")
+
+        async def _push(_: list[Any]) -> Any:  # pragma: no cover - never reached
+            raise AssertionError("push must not run after an enumeration failure")
+
+        with pytest.raises(RuntimeError, match="substrate exploded"):
+            await mod.execute_snapshot_push(
+                gate=lambda: True, enumerate_offices=_enumerate, push=_push
+            )
+        for name in mod.SOURCE_HEALTH_COMPANION_METRICS:
+            assert name not in rec.names(), (
+                f"{name} published a companion value while the enumeration was failing "
+                "-- a swallowed exception became a false assertion of source health"
+            )
+
+    @pytest.mark.asyncio
+    async def test_a_completeness_gate_crash_publishes_NO_zero_RED(
+        self, rec: _Recorder, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Same guard on the OTHER statement inside the try: if the completeness gate
+        itself raises something that is not a SnapshotRefusedError, no source verdict
+        was reached and none may be published."""
+
+        def _boom(*_a: Any, **_k: Any) -> Any:
+            raise ValueError("gate imploded")
+
+        monkeypatch.setattr(mod, "assert_complete_office_set", _boom)
+        with pytest.raises(ValueError, match="gate imploded"):
+            await _run(gate=True, pushed=True)
+        for name in mod.SOURCE_HEALTH_COMPANION_METRICS:
+            assert name not in rec.names()
+
+    def test_the_companion_emitter_body_carries_no_exception_handler(self) -> None:
+        """★ THE FENCE, MADE MECHANICAL (same idiom as the guard-body pins above). A
+        try/except inside the emitter is the exact mechanism by which a failure
+        becomes a false 0. Emission-level failures already degrade gracefully one
+        layer down in ``emit_metric``; a SECOND handler here could only convert a
+        control-flow error into a health assertion."""
+        import inspect
+
+        # Strip the docstring: it DESCRIBES the dimension trap at length, and matching
+        # prose would make this fence pass or fail on wording rather than on code.
+        body = inspect.getsource(mod._emit_source_health_companions)
+        body = body.replace(mod._emit_source_health_companions.__doc__ or "", "")
+        assert "try:" not in body, "the companion emitter must not catch anything"
+        assert "except" not in body
+        assert "dimensions" not in body, "a companion dimension makes the series unalarmable"
+
+    def test_the_companion_emitter_has_exactly_one_call_site(self) -> None:
+        """Two call sites is how a 0-and-1 same-tick violation gets minted later: one
+        of them inevitably ends up on the wrong side of the refusal boundary."""
+        import inspect
+
+        src = inspect.getsource(mod)
+        assert src.count("_emit_source_health_companions()") == 2, (
+            "expected exactly the definition + ONE call site; "
+            f"found {src.count('_emit_source_health_companions()')} occurrences"
+        )

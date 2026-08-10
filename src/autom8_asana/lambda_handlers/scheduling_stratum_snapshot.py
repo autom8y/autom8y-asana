@@ -392,6 +392,72 @@ ALARM_BOUND_METRICS: frozenset[str] = frozenset(
     }
 )
 
+#: ★ L2 — THE SOURCE-HEALTH COMPANION SET. The three FIRE-ONLY series.
+#:
+#: These three publish 1 on their fault path and, before this change, published
+#: NOTHING otherwise. Their alarms are ``GreaterThanThreshold(0)`` with
+#: ``treat_missing_data=notBreaching``, so on every healthy tick the alarm saw NO
+#: DATA and sat in OK *by the missing-data rule* -- not because anything measured
+#: health. That OK is BLIND: it is indistinguishable from an OK produced by a dead
+#: emitter, a renamed metric, a wrong-dimension emission, or a lost IAM permission.
+#: Live on 2026-08-10 none of the three had EVER published a datapoint on the
+#: ``{environment=production}`` series its alarm binds.
+#:
+#: ★ THE TEMPLATE IS :data:`METRIC_PUSH_FAILED`, which has always published a real
+#: ``0`` on every delivering tick (``0 if pushed else 1``, ONE call site, ONE
+#: emission per tick). That is exactly why its OK is VALUE-DRIVEN: the alarm is
+#: reading a measured "no failure", not an absence. Live receipt: 13 consecutive
+#: real-0 datapoints at the 2h cadence over 2026-08-09T21:56Z..2026-08-10T21:56Z.
+#: These three now do the same thing on the same dimension set.
+#:
+#: ★ MUTUAL EXCLUSION IS STRUCTURAL, not a convention. Every 1-emission for these
+#: three sits on a path that RAISES :class:`SnapshotRefusedError`; the companion 0
+#: is published in :func:`execute_snapshot_push` only on the path where that raise
+#: did NOT happen -- the two live on opposite sides of one try/except boundary in
+#: one function. A tick can therefore never publish both a 0 and a 1 on the same
+#: series, and the 0 can never mask a firing.
+#:
+#: ★ SPELLING. Names are the alarm seam (CloudWatch matching is EXACT), so every
+#: member is asserted to be in :data:`ALARM_BOUND_METRICS` at import time below.
+SOURCE_HEALTH_COMPANION_METRICS: tuple[str, ...] = (
+    "SchedulingStratumSnapshotDegenerateSource",
+    METRIC_REFUSED,
+    METRIC_SCHEMA_LAG,
+)
+
+# Import-time seam guard: a companion published on a name no alarm binds is a
+# metric nobody reads, and a companion MISSING from the alarm set means an alarm
+# was retired without retiring its companion. Either way the pair has decoupled.
+assert set(SOURCE_HEALTH_COMPANION_METRICS) <= ALARM_BOUND_METRICS, (
+    "SOURCE_HEALTH_COMPANION_METRICS carries a name no alarm binds: "
+    f"{sorted(set(SOURCE_HEALTH_COMPANION_METRICS) - ALARM_BOUND_METRICS)}"
+)
+
+
+def _emit_source_health_companions() -> None:
+    """Publish a REAL 0 on each fire-only source-health series (L2).
+
+    Called from ONE place: :func:`execute_snapshot_push`, on the path where the
+    source guards RAN and did NOT refuse. The claim each 0 makes is therefore
+    exactly true and narrowly scoped: *this tick evaluated the source and found no
+    refusal, no schema lag, and no degenerate posture*.
+
+    ★ DIMENSION-FREE (D-1). ``emit_metric`` stamps ``environment=<ASANA_CW_ENVIRONMENT>``
+    and nothing else, which is the EXACT single-dimension set every alarm binds
+    (``dimensions = {environment = var.environment}`` in
+    terraform/services/asana/scheduling_stratum_producer_alarms.tf). Passing a
+    ``dimensions=`` kwarg here would fork these onto a ``{environment, reason}``-shaped
+    series no alarm can match -- the ORIGINAL scar this whole package cures. Do not
+    add one.
+
+    ★ WHAT THIS DOES NOT DO. A 0 makes the OK VALUE-DRIVEN; it does not prove the
+    alarm can go RED. The RED legs are owed to the operator-attended injection
+    experiment (CARD-RUL19-INJECTION), because driving any of these to ALARM pages
+    a live SEV-1 SMS subscriber.
+    """
+    for metric_name in SOURCE_HEALTH_COMPANION_METRICS:
+        emit_metric(metric_name, 0)
+
 
 def _now_epoch() -> int:
     """Current UTC epoch seconds (the deadman heartbeat payload)."""
@@ -478,6 +544,14 @@ async def execute_snapshot_push(
     upstream of the push emissions, which is exactly why the push-failure metric alone
     covered only 8% of the historical outage.
 
+    ★ EVERY NON-REFUSING TICK ALSO PUBLISHES A REAL 0 (L2) on each of the three
+    fire-only source-health series via :func:`_emit_source_health_companions`, so
+    their alarms' OK becomes VALUE-DRIVEN instead of OK-by-missing-data. The
+    ``skipped`` arm is deliberately EXCLUDED: a dark gate never enumerates, so it
+    never evaluated the source, and a 0 there would assert a verdict nobody reached
+    -- the same over-claim D-2 refused when it declined to publish ``PushFailed=0``
+    on a shadow run.
+
     Args:
         shadow_run: True when the OPERATOR deliberately forced a dry run via
             ``event["dry_run"]`` (D-2). A shadow run is not a delivery failure: it
@@ -512,6 +586,21 @@ async def execute_snapshot_push(
         # BOUND on the autom8y side (asana-stratum-push-refused).
         emit_metric(METRIC_REFUSED, 1)
         return SnapshotRunResult(status="refused", reason=str(exc), entry_count=0)
+
+    # ★ L2 THE COMPANION 0s. Reached ONLY when the enumeration and the completeness
+    # gate both ran to completion without raising -- i.e. no refusal of ANY class
+    # occurred on this tick. Every 1-emission for these three series is upstream of
+    # (or inside) the try above and raises, so the `except` arm returns before this
+    # line: a 0 and a 1 on the same series in the same tick is structurally
+    # impossible, and a firing can never be masked.
+    #
+    # Placed BEFORE the push deliberately. These three measure SOURCE health, not
+    # DELIVERY health -- the source was evaluated and found sound whether or not the
+    # subsequent POST succeeds. Publishing after the push would suppress the 0 on a
+    # tick whose push raised, re-introducing missing-data blindness on exactly the
+    # ticks an operator most needs the source verdict for. Delivery has its own
+    # honest series (PushFailed / PushEpoch) and they are untouched here.
+    _emit_source_health_companions()
 
     result = await push(extracted)
     entry_count = result.entry_count if result is not None else 0
@@ -1224,6 +1313,7 @@ __all__ = [
     "SNAPSHOT_BUSINESS_ENTITY_TYPE",
     "SNAPSHOT_CADENCE_HOURS_ENV_VAR",
     "SNAPSHOT_UNIT_HOLDER_ENTITY_TYPE",
+    "SOURCE_HEALTH_COMPANION_METRICS",
     "SnapshotRefusedError",
     "SnapshotRunResult",
     "assert_complete_office_set",
