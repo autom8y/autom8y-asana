@@ -119,6 +119,29 @@ def resolve_business_project_gid() -> str:
     return ""
 
 
+def resolve_unit_holder_project_gid() -> str:
+    """Resolve the Units (``unit_holder``) project GID from EntityProjectRegistry.
+
+    Module-level function to enable clean patching in tests, mirroring
+    :func:`resolve_business_project_gid`. The GID is sourced from the
+    ``unit_holder`` entity descriptor's ``primary_project_gid`` (the Units
+    project) via the registry -- never hard-coded here (BR3B / DIC O-B1).
+
+    Returns:
+        Units project GID string, or "" if unresolvable.
+    """
+    try:
+        from autom8_asana.services.resolver import EntityProjectRegistry
+
+        registry = EntityProjectRegistry.get_instance()
+        project_gid = registry.get_project_gid("unit_holder")
+        if project_gid:
+            return project_gid
+    except Exception:  # noqa: BLE001
+        pass
+    return ""
+
+
 class IntakeCreateService:
     """Orchestrates full business hierarchy creation via SaveSession.
 
@@ -362,18 +385,88 @@ class IntakeCreateService:
     async def _phase2_create_holders(self, business_gid: str) -> dict[str, str]:
         """Phase 2: Create 7 holder subtasks under Business (parallel).
 
+        The ``unit_holder`` is additionally created as a MEMBER of the Units
+        project (BR3B / DIC O-B1) so an intake-created office enters Domain B's
+        intent frame as a Custom Cal Status carrier. Membership is established
+        at creation time via the ``projects`` argument.
+
+        MEMBERSHIP ONLY -- we write NO field value. Membership confers PRESENCE
+        (empty) of all of the Units project's custom fields immediately and
+        race-free; a value-write would re-open the inherited-CF projection race
+        (PR-4) AND would touch the walled Custom GHL ID field (RUL-6), so it is
+        deliberately NOT done here. Only ``unit_holder`` joins Units -- the other
+        six holders keep their own projects and are created as bare subtasks
+        (unchanged).
+
         Returns dict of holder_name -> gid.
         """
+        # BR3B: resolve the Units project GID fail-LOUD and assert its
+        # single-section invariant BEFORE any holder is created. A missing
+        # registration or a drifted section layout REFUSES the intake rather
+        # than silently birthing the unit_holder outside Domain B's frame (or in
+        # an excluded section -- the "Templates" silent-green trap SUB-1 hit on
+        # the unit path).
+        units_project_gid = resolve_unit_holder_project_gid()
+        if not units_project_gid:
+            raise LookupError("Units project (unit_holder) not configured in EntityProjectRegistry")
+        await self._assert_units_single_section(units_project_gid)
 
         async def create_holder(holder_name: str) -> tuple[str, str]:
-            result = await self._client.tasks.create_async(
-                name=holder_name,
-                parent=business_gid,
-            )
+            # Only the unit_holder joins the Units project (BR3B), by MEMBERSHIP
+            # at creation time. The other six holders have their own projects and
+            # are created as bare subtasks -- their call is byte-identical to the
+            # pre-BR3B path (no ``projects`` argument).
+            if holder_name == "unit_holder":
+                result = await self._client.tasks.create_async(
+                    name=holder_name,
+                    parent=business_gid,
+                    projects=[units_project_gid],
+                )
+            else:
+                result = await self._client.tasks.create_async(
+                    name=holder_name,
+                    parent=business_gid,
+                )
             return holder_name, self._extract_gid(result)
 
         holder_results = await asyncio.gather(*[create_holder(name) for name in HOLDER_TYPES])
         return dict(holder_results)
+
+    async def _assert_units_single_section(self, units_project_gid: str) -> None:
+        """Assert the Units project has exactly one section (BR3B tripwire).
+
+        The ``unit_holder`` joins Units by MEMBERSHIP ALONE -- no explicit
+        section placement -- which is only safe while Units has a single flat
+        section (``Untitled section``). A section-less membership add lands the
+        task in the project's FIRST section, so a second section would silently
+        route new holders into an unintended (possibly reconciliation-excluded)
+        bucket: the "Templates" silent-green trap that BR-3 had to place
+        explicitly around on the unit path.
+
+        Here membership alone suffices, so this tripwire REFUSES the intake LOUD
+        if the single-section invariant ever breaks, rather than silently
+        birthing the holder in an unpinned section. It reads the LIVE project
+        definition (never a hard-coded section GID).
+
+        Raises:
+            RuntimeError: If the Units project does not have exactly one section.
+        """
+        sections = await self._client.projects.get_sections_async(
+            units_project_gid,
+            opt_fields=["name", "gid"],
+        ).collect()
+        section_names = [
+            (section.get("name", "") if isinstance(section, dict) else getattr(section, "name", ""))
+            or ""
+            for section in sections
+        ]
+        if len(section_names) != 1:
+            raise RuntimeError(
+                f"Units project {units_project_gid} expected exactly one section for "
+                f"membership-only placement; found {len(section_names)}: {section_names}. "
+                "BR3B single-section invariant broken -- refusing to birth the unit_holder "
+                "in an unpinned section."
+            )
 
     async def _phase3_create_unit(
         self,
