@@ -248,10 +248,24 @@ class VerticalBackfillService:
             )
             return False
 
-        # Write the custom field
+        # Write the custom field.
+        #
+        # Two shape rules, both load-bearing (CLASS-DEFECT-CF-WRITE, Tier-2):
+        #
+        # 1. Fields are passed as KWARGS, never wrapped in ``data=``.
+        #    ``TasksClient.update`` already body-builds ``json={"data": kwargs}``,
+        #    so a ``data=`` kwarg double-nests to ``{"data": {"data": ...}}``.
+        #    Asana silently ignores the inner envelope, returns 200, and writes
+        #    NOTHING -- no exception, no signal.
+        #
+        # 2. The enum CF WRITE value is the PLAIN option gid string, NOT the
+        #    nested ``{"gid": ...}`` READ shape returned by ``get_async``.
+        #    Mirrors the cured Tier-1 writer (intake_create_service.py:463) and
+        #    the forwarding-stage positive controls (receipts_service.py:424,
+        #    forwarding_stage_backfill/backfill.py:392), which both land.
         await self._client.tasks.update_async(
             task_gid,
-            data={"custom_fields": {cf_gid: {"gid": enum_option_gid}}},
+            custom_fields={cf_gid: enum_option_gid},
         )
 
         self._log.info(

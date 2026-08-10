@@ -118,9 +118,17 @@ class IntakeCustomFieldService:
         fields_written = 0
         if custom_fields_payload:
             try:
+                # Fields are passed as KWARGS, never wrapped in ``data=``
+                # (CLASS-DEFECT-CF-WRITE, Tier-2). ``TasksClient.update``
+                # already body-builds ``json={"data": kwargs}``, so a ``data=``
+                # kwarg double-nests to ``{"data": {"data": ...}}``. Asana
+                # silently ignores the inner envelope, returns 200, and writes
+                # NOTHING -- no exception, no signal. Positive controls that
+                # land: receipts_service.py:424,
+                # forwarding_stage_backfill/backfill.py:392.
                 await self._client.tasks.update_async(
                     task_gid,
-                    data={"custom_fields": custom_fields_payload},
+                    custom_fields=custom_fields_payload,
                 )
                 fields_written = len(custom_fields_payload)
             except Exception as exc:

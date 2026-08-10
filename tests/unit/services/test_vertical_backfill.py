@@ -10,6 +10,8 @@ Module: tests/unit/services/test_vertical_backfill.py
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import polars as pl
@@ -216,7 +218,7 @@ class TestBackfillFromDataframe:
         # Verify the update call used the correct enum option GID
         mock_client.tasks.update_async.assert_called_once_with(
             "task_1",
-            data={"custom_fields": {"cf_111": {"gid": "opt_dental"}}},
+            custom_fields={"cf_111": "opt_dental"},
         )
 
     async def test_notes_without_vertical_prefix_skipped(self, service, mock_client) -> None:
@@ -392,5 +394,130 @@ class TestBackfillFromDataframe:
         # "dental" matches "Dental" enum option (case-insensitive)
         mock_client.tasks.update_async.assert_called_once_with(
             "task_1",
-            data={"custom_fields": {"cf_111": {"gid": "opt_dental"}}},
+            custom_fields={"cf_111": "opt_dental"},
         )
+
+
+# ---------------------------------------------------------------------------
+# Anti-mock-lie transport-seam tests (CLASS-DEFECT-CF-WRITE Tier-2, DIC SUB-2)
+# ---------------------------------------------------------------------------
+
+
+def _real_tasks_client() -> tuple[Any, AsyncMock]:
+    """Build a REAL ``TasksClient`` whose ONLY mocked seam is ``self._http.put``.
+
+    Every test above stubs ``tasks.update_async`` wholesale -- an ``AsyncMock``
+    that accepts ANY signature -- and then asserts the same kwargs the code
+    passed. That is a mock-lie: it proves the code does what the code does. It
+    cannot see that the REAL ``TasksClient`` marshals ``json={"data": kwargs}``,
+    so a ``data=`` kwarg double-nests to ``{"data": {"data": {...}}}``, which
+    Asana silently ignores -- HTTP 200, nothing written, no exception.
+
+    These tests mock ONE LAYER LOWER (the httpx transport, ``self._http.put``)
+    and let the REAL ``TasksClient.update_async`` marshal the body. The asserted
+    request body is therefore the EXACT payload sent to Asana.
+
+    ``self._http.put`` returns a schema-valid Task dict (numeric gid) so the real
+    ``update()``'s ``Task.model_validate(result)`` succeeds.
+    """
+    from autom8_asana.clients.tasks import TasksClient
+
+    mock_http = MagicMock()
+    mock_http.put = AsyncMock(return_value={"gid": "1217301971794137"})
+    tasks = TasksClient(http=mock_http, config=MagicMock(), auth_provider=MagicMock())
+    return tasks, mock_http
+
+
+class TestVerticalBackfillTransportSeamAntiMockLie:
+    """Verbatim ``_http.put`` body assertions for the Tier-2 vertical writer.
+
+    ``vertical_backfill`` carried BOTH defects of the class:
+      1. the ``data=`` double-nest, and
+      2. the nested ``{"gid": option_gid}`` enum READ shape on the WRITE path.
+
+    Each test drives the REAL ``_backfill_single_task`` (only ``get_async`` is
+    stubbed -- NEVER ``update_async``) and asserts the verbatim transport body.
+    Reverting either defect turns these RED.
+    """
+
+    async def test_enum_write_marshals_single_nested_plain_gid_body(self) -> None:
+        """THE load-bearing one: both shape rules asserted on one real body."""
+        tasks, mock_http = _real_tasks_client()
+        tasks.get_async = AsyncMock(
+            return_value=_make_task_response(notes="Vertical: Dental"),
+        )
+        service = VerticalBackfillService(client=SimpleNamespace(tasks=tasks))
+
+        wrote = await service._backfill_single_task("task_1")
+
+        assert wrote is True
+        # Verbatim body: SINGLE-nested envelope, PLAIN option gid string.
+        mock_http.put.assert_awaited_once_with(
+            "/tasks/task_1",
+            json={"data": {"custom_fields": {"cf_111": "opt_dental"}}},
+        )
+
+    async def test_body_is_not_double_nested(self) -> None:
+        """Guard on defect 1: the inner payload is never another ``{"data":...}``."""
+        tasks, mock_http = _real_tasks_client()
+        tasks.get_async = AsyncMock(
+            return_value=_make_task_response(notes="Vertical: Dental"),
+        )
+        service = VerticalBackfillService(client=SimpleNamespace(tasks=tasks))
+
+        await service._backfill_single_task("task_1")
+
+        sent = mock_http.put.await_args.kwargs["json"]
+        assert "data" not in sent["data"], (
+            "double-nested body -- the data= wrapper is back; Asana would return "
+            "200 and write NOTHING"
+        )
+
+    async def test_enum_value_is_plain_string_not_read_shape(self) -> None:
+        """Guard on defect 2: the WRITE value is a bare gid, not ``{"gid": ...}``.
+
+        The get_async READ payload carries ``enum_options: [{gid, name}, ...]``;
+        writing that nested shape back is the F-1 defect. The written value must
+        be the bare option-gid string.
+        """
+        tasks, mock_http = _real_tasks_client()
+        tasks.get_async = AsyncMock(
+            return_value=_make_task_response(notes="Vertical: Chiropractic"),
+        )
+        service = VerticalBackfillService(client=SimpleNamespace(tasks=tasks))
+
+        await service._backfill_single_task("task_1")
+
+        written = mock_http.put.await_args.kwargs["json"]["data"]["custom_fields"]
+        value = written["cf_111"]
+        assert isinstance(value, str), f"enum WRITE value must be a plain str, got {type(value)}"
+        assert value == "opt_chiro"
+        assert not isinstance(value, dict), "nested {'gid': ...} READ shape on the WRITE path"
+
+    async def test_case_insensitive_match_still_writes_plain_gid(self) -> None:
+        """Lowercase notes value resolves and still marshals the cured body."""
+        tasks, mock_http = _real_tasks_client()
+        tasks.get_async = AsyncMock(
+            return_value=_make_task_response(notes="Vertical: dental"),
+        )
+        service = VerticalBackfillService(client=SimpleNamespace(tasks=tasks))
+
+        await service._backfill_single_task("task_1")
+
+        mock_http.put.assert_awaited_once_with(
+            "/tasks/task_1",
+            json={"data": {"custom_fields": {"cf_111": "opt_dental"}}},
+        )
+
+    async def test_no_write_when_enum_option_unmatched(self) -> None:
+        """Negative control: an unresolvable vertical issues NO transport call."""
+        tasks, mock_http = _real_tasks_client()
+        tasks.get_async = AsyncMock(
+            return_value=_make_task_response(notes="Vertical: Podiatry"),
+        )
+        service = VerticalBackfillService(client=SimpleNamespace(tasks=tasks))
+
+        wrote = await service._backfill_single_task("task_1")
+
+        assert wrote is False
+        mock_http.put.assert_not_awaited()

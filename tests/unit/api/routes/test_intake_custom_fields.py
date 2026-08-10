@@ -7,6 +7,8 @@ Validates field resolution, partial failure handling, and auth requirements.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -280,7 +282,7 @@ class TestWriteCustomFieldsEndpoint:
         # Verify the Asana update was called with the right field GID
         mock_asana.tasks.update_async.assert_called_once()
         call_data = mock_asana.tasks.update_async.call_args
-        custom_fields = call_data.kwargs["data"]["custom_fields"]
+        custom_fields = call_data.kwargs["custom_fields"]
         assert "cf_company_id" in custom_fields
         assert custom_fields["cf_company_id"] == "company-guid-abc"
 
@@ -363,7 +365,7 @@ class TestWriteCustomFieldsEndpoint:
         # Verify null was passed through to Asana
         mock_asana.tasks.update_async.assert_called_once()
         call_data = mock_asana.tasks.update_async.call_args
-        custom_fields = call_data.kwargs["data"]["custom_fields"]
+        custom_fields = call_data.kwargs["custom_fields"]
         assert custom_fields["cf_company_id"] is None
 
     def test_social_profile_field_write(self, client: TestClient) -> None:
@@ -404,3 +406,139 @@ class TestWriteCustomFieldsEndpoint:
         data = resp.json()
         assert data["fields_written"] == 0
         assert len(data["errors"]) == 2
+
+
+# ---------------------------------------------------------------------------
+# Anti-mock-lie transport-seam tests (CLASS-DEFECT-CF-WRITE Tier-2, DIC SUB-2)
+# ---------------------------------------------------------------------------
+
+
+def _real_tasks_client() -> tuple[Any, AsyncMock]:
+    """Build a REAL ``TasksClient`` whose ONLY mocked seam is ``self._http.put``.
+
+    The route/service tests above stub ``tasks.update_async`` wholesale -- an
+    ``AsyncMock`` that accepts ANY signature -- and then assert the same kwargs
+    the code passed. That is a mock-lie: it proves the code does what the code
+    does. It cannot see that the REAL ``TasksClient`` marshals
+    ``json={"data": kwargs}``, so a ``data=`` kwarg double-nests to
+    ``{"data": {"data": {...}}}``, which Asana silently ignores -- HTTP 200,
+    nothing written, no exception.
+
+    These tests mock ONE LAYER LOWER (the httpx transport, ``self._http.put``)
+    and let the REAL ``TasksClient.update_async`` marshal the body, so the
+    asserted request body is the EXACT payload sent to Asana.
+
+    ``self._http.put`` returns a schema-valid Task dict (numeric gid) so the real
+    ``update()``'s ``Task.model_validate(result)`` succeeds.
+    """
+    from autom8_asana.clients.tasks import TasksClient
+
+    mock_http = MagicMock()
+    mock_http.put = AsyncMock(return_value={"gid": "1217301971794137"})
+    tasks = TasksClient(http=mock_http, config=MagicMock(), auth_provider=MagicMock())
+    return tasks, mock_http
+
+
+def _service_with_real_tasks(tasks: Any) -> Any:
+    """Wrap a real TasksClient in the service under a minimal AsanaClient shim."""
+    from autom8_asana.services.intake_custom_field_service import IntakeCustomFieldService
+
+    return IntakeCustomFieldService(SimpleNamespace(tasks=tasks))
+
+
+class TestIntakeCustomFieldTransportSeamAntiMockLie:
+    """Verbatim ``_http.put`` body assertions for the Tier-2 write_fields writer.
+
+    Each test drives the REAL ``IntakeCustomFieldService.write_fields`` (only
+    ``get_async`` is stubbed -- NEVER ``update_async``) and asserts the verbatim
+    transport body. Reverting production to ``data={...}`` turns these RED.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _no_schema_registry(self):
+        """Resolve field gids from the task payload alone.
+
+        Mirrors ``_custom_field_patches``' ``schema_patch``: without it the real
+        SchemaRegistry enrichment overwrites the task-derived mapping with
+        ``col.source`` descriptors (e.g. ``cascade:Company ID``), which is
+        orthogonal to the body-SHAPE assertions these tests exist to make.
+        """
+        with patch(
+            "autom8_asana.services.intake_custom_field_service."
+            "IntakeCustomFieldService._enrich_from_schema_registry",
+        ):
+            yield
+
+    async def test_write_fields_marshals_single_nested_body(self) -> None:
+        """THE load-bearing one: the real transport body is SINGLE-nested."""
+        tasks, mock_http = _real_tasks_client()
+        tasks.get_async = AsyncMock(return_value=MOCK_TASK_DATA)
+        service = _service_with_real_tasks(tasks)
+
+        result = await service.write_fields(TASK_GID, {"company_id": "company-guid-abc"})
+
+        assert result.fields_written == 1
+        mock_http.put.assert_awaited_once_with(
+            f"/tasks/{TASK_GID}",
+            json={"data": {"custom_fields": {"cf_company_id": "company-guid-abc"}}},
+        )
+
+    async def test_body_is_not_double_nested(self) -> None:
+        """Guard: the inner payload is never another ``{"data": ...}`` wrapper."""
+        tasks, mock_http = _real_tasks_client()
+        tasks.get_async = AsyncMock(return_value=MOCK_TASK_DATA)
+        service = _service_with_real_tasks(tasks)
+
+        await service.write_fields(TASK_GID, {"company_id": "guid-000"})
+
+        sent = mock_http.put.await_args.kwargs["json"]
+        assert "data" not in sent["data"], (
+            "double-nested body -- the data= wrapper is back; Asana would return "
+            "200 and write NOTHING"
+        )
+
+    async def test_multi_field_write_marshals_all_fields_single_nested(self) -> None:
+        """A batched multi-field write marshals every field into one flat dict."""
+        tasks, mock_http = _real_tasks_client()
+        tasks.get_async = AsyncMock(return_value=MOCK_TASK_DATA)
+        service = _service_with_real_tasks(tasks)
+
+        result = await service.write_fields(
+            TASK_GID,
+            {"company_id": "guid-1", "UTM Source": "google", "Weekly Ad Spend": 250},
+        )
+
+        assert result.fields_written == 3
+        sent = mock_http.put.await_args.kwargs["json"]
+        assert sent == {
+            "data": {
+                "custom_fields": {
+                    "cf_company_id": "guid-1",
+                    "cf_utm_source": "google",
+                    "cf_ad_spend": 250,
+                }
+            }
+        }
+
+    async def test_enum_value_marshals_as_plain_option_gid(self) -> None:
+        """Enum WRITE value is the bare option gid, not the ``{"gid": ...}`` shape."""
+        tasks, mock_http = _real_tasks_client()
+        tasks.get_async = AsyncMock(return_value=MOCK_TASK_DATA)
+        service = _service_with_real_tasks(tasks)
+
+        await service.write_fields(TASK_GID, {"Status": "Active"})
+
+        written = mock_http.put.await_args.kwargs["json"]["data"]["custom_fields"]
+        assert written == {"cf_status": "opt_active"}
+        assert isinstance(written["cf_status"], str)
+
+    async def test_no_transport_call_when_nothing_resolves(self) -> None:
+        """Negative control: an all-unresolvable payload issues NO transport call."""
+        tasks, mock_http = _real_tasks_client()
+        tasks.get_async = AsyncMock(return_value=MOCK_TASK_DATA)
+        service = _service_with_real_tasks(tasks)
+
+        result = await service.write_fields(TASK_GID, {"nope_a": "1", "nope_b": "2"})
+
+        assert result.fields_written == 0
+        mock_http.put.assert_not_awaited()
