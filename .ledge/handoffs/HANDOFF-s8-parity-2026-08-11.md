@@ -111,3 +111,47 @@ The July-dated untracked `.ledge/` artifacts (fleet-delegation R4 packet, F1a pr
 floodgates DEFECT et al.) belong to parallel initiatives — committed separately or left, per
 their own arcs. The `warmer_cache_degraded_alarm.tf` untracked file documents a 07-21 CLI-applied
 alarm (unrelated). UNIT_HOLDER_SCHEMA v1.1.0 (+google_cal_id) is off-seam.
+
+---
+
+## ADDENDUM (same day, 2026-08-11) — EXTEND EXECUTED · OBSERVATION #1 SERVED
+
+**Sequence executed after the surfacing above:** operator word = EXTEND (~10:36Z; ruling
+RULING-operator-extend-s8-2-window-2026-08-11.md, PR #336) with a fresh 7-day hard ceiling
+**2026-08-18T10:36:46Z**; rite re-synced 10x-dev (T2 restored, sre co-seated); the
+"deeper lie" hypothesis was FALSIFIED by task-1 activity-log forensics (Offer ID "1606" set
+by the AUTOM8 Business-Offers trigger 2026-08-10T17:27Z on operator completion — null was
+TRUE at every 08-05 capture; freshness integrity vindicated across the full field
+lifecycle); the operator completion-triggered task 2 and the 10:27Z warm carried
+**Offer ID "1607"** into the frame (verified pre-fire); the sweep runner was re-authored
+from the records (wu4r2, three two-sided offline proofs + a fourth, plus: >50-parent
+early-return workaround, five-key ledger reconciliation, mandatory ASANA_WORKSPACE_GID
+closing an unbudgeted auto-detect crossing).
+
+**RESTART SWEEP (cycle 1 of the extended count) — 2026-08-11T10:57:51Z, exit 0 SERVED:**
+
+| Leg | v1 | v2 | Digest |
+|---|---|---|---|
+| **A — served active_mrr (gate anchor)** | **$78,285.00** | **$78,285.00** | `cd62f88b…` (identical) |
+| B — exemplar aggregate (tripwire) | $74,885.00 | $74,885.00 | `378adcd3…` (identical) |
+
+**Zero divergence** — penny-exact at capture; per rubric §6 #9 an identical-instant match
+requires no classification (nothing for the adjudicator to rule; the standing seat engages
+on the first nonzero delta). First v2 artifact PUBLISHED (SWAPPED) to `dataframes-v2/`.
+Receipt `offer-1143843662099250-105838430762-9466cc8e.json`. Boundary accounting
+**reconciled: true** — 73 page + 297 cascade + 70 pre-warm = 440 crossings = ledger delta
+exactly; day budget 440/11,200 (3.9%). Instrumentation: offer_id nulls 3,090→3,089 and
+cf_resolved 1,099→1,101 (both incident offers now flowing). Both legs moved +$2,000 since
+08-05 in lockstep (real business motion, not a parity question).
+
+**PROV**: heartbeat emitted (run 7a3b033c…); PROV-2 clear expected within its 1h window
+(re-verify next sweep). One watch item: this run's PROV block read completeness 0.0 /
+evaluated 0 with expected 1, mismatch 0 — likely evaluator-vs-swap ordering at first
+publish; the NEXT sweep must show completeness 100 with the artifact enumerated, else it
+becomes a finding.
+
+**Window position after cycle 1:** 1 of ≥2 distinct warm cycles banked; ~3-day floor runs
+to ~2026-08-14; ceiling 2026-08-18T10:36:46Z. Next: sweeps at cadence-diverse times
+(park-per-day, daily digests per G5), then PT-03. Operational note: each sweep needs the
+operator's AWS login live (≈15-min token validity — export immediately before firing) and
+the off-peak rule (avoid ~:07–:17).
