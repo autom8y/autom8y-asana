@@ -98,9 +98,77 @@ variable "page_sns_topic_arn" {
 }
 
 variable "ticket_sns_topic_arn" {
-  description = "SNS topic ARN for the TICKET tier (non-paging). Optional."
+  description = <<-EOT
+    SNS topic ARN for the TICKET tier (non-paging). Optional.
+
+    BINDING-BLIND WARNING (the defect this default caused): leaving this "" makes
+    `local.ticket_action` resolve to [] for EVERY alarm in this module that is not
+    page-armed -- the alarm evaluates, transitions to ALARM, and notifies NOBODY.
+    That is not a safe default; it is a silent one. Measured live 2026-08-11
+    (account 696318035277 / us-east-1): 7 of 20 `asana-*` alarms carried zero
+    actions -- all 7 authored by THIS module -- while all 13 authored elsewhere
+    were bound to `autom8y-platform-alerts`. Two of the seven
+    (asana-AL5-offer-frame-stale-1143843662099250, asana-PROV-2-heartbeat-absence)
+    were sitting in ALARM, unobserved.
+
+    Set this (see terraform.tfvars.example) to bind the ticket tier. `terraform
+    output alarm_binding_report` names the resolved binding for every alarm.
+  EOT
   type        = string
   default     = ""
+}
+
+variable "create_ticket_topic" {
+  description = <<-EOT
+    Create an asana-owned SNS topic for the TICKET tier instead of pointing
+    `ticket_sns_topic_arn` at an existing one. Default false.
+
+    PREFER THE EXISTING TOPIC. A freshly created topic has ZERO subscriptions, so
+    binding alarms to it RELOCATES the binding-blind defect rather than curing it
+    (the alarm now publishes -- to no subscriber). `autom8y-platform-alerts`
+    already carries a Slack-lambda + email subscription and is what every other
+    live `asana-*` alarm uses. Only set this true if asana-owned ticket routing is
+    wanted, and then subscribe an endpoint (an explicit operator decision -- this
+    module deliberately authors NO aws_sns_topic_subscription).
+  EOT
+  type        = bool
+  default     = false
+}
+
+variable "ticket_topic_name" {
+  description = "Name for the optional asana-owned ticket topic (only when create_ticket_topic=true)."
+  type        = string
+  default     = "autom8y-asana-observability-tickets"
+}
+
+variable "require_alarm_binding" {
+  description = <<-EOT
+    Forcing function against the binding-blind class: when true, `terraform plan`
+    FAILS if AL-5 would be created with an empty action list (detect-and-tell-nobody).
+    Default false so this module's existing apply doors (incl. the DP-4a PROV door)
+    are not broken by adding the guard; the operator apply card sets it true.
+  EOT
+  type        = bool
+  default     = false
+}
+
+# ----------------------------------------------------------------------------
+# Optional asana-owned TICKET topic. Guarded: does not exist unless enabled.
+# No subscription is authored here -- endpoint choice is an operator decision.
+# ----------------------------------------------------------------------------
+
+resource "aws_sns_topic" "observability_tickets" {
+  count = var.create_ticket_topic ? 1 : 0
+
+  name         = var.ticket_topic_name
+  display_name = "autom8y-asana observability tickets"
+
+  tags = {
+    service   = "autom8y-asana"
+    tier      = "ticket"
+    managedby = "terraform"
+    module    = "terraform/services/asana"
+  }
 }
 
 # ----------------------------------------------------------------------------
@@ -108,9 +176,26 @@ variable "ticket_sns_topic_arn" {
 # ----------------------------------------------------------------------------
 
 locals {
+  # TICKET topic resolution: an explicit ARN wins; else the optional asana-owned
+  # topic if created; else "" (== the binding-blind state, now reported, not silent).
+  # Splat+join, not [0]: with count=0 an index would be an "Invalid index" footgun;
+  # join over the splat yields "" for the empty case and the ARN for the one case.
+  created_ticket_topic_arn = join("", aws_sns_topic.observability_tickets[*].arn)
+
+  # The `var.create_ticket_topic ? ... : ""` arm is load-bearing, not redundant:
+  # it keeps the UNBOUND case resolvable from VARIABLES ALONE, so the binding
+  # report below reads a definite "UNBOUND" instead of "(known after apply)".
+  # Deriving it from the resource attribute made the blind state render as
+  # unknown -- i.e. the visibility cure went dark in exactly the case it exists
+  # to expose. Only the genuinely-creating case defers to apply-time.
+  ticket_topic_arn = (
+    var.ticket_sns_topic_arn != "" ? var.ticket_sns_topic_arn :
+    var.create_ticket_topic ? local.created_ticket_topic_arn : ""
+  )
+
   # Per-alarm page action: empty unless master switch on AND alarm opted-in.
   page_action   = var.arm_paging && var.page_sns_topic_arn != "" ? [var.page_sns_topic_arn] : []
-  ticket_action = var.ticket_sns_topic_arn != "" ? [var.ticket_sns_topic_arn] : []
+  ticket_action = local.ticket_topic_arn != "" ? [local.ticket_topic_arn] : []
 
   al1_actions = contains(var.paging_armed_alarms, "AL-1") ? local.page_action : local.ticket_action
   al2_actions = (contains(var.paging_armed_alarms, "AL-2") && var.recon_rule_enabled) ? local.page_action : local.ticket_action
@@ -393,6 +478,16 @@ resource "aws_cloudwatch_metric_alarm" "al5_offer_frame_stale" {
   ok_actions    = local.al5_actions
 
   depends_on = [aws_cloudwatch_log_metric_filter.al5_offer_frame_age]
+
+  # BINDING-BLIND GUARD (3rd-occurrence cure). AL-5 is the one alarm in this
+  # module with two-sided teeth proven live, so it is the one that most earns a
+  # route. With require_alarm_binding=true this refuses to plan a mute AL-5.
+  lifecycle {
+    precondition {
+      condition     = !var.require_alarm_binding || length(local.al5_actions) > 0
+      error_message = "AL-5 would be created with an EMPTY action list: it would detect offer-frame staleness and notify nobody. Set ticket_sns_topic_arn (recommended: the existing arn:aws:sns:us-east-1:696318035277:autom8y-platform-alerts, which has live Slack+email subscribers) or create_ticket_topic=true plus a subscription. See terraform.tfvars.example."
+    }
+  }
 }
 
 # ----------------------------------------------------------------------------
@@ -456,4 +551,45 @@ output "authored_alarm_names" {
 output "paging_armed" {
   description = "Whether the PAGE tier is armed (operator lever)."
   value       = var.arm_paging ? tolist(var.paging_armed_alarms) : []
+}
+
+output "ticket_topic_arn" {
+  description = "Resolved TICKET-tier topic ARN ('' when the ticket tier is unbound)."
+  value       = local.ticket_topic_arn
+}
+
+# ----------------------------------------------------------------------------
+# BINDING REPORT -- the structural cure for the binding-blind class.
+#
+# Every alarm in this module resolves its notification target through a local.
+# Until now that resolution was INVISIBLE: an empty `ticket_sns_topic_arn` sent
+# every unarmed alarm to [] and nothing in plan/apply output said so. Three
+# occurrences of "alarm detects, tells no one" have now been observed on this
+# fleet. This output makes the binding an ALWAYS-VISIBLE, per-alarm fact, so the
+# blind state has to be read past rather than merely not-noticed:
+#
+#   terraform output alarm_binding_report
+#
+# It is deliberately not gated behind a flag -- unlike require_alarm_binding
+# (opt-in teeth), this costs nothing and is the part that always fires.
+# ----------------------------------------------------------------------------
+
+output "alarm_binding_report" {
+  description = "Per-alarm resolved notification binding. Any UNBOUND entry is an alarm that will detect and notify nobody."
+  value = {
+    for k, actions in {
+      "AL-1"   = local.al1_actions
+      "AL-2"   = local.al2_actions
+      "AL-3"   = local.al3_actions
+      "AL-4"   = local.al4_actions
+      "AL-5"   = local.al5_actions
+      "AL-6"   = local.al6_actions
+      "PROV-1" = local.prov1_actions
+      "PROV-2" = local.prov2_actions
+      "PROV-3" = local.prov3_actions
+      "PROV-4" = local.prov4_actions
+      "PROV-5" = local.prov5_actions
+      "PROV-6" = local.prov6_actions
+    } : k => length(actions) > 0 ? "BOUND -> ${join(", ", actions)}" : "UNBOUND -- detects and notifies NOBODY"
+  }
 }
