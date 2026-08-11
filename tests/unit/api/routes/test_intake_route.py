@@ -395,6 +395,28 @@ class TestRouteIntakeProcessEndpoint:
         data = resp.json()
         assert data["error"]["code"] == "UNKNOWN_PROCESS_TYPE"
 
+    def test_canary_process_type_routes(self, client: TestClient) -> None:
+        """CARD-CANARY-ROUTE-422 two-sided leg 1: 'canary' is a valid process
+        type (ECO-R1) — routes like any other, creating the synthetic process.
+        (Leg 2 is test_unknown_process_type_422 above: a bogus type still 422s
+        loudly, so the vocabulary gained exactly one member, not a hole.)"""
+        mock_asana = _make_mock_asana_client(existing_processes=[])
+        patches = _route_patches(mock_asana)
+
+        body = {"unit_gid": UNIT_GID, "process_type": "canary"}
+
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
+            resp = client.post(
+                "/v1/intake/route",
+                json=body,
+                headers=AUTH_HEADER,
+            )
+
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["process_type"] == "canary"
+        assert data["is_new"] is True
+
     def test_requires_s2s_jwt(self, client: TestClient) -> None:
         """Missing auth header returns 401."""
         resp = client.post(
