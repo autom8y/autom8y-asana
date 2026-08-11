@@ -4,3 +4,8 @@
 *.tfstate
 *.tfstate.*
 *.tfplan
+
+# Operator-local variable input. terraform.tfvars.example IS committed (it is the
+# documented knob surface); the real tfvars is operator input, not repo state.
+terraform.tfvars
+*.auto.tfvars
