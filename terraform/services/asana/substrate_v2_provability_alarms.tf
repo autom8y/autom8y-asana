@@ -1,5 +1,5 @@
 # ============================================================================
-# substrate-v2 provability alarm suite (PROV-1 .. PROV-6) — RC-F
+# substrate-v2 provability alarm suite (PROV-1 .. PROV-7) — RC-F
 # ============================================================================
 #
 # AUTHORED wave-2; APPLY = DP-4a (operator door); this repo has no apply
@@ -98,6 +98,7 @@ locals {
   prov4_actions = contains(var.paging_armed_alarms, "PROV-4") ? local.page_action : local.ticket_action
   prov5_actions = contains(var.paging_armed_alarms, "PROV-5") ? local.page_action : local.ticket_action
   prov6_actions = contains(var.paging_armed_alarms, "PROV-6") ? local.page_action : local.ticket_action
+  prov7_actions = contains(var.paging_armed_alarms, "PROV-7") ? local.page_action : local.ticket_action
 }
 
 # ----------------------------------------------------------------------------
@@ -276,6 +277,47 @@ resource "aws_cloudwatch_metric_alarm" "prov6_future_dated_proof" {
 }
 
 # ----------------------------------------------------------------------------
+# PROV-7 -- ActiveRowEconomicNullCount > 0  (the TIERED FLOOR's loud warn channel).
+#
+# Per SPIKE-population-floor-scope-2026-08-12 (ratification digest items 1/2/4) the
+# publish-time population floor is now TIERED: serving blocks ONLY on the columns the
+# served number consumes ({mrr, office_phone, vertical} -- the sum input plus the dedup
+# keys whose nulls would silently COLLAPSE distinct offers), while {cost, offer_id,
+# weekly_ad_spend} are DEMOTED. Demotion is NOT dismissal: every classifier-active row
+# carrying a null in a demoted economic column is counted here on EVERY floor evaluation
+# and named per-offer in the parity receipt's `data_quality_warnings`.
+#
+# This alarm is the tiering's counterweight. Before it, three provisioning-lag offer_id
+# nulls each HALTED a parity day -- loud, but the W2 over-refusal shape (v2 refusing a
+# provably-correct number v1 serves). After it, the number serves and the wound still
+# tickets. The acknowledged tradeoff (spike "Main tradeoff"): a halted window FORCED the
+# three data fixes; a warning channel is easier to ignore -- so this fires at threshold 0
+# (ANY wounded active row tickets), deliberately NOT on a tolerance band.
+#
+# Emission is DENSE (every floor evaluation emits, including the clean case at 0.0), so
+# the alarm returns to OK on its own rather than going silent. treat_missing_data =
+# notBreaching: an absent evaluator is PROV-2's job, not this alarm's.
+# ----------------------------------------------------------------------------
+
+resource "aws_cloudwatch_metric_alarm" "prov7_data_quality_nulls" {
+  alarm_name          = "asana-PROV-7-data-quality-nulls"
+  alarm_description   = "substrate-v2 publish-time floor found >= 1 classifier-active row with a NULL in a DEMOTED economic column (cost / offer_id / weekly_ad_spend). RB-SUBSTRATE-DATA-QUALITY. The served number is unaffected (the tiered floor blocks only on mrr + the (office_phone, vertical) dedup keys), so serving PROCEEDED -- this is the loud channel that keeps the wound from rotting silently. Per-offer attribution is in the parity receipt's data_quality_warnings."
+  namespace           = var.substrate_provability_namespace
+  metric_name         = "ActiveRowEconomicNullCount"
+  dimensions          = { environment = var.environment }
+  statistic           = "Maximum"
+  comparison_operator = "GreaterThanThreshold"
+  threshold           = 0
+  period              = var.evaluation_schedule_seconds
+  evaluation_periods  = 1
+  datapoints_to_alarm = 1
+  treat_missing_data  = "notBreaching" # evaluator absence -> PROV-2, not here
+
+  alarm_actions = local.prov7_actions
+  ok_actions    = local.prov7_actions
+}
+
+# ----------------------------------------------------------------------------
 # STAGED (DO NOT AUTHOR ITS DELETION HERE) -- DMS-24h retirement note.
 #
 # The orphaned `autom8-asana-cache-warmer-DMS-24h` (watches LastSuccessTimestamp
@@ -306,6 +348,7 @@ output "authored_provability_alarm_names" {
     aws_cloudwatch_metric_alarm.prov4_expected_set_mismatch.alarm_name,
     aws_cloudwatch_metric_alarm.prov5_expected_floor.alarm_name,
     aws_cloudwatch_metric_alarm.prov6_future_dated_proof.alarm_name,
+    aws_cloudwatch_metric_alarm.prov7_data_quality_nulls.alarm_name,
   ]
 }
 

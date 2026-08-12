@@ -28,6 +28,7 @@ from autom8_asana.substrate.identity import ArtifactId
 from autom8_asana.substrate.observe import (
     DEFAULT_ENVIRONMENT,
     DIMENSION_ENVIRONMENT,
+    METRIC_ACTIVE_ROW_ECONOMIC_NULL_COUNT,
     METRIC_ARTIFACT_PROVABLE,
     METRIC_COMPLETENESS,
     METRIC_EVALUATION_FAILED,
@@ -39,6 +40,7 @@ from autom8_asana.substrate.observe import (
     METRIC_UNPROVABLE_COUNT,
     SUBSTRATE_PROVABILITY_NAMESPACE,
     ArtifactVerdict,
+    CloudWatchDataQualityEmitter,
     CloudWatchProvabilityEmitter,
     EvaluationRun,
     ProvabilityEmitter,
@@ -655,8 +657,14 @@ def _emitter_identities(metric_data: list[dict[str, Any]]) -> dict[str, frozense
 
 def test_terraform_alarms_bind_to_emitted_metric_identities() -> None:
     """SEAM TRIPWIRE (F-1 cure): every PROV alarm's (namespace, metric, dim-keys) MUST be an
-    identity the emitter actually emits. A rename/re-dimension on EITHER side goes RED here —
-    the discipline the tf header states for the NAME, now enforced as a test for the DIMENSIONS.
+    identity SOME substrate emitter actually emits. A rename/re-dimension on EITHER side goes
+    RED here — the discipline the tf header states for the NAME, now enforced as a test for
+    the DIMENSIONS.
+
+    The emitted surface is the UNION of the two emitters, because the suite now spans two
+    emission sites: the SCHEDULED provability sweep (PROV-1..6) and the publish-time tiered
+    population floor (PROV-7, ``ActiveRowEconomicNullCount``). Unioning is what keeps the
+    tripwire two-sided across both — an alarm bound to neither emitter is still a dead series.
     """
     tf_text = _TF_ALARMS.read_text()
 
@@ -688,10 +696,14 @@ def test_terraform_alarms_bind_to_emitted_metric_identities() -> None:
         verdicts=(verdict,),
         unevaluated=frozenset(),
     )
-    emitted = _emitter_identities(CloudWatchProvabilityEmitter.build_metric_data(run))
+    emitted = _emitter_identities(
+        CloudWatchProvabilityEmitter.build_metric_data(run)
+        + CloudWatchDataQualityEmitter.build_metric_data(1, at=NOW)
+    )
+    assert METRIC_ACTIVE_ROW_ECONOMIC_NULL_COUNT in emitted  # the PROV-7 series exists
 
     alarms = _parse_tf_alarm_identities(tf_text)
-    assert len(alarms) == 6, "expected PROV-1..6 alarm resources"
+    assert len(alarms) == 7, "expected PROV-1..7 alarm resources"
     for metric_name, ns_ref, dim_keys in alarms:
         resolved_ns = (
             ns_default if ns_ref == "var.substrate_provability_namespace" else ns_ref.strip('"')
