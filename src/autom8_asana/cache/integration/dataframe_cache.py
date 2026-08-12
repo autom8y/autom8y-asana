@@ -809,6 +809,7 @@ class DataFrameCache:
         watermark: datetime,
         build_result: Any = None,
         *,
+        created_at: datetime | None = None,
         population_degraded: bool = False,
         population_min_rate: float = 1.0,
         write_decision: Any = None,
@@ -835,6 +836,22 @@ class DataFrameCache:
             dataframe: Polars DataFrame to cache.
             watermark: Freshness watermark (based on max modified_at).
             build_result: Optional BuildResult for quality metadata (C2).
+            created_at: Explicit age anchor for the entry. **DEFAULT-PRESERVING**:
+                ``None`` (the default, and what every historical caller passes by
+                omission) stamps ``datetime.now(UTC)`` exactly as before, so no
+                existing caller changes behavior.
+
+                Supply it ONLY when the bytes being put were loaded from a store
+                that carries their real recency, so the age clock anchors on the
+                substrate rather than on this process's wall-clock. The one such
+                caller today is the startup preload's S3 parquet fast path
+                (``api/preload/progressive.py``), which hands over an S3-sourced
+                frame together with the ``s3_watermark`` that describes it.
+
+                CO-SOURCING (FIX-N-C1): the stamp must describe the same object
+                being put. Pass the watermark that came back from the SAME load
+                as ``dataframe``; never a watermark read separately, from another
+                tier, or from a later instant.
             population_degraded: True when the freshly-built frame breached the floor
                 (carried into the converged write gate's backstop guard).
             population_min_rate: Observed min active-subset non-null rate.
@@ -888,7 +905,10 @@ class DataFrameCache:
             entity_type=entity_type,
             dataframe=dataframe,
             watermark=watermark,
-            created_at=datetime.now(UTC),
+            # FIX-N-C1: an explicit anchor wins; None keeps the historical
+            # unconditional now() stamp, so the default path is byte-identical
+            # for every caller that does not opt in.
+            created_at=created_at if created_at is not None else datetime.now(UTC),
             schema_version=schema_version,
             build_quality=build_quality,
             write_decision=write_decision,
