@@ -639,11 +639,30 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                                 if s3_watermark is not None:
                                     watermark_repo.set_watermark(project_gid, s3_watermark)
                                 if dataframe_cache is not None and s3_watermark is not None:
+                                    # FIX-N-C1 — preload stamp honesty.
+                                    #
+                                    # These bytes came off S3, not off a build.
+                                    # Without an explicit anchor, put_async stamps
+                                    # created_at=now(), so a worker booting against
+                                    # a 3-hour-old parquet reports age 0 and then
+                                    # drifts stale on its own uptime -- boot
+                                    # wall-clock wearing the badge of substrate
+                                    # recency. That is the mechanism behind the
+                                    # task-startup-anchored staleness readings.
+                                    #
+                                    # CO-SOURCING: s3_watermark and s3_df come back
+                                    # from the SAME load_dataframe call above, and
+                                    # the cascade self-heal re-persists any
+                                    # corrected frame under that same watermark --
+                                    # so the stamp describes the object being put.
+                                    # Keep them bound: never re-source one without
+                                    # the other.
                                     await dataframe_cache.put_async(
                                         project_gid,
                                         entity_type,
                                         s3_df,
                                         s3_watermark,
+                                        created_at=s3_watermark,
                                     )
                                 return True
 
