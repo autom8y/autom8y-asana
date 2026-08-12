@@ -82,6 +82,11 @@ from autom8_asana.substrate.freshness import (
     sla_seconds_for,
 )
 from autom8_asana.substrate.identity import ArtifactId
+from autom8_asana.substrate.population_floor import (
+    OFFER_PUBLISH_FLOOR,
+    ColumnNullWarning,
+    warning_blocks,
+)
 from autom8_asana.substrate.rebuild import (
     DefaultAcceptancePredicates,
     FetchedSections,
@@ -100,6 +105,7 @@ if TYPE_CHECKING:
     from tests.harness.substrate_gate.cases import Materialization
     from tests.harness.substrate_gate.parity import PacedLiveParitySource, ParityObservation
 
+    from autom8_asana.substrate.observe import DataQualityEmitter
     from autom8_asana.substrate.rebuild import NowFn, SlaResolver
     from autom8_asana.substrate.store import S3ArtifactStore
 
@@ -754,6 +760,38 @@ class _CapturingFetcher:
         return fetched
 
 
+@dataclass(slots=True)
+class DataQualityWarningCollector:
+    """The floor's ``warning_sink``: records the demoted-column wounds AND emits PROV-7.
+
+    ONE object is both halves of the loud channel (digest item 2), so the emission happens
+    exactly WHERE the floor evaluates — there is no seam at which a warning is recorded for
+    the receipt but never emitted, or vice versa. ``fired`` distinguishes "the floor ran and
+    found nothing" from "the floor never ran" (a rebuild that refused before validate), so a
+    receipt can honestly carry ``null`` rather than a fabricated empty list.
+
+    ``emitter`` is optional: an un-emitting collector still feeds the receipt (used by any
+    caller that has no CloudWatch client — the receipt channel never silently degrades).
+    """
+
+    emitter: DataQualityEmitter | None = None
+    at: datetime | None = None
+    warnings: tuple[ColumnNullWarning, ...] = ()
+    fired: bool = False
+
+    def __call__(self, warnings: tuple[ColumnNullWarning, ...]) -> None:
+        self.warnings = warnings
+        self.fired = True
+        if self.emitter is not None:
+            # Emitted on EVERY evaluation including len()==0 — a dense series is what lets
+            # PROV-7 return to OK instead of going silent (PROV-suite discipline).
+            self.emitter.emit_active_row_economic_nulls(len(warnings), at=self.at)
+
+    def blocks(self) -> list[dict[str, Any]] | None:
+        """The receipt wire form, or ``None`` when the floor never evaluated."""
+        return warning_blocks(self.warnings) if self.fired else None
+
+
 async def rebuild_offer_v2(
     aid: ArtifactId,
     *,
@@ -761,6 +799,7 @@ async def rebuild_offer_v2(
     store: S3ArtifactStore,
     now: NowFn | None = None,
     sla_for: SlaResolver | None = None,
+    warning_sink: Callable[[tuple[ColumnNullWarning, ...]], None] | None = None,
 ) -> tuple[RebuildResult, FetchedSections | None]:
     """3b (caller): drive ``SubstrateRebuilder.rebuild()`` for the offer plane.
 
@@ -774,9 +813,22 @@ async def rebuild_offer_v2(
     # active_predicate=active_offer_rows: the population floor evaluates the classifier-active
     # SERVED denominator, not the whole frame (whose inactive-section rows carry legitimate
     # value-column nulls v1 itself serves). Without it the floor is unpassable (RULING-pythia-f305-1
-    # §6 #1); with it the guard still bites a null value column on any active-section row.
+    # §6 #1); with it the guard still bites a null BLOCKING column on any active-section row.
+    #
+    # floor=OFFER_PUBLISH_FLOOR (BRIDGE, SPIKE-population-floor-scope-2026-08-12 digest item 4):
+    # blocking = {mrr, office_phone, vertical} — the sum input plus the dedup keys whose nulls
+    # would silently COLLAPSE distinct active offers into one and lose value from the served
+    # number. {cost, offer_id, weekly_ad_spend} are DEMOTED to ``warning_sink``: the served
+    # number does not read them, so a provisioning-lag null no longer halts a provably-correct
+    # publish — it surfaces per-offer in the receipt and on ActiveRowEconomicNullCount (PROV-7).
     result = await rebuilder.rebuild(
-        aid, capturing, DefaultAcceptancePredicates(active_predicate=active_offer_rows)
+        aid,
+        capturing,
+        DefaultAcceptancePredicates(
+            active_predicate=active_offer_rows,
+            floor=OFFER_PUBLISH_FLOOR,
+            warning_sink=warning_sink,
+        ),
     )
     return result, capturing.captured
 
@@ -883,11 +935,16 @@ class ParityReceiptWriter:
         result: RebuildResult | None,
         legs: ParityLegs | None,
         detail: str,
+        warnings: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         return {
             "aid": self._aid_block(aid),
             "touched_at": at.isoformat(),
             "outcome": outcome,
+            # Per-offer demoted-column nulls found at publish-time floor evaluation
+            # (digest item 2). ``[]`` = the floor ran and found none; ``null`` = the floor
+            # never evaluated (the touch refused upstream) — an honest distinction.
+            "data_quality_warnings": warnings,
             "version_id": (
                 str(result.version_id)
                 if result is not None and result.version_id is not None
@@ -912,13 +969,21 @@ class ParityReceiptWriter:
         legs: ParityLegs,
         ledger: PerDayBudgetLedger,
         at: datetime,
+        warnings: list[dict[str, Any]] | None = None,
     ) -> Path:
         """Record a SERVED touch (SWAPPED + coverage-ok): both legs, both sides."""
         return self._persist(
             aid,
             at,
             self._base(
-                aid, outcome="served", ledger=ledger, at=at, result=result, legs=legs, detail=""
+                aid,
+                outcome="served",
+                ledger=ledger,
+                at=at,
+                result=result,
+                legs=legs,
+                detail="",
+                warnings=warnings,
             ),
         )
 
@@ -932,13 +997,21 @@ class ParityReceiptWriter:
         legs: ParityLegs | None = None,
         result: RebuildResult | None = None,
         detail: str = "",
+        warnings: list[dict[str, Any]] | None = None,
     ) -> Path:
         """Record a first-class REFUSAL (§6 #9): v2 refused; v1's served number is preserved."""
         return self._persist(
             aid,
             at,
             self._base(
-                aid, outcome=outcome, ledger=ledger, at=at, result=result, legs=legs, detail=detail
+                aid,
+                outcome=outcome,
+                ledger=ledger,
+                at=at,
+                result=result,
+                legs=legs,
+                detail=detail,
+                warnings=warnings,
             ),
         )
 
@@ -951,10 +1024,18 @@ class ParityReceiptWriter:
         at: datetime,
         legs: ParityLegs | None = None,
         result: RebuildResult | None = None,
+        warnings: list[dict[str, Any]] | None = None,
     ) -> Path:
         """F-305-3: a charged touch that RAISED still leaves a receipt (outcome=error, class named)."""
         payload = self._base(
-            aid, outcome="error", ledger=ledger, at=at, result=result, legs=legs, detail=str(error)
+            aid,
+            outcome="error",
+            ledger=ledger,
+            at=at,
+            result=result,
+            legs=legs,
+            detail=str(error),
+            warnings=warnings,
         )
         payload["error"] = {"type": type(error).__name__, "message": str(error)}
         return self._persist(aid, at, payload)
@@ -1006,6 +1087,7 @@ def build_parity_outbound(
     now: NowFn | None = None,
     sla_for: SlaResolver | None = None,
     min_build_instant: datetime | None = None,
+    data_quality_emitter: DataQualityEmitter | None = None,
 ) -> Callable[[ArtifactId], Awaitable[ParityObservation]]:
     """3c: the concrete ``outbound`` — a DUAL-LEG parity record (F-305-1) with first-class refusal.
 
@@ -1029,6 +1111,9 @@ def build_parity_outbound(
         from tests.harness.substrate_gate.parity import ParityObservation
 
         touched_at = clock()
+        # One collector per touch (digest item 2): the floor's warn tier writes THROUGH it,
+        # so the same evaluation feeds both the per-offer receipt lines and PROV-7.
+        dq = DataQualityWarningCollector(emitter=data_quality_emitter, at=touched_at)
         v1_served: float | None = None
         v1_exemplar: float | None = None
         v1_digest: str | None = None
@@ -1048,7 +1133,7 @@ def build_parity_outbound(
             v1_exemplar = exemplar_aggregate_value(v1_frame)[0]
             # --- LEG A + LEG B on the v2 rebuild (paced live; budget at the HTTP boundary) ----
             result, fetched = await rebuild_offer_v2(
-                aid, fetcher=fetcher, store=store, now=now, sla_for=sla_for
+                aid, fetcher=fetcher, store=store, now=now, sla_for=sla_for, warning_sink=dq
             )
         except ParityBudgetExhausted as exc:
             receipt_writer.write_budget_halt(aid, ledger=budget, at=touched_at, detail=str(exc))
@@ -1064,6 +1149,7 @@ def build_parity_outbound(
                     served_v1=v1_served, served_digest=v1_digest, exemplar_v1=v1_exemplar
                 ),
                 detail=str(exc),
+                warnings=dq.blocks(),
             )
             raise ParityLegRefused(f"served leg refused coverage: {exc}") from exc
         except Exception as exc:
@@ -1075,6 +1161,7 @@ def build_parity_outbound(
                 legs=ParityLegs(
                     served_v1=v1_served, served_digest=v1_digest, exemplar_v1=v1_exemplar
                 ),
+                warnings=dq.blocks(),
             )
             raise
 
@@ -1091,6 +1178,7 @@ def build_parity_outbound(
                     served_v1=v1_served, served_digest=v1_digest, exemplar_v1=v1_exemplar
                 ),
                 detail=result.detail,
+                warnings=dq.blocks(),
             )
             raise ParityLegRefused(f"v2 rebuild {result.outcome.value}: {result.detail}")
 
@@ -1109,6 +1197,7 @@ def build_parity_outbound(
                 legs=ParityLegs(
                     served_v1=v1_served, served_digest=v1_digest, exemplar_v1=v1_exemplar
                 ),
+                warnings=dq.blocks(),
             )
             raise
 
@@ -1120,7 +1209,14 @@ def build_parity_outbound(
             exemplar_v2=v2_exemplar,
             exemplar_digest=_composition_digest(v2_ex_cells) if v2_ex_cells else None,
         )
-        receipt_writer.write_served(aid, result=result, legs=legs, ledger=budget, at=touched_at)
+        receipt_writer.write_served(
+            aid,
+            result=result,
+            legs=legs,
+            ledger=budget,
+            at=touched_at,
+            warnings=dq.blocks(),
+        )
         return ParityObservation(aid=aid, v1=v1_mat, v2=v2_mat)
 
     return _outbound
@@ -1195,14 +1291,18 @@ def arm_offer_parity_window(
     now: NowFn | None = None,
     sla_for: SlaResolver | None = None,
     min_build_instant: datetime | None = None,
+    data_quality_emitter: DataQualityEmitter | None = None,
 ) -> ArmedParityWindow:
     """Compose 3a-3d and ARM the process-singleton parity source for the offer plane.
 
     WU-4 opens the window by calling this then ``source.fetch_all_paced([offer_aid()])``.
     ``page_fetch`` + ``plan`` are the real Asana client call site + section planner WU-4
     injects; ``store`` is the v2 ``S3ArtifactStore``; ``min_build_instant`` (F-305-4) is the
-    prior served receipt's build instant (generation-monotonicity floor). Everything below the
-    seam is proven DARK with fakes; this call performs NO Asana or S3 I/O by itself.
+    prior served receipt's build instant (generation-monotonicity floor).
+    ``data_quality_emitter`` is the PROV-7 sink for the tiered floor's warn tier — omitted,
+    the per-offer wounds still land in the receipt, so the channel degrades to receipt-only
+    rather than silently disappearing. Everything below the seam is proven DARK with fakes;
+    this call performs NO Asana or S3 I/O by itself.
     """
     from tests.harness.substrate_gate.budget import PerDayBudgetLedger
 
@@ -1223,6 +1323,7 @@ def arm_offer_parity_window(
         now=now,
         sla_for=sla_for,
         min_build_instant=min_build_instant,
+        data_quality_emitter=data_quality_emitter,
     )
     source = arm_process_parity_fetcher(outbound)
     return ArmedParityWindow(
