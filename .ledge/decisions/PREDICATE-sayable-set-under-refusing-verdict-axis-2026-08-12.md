@@ -2,8 +2,8 @@
 type: decision
 status: draft
 artifact_id: PREDICATE-sayable-set-under-refusing-verdict-axis-2026-08-12
-revision: 3
-remediates: CRITIQUE-s1-sayable-predicate-2026-08-12 (BLOCK, rev-2) + its delta pass 2 (UPHELD-WITH-CONDITIONS, rev-3 — conditions C-1 and C-2)
+revision: 4
+remediates: CRITIQUE-s1-sayable-predicate-2026-08-12 (BLOCK, rev-2) + its delta pass 2 (UPHELD-WITH-CONDITIONS, rev-3 — conditions C-1/C-2) + PT-02 fork-surface gate (rev-4 — HARD conditions C-6/C-7, both WITHDRAWALS)
 initiative: asana-native-insight-delivery
 sprint: S1 (WS-B — the say-able set under a refusing verdict axis)
 rite: 10x-dev
@@ -29,6 +29,97 @@ completeness-vs-freshness discriminator as a PREDICATE a downstream author can
 apply without re-litigating P-3, and classify the five REPORT §6 candidates
 against it. State the disclosure rule any published number must carry so it can
 never read as fresher than it is."*
+
+---
+
+## REVISION 4 — two withdrawals
+
+PT-02 (the fork-surface gate) ruled on revision 3 and issued two **HARD**
+conditions. Both are **withdrawals**. Neither is annotated: PT-02 attached a
+tripwire — *"if the briefing annotates item 2's SAY-ABLE rather than withdrawing
+it, this gate becomes FORK SURFACE COMPROMISED."* Annotation was therefore not
+available, and on the receipts below it would not have been defensible anyway.
+
+| condition | disposition | outcome |
+|---|---|---|
+| **C-6 (HARD)** — item 2's G4 justification is refuted; the imputation error is **population-dependent in sign** | **ACCEPTED — `SAY-ABLE` WITHDRAWN** | Item 2 → **`WITHHELD-PENDING`**. The narrowed form (2′) is derived separately per PT-02's invitation and is **also withheld — on G2, not G4.** |
+| **C-7 (HARD)** — tier (iii) *"edit history genuinely absent and not constructible"* is refuted | **ACCEPTED — tier (iii) WITHDRAWN and RESTATED** | The substrate does **not** exclude edit history. **One consumer discards it, at read time.** One link genuinely remains open and is carried, not closed. |
+| **item 5a re-tested against C-6** (PT-02 instruction) | **SURVIVES — and the reason is structural** | 5a reports an **occurrence set**, not a derived difference. Imputation contributes **no** move events, so it cannot contaminate a reported value; its only effect is omission, which is single-signed. |
+
+### C-6 — what I got wrong, and it is worse than a wrong sign
+
+Revision 3 §3.0.2 asserted the imputation error was *"bounded and
+one-directional: dwell is OVERSTATED, never understated."* **That is refuted on
+the code.** Verified own-hands at `origin/main`:
+
+`_build_imputed_interval` (`services/section_timeline_service.py:272-300`)
+returns **exactly one** interval, carrying the offer's **current**
+classification (`:296` `classification=account_activity`; docstring `:280` —
+*"Use the offer's current account_activity for classification"*) and
+`exited_at=None` (`:298`), which per `section_timeline.py:70,89` — *"Open
+intervals extend to period_end"* — spans the whole window. The two counts are
+classification-**set filters**: `active_days_in_period` → `frozenset({ACTIVE})`
+(`section_timeline.py:81`); `billable_days_in_period` →
+`frozenset({ACTIVE, ACTIVATING})` (`:100-102`).
+
+| imputed offer's current classification | `active` | `billable` | `billable − active` | truth | sign |
+|---|---|---|---|---|---|
+| **ACTIVE** | full window | full window | **0** | ACTIVATING dwell may be > 0 | **UNDERSTATEMENT** |
+| **ACTIVATING** | 0 | full window | **full window** | actual dwell ≤ window | **OVERSTATEMENT** |
+
+**Same mechanism, opposite signs, partitioned by each offer's present
+classification.** G4 requires the error direction to be *known*. Across the
+cohort it is not merely unknown — **it is not single-signed**, so there is no
+direction to declare. I derived the ACTIVATING branch, stopped, and generalised
+from it. The ACTIVE branch was one filter-set away.
+
+**Why annotation could not have rescued it.** The consumer cannot measure the
+contaminated fraction from the response. `story_count` exists internally on
+`SectionTimeline` (`models/business/section_timeline.py:62`; docstring `:54` —
+*"Number of section_changed stories after filtering"*) and is **dropped at the
+response boundary**: `OfferTimelineEntry` (`:158-209`) carries seven fields —
+`offer_gid`, `office_phone`, `offer_id`, `active_section_days`,
+`billable_section_days`, `current_section`, `current_classification` — and
+`story_count` is not among them, under `extra="forbid"` (`:212`). A payload with
+100 % imputed rows is byte-indistinguishable from one with 0 %.
+
+### C-7 — tier (iii) is refuted, not merely unproven
+
+Revision 3's `:1196-1199` declared edit history *"genuinely absent and not
+constructible"* — the **only** remaining "actually expensive" cost tier at the
+fork. Three receipts, ascending:
+
+1. **`DEFAULT_STORY_TYPES` admits nine subtypes** (`cache/integration/stories.py:23-33`),
+   of which **six are edit-class or custom-field-edit**: `assignee_changed`,
+   `due_date_changed`, `marked_complete`, `marked_incomplete`,
+   `enum_custom_field_changed`, `number_custom_field_changed`. Revision 3's
+   entire edit-history argument used **one** (`section_changed`).
+2. **`filter_relevant_stories` is a READ-time filter** — a pure list
+   comprehension over an already-fetched in-memory list
+   (`cache/integration/stories.py:266-294`, `:294`
+   `return [s for s in stories if s.get("resource_subtype") in include_types]`).
+   `load_stories_incremental` does **no** narrowing at cache-write: on a cache
+   miss it calls `await fetcher(task_gid, None)` and writes the result whole
+   (`:141-146`).
+3. **Decisive — the fetcher applies no subtype filter at all.**
+   `clients/stories.py:482-505` builds `params` from `_build_opt_fields(opt_fields)`
+   plus `limit`, optional `since`, optional `offset`, and calls
+   `/tasks/{task_gid}/stories`. There is **no `resource_subtype` parameter
+   anywhere in the fetch**. Docstring `:483`, verbatim: *"Fetch all stories for a
+   task, optionally since a timestamp."*
+
+**The only narrowing in the entire chain is at READ time, by one consumer** —
+`section_timeline_service.py:341`, `s.resource_subtype == "section_changed"`.
+
+> **Restated tier (iii): the substrate does not exclude edit history. One
+> consumer discards it.** Edit history is **not contracted** and its
+> *availability* is unverified — but *"absent and not constructible"* is
+> **false**, and it was the load-bearing sentence under this artifact's only
+> remaining expensive cost tier.
+
+This is the identical correction S4 was forced into on its own negative result,
+reached here one sprint later — which is itself evidence the error is
+structural to the approach, not incidental to one seat.
 
 ---
 
@@ -861,14 +952,36 @@ subset** of the edit stream. This is the precise reason item 1b stays withheld
 while items 2 and 5a move: candidate 1 is keyed on *edits*; candidates 2 and 5's
 first limb are keyed on *movement*.
 
-**A directional inference this seat found, which neither critique pass named.**
-`section_timeline_service.py:272-279` — `_build_imputed_interval`: *"If zero
-stories remain, impute `[task.created_at, None]`"* for a never-moved task
-(applied at `:358`, `:586`, `:608`). An offer whose moves went unobserved is
-therefore read as **never having moved**, and its dwell is counted from
-**creation**. The error is **bounded and one-directional: dwell is OVERSTATED,
-never understated.** That is the G4 shape and it does not block — but it is an
-inference, so **DR-7 binds**: it must be published as the inference it is.
+**An inference this seat found and then MIS-SIGNED — corrected at rev-4 under
+PT-02 C-6.** `_build_imputed_interval` (`section_timeline_service.py:272-300`,
+applied at `:358`, `:586`, `:608`) imputes `[task.created_at, None]` for a
+never-moved task. Revision 3 concluded from this that *"dwell is OVERSTATED,
+never understated"* and passed item 2 on G4.
+
+> **~~Overstated, never understated.~~ WITHDRAWN — the sign is
+> population-dependent.** The imputed interval carries the offer's **current**
+> classification (`:296`, docstring `:280`) and is open-ended (`:298` →
+> `section_timeline.py:70,89`, *"Open intervals extend to period_end"*). Against
+> the two classification-**set** filters (`section_timeline.py:81` `{ACTIVE}`;
+> `:100-102` `{ACTIVE, ACTIVATING}`), a currently-**ACTIVE** imputed offer yields
+> `billable − active = 0` (**understatement**) and a currently-**ACTIVATING** one
+> yields the full window (**overstatement**). See the REVISION 4 table.
+
+**The surviving general rule, adopted from PT-02 and superseding the
+duration/occurrence split in `FINDING-option-g-imputation-indistinguishable-2026-08-12.md`
+§RECONCILIATION rather than supplementing it** (the old split was too coarse —
+item 2 is duration-shaped and passed straight through it):
+
+> **Option (g) is SOUND for durations measured IN the offer's current
+> classification, and SIGN-AMBIGUOUS for durations derived as DIFFERENCES ACROSS
+> classifications.**
+
+Two consequences carried in §3.1: item 2 fails G4 as a cross-classification
+difference; item 2′ passes G4 in-classification but fails **G2**, because the
+imputed subset is not exhibitable — `story_count` is dropped at the response
+boundary (`section_timeline.py:158-209`, `extra="forbid"` `:212`). DR-7 still
+binds on any surviving use, but DR-7 was never sufficient here: **a label cannot
+disclose a fraction the payload does not carry.**
 
 **Net (rev-3): `uncontracted, partly fenced, and partly served by an unfenced
 retrospective surface`.**
@@ -877,9 +990,37 @@ retrospective surface`.**
   payload via `/rows` (§3.0.1).
 - **Movement history** — unfenced and retrospective: `section-timelines`, bounded
   at 2 h, Asana-observed.
-- **Edit history** — **no unfenced source, and none constructible**:
-  `last_modified` is last-move-only, the story stream is movement-only, and the
-  per-section watermark series is `SectionInfo`-derived and fenced.
+- **Edit history** — ~~**no unfenced source, and none constructible**~~
+  **WITHDRAWN at rev-4 under PT-02 C-7.** The clause *"the story stream is
+  movement-only"* is **false**. The fetch applies **no** subtype filter
+  (`clients/stories.py:482-505`), `load_stories_incremental` writes the result
+  **unnarrowed** on a cache miss (`cache/integration/stories.py:141-146`), and
+  `DEFAULT_STORY_TYPES` admits **nine** subtypes of which **six are edit-class**
+  (`:23-33`). The **only** narrowing is at read time, in one consumer
+  (`section_timeline_service.py:341`). Restated:
+
+  > **The substrate does not exclude edit history — one consumer discards it.**
+  > Edit history is **not contracted**, and its *availability* turns on one open
+  > link (below). *"Absent and not constructible"* is refuted.
+
+  `last_modified` remains last-move-only (`base.py:76-82`) — that part stands.
+  What falls is the inference from it to the whole substrate.
+
+  **The one link that genuinely remains open, carried and NOT closed:** whether
+  anything actually fetches stories for **offer** tasks in production — i.e.
+  whether the story cache is populated for offers at all. The same unknown gates
+  option (g)'s cache warmth, so **one probe closes both**. Carried as a UV-P at
+  §6, inferred in neither direction.
+
+  **[INFERRED | MODERATE] — one refinement offered, clearly marked as mine and
+  not load-bearing on any verdict:** for this path **cold ≠ empty**.
+  `list_for_task_cached` falls back to `_fetch_all_stories_uncached` when no
+  cache provider is present (`clients/stories.py:392-403`), and
+  `load_stories_incremental:141-146` performs a **full fetch** on a cache miss.
+  So a never-invoked endpoint implies a cold cache, **not** an empty result — the
+  first invocation would fetch live. **I could not verify** whether the endpoint
+  has in fact been invoked, or the current cache state: no log query and no API
+  call were made this dispatch.
 
 ### 3.1 The five candidates
 
@@ -887,10 +1028,11 @@ retrospective surface`.**
 |---|---|---|---|---|
 | **1a** | Per-section quiet-time leaderboard — *current state* (`:185`, first limb) | COMPLETENESS | **`SAY-ABLE`** *(changed at rev-2; **CLEARED by the critic at delta pass 2 on five attacks**)* | Single-clock, series referent (G1). Measurand is `max(last_modified)` grouped by `section` on declared schema, K-lane-free (§3.0 path (a)), read via **`/rows`** per §3.0.1. Per-section grouping applies **no** cohort reduction, so F-2's masking does not arise; the denominator ("of the N sections holding offer rows") is exhibitable from the same read (G2). G3 passes via clause **(a)**, not (b) — see the note below, which is the critic's strongest attack and the reason 1a holds. Bound and direction known (G4). **§0's fence: a say-ability verdict, not a build authorization.** |
 | **1b** | Per-section quiet-time leaderboard — *"week by week"* (`:185`, second limb) | COMPLETENESS | **`WITHHELD-PENDING`** *(verdict unchanged; ground SHARPENED at rev-3)* | G1/G3/G4 as 1a. **G2 FAIL**, and revision 2's ground was **too general**. It is not that history is unreachable — `section-timelines` reaches **movement** history retrospectively and unfenced (§3.0.2). It is that ***edit* history cannot be manufactured backward while *movement* history can**, and candidate 1 is keyed on edits: `last_modified` is last-move-only (`base.py:76-82`) and a `section_changed` story (`section_timeline_service.py:341`) is a strict subset of the edit stream. The K-lane fence is **no longer load-bearing** here — the binding constraint is the event-class mismatch, which no fence ruling can dissolve. |
-| **2** | Launch-pipeline dwell time (`:186`) | COMPLETENESS | **`SAY-ABLE`** *(changed from `WITHHELD-PENDING` at rev-3 — **grounds no critic has seen**)* | G1 PASS (single clock — Asana stories against Asana sections). **G2 PASS**: dwell in ACTIVATING is `billable_section_days − active_section_days` (`section_timeline.py:188-199` — *"Days in ACTIVE **or ACTIVATING**"* minus *"Days in ACTIVE"*), and the right-censoring split revision 1 called un-exhibitable is **exhibited on the wire** by `current_classification` (`:205-209`), which names the still-in-flight set. **G3 PASS** via (a) — a duration is positive. **G4 PASS**: bounded at 2 h by the story cache (`section_timeline_service.py:334-338`), and the imputation error is one-directional (dwell **overstated**, never understated — §3.0.2). Residual is **operational, not substrate**, and becomes two render duties, not gate failures: day-counts are **window-clipped** (`section_timeline.py:167-169`, *"during period"* — left-censoring is not exhibited, DR-5/DR-7), and never-moved imputation must be labelled (DR-7). |
+| **2** | Launch-pipeline dwell time (`:186`) | COMPLETENESS | **`WITHHELD-PENDING`** *(rev-3's `SAY-ABLE` **WITHDRAWN** at rev-4 under PT-02 C-6)* | G1 PASS. **G4 FAIL** — and this is the withdrawal. `billable_section_days − active_section_days` is a **difference across classifications**, and for an imputed offer the single `[created_at, None]` interval carries the offer's **current** classification (`section_timeline_service.py:272-300`), so the two `frozenset` filters (`section_timeline.py:81`, `:100-102`) yield **0 for a currently-ACTIVE offer (understatement)** and **the full window for a currently-ACTIVATING one (overstatement)**. The error is **not single-signed across the cohort**, so no direction can be declared. **Not annotatable**: `story_count` is dropped at the response boundary (`section_timeline.py:158-209`, `extra="forbid"` `:212`), so the contaminated fraction is unmeasurable from the payload. The pending condition is now a **named, closable, code-level** one: an imputed-vs-observed discriminator must reach `OfferTimelineEntry`. |
+| **2′** | Dwell measured **IN** the offer's current classification (derived separately per PT-02, **NOT** a rescue of item 2) | COMPLETENESS | **`WITHHELD-PENDING`** — but **on G2, not G4** | PT-02's formulation is **adopted and holds**: measured *in* the current classification the imputation error **is** single-signed, because imputation always back-dates entry to `created_at` (`:297`) — the value can only be **overstated**. So **G4 PASSES** here where it fails for item 2. **G2 FAILS instead**: the served population is *"offers, an unknown subset of which have inferred rather than observed histories,"* and the readout **cannot exhibit its own population split** — same `story_count` boundary drop. That is §2.2 shape-1 population substitution, not an error-direction problem. **This is a refinement of PT-02, not a disagreement**: option (g) is sign-sound in-classification exactly as PT-02 states; sign-soundness is simply not sufficient, because a second gate bites. Same closing condition as item 2. |
 | 3 | Budget expected-vs-actual roll-up (`:187`) | **VERDICT** | **`WITHHELD-AXIS`** + `OPERATOR-RESERVED` *(unchanged)* | Two-clock by construction — task `weekly_ad_spend` joined to campaign spend is exactly the budget-drift/mismatch grading (`REPORT…:56-58`); a stale board field against live spend yields a difference indistinguishable from real drift. This is the limb that **survives** F-5's narrowing: no wording rescues it. Additionally charter `:54` money limb, and *"one number"* is the shape that reads most authoritative. |
 | 4 | Ghost / missing-campaign trendline (`:188`) | **VERDICT** | **`WITHHELD-AXIS`** ×2 *(unchanged)* | Two-clock (board vs campaign — `REPORT…:53-54`), **and** independently the trend axis is punctured: the pause takes no snapshots and *"those windows are not backfilled"* (`REPORT…:144-145`), so a weekly series would render an observation hole as a data point. Two sufficient grounds; the critique attacked both limbs and dented neither. |
-| **5a** | Monday-morning weekend digest — *"what moved"* (`:189`, first limb) | COMPLETENESS | **`SAY-ABLE`** *(changed from `WITHHELD-PENDING` at rev-3 — **grounds no critic has seen**)* | G1 PASS. **G2 PASS**: population is the offers the endpoint returns for the project; exhibitable. **G3 PASS via (a)** — a positive claim about observed transitions. Revision 2's ground is **withdrawn on both limbs of its reasoning**: the forward-accrual inheritance from 1b is **false** (a retrospective replay accrues nothing — it reads what Asana already recorded, §3.0.2), and the silently-stopped-job hazard (`REPORT…:172`) **does not apply** (our observer being dead over the weekend does not puncture a Monday replay of Asana's log). **G4 PASS**: 2 h story-cache bound. |
+| **5a** | Monday-morning weekend digest — *"what moved"* (`:189`, first limb) | COMPLETENESS | **`SAY-ABLE`** *(rev-3; **RE-TESTED against C-6 at rev-4 and SURVIVES** — still un-critiqued)* | G1 PASS. **G2 PASS**: population is the offers the endpoint returns for the project; `N observed to move of M offers` is exhibitable from the same response. **G3 PASS via (a)** — a positive claim about observed transitions. **G4 PASS**: 2 h story-cache bound; error single-signed (see below). Revision 2's grounds remain **withdrawn on both limbs**: the forward-accrual inheritance from 1b is false (a retrospective replay accrues nothing), and the silently-stopped-job hazard (`REPORT…:172`) does not apply to a Monday replay of Asana's own log. **C-6 re-test — why the imputation defect does not reach here**: 5a reports an **occurrence set**, not a value derived by differencing classification-filtered day counts. An imputed offer is by construction one with **zero** surviving stories (`section_timeline_service.py:358` fires only when the filtered list is empty), so it contributes **no move events** and simply does not appear. Imputation therefore cannot corrupt a **reported** value — its only effect is **omission**, which is single-signed (**undercount, never overcount**) and is a DR-5 coverage-disclosure duty, not a gate failure. **The structural difference from item 2 is that 5a has no hidden inferred subset inside the set it reports.** |
 | **5b** | Monday-morning weekend digest — *"what didn't move"* (`:189`, second limb) | COMPLETENESS | **`WITHHELD-PENDING`** *(verdict unchanged; ground REPLACED and much narrowed)* | G1 PASS. **G3 FAIL**, but **not** on `REPORT…:172` — that ground is **withdrawn**. An absence-of-movement claim rests on the completeness of Asana's story stream **as replayed through this path**, and that path deliberately narrows it twice: a 2 h staleness window (`section_timeline_service.py:337`) and a cross-project noise filter that **drops** stories (`:344-346`). Absence-of-retained-record is therefore not yet equal to absence-of-event. Carried as a **UV-P** on replay completeness (§6), not asserted. Item 1's masking ground remains **withdrawn** (F-2). The Monday maximum-divergence context (3.7-day spread, `REPORT…:92`) is **not** a gate failure — DR-6a render obligation per §2.0's capability/performance split. |
 
 #### 3.1.1 Why item 1a survives G3 under clause (a), not clause (b) (rev-3)
@@ -914,11 +1056,33 @@ The consequence is the discriminator:
 > inference **cannot occur** when the datum is the observed system's own
 > assertion about itself.
 
-This is the same structure that carries item 2 and item 5a (§3.0.2): where the
-observer **is** the observed system, an absence-shaped sentence is a positive
-claim about a recorded value, and clause (a) is honestly available. Where the
-observer is **us** — item 5b, whose claim rests on our *retained* replay being
-complete — it is not.
+This is the same structure that carries item 5a (§3.0.2): where the observer
+**is** the observed system, an absence-shaped sentence is a positive claim about
+a recorded value, and clause (a) is honestly available. Where the observer is
+**us** — item 5b, whose claim rests on our *retained* replay being complete — it
+is not. *(Item 2 was carried by this structure at rev-3 and is **withdrawn** at
+rev-4 on an unrelated G4 defect; its removal does not disturb the G3 reasoning
+here.)*
+
+**C-6 SIGN RE-TEST, applied to 1a's own single-signed claim (rev-4).** C-6
+falsified a *"single-signed"* assertion this seat made without enumerating both
+branches. The same assertion shape appears above — *"overstated, never
+understated"* — so it is re-tested rather than left standing:
+
+- **Overstatement branch**: pipeline stalls, the frame's `max(last_modified)`
+  per section freezes, real edits are not ingested, `now − max(last_modified)`
+  grows. Quiet-time reads **longer** than truth. ✓
+- **Understatement branch**: would require the served `last_modified` to be
+  **newer** than the board's actual value. **Structurally impossible** — the
+  column is copied from Asana's own `modified_at`
+  (`schemas/base.py:76-82`, `source="modified_at"`), so it cannot lead the source
+  it is copied from. ✗
+
+**Both branches enumerated; the sign holds.** The contrast with item 2 is exact
+and is the generalisable lesson: item 2's sign was set by a **filter-set
+membership test** that *partitions* the population (`section_timeline.py:81` vs
+`:100-102`), so it admits two branches; 1a's sign is set by a **copy
+relationship** that admits only one.
 
 ### 3.2 What the test changed — REVISED under BLOCK
 
@@ -936,11 +1100,33 @@ complete — it is not.
   source and none constructible) and **5b** (replay-completeness UV-P). Revision
   1's flat *"all three FALSIFIED"* was wrong in the expensive direction; revision
   2 corrected one third of it; revision 3 corrects the rest.
-- **The correction ran entirely one way.** Across three revisions no candidate
-  moved *toward* withheld. Every movement was withheld → say-able, and each was
-  caused by reading a surface this seat had asserted about without reading:
-  the row schema (rev-2), the aggregate response contract and `section-timelines`
-  (rev-3). Recorded as calibration data on this seat, not as a result.
+- **The correction ran entirely one way — until rev-4, when the fourth movement
+  turned out to be WRONG.** This is the most useful entry in the artifact and it
+  is extended, not replaced.
+
+  | rev | movement | direction | caused by | verdict on the movement |
+  |---|---|---|---|---|
+  | 1 | — | — | read **one `logger.info` field list**, generalised to *"the substrate"* | the founding false negative |
+  | 2 | item **1a** → `SAY-ABLE` | withheld → say-able | read the **row schema** | **correct** — critic-cleared on five attacks |
+  | 3 | item **2** → `SAY-ABLE` | withheld → say-able | found **`section-timelines`**, read the *request* side | **WRONG** — withdrawn at rev-4 (C-6) |
+  | 3 | item **5a** → `SAY-ABLE` | withheld → say-able | same surface | survives the C-6 re-test; still un-critiqued |
+  | 4 | item **2** → `WITHHELD-PENDING`; tier (iii) withdrawn | **say-able → withheld**, and **absent → uncontracted** | PT-02 read the **imputation branch I stopped short of**, and the **fetcher** | first movement toward withheld |
+
+  **The pattern is not "this seat is optimistic." It is narrower and worse: this
+  seat stops reading at the first branch that confirms the sentence it is already
+  writing.** Rev-1 stopped at one log line. Rev-3 stopped at the ACTIVATING
+  branch of the imputation and never evaluated the ACTIVE branch — **one
+  `frozenset` away** (`section_timeline.py:81` vs `:100-102`). Rev-3 stopped at
+  `section_timeline_service.py:341` and never followed the chain to the fetcher
+  (`clients/stories.py:482-505`), where the narrowing it assumed does not exist.
+  Each time the missing read was **adjacent** to the read that was performed.
+
+- **PT-01 predicted this.** It forecast that the spine's next error would be
+  another **false negative**, named two candidates, and the second fired. It
+  could predict it because this section was already in the artifact. **The
+  calibration note earned its place by being used against its author** — which is
+  the argument for keeping it, and for reading revision 4's two surviving
+  `SAY-ABLE` verdicts as the next candidates for exactly this treatment.
 - **SELF-CORRECTION, recorded per charter `:57`:** revision 1 wrote *"for three of
   the five candidates the source does not carry the measurand at all."* **This
   seat withdraws that sentence.** It was supported solely by the field list of
@@ -1192,11 +1378,25 @@ shape `:1515-1517`. **None of these is ruled by this artifact.**
   > moved-set) via `section-timelines`, `api/main.py:488`, bounded 2 h.
   > **(ii) Reachable on declared schema, no new emission** — current-state
   > edit-class readouts via `/rows` (§3.0.1).
-  > **(iii) Genuinely absent and not constructible** — *edit* history. Not a fence
-  > question and not a build question: `last_modified` is last-move-only and the
-  > story stream is movement-only, so the measurand's event class is simply not
-  > retained. **This is the only tier that is actually expensive, and it is
-  > narrower than any prior revision of this item stated.**
+  > **(iii) ~~Genuinely absent and not constructible~~ — WITHDRAWN AT REV-4
+  > (PT-02 C-7). RESTATED: uncontracted and one-consumer-discarded, with one
+  > open link.** The substrate does **not** exclude edit history: the fetch
+  > applies no subtype filter (`clients/stories.py:482-505`), the cache is
+  > written unnarrowed (`cache/integration/stories.py:141-146`), and six of the
+  > nine admitted subtypes are edit-class (`:23-33`). The only narrowing is at
+  > **read** time in one consumer (`section_timeline_service.py:341`). **The one
+  > genuinely open link — carried, not closed — is whether the story cache is
+  > populated for offer tasks at all** (§6 UV-P; one probe also closes option
+  > (g)'s warmth).
+
+  **Net effect on the fork input at rev-4 — and it cuts BOTH ways.** The
+  say-able set **shrinks** (item 2 withdrawn; only **1a and 5a** stand, both
+  un-critiqued). The **expensive tier also shrinks** — this artifact no longer
+  asserts that anything is *absent*. What it now says is narrower and weaker in
+  both directions: **two readouts appear say-able, one measurand class is
+  uncontracted-but-not-excluded, and one probe would move more of this than any
+  further reading of code.** **The operator should weight this artifact's cost
+  signal accordingly — it has been wrong at every prior revision.**
 
   **Still not a recommendation on the fork.** S4 enumerated the options and
   recommended independently (`ADR-mission-a-source-of-record-2026-08-12.md` §7.1 /
@@ -1285,6 +1485,21 @@ with a sibling session actively committing):**
 | SVR-S1-37 | the replay path narrows the retained story set a second time, by dropping cross-project noise | file-read | `src/autom8_asana/services/section_timeline_service.py:343-346` — marker: `if not _is_cross_project_noise(s, OFFER_CLASSIFIER)` |
 | SVR-S1-38 | the `section-timelines` surface touches **no** K-lane-fenced surface | bash-probe | `git show origin/main:{section_timelines.py,section_timeline_service.py,section_timeline.py} \| grep -n "SectionInfo\|section_persistence\|mark_section_complete\|manifest\|RowsMeta\|AggregateMeta"` → **0 matches** across all three files |
 
+**Revision-4 additions — PT-02 C-6 and C-7. Every anchor re-verified own-hands at
+`origin/main` (`4129ae7e`); nothing accepted on PT-02's word:**
+
+| # | claim | method | anchor |
+|---|---|---|---|
+| SVR-S1-39 | the imputed interval carries the offer's **current** classification and is open-ended | file-read | `src/autom8_asana/services/section_timeline_service.py:293-300` — marker: `classification=account_activity,` / `exited_at=None,` |
+| SVR-S1-40 | an open interval extends to `period_end`, so an imputed offer spans the whole window | file-read | `src/autom8_asana/models/business/section_timeline.py:70` and `:89` — marker: `Per AC-4.5: Open intervals extend to period_end.` |
+| SVR-S1-41 | the two day-counts are classification-**set** filters differing by `ACTIVATING` — the mechanism that makes the sign population-dependent | file-read | `src/autom8_asana/models/business/section_timeline.py:81` (`frozenset({AccountActivity.ACTIVE})`) vs `:100-102` (`frozenset({AccountActivity.ACTIVE, AccountActivity.ACTIVATING})`) |
+| SVR-S1-42 | `story_count` exists internally but is **dropped at the response boundary**, so the imputed fraction is unmeasurable by a consumer | file-read | `src/autom8_asana/models/business/section_timeline.py:62` (`story_count: int` on `SectionTimeline`) vs `:158-209` (`OfferTimelineEntry`, seven fields, no `story_count`) + `:212` (`"extra": "forbid"`) |
+| SVR-S1-43 | imputation fires **only** when zero stories survive filtering — why item 5a's occurrence set cannot be contaminated | file-read | `src/autom8_asana/services/section_timeline_service.py:356-358` — marker: `intervals = _build_imputed_interval(` |
+| SVR-S1-44 | **the story fetch applies NO `resource_subtype` filter** — the decisive C-7 receipt | file-read | `src/autom8_asana/clients/stories.py:482-502` — marker: `"""Fetch all stories for a task, optionally since a timestamp."""` / `f"/tasks/{task_gid}/stories",` |
+| SVR-S1-45 | the cache is written **unnarrowed** on a miss — no narrowing at cache-write | file-read | `src/autom8_asana/cache/integration/stories.py:141-146` — marker: `# No cache - full fetch` / `stories = await fetcher(task_gid, None)` |
+| SVR-S1-46 | `filter_relevant_stories` is a **read-time** in-memory filter, not a fetch constraint | file-read | `src/autom8_asana/cache/integration/stories.py:294` — marker: `return [s for s in stories if s.get("resource_subtype") in include_types]` |
+| SVR-S1-47 | six of the nine admitted subtypes are edit-class, not movement-class | file-read | `src/autom8_asana/cache/integration/stories.py:23-33` — marker: `"assignee_changed",` / `"enum_custom_field_changed",` / `"number_custom_field_changed",` |
+
 **UV-P carry (Gate-C DEFER-tag pattern):**
 
 - `[UV-P: the ASR verdict surface is starved during the pause because the readiness-FAIL abort returns 198 lines before _emit_verdict_surface | METHOD: deferred-to-monorepo-read | REASON: orchestrator.py:242 / :440 live in the autom8y monorepo, out of this repo's tree; inherited from frame :62-67 and not re-probed own-hands this dispatch]`
@@ -1331,7 +1546,12 @@ with a sibling session actively committing):**
 
 - `[UV-P: whether Asana's story stream, AS REPLAYED through this path, is complete enough that absence-of-retained-record equals absence-of-movement | METHOD: deferred-to-live-probe or S4 | REASON: item 5b's ONLY remaining ground. The path narrows the stream twice — a 2h staleness window (section_timeline_service.py:337) and a cross-project noise filter that DROPS stories (:343-346) — and neither narrowing is exhibited in the response. Not probed live: read-only fence, no API calls made this dispatch]`
 - `[UV-P: whether a section-timelines request over a multi-day window returns the expected shape and completes within its stated budget against live data | METHOD: deferred-to-S4 | REASON: SVR-S1-31/32/33 prove the route is mounted and the computation is specified by code-read; section_timelines.py:110-112 states a <5s cold-path budget, which is a claim about a live surface this seat did NOT execute. Items 2 and 5a are SAY-ABLE verdicts, which are claims about say-ability and NOT about a verified round-trip — §0's fence governs]`
-- `[UV-P: whether the left-censoring in section-timelines day counts is closable by widening the requested window | METHOD: deferred-to-S4 | REASON: SVR-S1-35 proves the counts are period-clipped; whether a window predating the project makes the clip vacuous is an operational question this seat did not test. Item 2 carries it as a DR-5/DR-7 render duty rather than a gate failure, which is the honest disposition either way]`
+- `[UV-P: whether the left-censoring in section-timelines day counts is closable by widening the requested window | METHOD: deferred-to-S4 | REASON: SVR-S1-35 proves the counts are period-clipped; whether a window predating the project makes the clip vacuous is an operational question this seat did not test. Subsumed in practice by item 2's withdrawal at rev-4, but recorded because it survives any future re-adjudication]`
+
+**Rev-4 UV-P carry — the one genuinely open link (PT-02 C-7):**
+
+- `[UV-P: whether anything actually fetches stories for OFFER tasks in production — i.e. whether the story cache is populated for offers at all | METHOD: deferred-to-live-probe (CloudWatch on stories_fetch_started / stories_fetch_completed_no_cache, or a cache inspection) | REASON: THE load-bearing open link under restated tier (iii). SVR-S1-44/45/46/47 prove the substrate does NOT exclude edit history — the fetch is unnarrowed and the only narrowing is one consumer at read time — but availability turns on whether the fetch has ever run for offers. The SAME probe closes option (g)'s cache-warmth question, so one probe closes both. NOT inferred in either direction: I could not verify the endpoint's invocation history or current cache state, and no log query or API call was made this dispatch]`
+- `[UV-P: whether an imputed-vs-observed discriminator can be added to OfferTimelineEntry | METHOD: deferred-to-S4 or a producer change | REASON: this is the exact closing condition for BOTH item 2 and item 2'. story_count already exists upstream on SectionTimeline (section_timeline.py:62) and is dropped at the boundary; whether surfacing it is a bounded additive change or carries contract consequences is not this seat's call and was not assessed]`
 - `[UV-P: whether the section entity frame (POST /v1/query/section/rows) enumerates sections holding ZERO tasks | METHOD: deferred-to-S4 or live-probe | REASON: SVR-S1-25 proves the entity is registered with its own schema; whether the frame's construction path includes empty sections is not determinable by static read. This is the unfenced denominator candidate for item 1's roster and for §2.7 row 3, and it is deliberately not asserted in either direction]`
 - `[UV-P: whether POST /v1/query/offer/aggregate with group_by:["section"], aggregations:[{column:"last_modified",agg:"max"}] returns the expected shape against live data | METHOD: deferred-to-S4 | REASON: SVR-S1-12/13/14 prove the request is schema-legal and dtype-compatible by code-read; it was NOT executed — no live API calls made this dispatch. Item 1a's SAY-ABLE verdict is a claim about say-ability, not about a verified round-trip; §0's fence governs]`
 - `[UV-P: whether the shape :1502-1504 zero-K-lane fence bars READ-ONLY downstream consumption of a SectionInfo-derived value, as distinct from a TOUCH on the K-lane surface | METHOD: deferred-to-operator/potnia (routed as O-7) | REASON: item 1b and §2.7 row 3 are WITHHELD-PENDING solely on this reading; this seat applies the fence as written rather than construing it in its own favour]`
@@ -1348,7 +1568,9 @@ with a sibling session actively committing):**
 | §3.0 — `last_modified` is last-move-only, so history is not reconstructible backward | **MODERATE** | `base.py:76-82` by direct read; corroborated at `ADR-mission-a…:288-290,420-422`. This is the one substantive finding revision 1 was *reaching for* and mis-stated, and the one point where this seat **refines the critique** rather than accepting it. |
 | **item 1a** (`SAY-ABLE`) | **MODERATE, externally CORROBORATED** | re-derived at rev-2; **attacked five ways at delta pass 2 and held on all five**, including the G3-laundering-by-clause-(a) attack the critic expected to break it (§3.1.1). Rite-disjoint corroboration of a *verdict*, which is the strongest standing any classification in this artifact has. Still MODERATE: the round-trip is un-executed (UV-P) and the endpoint routing under it **changed at rev-3**, after the clearance. |
 | items 3 and 4 (`WITHHELD-AXIS`) | **MODERATE, externally attacked and undented** | two-clock; `CRITIQUE…§5.2` attacked both limbs of item 4 and dented neither. Unchanged across all three revisions. |
-| **items 2 and 5a** (`SAY-ABLE`) — **NEW at rev-3** | **MODERATE — and flagged: NO CRITIC HAS SEEN THESE GROUNDS** | eight direct-read anchors (SVR-S1-31..38) verified own-hands, plus a zero-match fence probe. But the coordinator named `section-timelines` and this seat verified it — **the derivation from that surface to two `SAY-ABLE` verdicts is this seat's alone.** Both move a candidate from withheld to say-able, which is the direction this seat has now erred in three times running (§3.2). **Read adversarially. Specifically worth attacking: item 2's G3(a) claim, on the same laundering ground that was pressed against 1a; and whether a 2 h story-cache bound is a `bound` in G4's sense or merely a cache policy.** |
+| ~~**item 2** (`SAY-ABLE`) — NEW at rev-3~~ | **WITHDRAWN at rev-4** | The rev-3 grade line invited attack on *"whether a 2 h story-cache bound is a `bound` in G4's sense."* **The actual defect was one layer beneath that and in the same gate**: the imputation sign is population-dependent (C-6). The invitation was pointed at roughly the right gate and still missed the mechanism — recorded because a self-flagged uncertainty that names the wrong mechanism is **not** a substitute for the read. |
+| **item 5a** (`SAY-ABLE`) — NEW at rev-3, **RE-TESTED at rev-4** | **MODERATE — still NO CRITIC HAS SEEN THESE GROUNDS** | eight direct-read anchors (SVR-S1-31..38) plus the C-6 re-test (SVR-S1-43: imputation fires only on zero surviving stories, so it contributes no move events). The re-test is **this seat re-testing its own verdict against a defect found in its sibling** — which is exactly the check that failed at rev-3, now passed, by the same seat that failed it. **Read adversarially.** Worth attacking: whether *"N observed to move of M offers"* is genuinely exhibitable when the 2 h cache and the cross-project noise filter (`section_timeline_service.py:343-346`) both drop stories **before** the set is formed — i.e. whether 5a's undercount is disclosable in the way G2 requires, or merely single-signed. |
+| **item 2′** (`WITHHELD-PENDING` on G2) — NEW at rev-4 | **MODERATE — un-critiqued, and it is a NEGATIVE** | Derived per PT-02's explicit invitation. It is the first thing this seat has authored that moves **toward** withheld, which by §3.2's own pattern makes it the *least* likely of this artifact's claims to be an error of the characteristic kind — and therefore the one whose reasoning deserves the least deference on that basis alone. |
 | items 1b and 5b (`WITHHELD-PENDING`) | **MODERATE** | verdicts unchanged across rev-2 and rev-3; **grounds replaced twice**. 1b's ground is now the edit-vs-movement event-class mismatch (§3.0.2), which no fence ruling dissolves. 5b's is a replay-completeness UV-P. Both are narrower and more falsifiable than what they replaced, and neither has been externally read. |
 | **§3.0.1 endpoint routing** (`/rows`, not `/aggregate`) | **MODERATE** | six direct-read anchors across both response models and both construction sites (SVR-S1-26..30). The C-1 finding is the critic's; the **verification that the swap does not fix the age axis — and that the content as-of is derived from the payload rather than read from meta — is this seat's** and is un-critiqued. |
 | the disclosure rule DR-1..DR-8, DR-6a | **MODERATE** | P-1/P-12 inherited verbatim; DR-2/DR-3/DR-4 each instantiate a pattern already shipped in this repo rather than an invention. DR-4 is **strengthened by a rite-disjoint counter-example** (F-10, `freshness.py:617-627`) that this seat verified verbatim. |
@@ -1358,9 +1580,24 @@ with a sibling session actively committing):**
 rite-disjoint critique rather than asserted by this seat.** Everything this
 revision authors is MODERATE or below, per `self-ref-evidence-grade-rule`.
 
-**Ceiling declared, rev-3.** The BLOCK is discharged by the record, and item 1a's
-verdict now carries genuine rite-disjoint corroboration. Two things are
-nonetheless true and must not be collapsed:
+**Ceiling declared, rev-4.** One verdict in this artifact carries rite-disjoint
+corroboration (**item 1a**). One has been **externally falsified after this seat
+asserted it** (**item 2**). One stands **un-critiqued** (**item 5a**), on grounds
+authored by the same seat that authored the falsified one, in the same revision,
+from the same surface, and re-tested by that same seat.
+
+> **The honest reading of this artifact's `SAY-ABLE` set is: one verdict earned,
+> one withdrawn, one outstanding.** A reader who needs the outstanding one to be
+> right should get it read by someone else first. It is the single most probable
+> remaining error in this document.
+
+Tier (iii)'s withdrawal has a second-order consequence worth stating: **this
+artifact no longer asserts that anything is absent.** Every negative it now
+carries is *uncontracted*, *fenced*, *unexhibitable*, or *unprobed* — each with a
+named closing condition. That is a weaker artifact and a truer one.
+
+**Ceiling declared, rev-3 (retained).** Two things remain true and must not be
+collapsed:
 
 1. **The gate structure has still never been externally read in its repaired
    form.** Delta pass 2 cleared a *verdict* (1a), not the *machinery*. F-5/F-6/F-7
@@ -1387,15 +1624,24 @@ asymmetry as a reason for suspicion of revision 3, not as a track record.**
 | 3 | disclosure rule inherits P-1 and P-12 **verbatim** — no third number, no polymorphic field, no coalescing | §4.1 (both quoted verbatim; `CRITIQUE…§5.3` checked them character-by-character and found no smuggling); §4.2 DR-1..DR-8 **+ DR-6a**; §4.3 worked render; the one candidate third-number question routed to the operator at §5 O-3 rather than assumed |
 | 4 | audit-lead critique returned and dispositioned | **SATISFIED.** Pass 1 RETURNED 2026-08-12 verdict **BLOCK**; all eleven findings dispositioned in the REVISION 2 table (eight accepted or accepted-with-narrowing, two REJECTED-WITH-RECEIPT, one no-change). Delta pass 2 RETURNED verdict **UPHELD-WITH-CONDITIONS**: the **BLOCK is DISCHARGED**, item 1a **cleared on five attacks**, and **both rev-2 rejections CONCEDED** by the critic. Its two conditions C-1 and C-2 are dispositioned in the REVISION 3 table. `status: draft` **held** — the record clears the artifact, not the author. |
 
-**Rung: PENDING.** A file authored is not a predicate adopted (shape `:889-896`),
-and a discharged BLOCK is not an adopted predicate. What is true at rev-3:
+**Rung: PENDING.** A file authored is not a predicate adopted (shape `:889-896`);
+a discharged BLOCK is not an adopted predicate; and a verdict withdrawn under a
+HARD condition is evidence about the *machinery*, not only about the item. What
+is true at rev-4:
 
-- The critique's central finding is **upheld** and its two conditions are met.
-- **One verdict (1a) carries rite-disjoint corroboration.** Two more
-  (**items 2 and 5a**) do not — they are new at rev-3, and they move in the
-  direction this seat has erred in three times.
-- The **gate machinery** (F-5/F-6/F-7 repairs) has never been externally read.
-- **Nothing here authorizes a build.** §0's fence is now doing real work: three
-  `SAY-ABLE` verdicts sit upstream of an un-executed round-trip (§6 UV-P), an
-  un-ruled K-lane question (O-7), and a possible option-enumeration gap at S4
-  (§5 O-6).
+- The critique's conditions (C-1/C-2) and PT-02's (C-6/C-7) are **all met**.
+  C-6 and C-7 are met by **withdrawal**, not annotation, per PT-02's tripwire.
+- The `SAY-ABLE` set is **1a (critic-cleared)** and **5a (un-critiqued)**. Item 2
+  is withdrawn; item 2′ is withheld on G2; 1b, 5b withheld; 3, 4 `WITHHELD-AXIS`.
+- **This artifact asserts no absences.** Tier (iii) is restated as
+  uncontracted-and-one-consumer-discarded, with **one open link** carried as a
+  UV-P (§6) that **one live probe would close**, and which would also close
+  option (g)'s warmth question.
+- The **gate machinery** (F-5/F-6/F-7 repairs) has still never been externally
+  read. Rev-4 is evidence it needs to be: **G4 passed an item whose error was not
+  single-signed**, which means the gate as written did not force the author to
+  enumerate the error's branches. Whether that is a gate defect or an author
+  defect is **not this seat's to rule** — routed, not decided.
+- **Nothing here authorizes a build.** §0's fence holds: two `SAY-ABLE` verdicts
+  sit upstream of an un-executed round-trip (§6), an un-ruled K-lane question
+  (O-7), a possible S4 enumeration gap (§5 O-6), and the open story-cache probe.
