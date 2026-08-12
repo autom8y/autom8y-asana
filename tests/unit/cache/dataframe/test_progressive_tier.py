@@ -14,7 +14,10 @@ from unittest.mock import AsyncMock, MagicMock, PropertyMock
 import polars as pl
 import pytest
 
-from autom8_asana.cache.dataframe.tiers.progressive import ProgressiveTier
+from autom8_asana.cache.dataframe.tiers.progressive import (
+    NULL_WATERMARK_DECAY_ANCHOR,
+    ProgressiveTier,
+)
 from autom8_asana.cache.integration.dataframe_cache import (
     DataFrameCacheEntry as CacheEntry,
 )
@@ -187,7 +190,12 @@ class TestProgressiveTierGet:
     async def test_get_async_handles_missing_watermark(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Get uses fallback watermark and SchemaRegistry when watermark metadata is None."""
+        """Get DECAYS the watermark and uses SchemaRegistry when metadata is None.
+
+        FIX-N-B: a null storage watermark is UNPROVABLE recency and is anchored
+        at the decay floor -- never substituted with now(). Full two-sided
+        coverage lives in ``test_fixn_b_null_watermark_decay.py``.
+        """
         df = pl.DataFrame({"gid": ["gid-1", "gid-2"], "name": ["A", "B"]})
 
         storage = make_mock_storage()
@@ -216,8 +224,9 @@ class TestProgressiveTierGet:
 
         assert result is not None
         assert result.project_gid == "proj-123"
-        # Watermark should be recent (fallback to current time)
+        # Watermark is the decay anchor (tz-aware), NOT current time.
         assert result.watermark.tzinfo is not None
+        assert result.watermark == NULL_WATERMARK_DECAY_ANCHOR
         # Schema version should come from registry, NOT "unknown"
         assert result.schema_version == "1.1.0"
 
