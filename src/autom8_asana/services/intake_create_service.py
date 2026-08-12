@@ -55,7 +55,15 @@ HOLDER_TYPES: list[str] = [
 # Valid process types for intake creation.
 # Per truth audit: "consultation" removed — ProcessType model does not exist yet.
 # TODO(truth-audit): Add "consultation" when consultation ProcessType model lands.
-VALID_PROCESS_TYPES: set[str] = {"sales", "retention", "implementation"}
+# "canary" (2026-08-11, CARD-CANARY-ROUTE-422): the ECO-R1 synthetic process type
+# the calendly-intake canary routes to (event_stages.yaml canary_synthetic →
+# process_type: canary; spec §1.4). The route path is generic post-validation —
+# first run creates ONE "Canary Process" subtask under the seeded canary unit
+# (keeper task 1217301971794137), every later run REUSES it (is_new=false), so
+# no per-run state accrues. No ProcessType model is required: routing has no
+# per-type template (unlike the consultation gap above, which is an
+# intake-create process-block concern).
+VALID_PROCESS_TYPES: set[str] = {"sales", "retention", "implementation", "canary"}
 
 # Social profile platform -> Asana custom field name mapping
 SOCIAL_FIELD_MAP: dict[str, str] = {

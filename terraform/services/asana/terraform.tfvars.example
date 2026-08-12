@@ -1,0 +1,85 @@
+# ============================================================================
+# autom8y-asana observability module -- operator knobs (EXAMPLE, not applied)
+# ============================================================================
+#
+# Copy to terraform.tfvars and edit, or pass the values with -var on the CLI.
+# terraform.tfvars is gitignored in this directory: it is operator-local input,
+# not repo state.
+#
+# Account 696318035277 / region us-east-1.
+#
+# THE DEFECT THESE KNOBS EXIST TO CURE
+# ------------------------------------
+# With ticket_sns_topic_arn unset, every non-page-armed alarm in this module
+# resolves alarm_actions to [] -- it evaluates, transitions to ALARM, and
+# notifies nobody. Measured live 2026-08-11: 7 of 20 asana-* alarms carried zero
+# actions, and ALL 7 were the ones authored by this module. Two of them
+# (asana-AL5-offer-frame-stale-1143843662099250 and asana-PROV-2-heartbeat-absence)
+# were sitting in ALARM at the time of measurement, unobserved.
+#
+# After any change here, read the binding back before trusting it:
+#   terraform output alarm_binding_report
+# ============================================================================
+
+
+# ----------------------------------------------------------------------------
+# TICKET TIER -- pick ONE of Option A or Option B.
+# ----------------------------------------------------------------------------
+
+# --- Option A (RECOMMENDED): bind to the existing platform topic. -----------
+# Verified live 2026-08-11: this topic has 2 subscriptions (a Slack-delivery
+# lambda `autom8-slack-alert` + an email endpoint) and a policy permitting
+# same-account publish, so a CloudWatch alarm action on it reaches a human. It
+# is already the action target of every other live asana-* alarm
+# (asana-F1-warmer-cache-degraded-mode, asana-r7-*, asana-stratum-*), so this
+# choice is convention-matching rather than novel.
+#
+# ticket_sns_topic_arn = "arn:aws:sns:us-east-1:696318035277:autom8y-platform-alerts"
+
+
+# --- Option B: create an asana-owned ticket topic. --------------------------
+# Only if asana-owned ticket routing is wanted. NOTE THE TRAP: a newly created
+# topic has ZERO subscriptions, so binding alarms to it RELOCATES the
+# binding-blind defect instead of curing it -- the alarm publishes successfully,
+# to nobody. This module deliberately authors NO aws_sns_topic_subscription;
+# choosing an endpoint is an explicit operator decision. If you take Option B,
+# subscribe an endpoint and verify:
+#   aws sns list-subscriptions-by-topic --topic-arn <new-arn> --region us-east-1
+# must return a non-empty Subscriptions array BEFORE this is considered bound.
+#
+# create_ticket_topic = true
+# ticket_topic_name   = "autom8y-asana-observability-tickets"
+
+
+# ----------------------------------------------------------------------------
+# BINDING GUARD -- forcing function against a mute AL-5.
+# ----------------------------------------------------------------------------
+# When true, `terraform plan` FAILS if AL-5 would be created with an empty
+# action list. Default is false so that adding this guard does not break the
+# module's other apply doors (notably the DP-4a PROV-1..6 door, which belongs to
+# the substrate-v2 wave). Turn it on for the AL-5 apply.
+#
+# require_alarm_binding = true
+
+
+# ----------------------------------------------------------------------------
+# PAGE TIER -- unchanged by the AL-5 binding work; shown for completeness.
+# ----------------------------------------------------------------------------
+# The page tier stays OFF unless BOTH the master switch is on AND the alarm is
+# listed. Arming a pager is a separate confirm-first decision -- see
+# observability_alarms.SURFACED.md L-2 / L-6.
+#
+# arm_paging          = false
+# page_sns_topic_arn  = "arn:aws:sns:us-east-1:696318035277:autom8y-platform-sre-sev1"
+# paging_armed_alarms = []
+
+
+# ----------------------------------------------------------------------------
+# AL-5 detection tuning -- see the F1a pacing re-scope note in
+# observability_alarms.tf. Defaults are 7200 / 1800 / 8, which DIFFER from the
+# currently-live alarm (3600 / 3600 / 12). Applying reconciles that drift; the
+# drift table is in .sos/wip/CARD-l6-alarm-apply-2026-08-11.md.
+# ----------------------------------------------------------------------------
+#
+# offer_frame_stale_threshold_seconds = 7200
+# substrate_freshness_gids            = ["1143843662099250"]
