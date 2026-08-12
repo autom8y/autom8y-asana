@@ -433,6 +433,16 @@ METRIC_FUTURE_DATED_PROOF_COUNT: str = "FutureDatedProofCount"
 # diagnostic, bounded by the registered expected-set (same discipline as AL-5).
 METRIC_ARTIFACT_PROVABLE: str = "ArtifactProvable"
 
+# Count of classifier-active rows carrying >= 1 null in a WARNING-tier (demoted) economic
+# column at publish-time floor evaluation — the loud channel for the columns the tiered
+# floor no longer blocks on (SPIKE-population-floor-scope-2026-08-12, digest item 2).
+# ALARMED PROV-7. Emitted on EVERY floor evaluation including the clean case (value 0.0),
+# so the series is DENSE and the alarm can return to OK — the same discipline the run-level
+# PROV metrics follow. Dimensioned {environment} ONLY: the per-offer attribution lives in
+# the parity receipt's ``data_quality_warnings``, never in metric dimensions (an offer-gid
+# dimension would be unbounded cardinality).
+METRIC_ACTIVE_ROW_ECONOMIC_NULL_COUNT: str = "ActiveRowEconomicNullCount"
+
 # CloudWatch put_metric_data caps MetricData at 1000 items per call.
 _PUT_METRIC_DATA_MAX_ITEMS: int = 1000
 
@@ -583,3 +593,82 @@ class CloudWatchProvabilityEmitter:
             )
 
         return metric_data
+
+
+# ---------------------------------------------------------------------------
+# Data-quality emission (PROV-7) — the tiered population floor's LOUD channel
+# ---------------------------------------------------------------------------
+
+
+class DataQualityEmitter(Protocol):
+    """Emission port for publish-time data-quality signals (the tiered floor's warn tier)."""
+
+    def emit_active_row_economic_nulls(self, count: int, *, at: datetime | None = None) -> None:
+        """Emit ``ActiveRowEconomicNullCount`` for ONE floor evaluation (0 is a real value)."""
+        ...
+
+
+class CloudWatchDataQualityEmitter:
+    """Emits ``ActiveRowEconomicNullCount`` via the SAME house ``put_metric_data`` shape ([H23]).
+
+    Deliberately a sibling of ``CloudWatchProvabilityEmitter`` rather than a method on it:
+    the provability sweep is SCHEDULED and artifact-scoped ([H22]), whereas this fires at
+    publish-time floor evaluation inside a rebuild. Same namespace, same ``{environment}``
+    dimension, same best-effort semantics — a CloudWatch failure is logged, never raised
+    (a data-quality emit must not fail a publish that the floor accepted).
+
+    ``cw_client`` is injectable so the wire shape is unit-provable with a fake; production
+    passes ``None`` and the lazy boto3 client is built on first emit. ``build_metric_data``
+    is pure and is what the terraform↔emitter identity tripwire diffs against.
+    """
+
+    def __init__(
+        self, *, environment: str = DEFAULT_ENVIRONMENT, cw_client: Any | None = None
+    ) -> None:
+        self._environment = environment
+        self._cw_client = cw_client
+
+    def emit_active_row_economic_nulls(self, count: int, *, at: datetime | None = None) -> None:
+        """Build + send one ``ActiveRowEconomicNullCount`` datum (best-effort)."""
+        metric_data = self.build_metric_data(count, environment=self._environment, at=at)
+        logger.info(
+            "substrate_active_row_economic_nulls",
+            extra={
+                "active_row_economic_null_count": count,
+                "namespace": SUBSTRATE_PROVABILITY_NAMESPACE,
+                "environment": self._environment,
+            },
+        )
+        client = self._cw_client if self._cw_client is not None else _get_cloudwatch_client()
+        try:
+            client.put_metric_data(
+                Namespace=SUBSTRATE_PROVABILITY_NAMESPACE, MetricData=metric_data
+            )
+        except Exception as exc:  # noqa: BLE001 — best-effort emit; never block the publish
+            logger.warning(
+                "substrate_data_quality_emit_failed",
+                extra={
+                    "namespace": SUBSTRATE_PROVABILITY_NAMESPACE,
+                    "metric": METRIC_ACTIVE_ROW_ECONOMIC_NULL_COUNT,
+                    "error": repr(exc),
+                },
+            )
+
+    @staticmethod
+    def build_metric_data(
+        count: int, *, environment: str = DEFAULT_ENVIRONMENT, at: datetime | None = None
+    ) -> list[dict[str, Any]]:
+        """Translate a floor-evaluation null count into CloudWatch ``MetricData`` (pure; no I/O).
+
+        Carries the ``{environment}`` dimension PROV-7 queries — the same identity contract
+        the PROV-1..6 alarms hold, string-diffed by the terraform binding test.
+        """
+        datum: dict[str, Any] = {
+            "MetricName": METRIC_ACTIVE_ROW_ECONOMIC_NULL_COUNT,
+            "Value": float(count),
+            "Unit": "Count",
+            "Dimensions": [{"Name": DIMENSION_ENVIRONMENT, "Value": environment}],
+        }
+        if at is not None:
+            datum["Timestamp"] = at
+        return [datum]

@@ -151,6 +151,15 @@ def fold_built_from_live_at(section_fetch_instants: Mapping[str, datetime]) -> d
 #     kills v1's D8 blind spot. Prod corroboration of the exact economic set rides
 #     to S8 as a labelled UV-P; the schema-membership of these four is verified by
 #     the registry-anchoring test in tests/unit/substrate/test_freshness.py.
+#
+#     NOT THE POPULATION FLOOR. This tuple answers ONE question — "which columns'
+#     VALUES define content identity?" — and is FROZEN for the life of the v1.0 seam
+#     (changing it is a digest-scheme version event, not an edit). The publish-time
+#     serve-blocking column set now lives in ``substrate.population_floor``
+#     (``OFFER_PUBLISH_FLOOR`` / ``STRICT_ECONOMIC_FLOOR``) so a serving-policy
+#     rescope can never silently re-key every digest. Per
+#     .ledge/spikes/SPIKE-population-floor-scope-2026-08-12.md (ratification digest
+#     item 4); the two sets are DELIBERATELY independent and may diverge.
 _VALUE_COLUMNS: tuple[str, ...] = ("cost", "mrr", "offer_id", "weekly_ad_spend")
 
 # A pinned scheme tag guards against a future pin change silently colliding with a
