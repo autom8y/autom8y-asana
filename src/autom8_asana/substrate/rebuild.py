@@ -96,6 +96,11 @@ from autom8_asana.substrate.freshness import (
     sla_seconds_for,
 )
 from autom8_asana.substrate.identity import artifact_key
+from autom8_asana.substrate.population_floor import (
+    STRICT_ECONOMIC_FLOOR,
+    ColumnNullWarning,
+    TieredPopulationFloor,
+)
 from autom8_asana.substrate.store import (
     CREATE_IF_ABSENT,
     CASLost,
@@ -329,12 +334,12 @@ class DefaultAcceptancePredicates:
     Three checks, ALL required for a receipt:
 
     1. **population-floor** — the frame carries at least ``min_rows`` rows AND every
-       registry-declared value column (``canonical_digest``'s pinned set) is non-null
-       on the active-classified rows. A degenerate/empty rebuild cannot replace a
-       healthy artifact. ``active_predicate`` selects the active rows (default: all
-       rows — a frame reaches this seam already active-classified upstream); the
-       value-column floor is what ``canonical_digest`` itself pins, re-used here so
-       there is ONE value-column source of truth (no drift enum).
+       BLOCKING column of the injected ``floor`` is non-null on the active-classified
+       rows. A degenerate/empty rebuild cannot replace a healthy artifact.
+       ``active_predicate`` selects the active rows (default: all rows — a frame reaches
+       this seam already active-classified upstream). The floor's WARNING-tier nulls on
+       those same rows do NOT gate the publish; they are handed to ``warning_sink``
+       (loud channel: parity receipt + ``ActiveRowEconomicNullCount`` → PROV-7).
     2. **digest-self-consistency** — ``canonical_digest(staged.frame)`` re-derives to
        exactly ``staged.proof.content_digest``. This is the same equality Seam-4's
        ``is_provable`` enforces (mismatch → CORRUPT); catching it pre-swap means a
@@ -351,10 +356,23 @@ class DefaultAcceptancePredicates:
     construction guard, NOT an ungoverned relative shrink threshold (the architect
     REJECTED that — completeness-by-construction at the fetch step closes the shrink
     hazard instead).
+
+    ``floor`` is the injected column-set policy (``substrate.population_floor``). It
+    defaults to ``STRICT_ECONOMIC_FLOOR`` — the pre-bridge, fail-closed behaviour — so a
+    caller that declares nothing is never weakened; the offer plane wires its own
+    ``OFFER_PUBLISH_FLOOR`` at the call site (``live.rebuild_offer_v2``). This is
+    seam-USE parameterization: the frozen ``AcceptancePredicates`` Protocol surface is
+    unchanged, and the floor set no longer reaches into the frozen digest constant.
     """
 
     min_rows: int = 1
     active_predicate: Callable[[pl.DataFrame], pl.DataFrame] | None = None
+    floor: TieredPopulationFloor = STRICT_ECONOMIC_FLOOR
+    # Fired with the WARNING-tier per-row nulls found on the evaluated (active) rows —
+    # on EVERY floor evaluation, PASS or FAIL, including with an empty tuple. Emitting on
+    # the clean case keeps the metric series DENSE (the PROV-suite discipline: an alarm
+    # can only return to OK on a series that reports zero, not on one that goes silent).
+    warning_sink: Callable[[tuple[ColumnNullWarning, ...]], None] | None = None
 
     def __post_init__(self) -> None:
         if self.min_rows < 1:
@@ -376,7 +394,11 @@ class DefaultAcceptancePredicates:
                     "refusing to publish a degenerate rebuild over a healthy artifact"
                 ),
             )
-        null_columns = _value_columns_with_nulls(active)
+        # The loud channel fires BEFORE the blocking verdict so a demoted-column wound is
+        # surfaced even on a run that goes on to refuse for a different, blocking reason.
+        if self.warning_sink is not None:
+            self.warning_sink(self.floor.null_warnings(active))
+        null_columns = self.floor.blocking_columns_with_nulls(active)
         if null_columns:
             return ValidationFailure(
                 check="population-floor",
@@ -729,23 +751,8 @@ def _utc_now() -> datetime:
     return datetime.now(UTC)
 
 
-def _value_columns_with_nulls(frame: pl.DataFrame) -> set[str]:
-    """The pinned value columns that carry ≥1 null in ``frame`` (population-floor check).
-
-    Re-uses ``canonical_digest``'s pinned value-column set as the single source of
-    truth (no drift enum). A value column ABSENT from the frame is a null-equivalent
-    for the floor (its absence means the population is not established) — but the
-    digest-self-consistency check will already have refused an absent-column frame
-    upstream, so here we only inspect present columns.
-    """
-    from autom8_asana.substrate.freshness import _VALUE_COLUMNS
-
-    offenders: set[str] = set()
-    present = set(frame.columns)
-    for column in _VALUE_COLUMNS:
-        if column not in present:
-            offenders.add(column)
-            continue
-        if frame.get_column(column).null_count() > 0:
-            offenders.add(column)
-    return offenders
+# NOTE: the former ``_value_columns_with_nulls`` helper (which read the FROZEN
+# ``freshness._VALUE_COLUMNS`` digest set) is RETIRED. Its job now belongs to
+# ``TieredPopulationFloor.blocking_columns_with_nulls`` in ``substrate.population_floor``,
+# so the serve-blocking set and the content-digest set are independently movable
+# (SPIKE-population-floor-scope-2026-08-12, ratification digest item 4).

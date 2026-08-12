@@ -47,6 +47,7 @@ from autom8_asana.substrate.live import (
     materialize_v1_offer_plane,
     served_active_mrr,
 )
+from autom8_asana.substrate.population_floor import OFFER_PUBLISH_FLOOR
 from autom8_asana.substrate.rebuild import (
     DefaultAcceptancePredicates,
     RebuildOutcome,
@@ -404,6 +405,10 @@ async def test_rebuild_offer_v2_wires_classifier_active_predicate(
     predicates = captured["predicates"]
     assert isinstance(predicates, DefaultAcceptancePredicates)
     assert predicates.active_predicate is active_offer_rows
+    # BRIDGE wiring regression (SPIKE-population-floor-scope-2026-08-12 digest item 4): the
+    # offer plane MUST carry the tiered floor, not the strict default. Losing this line is
+    # exactly how the rescope would silently revert to halting on a provisioning-lag null.
+    assert predicates.floor is OFFER_PUBLISH_FLOOR
 
 
 # ===========================================================================
@@ -661,6 +666,7 @@ def _outbound_env(
     cap: int = 100,
     raise_429_on: tuple[str, ...] = (),
     covered: frozenset[str] | None = None,
+    data_quality_emitter: Any = None,
 ) -> tuple[Callable[[ArtifactId], Awaitable[ParityObservation]], PerDayBudgetLedger, Path]:
     from autom8_asana.substrate.store import S3ArtifactStore
 
@@ -681,8 +687,19 @@ def _outbound_env(
         budget=ledger,
         now=lambda: _DAY,
         sla_for=lambda _e: 3600,
+        data_quality_emitter=data_quality_emitter,
     )
     return outbound, ledger, receipts
+
+
+class _RecordingDataQualityEmitter:
+    """A ``DataQualityEmitter`` that records instead of emitting (CARDINAL P10: no network)."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[int, datetime | None]] = []
+
+    def emit_active_row_economic_nulls(self, count: int, *, at: datetime | None = None) -> None:
+        self.calls.append((count, at))
 
 
 def _only_receipt(receipts: Path) -> dict[str, Any]:
@@ -722,6 +739,94 @@ async def test_3c_served_dual_leg_observation(tmp_path: Path) -> None:
     assert legs["served_active_mrr"]["v2"] == 100.0
     assert legs["exemplar_aggregate"]["v1"] == 300.0  # ACTIVE raw (single row)
     assert "office_phone" not in json.dumps(receipt)  # §6 #8 PII discipline
+    assert receipt["data_quality_warnings"] == []  # floor ran, nothing wounded
+
+
+@pytest.mark.skipif(not MOTO_AVAILABLE, reason="moto not installed")
+async def test_3c_provisioning_lag_null_serves_and_surfaces_per_offer(tmp_path: Path) -> None:
+    """BRIDGE end-to-end (SPIKE-population-floor-scope-2026-08-12 digest items 2/4).
+
+    THE incident shape, driven through the whole armed outbound: a classifier-active offer
+    whose ``offer_id`` has not been provisioned yet. Pre-bridge this refused the touch and
+    halted the parity day on a column the served number never reads. Post-bridge:
+
+    * the touch SERVES (a real ``ParityObservation``, LEG A computed on both planes),
+    * the receipt names the wounded offer by gid in ``data_quality_warnings``,
+    * ``ActiveRowEconomicNullCount`` carries the count to PROV-7.
+    """
+    lagged = {
+        "gid": "1608",
+        "section": "ACTIVE",
+        "offer_id": None,  # provisioning trigger has not fired
+        "cost": 100.0,
+        "mrr": 250.0,
+        "weekly_ad_spend": 10.0,
+        "office_phone": "p2",
+        "vertical": "v2",
+    }
+    emitter = _RecordingDataQualityEmitter()
+    with mock_aws():
+        client = boto3.client("s3", region_name="us-east-1")
+        client.create_bucket(Bucket="autom8-s3")
+        client.create_bucket(Bucket=_V2_BUCKET)
+        _seed_v1(
+            client,
+            [_offer_row("ACTIVE", offer_id="x", mrr=300.0, office_phone="p1", vertical="v1")],
+        )
+        outbound, _ledger_, receipts = _outbound_env(
+            client,
+            tmp_path,
+            pages={"ACTIVE": [[lagged]]},
+            refetch=("ACTIVE",),
+            data_quality_emitter=emitter,
+        )
+        obs = await outbound(_aid())
+
+    assert isinstance(obs, ParityObservation)
+    assert obs.v2.served_value == 250.0  # the number SERVES, unaffected by the null offer_id
+    receipt = _only_receipt(receipts)
+    assert receipt["outcome"] == "served"
+    assert receipt["data_quality_warnings"] == [
+        {"gid": "1608", "section": "ACTIVE", "null_cols": ["offer_id"]}
+    ]
+    assert emitter.calls == [(1, _DAY)]  # PROV-7 fed from the same evaluation
+
+
+@pytest.mark.skipif(not MOTO_AVAILABLE, reason="moto not installed")
+async def test_3c_null_dedup_key_still_refuses_the_touch(tmp_path: Path) -> None:
+    """The bridge's other side: a null ``vertical`` on an active row is BLOCKING, because
+    the dedup would collapse distinct offers and the served number would lose value. The
+    rebuild is STAGED_REJECTED -> a first-class refusal receipt, never a served observation.
+    """
+    collapsing = {
+        "gid": "1610",
+        "section": "ACTIVE",
+        "offer_id": "y",
+        "cost": 100.0,
+        "mrr": 250.0,
+        "weekly_ad_spend": 10.0,
+        "office_phone": "p2",
+        "vertical": None,  # dedup key null -> silent-collapse hazard
+    }
+    with mock_aws():
+        client = boto3.client("s3", region_name="us-east-1")
+        client.create_bucket(Bucket="autom8-s3")
+        client.create_bucket(Bucket=_V2_BUCKET)
+        _seed_v1(
+            client,
+            [_offer_row("ACTIVE", offer_id="x", mrr=300.0, office_phone="p1", vertical="v1")],
+        )
+        outbound, _ledger_, receipts = _outbound_env(
+            client, tmp_path, pages={"ACTIVE": [[collapsing]]}, refetch=("ACTIVE",)
+        )
+        with pytest.raises(ParityLegRefused):
+            await outbound(_aid())
+
+    receipt = _only_receipt(receipts)
+    assert receipt["outcome"] == "refused-staged_rejected"
+    assert "vertical" in receipt["detail"]
+    assert receipt["legs"]["served_active_mrr"]["v1"] == 300.0  # v1's number preserved
+    assert receipt["data_quality_warnings"] == []  # floor ran; the wound was blocking-tier
 
 
 @pytest.mark.skipif(not MOTO_AVAILABLE, reason="moto not installed")
@@ -775,23 +880,30 @@ async def test_3c_coverage_refusal_is_first_class_no_charge(tmp_path: Path) -> N
 
 @pytest.mark.skipif(not MOTO_AVAILABLE, reason="moto not installed")
 async def test_3c_null_value_column_refuses_and_receipts(tmp_path: Path) -> None:
-    """F-305-3 + 2026-08-05 frame-schema fix: a charged touch whose v2 frame carries a null value
-    column REFUSES (staged_rejected) and still leaves a receipt. Explicit OFFER_SCHEMA construction
-    fills a missing value column with null, so the rebuild's null-value-column guard refuses
-    gracefully (incumbent v1 served number preserved) instead of the old uncaught crash — the
-    charged-failure-leaves-a-receipt invariant now holds at the refusal altitude.
+    """F-305-3 + 2026-08-05 frame-schema fix: a charged touch whose v2 frame carries a null
+    BLOCKING column REFUSES (staged_rejected) and still leaves a receipt. Explicit OFFER_SCHEMA
+    construction fills an OMITTED column with null, so the rebuild's floor refuses gracefully
+    (incumbent v1 served number preserved) instead of the old uncaught crash — the
+    charged-failure-leaves-a-receipt invariant holds at the refusal altitude.
+
+    BRIDGE re-anchor (SPIKE-population-floor-scope-2026-08-12): the omitted column is now
+    ``mrr``. Pre-bridge this test omitted ``cost``, which the strict floor blocked on; under
+    the tiered floor ``cost`` is DEMOTED and an omitted-then-null-filled ``cost`` SERVES with
+    a warning (``test_3c_provisioning_lag_null_serves_and_surfaces_per_offer``). The invariant
+    under test here — schema-filled null → graceful refusal + receipt, never a crash — is
+    unchanged; only the column that exercises it moved to the blocking tier.
     """
     with mock_aws():
         client = boto3.client("s3", region_name="us-east-1")
         client.create_bucket(Bucket="autom8-s3")
         client.create_bucket(Bucket=_V2_BUCKET)
         _seed_v1(client, [_offer_row("ACTIVE", offer_id="x", mrr=300.0)])
-        # v2 row omits 'cost' -> explicit-schema construction fills it null -> the rebuild's
-        # null-value-column guard REFUSES (staged_rejected), preserving the v1 served number.
+        # v2 row omits 'mrr' -> explicit-schema construction fills it null -> the tiered
+        # floor's BLOCKING tier REFUSES (staged_rejected), preserving the v1 served number.
         bad_row = {
             "section": "ACTIVE",
             "offer_id": "y",
-            "mrr": 1.0,
+            "cost": 1.0,
             "weekly_ad_spend": 1.0,
             "office_phone": "p",
             "vertical": "v",
@@ -805,6 +917,7 @@ async def test_3c_null_value_column_refuses_and_receipts(tmp_path: Path) -> None
     receipt = _only_receipt(receipts)
     assert receipt["outcome"] == "refused-staged_rejected"  # graceful refusal, not an error/crash
     assert "value column" in receipt["detail"]  # the null-value-column reason is carried
+    assert "mrr" in receipt["detail"]  # named: the sum input, not a demoted column
     assert ledger.count_today() >= 1  # the fetch charged before the refusal — receipted (P10)
 
 

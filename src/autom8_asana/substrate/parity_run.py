@@ -39,7 +39,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
 from autom8_asana.substrate import live
-from autom8_asana.substrate.observe import SUBSTRATE_PROVABILITY_NAMESPACE
+from autom8_asana.substrate.observe import (
+    SUBSTRATE_PROVABILITY_NAMESPACE,
+    CloudWatchDataQualityEmitter,
+)
 from autom8_asana.substrate.prov_sweep import (
     PROV_ENVIRONMENT,
     build_prov_sweep_evaluator,
@@ -355,6 +358,11 @@ async def run_window_sweep(
         now=now,
         sla_for=sla_for,
         min_build_instant=min_build,
+        # PROV-7 sink for the tiered floor's warn tier — the SAME injected ``cw_client``
+        # the PROV sweep uses, so a fake client keeps the whole sweep network-free.
+        data_quality_emitter=CloudWatchDataQualityEmitter(
+            environment=PROV_ENVIRONMENT, cw_client=cw_client
+        ),
     )
 
     parity, exit_code, new_receipts = await _run_parity(window, resolved_receipts_root)
@@ -401,6 +409,9 @@ async def _run_parity(
         "receipt": new_paths[-1].name,
         "legs": payload.get("legs"),
         "detail": payload.get("detail", ""),
+        # Per-offer demoted-column nulls (digest item 2) — carried onto the one-screen
+        # summary so the daily HANDOFF digest names each wounded offer, not just a count.
+        "data_quality_warnings": payload.get("data_quality_warnings"),
     }
     if served_obs is not None:
         parity["observation"] = {
