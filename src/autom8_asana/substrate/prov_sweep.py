@@ -26,7 +26,7 @@ from typing import TYPE_CHECKING
 
 import polars as pl
 
-from autom8_asana.substrate.freshness import canonical_digest
+from autom8_asana.substrate.freshness import _VALUE_COLUMNS, canonical_digest
 from autom8_asana.substrate.freshness import is_provable as _default_is_provable
 from autom8_asana.substrate.observe import (
     DEFAULT_ENVIRONMENT,
@@ -63,15 +63,34 @@ PROV_ENVIRONMENT: str = DEFAULT_ENVIRONMENT
 def digest_of_canonical_frame_bytes(raw: bytes) -> str:
     """[H19] re-derive the SERVED digest from stored bytes (the ``canonical_frame_bytes`` form).
 
-    Deserializes the rebuild's default ``\\x1e``-joined JSON-row encoding back to a frame and
-    applies the SAME Seam-1 ``canonical_digest`` serving uses — so the sweep catches CORRUPT
-    exactly as the serve gate does (a bare ``proof.content_digest`` echo would make CORRUPT
+    Deserializes the rebuild's default ``\\x1e``-joined JSON-row encoding and applies the
+    SAME Seam-1 ``canonical_digest`` serving uses — so the sweep catches CORRUPT exactly
+    as the serve gate does (a bare ``proof.content_digest`` echo would make CORRUPT
     undetectable). Injectable, so a non-default serializer swaps this out.
+
+    Only the digest-pinned value columns are reconstructed: ``canonical_digest`` consumes
+    nothing else, and a full-frame bare-inference ``pl.DataFrame(rows)`` dies on any
+    sparse late-typed structural column (a >100-null prefix infers Null dtype, then the
+    first real value raises ComputeError — the #313 construction class, observed live on
+    ``trackstat_id``; DEFECT-prov-digest-bare-inference-2026-08-12). Full-scan inference
+    over the value columns alone is safe: columns serialized from a typed frame are
+    type-homogeneous, and the digest's type-erasure pin (freshness F4) makes numeric
+    dtype detail irrelevant to the derived digest.
     """
     text = raw.decode("utf-8")
     rows = [json.loads(chunk) for chunk in text.split("\x1e")] if text else []
-    frame = pl.DataFrame(rows) if rows else pl.DataFrame()
-    return canonical_digest(frame)
+    if not rows:
+        # F1 (MissingValueColumnsError) refuses the empty set loudly — an [H20]
+        # indeterminate skip at the evaluator, never a silent green.
+        return canonical_digest(pl.DataFrame())
+    missing = sorted({column for column in _VALUE_COLUMNS for row in rows if column not in row})
+    if missing:
+        raise ValueError(
+            f"stored rows are missing pinned value column(s) {missing} — refusing to "
+            f"re-derive a digest for a partial/foreign artifact"
+        )
+    value_rows = [{column: row[column] for column in _VALUE_COLUMNS} for row in rows]
+    return canonical_digest(pl.DataFrame(value_rows, infer_schema_length=None))
 
 
 def build_prov_sweep_evaluator(
