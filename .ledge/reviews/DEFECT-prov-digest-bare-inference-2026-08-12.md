@@ -65,8 +65,29 @@ stringified dates (`"2025-11-26"`) — proven, not assumed.
    whole-evaluator-loop completeness-100) FAIL against the pre-fix code, PASS on the fix
    (verified both directions via stash).
 
+## QA gate (P7): GO-WITH-CONDITIONS — 2026-08-12
+
+qa-adversary verdict on this branch: **GO-WITH-CONDITIONS** (evidence grade MODERATE,
+self-attestation cap). 12-case digest-equality fuzz battery passed (extreme floats,
+denormals, F4 int/float twins, all-null value columns both dtypes, unicode incl.
+embedded `\x1e`, duplicate rows, sparse late-typed VALUE column); no false-PROVABLE
+path found (value corruption → digest flip; foreign shapes → loud [H20] skip, proven
+at loop level); teeth verified two-sided vs the parent commit; 297/297 substrate unit
+tests, ruff, mypy green. Non-blocking findings L3 (refusal test is a behavior pin, not
+discriminating), L4 (array/scalar chunks raise TypeError not the crafted ValueError —
+contained by the evaluator's [H20] boundary, cosmetic), I1 (non-value-column corruption
+was NEVER digest-visible on any path — the frozen F4 pin; exact-bytes binding is
+version_id's job), I2 (no third `_VALUE_COLUMNS` definition minted; anti-drift ruling
+honored). L2 (fixture sort-fragility) hardened in-branch with a teeth-guard assert.
+
 ## Residuals
 
+- **[QA-#351 M1 — BINDING PT-03 CONDITION] Serve-gate wiring twin hazard**:
+  `GatedSubstrateReader` (serve.py:435) takes an injected `digest_of_frame` and has NO
+  production wiring yet (only test stand-ins). If the PT-03 cutover wiring hand-rolls a
+  bare `pl.DataFrame(rows)` parse, the serve gate refuses the live artifact as CORRUPT
+  at ingress — this same wound at user-facing altitude. The PT-03 packet MUST pin the
+  serve wiring to `digest_of_canonical_frame_bytes` (exported in `__all__`).
 - The NEXT sweep must read `completeness 100 / evaluated 1 / unprovable 0` — the live
   clear receipt for this defect (window cycle 3, or a dedicated verification sweep).
 - PT-03 disclosure: cycles 1 and 2 banked with the evaluator blind; parity legs and
@@ -74,3 +95,7 @@ stringified dates (`"2025-11-26"`) — proven, not assumed.
   not by the evaluator).
 - F-2 adjacency (alarm cannot hold between sparse in-process sweeps) rides to PT-03 as
   already ledgered; the post-window EventBridge schedule (G2 option-b) is its cure.
+- [QA-#351 L5, latent watch] a true `pl.Decimal` value column would round-trip via
+  `default=str` to a verbatim string ≠ `_canon_number` canonical form → false-CORRUPT
+  (fails safe; cannot fire today — schema "Decimal" maps to pl.Float64). Re-check if a
+  schema-aware writer or real Decimal dtype lands.

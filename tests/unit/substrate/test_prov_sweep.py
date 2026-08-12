@@ -190,6 +190,13 @@ def test_3e_digest_rederivation_survives_sparse_late_typed_column() -> None:
     """
     frame = _sparse_late_typed_frame()
     raw = canonical_frame_bytes(frame)
+    # Teeth guard (QA-#351 L2): the fixture only discriminates while the poison row
+    # sorts PAST polars' 100-row inference prefix — an innocent edit that varies an
+    # earlier JSON field would silently migrate it inside and the test would pass on
+    # pre-fix code too.
+    chunks = raw.decode("utf-8").split("\x1e")
+    poison_index = next(i for i, chunk in enumerate(chunks) if "BETTER25CTWA" in chunk)
+    assert poison_index >= 100, "fixture lost its teeth: poison row inside the inference prefix"
     assert digest_of_canonical_frame_bytes(raw) == canonical_digest(frame)
 
 
