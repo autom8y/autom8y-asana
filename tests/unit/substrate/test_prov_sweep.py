@@ -42,7 +42,7 @@ class _RecordingCloudWatch:
     def __init__(self) -> None:
         self.calls: list[dict[str, Any]] = []
 
-    def put_metric_data(self, *, Namespace: str, MetricData: list[dict[str, Any]]) -> None:  # noqa: N803
+    def put_metric_data(self, *, Namespace: str, MetricData: list[dict[str, Any]]) -> None:
         self.calls.append({"Namespace": Namespace, "MetricData": MetricData})
 
 
@@ -160,3 +160,78 @@ def test_3e_digest_of_canonical_frame_bytes_roundtrips() -> None:
     )
     raw = canonical_frame_bytes(frame)
     assert digest_of_canonical_frame_bytes(raw) == canonical_digest(frame)
+
+
+def _sparse_late_typed_frame(n_rows: int = 150) -> pl.DataFrame:
+    """The live wound shape (DEFECT-prov-digest-bare-inference-2026-08-12): a structural
+    column null past polars' default 100-row inference prefix, first real value a str —
+    bare ``pl.DataFrame(rows)`` infers Null dtype then raises ComputeError on the append.
+
+    ``canonical_frame_bytes`` sorts the row ENCODINGS lexicographically, so the poison
+    row must sort LAST to land past the prefix: every field before ``mrr`` is identical
+    across rows and the poison row carries the lexicographically-largest ``mrr``.
+    """
+    sparse = [None] * (n_rows - 1) + ["BETTER25CTWA"]
+    return pl.DataFrame(
+        {
+            "offer_id": [f"o{i:03d}" for i in range(n_rows)],
+            "cost": [10.0] * n_rows,
+            "mrr": [500.0 + i for i in range(n_rows - 1)] + [999.0],
+            "weekly_ad_spend": [10.0] * n_rows,
+            "trackstat_id": sparse,
+        }
+    )
+
+
+def test_3e_digest_rederivation_survives_sparse_late_typed_column() -> None:
+    """The re-derivation must not depend on inferring NON-value columns: a sparse
+    late-typed structural column (the exact live artifact shape that zeroed completeness
+    on cycles 1-2 of the S8-2 window) still yields the Seam-1 digest.
+    """
+    frame = _sparse_late_typed_frame()
+    raw = canonical_frame_bytes(frame)
+    # Teeth guard (QA-#351 L2): the fixture only discriminates while the poison row
+    # sorts PAST polars' 100-row inference prefix — an innocent edit that varies an
+    # earlier JSON field would silently migrate it inside and the test would pass on
+    # pre-fix code too.
+    chunks = raw.decode("utf-8").split("\x1e")
+    poison_index = next(i for i, chunk in enumerate(chunks) if "BETTER25CTWA" in chunk)
+    assert poison_index >= 100, "fixture lost its teeth: poison row inside the inference prefix"
+    assert digest_of_canonical_frame_bytes(raw) == canonical_digest(frame)
+
+
+def test_3e_digest_rederivation_refuses_rows_missing_a_value_column() -> None:
+    """A stored artifact whose rows lack a pinned value column is partial/foreign —
+    refuse loudly (→ an [H20] indeterminate skip at the evaluator), never null-fill.
+    """
+    import json as json_mod
+
+    import pytest
+
+    rows = [{"offer_id": "a", "cost": 1.0, "weekly_ad_spend": 10.0}]  # no mrr
+    raw = "\x1e".join(
+        json_mod.dumps(r, sort_keys=True, separators=(",", ":")) for r in rows
+    ).encode("utf-8")
+    with pytest.raises(ValueError, match="mrr"):
+        digest_of_canonical_frame_bytes(raw)
+
+
+async def test_3e_sweep_evaluates_artifact_with_sparse_late_typed_column() -> None:
+    """Loop-level regression of the live wound: with the poisoned-shape artifact stored,
+    the sweep must produce a VERDICT (completeness 100, provable), not an indeterminate
+    skip (completeness 0.0 / evaluated 0 — the exact cycles-1/2 PROV reading).
+    """
+    aid = ArtifactId(project_gid="1143843662099250", entity_type=EntityType.OFFER)
+    frame = _sparse_late_typed_frame()
+    cw = _RecordingCloudWatch()
+    evaluator = build_prov_sweep_evaluator(
+        store=_InMemoryStore(frame, built_at=_NOW),
+        expected_set=_OneArtifactExpectedSet(aid),
+        cw_client=cw,
+    )
+    run = await run_prov_sweep(evaluator, now=_NOW)
+
+    assert run.evaluated_count == 1
+    assert run.completeness == 100.0
+    assert run.unprovable_count == 0
+    assert not run.unevaluated
