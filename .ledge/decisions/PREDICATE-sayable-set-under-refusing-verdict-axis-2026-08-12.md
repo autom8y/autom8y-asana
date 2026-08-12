@@ -2,8 +2,10 @@
 type: decision
 status: draft
 artifact_id: PREDICATE-sayable-set-under-refusing-verdict-axis-2026-08-12
-revision: 4
-remediates: CRITIQUE-s1-sayable-predicate-2026-08-12 (BLOCK, rev-2) + its delta pass 2 (UPHELD-WITH-CONDITIONS, rev-3 — conditions C-1/C-2) + PT-02 fork-surface gate (rev-4 — HARD conditions C-6/C-7, both WITHDRAWALS)
+revision: 5
+final: true
+remediates: CRITIQUE-s1-sayable-predicate-2026-08-12 (BLOCK, rev-2) + delta pass 2 (UPHELD-WITH-CONDITIONS, rev-3 — C-1/C-2) + PT-02 fork-surface gate (rev-4 — HARD C-6/C-7, both WITHDRAWALS) + delta pass 3 (rev-5 — 5a WITHDRAW; G4 replaced by G4′)
+references: DEFECT-temporal-filter-imputed-false-move-2026-08-12.md (live product defect surfaced by the 5a refutation; operator-routed, NOT absorbed here)
 initiative: asana-native-insight-delivery
 sprint: S1 (WS-B — the say-able set under a refusing verdict axis)
 rite: 10x-dev
@@ -29,6 +31,109 @@ completeness-vs-freshness discriminator as a PREDICATE a downstream author can
 apply without re-litigating P-3, and classify the five REPORT §6 candidates
 against it. State the disclosure rule any published number must carry so it can
 never read as fresher than it is."*
+
+---
+
+## REVISION 5 — the last
+
+Delta pass 3 returned **`5a WITHDRAW`**. This revision closes the artifact.
+
+### The final count — ONE say-able readout
+
+> **`SAY-ABLE`: item 1a only.** *"At the {t} observation, these sections' most
+> recent observed offer edit was {t_s}"* — read via **`POST /v1/query/offer/rows`**
+> (§3.0.1), subject to **DR-2** (as-of is the `min` floor over constituents).
+>
+> Everything else in this artifact is withheld: **1b, 2, 2′, 5a, 5b**
+> `WITHHELD-PENDING`; **3, 4** `WITHHELD-AXIS`.
+
+### 5a — WITHDRAWN. My structural argument was refuted at source.
+
+I argued 5a survives as an **occurrence set**: imputation fires only on zero
+surviving stories, so an imputed offer contributes no move events and cannot
+contaminate a reported value — omission only, single-signed.
+
+**Both load-bearing sentences are false.** I stopped at
+`section_timeline_service.py:356-358`. One hop past is **`query/temporal.py`** —
+the module that actually implements an occurrence set, imported and applied by a
+shipped consumer (`query/__main__.py:875` import, `:893-895` construct, `:920`
+`temporal_filter.matches(tl)`), iterating the very `tl.intervals` I cited. **I
+never read it.** Verified own-hands, verbatim:
+
+- `matches()` (`temporal.py:44-46`) — `return any(self._interval_matches(interval, timeline) for interval in timeline.intervals)`. Conjunctive over **specified** fields only.
+- `moved_to` (`:51-58`) — compares `interval.section_name` and `interval.classification`, i.e. the interval's **own** identity. **No predecessor consulted.**
+- `since`/`until` (`:61-64`) — test `interval.entered_at.date()`.
+- `moved_from` (`:67-78`) — the **only** predecessor-consulting criterion; its `idx == 0` guard (`:69-70`) sits **inside** `if self.moved_from is not None:` and is therefore reached **only if `moved_from` is specified**.
+
+An imputed interval carries `entered_at = task_created_at` and the offer's
+**current** classification. A natural weekend query specifies `moved_to` +
+`since`/`until` and **no** `moved_from`, so the guard never runs.
+
+> **An offer merely created over the weekend, which never moved, is returned as
+> having moved.**
+
+Not a corner case: the population most likely to be imputed — zero surviving
+stories — is disproportionately the **newly created**, whose `created_at` is
+exactly what lands in recent windows.
+
+**And the workaround inverts the sign.** `_build_intervals_from_stories`
+(`section_timeline_service.py:231-267`) synthesises **no** pre-first interval —
+it closes the previous interval and appends a new one per story (`:249-267`) — so
+`intervals[0]` is a **genuine first move**. Specifying `moved_from` therefore
+hits the `idx == 0` guard and **drops it**. **False positives without it, false
+negatives with it. No formulation is single-signed.** G4 FAIL, on the same rule
+that took item 2.
+
+**Two further concessions, both correct:**
+
+1. **My "omission only" claim was about the wrong object.** It is true of
+   `SectionTimeline.intervals` — **which no HTTP consumer receives**.
+   `OfferTimelineEntry` is seven scalars under `extra="forbid"`
+   (`section_timeline.py:158-212`) and carries **no transitions for any offer**.
+   The claim never transferred to a consumable surface.
+2. **G2 bites 5a identically to 2′.** Exhibit `N of M` → you have published
+   `M − N`, which **is** 5b — the item I withhold. Don't exhibit → G2 FAIL.
+   **The 5a/5b split does not survive its own G2 requirement.** I built the split
+   and did not test it against the gate I had just repaired.
+
+### G4′ — ADOPTED, with one clarification and one stated limit
+
+The critic convicted **its own gate**, not me: G4 as it repaired it asks *"is the
+direction **known**?"*, which is answerable by assertion and never compels branch
+enumeration. Items 2 and 5a both passed that way. It names this *"the same defect
+class I convicted G3 of at pass 1 and left standing in G4."* **The routed
+question I raised at rev-4 — gate defect or author defect — is answered: gate
+defect, and the critic owns it.**
+
+**G4′ replaces G4 in §2.4.** Verified mechanically against all three items before
+adopting: **2 fails, 5a fails, 1a passes** (§2.4).
+
+**Clarification (needed for 1a to pass, and offered as refinement not
+disagreement):** *"all branches share one sign"* governs the **non-neutral**
+branches. A branch that is exact — introduces no error — does not break the
+conjunction. Most of 1a's path is exact; without this clause G4′ would fail
+everything.
+
+**Stated limit, which is the honest one:** G4′ compels enumeration; it **cannot
+compel the enumeration to be complete.** An author who has not read
+`temporal.py` will enumerate the branches they know and stop. The closing clause
+— *an unenumerated branch is an undeclared direction* — makes that a **defect
+rather than a pass**, which is the most a written gate can do. It is not what
+caught anything tonight.
+
+### The live defect — referenced, not absorbed
+
+The 5a refutation surfaced a **shipped-code correctness defect**, filed
+separately at
+`.ledge/decisions/DEFECT-temporal-filter-imputed-false-move-2026-08-12.md`. It is
+product correctness, not say-ability; **operator-routed, not this artifact's to
+rule, and deliberately not absorbed.**
+
+Worth carrying here (and folded into §3.2): **three different consumers of one
+imputation produce three different wrong answers** — sign-flip by sub-population
+(item 2), indistinguishable payload (item 2′), false positives (item 5a / the
+defect) — **and the remedy is one thing**: an imputed-vs-observed discriminator
+must reach the consumable surface.
 
 ---
 
@@ -689,12 +794,45 @@ own `SAY-ABLE` exemplar, whose G4 cell was then filled with a statement of what
 *could* be disclosed. That is judgment leaking past a gate in the opposite
 direction from F-6, and it made `SAY-ABLE` structurally unreachable.
 
-**PASS** iff a bound is **known** and its direction is **known**. **FAIL →
-`WITHHELD-PENDING`** — reserved for readouts whose error is genuinely unbounded or
-whose direction is genuinely undetermined, which is a real and different failure.
+**~~PASS iff a bound is known and its direction is known.~~ SUPERSEDED AT REV-5
+BY G4′.** The rev-2 repair asked *"is the direction **known**?"* — a question
+answerable **by assertion**. It never compelled enumeration, and **items 2 and 5a
+both passed it while carrying errors that were not single-signed**. The critic
+convicted its own repair: *"the same defect class I convicted G3 of at pass 1 and
+left standing in G4."*
 
-> **Stating** the bound is DR-6's duty, in §4, on every published board-behaviour
-> number. G4 `≡ DR-6` under revision 1's wording; the duplication is removed.
+> ### G4′ — ERROR DIRECTION (branch-enumerating)
+>
+> **Enumerate every imputation, default, filter and clipping branch on the path
+> from source event to rendered figure. State the sign on each. PASS iff all
+> branches share one sign. An unenumerated branch is an undeclared direction.**
+>
+> **FAIL → `WITHHELD-PENDING`.**
+
+**Clarification (rev-5).** *"Share one sign"* governs the **non-neutral**
+branches. A branch that introduces no error is neutral and does not break the
+conjunction. Without this, G4′ would fail every readout, since most steps on any
+path are exact.
+
+**Worked mechanically against all three contested items:**
+
+| item | branches on the path | signs | G4′ |
+|---|---|---|---|
+| **2** — `billable − active` | imputation × currently-ACTIVE; imputation × currently-ACTIVATING | **understate**; **overstate** | **FAIL** |
+| **5a** — weekend moved-set | imputed interval matched by `moved_to`+`since`/`until` with no `moved_from` (`temporal.py:51-64`); `idx == 0` guard drops genuine first move when `moved_from` **is** given (`:69-70`); cross-project noise filter drops stories (`section_timeline_service.py:343-346`); 2 h cache staleness (`:337`) | **overstate**; **understate**; understate; understate | **FAIL** |
+| **1a** — `now − max(last_modified)` per section | imputation: **none**; default: none (`last_modified` is `nullable=False`, `base.py:76-82`); filters narrow *which rows*, not the value; clipping: none; frame staleness → value ages | only non-neutral branch is frame staleness → **overstate**; remainder exact | **PASS** |
+
+**The honest limit.** G4′ compels enumeration; it **cannot compel completeness of
+enumeration**. An author who has not read `query/temporal.py` enumerates what
+they know and stops — which is precisely what happened at rev-3 and rev-4. The
+closing clause converts that silence into a **defect** rather than a pass, which
+is the most a written gate can achieve. What actually caught it, in every
+instance, was **a second reader going one hop further** (§3.2).
+
+> **Stating** the bound remains DR-6's duty, in §4, on every published
+> board-behaviour number. G4 `≡ DR-6` under revision 1's wording; that
+> duplication stays removed — G4′ is a capability test (**can** one sign be
+> declared?), not a render test.
 
 ### 2.5 G5 — PUBLICATION AUTHORITY (not a say-ability gate)
 
@@ -936,10 +1074,19 @@ Neither revision 1 nor revision 2 found this. It is a shipped, mounted,
   `section_persistence`, `mark_section_complete`, `manifest`, `RowsMeta`,
   `AggregateMeta` → **0 matches**. Unfenced.
 
-**Why this moves verdicts.** It is a *retrospective replay*, not an accrual. It
-does not need to have been running; it reads what Asana already recorded. The
-observation-coverage receipt that repaired-G3(b) demands is supplied **by the
-observed system itself** — the same structure that cleared item 1a.
+**Why this moved verdicts at rev-3 — and why it no longer does (rev-5).** It is
+a *retrospective replay*, not an accrual: it reads what Asana already recorded,
+so the observation-coverage receipt repaired-G3(b) demands is supplied by the
+observed system itself. **That much still holds, and it is why G3 is not the
+gate that refuses items 2 and 5a.** What does refuse them is downstream of the
+replay, in how this surface's output is *reduced and filtered*:
+
+> **⚠ Every verdict this surface carried has since been withdrawn (rev-4: item
+> 2; rev-5: item 5a).** The defect is not in the replay — it is in
+> `_build_imputed_interval` (`section_timeline_service.py:272-300`) and in
+> `TemporalFilter` (`query/temporal.py`), which consume it. **An unfenced,
+> honestly-observed source is not the same as a say-able readout**, and this
+> section is the artifact's clearest demonstration of the difference.
 
 **The boundary of what it serves — `movement`, not `edit`.**
 
@@ -1032,7 +1179,7 @@ retrospective surface`.**
 | **2′** | Dwell measured **IN** the offer's current classification (derived separately per PT-02, **NOT** a rescue of item 2) | COMPLETENESS | **`WITHHELD-PENDING`** — but **on G2, not G4** | PT-02's formulation is **adopted and holds**: measured *in* the current classification the imputation error **is** single-signed, because imputation always back-dates entry to `created_at` (`:297`) — the value can only be **overstated**. So **G4 PASSES** here where it fails for item 2. **G2 FAILS instead**: the served population is *"offers, an unknown subset of which have inferred rather than observed histories,"* and the readout **cannot exhibit its own population split** — same `story_count` boundary drop. That is §2.2 shape-1 population substitution, not an error-direction problem. **This is a refinement of PT-02, not a disagreement**: option (g) is sign-sound in-classification exactly as PT-02 states; sign-soundness is simply not sufficient, because a second gate bites. Same closing condition as item 2. |
 | 3 | Budget expected-vs-actual roll-up (`:187`) | **VERDICT** | **`WITHHELD-AXIS`** + `OPERATOR-RESERVED` *(unchanged)* | Two-clock by construction — task `weekly_ad_spend` joined to campaign spend is exactly the budget-drift/mismatch grading (`REPORT…:56-58`); a stale board field against live spend yields a difference indistinguishable from real drift. This is the limb that **survives** F-5's narrowing: no wording rescues it. Additionally charter `:54` money limb, and *"one number"* is the shape that reads most authoritative. |
 | 4 | Ghost / missing-campaign trendline (`:188`) | **VERDICT** | **`WITHHELD-AXIS`** ×2 *(unchanged)* | Two-clock (board vs campaign — `REPORT…:53-54`), **and** independently the trend axis is punctured: the pause takes no snapshots and *"those windows are not backfilled"* (`REPORT…:144-145`), so a weekly series would render an observation hole as a data point. Two sufficient grounds; the critique attacked both limbs and dented neither. |
-| **5a** | Monday-morning weekend digest — *"what moved"* (`:189`, first limb) | COMPLETENESS | **`SAY-ABLE`** *(rev-3; **RE-TESTED against C-6 at rev-4 and SURVIVES** — still un-critiqued)* | G1 PASS. **G2 PASS**: population is the offers the endpoint returns for the project; `N observed to move of M offers` is exhibitable from the same response. **G3 PASS via (a)** — a positive claim about observed transitions. **G4 PASS**: 2 h story-cache bound; error single-signed (see below). Revision 2's grounds remain **withdrawn on both limbs**: the forward-accrual inheritance from 1b is false (a retrospective replay accrues nothing), and the silently-stopped-job hazard (`REPORT…:172`) does not apply to a Monday replay of Asana's own log. **C-6 re-test — why the imputation defect does not reach here**: 5a reports an **occurrence set**, not a value derived by differencing classification-filtered day counts. An imputed offer is by construction one with **zero** surviving stories (`section_timeline_service.py:358` fires only when the filtered list is empty), so it contributes **no move events** and simply does not appear. Imputation therefore cannot corrupt a **reported** value — its only effect is **omission**, which is single-signed (**undercount, never overcount**) and is a DR-5 coverage-disclosure duty, not a gate failure. **The structural difference from item 2 is that 5a has no hidden inferred subset inside the set it reports.** |
+| **5a** | Monday-morning weekend digest — *"what moved"* (`:189`, first limb) | COMPLETENESS | **`WITHHELD-PENDING`** *(rev-3's `SAY-ABLE`, re-affirmed at rev-4, **WITHDRAWN at rev-5** — delta pass 3)* | G1 PASS. **G4′ FAIL** and **G2 FAIL**, independently. **G4′**: the occurrence set is computed by `TemporalFilter` (`query/temporal.py`, shipped consumer at `query/__main__.py:875,893-895,920`), whose `moved_to` compares the interval's **own** identity with **no predecessor consulted** (`:51-58`) and whose `since`/`until` test `entered_at` (`:61-64`). An imputed interval carries `entered_at = created_at` and the current classification, and the `idx == 0` guard (`:69-70`) is reached **only if `moved_from` is specified** — so a natural weekend query returns **an offer that was merely created and never moved**, as having moved. Specifying `moved_from` inverts the sign: `_build_intervals_from_stories:231-267` synthesises no pre-first interval, so the guard **drops genuine first moves**. **Overstate without it, understate with it — not single-signed.** **G2**: exhibiting `N of M` publishes `M − N`, which **is** item 5b, withheld; not exhibiting fails G2. **The 5a/5b split does not survive its own G2 requirement.** My rev-4 "omission only" defence was about `SectionTimeline.intervals` — **an object no HTTP consumer receives** (`OfferTimelineEntry` is seven scalars, `extra="forbid"`, `section_timeline.py:158-212`, carrying **no transitions**). *(This refutation also surfaced a live product defect — filed at `DEFECT-temporal-filter-imputed-false-move-2026-08-12.md`, operator-routed, not absorbed here.)* |
 | **5b** | Monday-morning weekend digest — *"what didn't move"* (`:189`, second limb) | COMPLETENESS | **`WITHHELD-PENDING`** *(verdict unchanged; ground REPLACED and much narrowed)* | G1 PASS. **G3 FAIL**, but **not** on `REPORT…:172` — that ground is **withdrawn**. An absence-of-movement claim rests on the completeness of Asana's story stream **as replayed through this path**, and that path deliberately narrows it twice: a 2 h staleness window (`section_timeline_service.py:337`) and a cross-project noise filter that **drops** stories (`:344-346`). Absence-of-retained-record is therefore not yet equal to absence-of-event. Carried as a **UV-P** on replay completeness (§6), not asserted. Item 1's masking ground remains **withdrawn** (F-2). The Monday maximum-divergence context (3.7-day spread, `REPORT…:92`) is **not** a gate failure — DR-6a render obligation per §2.0's capability/performance split. |
 
 #### 3.1.1 Why item 1a survives G3 under clause (a), not clause (b) (rev-3)
@@ -1112,21 +1259,46 @@ relationship** that admits only one.
   | 3 | item **5a** → `SAY-ABLE` | withheld → say-able | same surface | survives the C-6 re-test; still un-critiqued |
   | 4 | item **2** → `WITHHELD-PENDING`; tier (iii) withdrawn | **say-able → withheld**, and **absent → uncontracted** | PT-02 read the **imputation branch I stopped short of**, and the **fetcher** | first movement toward withheld |
 
-  **The pattern is not "this seat is optimistic." It is narrower and worse: this
-  seat stops reading at the first branch that confirms the sentence it is already
-  writing.** Rev-1 stopped at one log line. Rev-3 stopped at the ACTIVATING
-  branch of the imputation and never evaluated the ACTIVE branch — **one
-  `frozenset` away** (`section_timeline.py:81` vs `:100-102`). Rev-3 stopped at
-  `section_timeline_service.py:341` and never followed the chain to the fetcher
-  (`clients/stories.py:482-505`), where the narrowing it assumed does not exist.
-  Each time the missing read was **adjacent** to the read that was performed.
+  | 5 | item **5a** → `WITHHELD-PENDING`; G4 → **G4′** | say-able → withheld | delta pass 3 read **`query/temporal.py`**, one hop past where I stopped | second correct withdrawal |
 
-- **PT-01 predicted this.** It forecast that the spine's next error would be
-  another **false negative**, named two candidates, and the second fired. It
-  could predict it because this section was already in the artifact. **The
-  calibration note earned its place by being used against its author** — which is
-  the argument for keeping it, and for reading revision 4's two surviving
-  `SAY-ABLE` verdicts as the next candidates for exactly this treatment.
+- **The mechanism, stated precisely.** Every error in the table has the same
+  shape: **reading stopped at the first branch that confirmed the sentence
+  already being written**, and the missing read was **adjacent** to the read
+  performed. Rev-1 stopped at one log line. Rev-2 stopped at the aggregate
+  *request* contract. Rev-3 stopped at the imputation's ACTIVATING branch — **one
+  `frozenset` away** from the ACTIVE branch (`section_timeline.py:81` vs
+  `:100-102`) — and at `section_timeline_service.py:341`, never following the
+  chain to the fetcher (`clients/stories.py:482-505`). Rev-4 stopped at
+  `section_timeline_service.py:356-358`, never reaching `query/temporal.py`, the
+  module that actually implements the occurrence set it was reasoning about.
+
+- **THE FINDING IS ABOUT THE METHOD, NOT THE SEAT.** Three passes produced three
+  findings against this seat — and **three concessions by the critic**, plus **one
+  gate defect the critic convicted itself of** (G4, §2.4). PT-01 predicted the
+  rev-3 error class *because this section was already in the artifact*, and then
+  the same exercise produced two more errors of the same class in the critic's
+  own work. The critic's closing line, carried verbatim because it is the
+  deepest finding of the arc:
+
+  > *"The pattern S1 diagnosed in itself is not a property of that seat; it is
+  > the failure mode of the whole exercise, and the only thing that has caught it
+  > — in every instance including mine — is a second reader going one hop
+  > further."*
+
+  **The operative consequence is a process claim, not a character claim:** no
+  gate, no self-flag, and no calibration note has ever caught this class. **A
+  second reader going one hop further has caught it every time — five for five.**
+  G4′ (§2.4) is the strongest written expression of that discipline available,
+  and §2.4 records why it is still not sufficient: enumeration can be compelled;
+  *completeness* of enumeration cannot.
+
+- **One imputation, three consumers, three different wrong answers** — and one
+  remedy. Sign-flip by sub-population (item 2), payload indistinguishable from
+  clean (item 2′), false positives on a shipped filter (item 5a, and the live
+  defect at `DEFECT-temporal-filter-imputed-false-move-2026-08-12.md`). **The
+  remedy is a single thing: an imputed-vs-observed discriminator must reach the
+  consumable surface.** That one change closes both withheld dwell items and the
+  filed defect.
 - **SELF-CORRECTION, recorded per charter `:57`:** revision 1 wrote *"for three of
   the five candidates the source does not carry the measurand at all."* **This
   seat withdraws that sentence.** It was supported solely by the field list of
@@ -1500,6 +1672,20 @@ with a sibling session actively committing):**
 | SVR-S1-46 | `filter_relevant_stories` is a **read-time** in-memory filter, not a fetch constraint | file-read | `src/autom8_asana/cache/integration/stories.py:294` — marker: `return [s for s in stories if s.get("resource_subtype") in include_types]` |
 | SVR-S1-47 | six of the nine admitted subtypes are edit-class, not movement-class | file-read | `src/autom8_asana/cache/integration/stories.py:23-33` — marker: `"assignee_changed",` / `"enum_custom_field_changed",` / `"number_custom_field_changed",` |
 
+**Revision-5 additions — delta pass 3. Every anchor re-verified own-hands at
+`origin/main` (`4129ae7e`); the `temporal.py` module was read in full, having
+never been read in revisions 1–4:**
+
+| # | claim | method | anchor |
+|---|---|---|---|
+| SVR-S1-48 | `matches()` is satisfied by **any** interval meeting **all specified** criteria | file-read | `src/autom8_asana/query/temporal.py:44-46` — marker: `return any(self._interval_matches(interval, timeline) for interval in timeline.intervals)` |
+| SVR-S1-49 | `moved_to` compares the interval's **own** section/classification — **no predecessor consulted** | file-read | `src/autom8_asana/query/temporal.py:51-58` — marker: `section_match = interval.section_name.lower() == self.moved_to.lower()` |
+| SVR-S1-50 | `since`/`until` test `entered_at`, which for an imputed interval is `task_created_at` | file-read | `src/autom8_asana/query/temporal.py:61-64` — marker: `if self.since is not None and interval.entered_at.date() < self.since:` |
+| SVR-S1-51 | the `idx == 0` guard is reached **only when `moved_from` is specified** — the false-positive mechanism | file-read | `src/autom8_asana/query/temporal.py:67-70` — marker: `if self.moved_from is not None:` / `return False  # No previous interval` |
+| SVR-S1-52 | no pre-first interval is synthesised, so `intervals[0]` is a genuine first move — the sign-inversion mechanism | file-read | `src/autom8_asana/services/section_timeline_service.py:249-267` — marker: `# Open new interval (AC-2.6: last one stays open)` |
+| SVR-S1-53 | `TemporalFilter` is applied by a **shipped consumer**, not a hypothetical one | file-read | `src/autom8_asana/query/__main__.py:875` (`from autom8_asana.query.temporal import TemporalFilter, parse_date_or_relative`) + `:893-895` + `:920` (`matched = [tl for tl in timelines if temporal_filter.matches(tl)]`) |
+| SVR-S1-54 | `OfferTimelineEntry` carries **no transitions**, so any intervals-level argument does not transfer to an HTTP consumer | file-read | `src/autom8_asana/models/business/section_timeline.py:158-212` — seven scalar fields; marker: `"extra": "forbid",` |
+
 **UV-P carry (Gate-C DEFER-tag pattern):**
 
 - `[UV-P: the ASR verdict surface is starved during the pause because the readiness-FAIL abort returns 198 lines before _emit_verdict_surface | METHOD: deferred-to-monorepo-read | REASON: orchestrator.py:242 / :440 live in the autom8y monorepo, out of this repo's tree; inherited from frame :62-67 and not re-probed own-hands this dispatch]`
@@ -1569,7 +1755,7 @@ with a sibling session actively committing):**
 | **item 1a** (`SAY-ABLE`) | **MODERATE, externally CORROBORATED** | re-derived at rev-2; **attacked five ways at delta pass 2 and held on all five**, including the G3-laundering-by-clause-(a) attack the critic expected to break it (§3.1.1). Rite-disjoint corroboration of a *verdict*, which is the strongest standing any classification in this artifact has. Still MODERATE: the round-trip is un-executed (UV-P) and the endpoint routing under it **changed at rev-3**, after the clearance. |
 | items 3 and 4 (`WITHHELD-AXIS`) | **MODERATE, externally attacked and undented** | two-clock; `CRITIQUE…§5.2` attacked both limbs of item 4 and dented neither. Unchanged across all three revisions. |
 | ~~**item 2** (`SAY-ABLE`) — NEW at rev-3~~ | **WITHDRAWN at rev-4** | The rev-3 grade line invited attack on *"whether a 2 h story-cache bound is a `bound` in G4's sense."* **The actual defect was one layer beneath that and in the same gate**: the imputation sign is population-dependent (C-6). The invitation was pointed at roughly the right gate and still missed the mechanism — recorded because a self-flagged uncertainty that names the wrong mechanism is **not** a substitute for the read. |
-| **item 5a** (`SAY-ABLE`) — NEW at rev-3, **RE-TESTED at rev-4** | **MODERATE — still NO CRITIC HAS SEEN THESE GROUNDS** | eight direct-read anchors (SVR-S1-31..38) plus the C-6 re-test (SVR-S1-43: imputation fires only on zero surviving stories, so it contributes no move events). The re-test is **this seat re-testing its own verdict against a defect found in its sibling** — which is exactly the check that failed at rev-3, now passed, by the same seat that failed it. **Read adversarially.** Worth attacking: whether *"N observed to move of M offers"* is genuinely exhibitable when the 2 h cache and the cross-project noise filter (`section_timeline_service.py:343-346`) both drop stories **before** the set is formed — i.e. whether 5a's undercount is disclosable in the way G2 requires, or merely single-signed. |
+| ~~**item 5a** (`SAY-ABLE`)~~ | **WITHDRAWN at rev-5** | The rev-4 grade line invited attack on *"whether `N observed to move of M offers` is genuinely exhibitable"* — **and that invitation was correct**: G2 is one of the two gates that took it. But the invitation was authored **while the seat's own C-6 re-test was recorded as PASSED**, and that re-test was performed against `SectionTimeline.intervals` — an object no HTTP consumer receives. **A self-re-test conducted at the wrong layer produced a false PASS, and the correctly-aimed doubt beside it did not outweigh it.** This is the strongest single argument in the artifact for a second reader over a self-check. |
 | **item 2′** (`WITHHELD-PENDING` on G2) — NEW at rev-4 | **MODERATE — un-critiqued, and it is a NEGATIVE** | Derived per PT-02's explicit invitation. It is the first thing this seat has authored that moves **toward** withheld, which by §3.2's own pattern makes it the *least* likely of this artifact's claims to be an error of the characteristic kind — and therefore the one whose reasoning deserves the least deference on that basis alone. |
 | items 1b and 5b (`WITHHELD-PENDING`) | **MODERATE** | verdicts unchanged across rev-2 and rev-3; **grounds replaced twice**. 1b's ground is now the edit-vs-movement event-class mismatch (§3.0.2), which no fence ruling dissolves. 5b's is a replay-completeness UV-P. Both are narrower and more falsifiable than what they replaced, and neither has been externally read. |
 | **§3.0.1 endpoint routing** (`/rows`, not `/aggregate`) | **MODERATE** | six direct-read anchors across both response models and both construction sites (SVR-S1-26..30). The C-1 finding is the critic's; the **verification that the swap does not fix the age axis — and that the content as-of is derived from the payload rather than read from meta — is this seat's** and is un-critiqued. |
@@ -1580,16 +1766,23 @@ with a sibling session actively committing):**
 rite-disjoint critique rather than asserted by this seat.** Everything this
 revision authors is MODERATE or below, per `self-ref-evidence-grade-rule`.
 
-**Ceiling declared, rev-4.** One verdict in this artifact carries rite-disjoint
-corroboration (**item 1a**). One has been **externally falsified after this seat
-asserted it** (**item 2**). One stands **un-critiqued** (**item 5a**), on grounds
-authored by the same seat that authored the falsified one, in the same revision,
-from the same surface, and re-tested by that same seat.
+**Ceiling declared, rev-5 — FINAL.** The `SAY-ABLE` set is **item 1a alone**, and
+it is the **only** verdict in this artifact that has been attacked by a
+rite-disjoint reader and held (five attacks, delta pass 2, §3.1.1). Every other
+`SAY-ABLE` this seat ever asserted has been withdrawn: **item 2 at rev-4, item 5a
+at rev-5.**
 
-> **The honest reading of this artifact's `SAY-ABLE` set is: one verdict earned,
-> one withdrawn, one outstanding.** A reader who needs the outstanding one to be
-> right should get it read by someone else first. It is the single most probable
-> remaining error in this document.
+> **Two of the three `SAY-ABLE` verdicts this seat authored were wrong.** The one
+> that survived is the one a critic tried hardest to break. That ratio is the
+> artifact's most reliable output and should govern how its remaining claims are
+> weighted.
+
+**Grades on this revision's own work.** The 5a withdrawal, the G4′ adoption, and
+the §3.2 method-finding are **MODERATE**: each rests on direct-read anchors
+(SVR-S1-48..54, `temporal.py` read in full) and each **concedes** rather than
+asserts, which is the disposition least exposed to this seat's characteristic
+error — but the G4′ **clarification** (neutral branches) and its **stated limit**
+are this seat's own additions and are un-critiqued.
 
 Tier (iii)'s withdrawal has a second-order consequence worth stating: **this
 artifact no longer asserts that anything is absent.** Every negative it now
@@ -1624,24 +1817,30 @@ asymmetry as a reason for suspicion of revision 3, not as a track record.**
 | 3 | disclosure rule inherits P-1 and P-12 **verbatim** — no third number, no polymorphic field, no coalescing | §4.1 (both quoted verbatim; `CRITIQUE…§5.3` checked them character-by-character and found no smuggling); §4.2 DR-1..DR-8 **+ DR-6a**; §4.3 worked render; the one candidate third-number question routed to the operator at §5 O-3 rather than assumed |
 | 4 | audit-lead critique returned and dispositioned | **SATISFIED.** Pass 1 RETURNED 2026-08-12 verdict **BLOCK**; all eleven findings dispositioned in the REVISION 2 table (eight accepted or accepted-with-narrowing, two REJECTED-WITH-RECEIPT, one no-change). Delta pass 2 RETURNED verdict **UPHELD-WITH-CONDITIONS**: the **BLOCK is DISCHARGED**, item 1a **cleared on five attacks**, and **both rev-2 rejections CONCEDED** by the critic. Its two conditions C-1 and C-2 are dispositioned in the REVISION 3 table. `status: draft` **held** — the record clears the artifact, not the author. |
 
-**Rung: PENDING.** A file authored is not a predicate adopted (shape `:889-896`);
-a discharged BLOCK is not an adopted predicate; and a verdict withdrawn under a
-HARD condition is evidence about the *machinery*, not only about the item. What
-is true at rev-4:
+**Rung: PENDING. Artifact CLOSED at revision 5.** A file authored is not a
+predicate adopted (shape `:889-896`). What is true at close:
 
-- The critique's conditions (C-1/C-2) and PT-02's (C-6/C-7) are **all met**.
-  C-6 and C-7 are met by **withdrawal**, not annotation, per PT-02's tripwire.
-- The `SAY-ABLE` set is **1a (critic-cleared)** and **5a (un-critiqued)**. Item 2
-  is withdrawn; item 2′ is withheld on G2; 1b, 5b withheld; 3, 4 `WITHHELD-AXIS`.
-- **This artifact asserts no absences.** Tier (iii) is restated as
-  uncontracted-and-one-consumer-discarded, with **one open link** carried as a
-  UV-P (§6) that **one live probe would close**, and which would also close
-  option (g)'s warmth question.
-- The **gate machinery** (F-5/F-6/F-7 repairs) has still never been externally
-  read. Rev-4 is evidence it needs to be: **G4 passed an item whose error was not
-  single-signed**, which means the gate as written did not force the author to
-  enumerate the error's branches. Whether that is a gate defect or an author
-  defect is **not this seat's to rule** — routed, not decided.
-- **Nothing here authorizes a build.** §0's fence holds: two `SAY-ABLE` verdicts
-  sit upstream of an un-executed round-trip (§6), an un-ruled K-lane question
+- **All conditions met**: the critique's C-1/C-2, PT-02's C-6/C-7 (by withdrawal,
+  per the tripwire), and delta pass 3's `5a WITHDRAW` + G4′ adoption.
+- **The `SAY-ABLE` set is item 1a alone** — read via `/rows` (§3.0.1), subject to
+  DR-2. Withheld: 1b, 2, 2′, 5a, 5b `WITHHELD-PENDING`; 3, 4 `WITHHELD-AXIS`.
+- **This artifact asserts no absences.** Tier (iii) is
+  uncontracted-and-one-consumer-discarded, with **one open link** (§6 UV-P) that
+  a single live probe closes, along with option (g)'s warmth question.
+- **The gate machinery is now partly externally read, and one gate was found
+  defective by its own author.** G4 passed two items whose errors were not
+  single-signed; **G4′ replaces it** (§2.4) and decides all three mechanically.
+  The rev-4 routed question is **answered — gate defect, critic-owned.**
+  F-5/F-6/F-7 remain externally unread.
+- **One live product defect** was surfaced and is **referenced, not absorbed**:
+  `DEFECT-temporal-filter-imputed-false-move-2026-08-12.md`. Operator-routed.
+- **Operator-reserved and untouched**: O-1, O-3, O-7, O-8, GATE-FORK, the
+  gate-(b) scope question.
+- **Nothing here authorizes a build.** §0's fence holds: one `SAY-ABLE` verdict
+  sits upstream of an un-executed round-trip (§6), an un-ruled K-lane question
   (O-7), a possible S4 enumeration gap (§5 O-6), and the open story-cache probe.
+
+> **The single most useful thing in this document is §3.2**, and it is a finding
+> about the **method**: five errors of one class across two seats, and in every
+> instance the only thing that caught it was **a second reader going one hop
+> further**. No gate, no self-flag, and no calibration note ever did.

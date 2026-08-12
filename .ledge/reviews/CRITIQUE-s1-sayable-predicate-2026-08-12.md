@@ -10,6 +10,9 @@ date: 2026-08-12
 verdict: BLOCK
 delta_pass_2_verdict: UPHELD-WITH-CONDITIONS
 delta_pass_2_scope: item 1a; F-3 disposition; F-6 sub-claim; the two refinements; section-timelines
+delta_pass_3_verdict: 5a WITHDRAW
+delta_pass_3_scope: item 5a only
+sayable_count_after_pass_3: 1 (item 1a)
 critic_seat: audit-lead (hygiene — rite-disjoint from the 10x-dev architect seat that authored the artifact)
 ---
 
@@ -841,3 +844,247 @@ Exit criterion 4 (shape `:606`) is **SATISFIED at pass 2** for the critique-
 returned-and-dispositioned limb, subject to C-1 and C-2 being carried. The
 artifact's own `status: draft` and rung `PENDING` are the author's and the
 operator's to move, not mine.
+
+---
+
+# DELTA PASS 3
+
+**Scope: item 5a and only item 5a.** Nothing else re-opened. Item 1a stays cleared
+(pass 2, five attacks). Item 2's withdrawal and the tier-(iii) withdrawal are
+PT-02's and are not re-litigated here. Repo state `autom8y-asana` `origin/main`
+`4129ae7e`; monorepo untouched this pass; no git mutations; no API call to
+`/api/v1/offers/section-timelines`, no Slack, no Asana write.
+
+## E1. VERDICT — **5a WITHDRAW**
+
+S1's structural argument is **REFUTED at source**. Its two load-bearing sentences
+are both false:
+
+1. *"an imputed offer... contributes **no move events** and simply **does not
+   appear**"* — **FALSE.** An imputed offer appears in a weekend moved-set
+   whenever its `task_created_at` falls inside the window.
+2. *"its only effect is **omission**, which is **single-signed** (undercount,
+   never overcount)"* — **FALSE.** The effect is **two-signed**, and it is
+   two-signed under **both** available formulations of the filter.
+
+5a therefore **FAILS G4** on exactly the rule PT-02 issued for item 2: the error
+is not single-signed, so no direction can be declared. It **also fails G2** on
+exactly the receipt S1 used to fail item 2′ — SVR-S1-42 — which S1 did not carry
+one table-row down.
+
+The honest count of say-able readouts is **one: item 1a.**
+
+S1's own closing sentence — *"5a is the single most probable remaining error in
+the document and should be read by someone else before anyone relies on it"* —
+was correct, and it is now read.
+
+## E2. THE ONE HOP PAST — `query/temporal.py`
+
+S1's argument stops at `section_timeline_service.py:356-358` (imputation fires
+only when the filtered story list is empty → one interval → no transitions). That
+much is **TRUE and I verified it**:
+
+- `section_timeline_service.py:356-363` — `if not intervals:` → `_build_imputed_interval(...)`, `story_count = 0`.
+- `section_timeline_service.py:293-300` — the imputed interval is exactly one `SectionInterval(section_name=current, classification=account_activity, entered_at=task_created_at, exited_at=None)`.
+- One interval encodes zero transitions. Confirmed.
+
+**One hop past that is the code that would have to implement an occurrence set** —
+`TemporalFilter`, in `query/temporal.py`, the module imported by
+`query/__main__.py:925`, which iterates the very `tl.intervals` S1 cites. S1 never
+read it.
+
+`query/temporal.py:24-80`, read own-hands:
+
+| line | content | consequence |
+|---|---|---|
+| `:31-34` | filter criteria are `moved_to`, `moved_from`, `since`, `until` | this is the occurrence-set surface |
+| `:36` | *"An empty filter (all None) matches every timeline."* | criteria are conjunctive over **specified** fields only; unspecified fields impose nothing |
+| `:46` | `matches` = `any(self._interval_matches(interval, timeline) for interval in timeline.intervals)` | any single interval can produce a match |
+| `:51-58` | `moved_to` compares **the interval's own** `section_name` / `classification` | **no predecessor required** |
+| `:61-64` | `since` / `until` are tested against `interval.entered_at` | the window test is on the interval's own entry timestamp |
+| `:67-70` | `moved_from` is the **only** criterion that consults a predecessor, and it returns `False` at `idx == 0` | the sole guard against first-intervals is opt-in |
+| `:80` | `return True` | all specified criteria passed |
+
+**The false positive.** For an imputed offer the single interval carries
+`entered_at = task_created_at` (`section_timeline_service.py:297`) and the offer's
+**current** classification (`:296`). A natural weekend query —
+`{since: Saturday, until: Sunday}`, or `{moved_to: "active", since: Sat, until: Sun}`
+— specifies **no** `moved_from`, so `:67` is skipped and the `idx == 0` guard at
+`:69-70` is never reached. If the task was created during the weekend:
+
+- `:61-64` passes (`created_at` is in window)
+- `:51-58` passes (the interval's classification **is** the offer's current one)
+- `:80` → `True`
+
+**An offer that was created over the weekend and never moved is returned as
+having moved.** This is not a corner case: the population most likely to be
+imputed — no surviving `section_changed` stories — is precisely the newly-created
+population, whose `created_at` is precisely what lands inside recent windows. The
+defect concentrates exactly where the readout is aimed.
+
+**The workaround is two-signed in the other direction.** A consumer could specify
+`moved_from` to trip the `idx == 0` guard. But `_build_intervals_from_stories`
+(`section_timeline_service.py:231-267`) creates **one interval per story**, with
+`entered_at` = the story's `created_at` and `section_name` = the story's
+**destination** (`:232`), and **synthesises no pre-first-story interval**
+(`:225-226` returns `[], 0` for an empty story list; the loop appends only).
+Therefore `intervals[0]` is the destination of a **genuine first observed move**.
+Specifying `moved_from` excludes it — so an offer whose first-ever recorded move
+happened over the weekend is dropped. **False negative.**
+
+> **Without `moved_from`: false positives (imputed non-movers admitted).
+> With `moved_from`: false negatives (genuine first-movers excluded).
+> There is no formulation of this filter under which the error is single-signed.**
+
+And the filter is structurally blind to the distinction: `SectionInterval` carries
+no imputed/observed flag, an imputed interval and a final observed interval are
+both `exited_at=None`, and `_interval_matches` consults `timeline` **only** for
+the `moved_from` index lookup (`:68`) — it never reads `timeline.story_count`
+(`section_timeline.py:62`), the sole discriminator that exists.
+
+## E3. THE THREE PRESSED QUESTIONS
+
+### (1) Is "omission only" actually true? — **NO.**
+
+**Internally, yes; at every surface a readout could consume, no.**
+
+- The internal claim is verified: imputation produces one interval, one interval has no transitions (`section_timeline_service.py:293-300`, `:356-363`).
+- **But the claim never transfers to a consumable surface.** At the **HTTP** surface there are no move events *for any offer* — `OfferTimelineEntry` (`section_timeline.py:158-212`) is seven scalar fields (`offer_gid`, `office_phone`, `offer_id`, `active_section_days`, `billable_section_days`, `current_section`, `current_classification`) with `"extra": "forbid"` (`:212`), and the route returns `list[OfferTimelineEntry]` (`section_timelines.py:51`). No intervals, no transitions, no `story_count`. So "an imputed offer contributes no move event" is true of an object **no HTTP consumer receives**.
+- At the **CLI** surface, where transitions do exist, E2 shows an imputed offer **can** be emitted into a moved-set.
+
+S1 verified a property of `SectionTimeline.intervals` and asserted it of 5a's
+reported set. Those are different objects.
+
+### (2) Single-signed undercount — DR-5 duty, or G3 failure? — **The question is now moot, and the coordinator's instinct was substantially right.**
+
+Moot because the premise fails: the error is **not** single-signed (E2), so it is
+neither a well-behaved coverage duty nor a pure polarity problem — it is a **G4
+error-direction failure**, identical in kind to item 2's.
+
+But the suspicion deserves a direct answer, because it would have bitten even had
+the sign held. **Yes — S1 routed a G3-shaped problem to DR-5, and the mechanism is
+its own G2 pass.** The dilemma:
+
+- G2 (repaired) requires the denominator be **exhibitable**. S1 satisfies G2 by asserting *"`N observed to move of M offers` is exhibitable from the same response."*
+- Publishing `N` and `M` publishes `M − N`.
+- `M − N` **is 5b's answer** — *"what didn't move"* — which the artifact **withholds** on a replay-completeness UV-P.
+- The honest three-cell rendering that would defuse this — *moved / observed not to move / **no retained record*** — requires the imputed-or-empty count. That is `story_count`, and it is **dropped at the response boundary**: present on `SectionTimeline` (`section_timeline.py:62`), absent from `OfferTimelineEntry`'s seven fields (`:158-209`), and `extra="forbid"` (`:212`) forecloses adding it.
+
+> **Exhibit the denominator → you have published 5b → 5b's withheld ground bites.
+> Don't exhibit it → G2 FAIL. The 5a/5b split does not survive its own G2
+> requirement.**
+
+A discipline note, since I cleared 1a on G3(a) and must not now apply a different
+standard: the discriminator is principled, not ad hoc. **A positive claim about a
+VALUE is not an absence claim; a positive claim about SET MEMBERSHIP is an absence
+claim about every non-member, once the set is presented as exhaustive over a
+stated population.** 1a enumerates its population and gives each member its own
+observed value — no member's state is inferred from its absence. 5a partitions a
+population into `{moved}` and `{everything else}`, and the second cell is
+populated **entirely by absence of evidence**. That is G3's canonical
+confidently-wrong shape wearing a positive sentence.
+
+### (3) Does 2′'s G2 objection bite 5a? — **YES, identically.**
+
+S1 wrote for item 2′: *"the served population is 'offers, an unknown subset of
+which have inferred rather than observed histories,' and the readout **cannot
+exhibit its own population split**"* — §2.2 shape-1 population substitution, on
+receipt SVR-S1-42.
+
+5a draws from **the same call, the same imputation rule, and the same response
+boundary**. Every word transfers. S1 applied SVR-S1-42 to item 2 and to item 2′
+and did not apply it to the row immediately below. That is the §3.2
+adjacent-read pattern, and the missing read is not even one hop away — it is the
+seat's **own receipt, three rows up in its own ledger.**
+
+## E4. THE UNNAMED SURFACE — the defect that let the argument float
+
+5a never states which surface it consumes. That is not cosmetic: the two
+candidates give different failures, and the ambiguity is what allowed
+"occurrence set" to be asserted without being located.
+
+| surface | transitions? | `story_count`? | 5a's status |
+|---|---|---|---|
+| **HTTP** `GET /api/v1/offers/section-timelines` (`api/main.py:488`, `section_timelines.py:51`) | **No** — seven scalars (`section_timeline.py:158-212`) | **No** (`:212` `extra="forbid"`) | The occurrence set must be **inferred by differencing classification-filtered day counts** — the exact construction S1's own adopted C-6 rule calls **SIGN-AMBIGUOUS**. **G4 FAIL**, **G2 FAIL** |
+| **CLI** `query/__main__.py:925` + `TemporalFilter` (`query/temporal.py`) | **Yes** | Reachable on `SectionTimeline` (`:62`) | Occurrence framing is coherent, but the filter admits imputed first-intervals (E2). **G4 FAIL**; G2 recoverable only if `story_count` is exhibited, which S1 does not propose |
+
+`TemporalFilter` is **not wired to any API route** — the only `query.temporal`
+import anywhere under `api/` is `parse_date_or_relative`
+(`api/routes/_exports_helpers.py:46`). So the surface on which 5a's occurrence
+framing is even *coherent* is a CLI, which is not a rail to an offers-team
+member, and the surface that is a rail carries no occurrences at all.
+
+**Either surface: G4 FAIL.** The verdict does not turn on resolving the ambiguity
+— but the artifact should not have been able to reach `SAY-ABLE` without naming it.
+
+## E5. MY GATE MACHINERY — **gate defect, and it is mine**
+
+S1 asks, and does not rule, whether G4 passing an item whose error was not
+single-signed is a gate defect or an author defect. **Gate defect. I wrote it.**
+
+G4 as I repaired it at rev-2 asks: *"PASS iff a bound is **known** and its
+direction is **known**."* That is answerable **by assertion**. An author who has
+the typical case in mind answers "yes — stale-never-fresh" and passes, without
+ever enumerating the branches of the computation that produces the number. Item 2
+passed that way. 5a passed that way. Nothing in the gate text compels the
+enumeration that would have surfaced either.
+
+This is the **same defect class** I convicted G3 of at pass 1 — a PASS condition
+satisfiable by rewording rather than by evidence. I repaired G3's instance and
+left G4's standing. Recorded against myself.
+
+**Proposed repair, G4′ — forcing, not judgement:**
+
+> **G4′ — ERROR DIRECTION.** Enumerate the branches of the computation that
+> produces the published value, including every imputation, default, fallback,
+> filter and clipping rule on the path from source event to rendered figure. State
+> the sign of the error **on each branch**. **PASS iff every branch shares one
+> sign, and that sign is declared.** If any branch is unenumerated, G4′ **FAILS**
+> — an unenumerated branch is an undeclared direction.
+
+Applied to the three items in evidence, G4′ decides all of them mechanically and
+correctly: item 2 fails (two branches, opposite signs — PT-02's finding); 5a fails
+(with/without `moved_from`, opposite signs — E2); 1a passes (one branch, and the
+sign is fixed by the datum being the board's own copied timestamp).
+
+Routed to the author as a **predicate amendment**, not ruled into force here —
+amending §2.4 is the artifact's to do, and it changes no verdict already reached
+except to reach them for better reasons.
+
+## E6. WHAT I COULD NOT TEST — DELTA PASS 3
+
+- `[UV-P: the empirical frequency of the E2 false positive — how many offers in the Business Offers project are imputed AND have created_at inside a given weekend window | METHOD: deferred-to-live-probe (S4) | REASON: requires executing the endpoint or querying task creation dates; read-only fence, no API call made. The defect's EXISTENCE is proven by code-read; its RATE is not. A low rate would not rescue G4 — an undeclarable direction is undeclarable at any magnitude — but it bears on remediation urgency]`
+- `[UV-P: whether any consumer of 5a would in fact use TemporalFilter, day-count differencing, or a third construction not yet written | METHOD: deferred-to-S4 | REASON: 5a names no surface (E4); I enumerated the two that exist in code at origin/main and both fail G4. A construction nobody has written cannot be audited]`
+- `[UV-P: whether Asana's story stream is populated for offer tasks in production at all | METHOD: deferred-to-live-probe | REASON: carried unchanged from delta pass 2 and from S1's own §3.0.2; unaffected by this pass — the E2 defect fires whether the cache is warm or cold, because imputation is triggered by an empty FILTERED list regardless of cause]`
+- **Not tested by design**: item 1a (cleared, pass 2); item 2 and tier (iii) (PT-02's withdrawals, accepted not re-derived); items 3, 4, 1b, 5b; all operator-reserved items; GATE-FORK.
+
+## E7. GRADE — DELTA PASS 3
+
+| claim class | grade | ceiling and why |
+|---|---|---|
+| E2 — the imputed-offer false positive | **STRONG** | Four independent code reads composing a closed argument: the imputed interval's construction (`section_timeline_service.py:293-300`), the trigger (`:356-363`), the filter's criteria semantics including the opt-in-only predecessor guard (`query/temporal.py:36,46,51-58,61-64,67-70,80`), and the absence of any synthesised pre-first-story interval (`:225-226,231-267`). No inference gap; the conclusion follows from field values and control flow alone. |
+| E2 — two-signedness under both formulations | **STRONG** | Same anchors. The `moved_from` branch's false negative follows directly from `:69-70` plus the one-interval-per-story construction at `:231-267`. |
+| E3(3) — 2′'s G2 objection transfers to 5a | **STRONG** | Same call, same imputation rule, same response boundary; the receipt is S1's own SVR-S1-42, re-verified at `section_timeline.py:62` vs `:158-209` vs `:212`. |
+| E3(2) — the 5a/5b partition dilemma | **MODERATE** | Analytic; rests on reading G2's denominator requirement as entailing publication of the complement. Sound but it is a reading of my own gate text, and a competing reading (denominator exhibited as a bare count without inviting subtraction) is conceivable, if not honest. |
+| E4 — surface enumeration | **MODERATE** | Both surfaces read directly and the routing negative is a grep result (`api/routes/_exports_helpers.py:46` the sole `query.temporal` import under `api/`); but "these are the only two" is an exhaustiveness claim over a codebase I searched rather than proved. |
+| E5 — G4 is a gate defect | **MODERATE** | A judgement about my own instrument. Self-referential; capped per `self-ref-evidence-grade-rule`. The evidence for it is N=2 (items 2 and 5a both passed a gate that should have stopped them), which is suggestive, not dispositive. |
+| verdict **5a WITHDRAW** | **STRONG** | Rests on E2, which is STRONG and independently sufficient: an error whose sign flips with the consumer's filter formulation has no declarable direction, and G4 — in either the current or the proposed form — fails it. |
+
+**Calibration, recorded.** Three passes, three findings against the author, and
+**three concessions by me** — F-3 (I asserted a source usable without reading the
+fence), F-6's sub-claim (I offered a coverage stream without reading its
+coverage), and now E5 (I wrote a gate that could be satisfied by assertion, and it
+passed two defective items). The pattern S1 diagnosed in itself — *stopping at the
+first branch that confirms the sentence already being written* — is not a
+property of that seat. It is the failure mode of this whole exercise, and the only
+thing that has caught it, in every instance including mine, is a **second reader
+going one hop further**.
+
+**Honest count of say-able readouts: ONE — item 1a**, cleared at delta pass 2 on
+five attacks, on `/rows` per condition C-1, subject to the DR-2 as-of obligation.
+Item 2: withdrawn by PT-02. Item 5a: withdrawn here. Items 1b, 2′, 5b:
+`WITHHELD-PENDING`. Items 3, 4: `WITHHELD-AXIS`.
+
+A PR that ships one corroborated readout and an accurate count is worth more than
+one that ships three claimed. That was S1's own standard at §3.2 and it is met by
+withdrawing 5a, not by keeping it.
