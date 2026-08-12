@@ -32,9 +32,36 @@ if TYPE_CHECKING:
     )
     from autom8_asana.dataframes.section_persistence import SectionPersistence
 
-__all__ = ["ProgressiveTier"]
+__all__ = ["NULL_WATERMARK_DECAY_ANCHOR", "ProgressiveTier"]
 
 logger = get_logger(__name__)
+
+# FIX-N-B (offers-false-staleness-cure): the decay anchor for a storage
+# watermark that could not be derived.
+#
+# CONTRACT §1.3 (null semantics): "Null -> DECAY. A null content axis means
+# *unprovable*, and unprovable is **stale**, never fresh." The watermark is
+# NEVER synthesized. Anchoring the age clock at ``datetime.min`` makes a
+# null-watermark entry maximally stale by construction, so it classifies
+# exactly as ``_check_freshness`` classifies any past-ceiling entry (STALE ->
+# LKG) instead of reading age-0 / FRESH.
+#
+# SCOPE, STATED HONESTLY -- this closes a LATENT trap, not a firing one.
+# ``DataFrameStorage`` (the Protocol, ``dataframes/storage.py:114-138``) types
+# the watermark as ``datetime | None``, so ``(df, None, meta)`` is admissible at
+# the seam. The only concrete implementation in this repo,
+# ``S3DataFrameStorage``, cannot currently produce it: ``_load_at_keys``
+# (``storage.py:1043-1052``) GETs the watermark sidecar FIRST and returns the
+# whole tuple as ``None`` on a miss, constructing the datetime unconditionally
+# before the parquet GET. Measured null-watermark frequency in production is
+# ZERO. The guard therefore makes the invariant hold for ANY storage
+# implementation rather than by accident of the current one's read ordering.
+#
+# Finite by design: the CONTRACT's C-NULL-a shape asks for a deterministic
+# sentinel that is always greater than the ceiling, and explicitly refuses
+# non-finite values (``inf`` corrupts downstream minute conversion). This
+# anchor is finite, deterministic, and unmistakable for a real watermark.
+NULL_WATERMARK_DECAY_ANCHOR = datetime.min.replace(tzinfo=UTC)
 
 
 @dataclass
@@ -184,9 +211,29 @@ class ProgressiveTier:
         estimated_bytes = int(df.estimated_size())
         self._stats["bytes_read"] += estimated_bytes
 
-        # Use watermark from storage, or fall back to current time
+        # Use the watermark from storage. When storage carries none, DECAY --
+        # do NOT substitute now().
+        #
+        # FIX-N-B: the pre-fix code substituted ``datetime.now(UTC)`` here and
+        # then used that substitute as ``created_at`` below. Fed a frame of
+        # arbitrary true age with no watermark, that path hydrates at age 0 and
+        # reads FRESH -- a synthetic-fresh generator wired into the seam's type
+        # signature (CONTRACT §1.3 names this exact site). It is DISARMED today
+        # by ``S3DataFrameStorage``'s sidecar-first read ordering, not by any
+        # invariant this module holds; see NULL_WATERMARK_DECAY_ANCHOR. An
+        # underivable watermark is UNPROVABLE recency, and unprovable is stale.
+        watermark_provable = watermark is not None
         if watermark is None:
-            watermark = datetime.now(UTC)
+            watermark = NULL_WATERMARK_DECAY_ANCHOR
+            logger.warning(
+                "progressive_tier_null_watermark_decay",
+                extra={
+                    "key": key,
+                    "project_gid": project_gid,
+                    "entity_type": entity_type,
+                    "reason": "storage_watermark_absent_entry_decayed_not_synthesized",
+                },
+            )
 
         # Schema version: extract from watermark metadata (already loaded),
         # fall back to SchemaRegistry if not available
@@ -204,7 +251,13 @@ class ProgressiveTier:
             entity_type=entity_type,
             dataframe=df,
             watermark=watermark,
-            created_at=watermark,  # Use watermark as created_at for consistency
+            # Use watermark as created_at for consistency. Under FIX-N-B a null
+            # storage watermark carries the decay anchor here, so the entry is
+            # maximally stale rather than age-0 -- the serve decision is
+            # unchanged in kind (the availability design still serves a
+            # populated/healthy cache-only frame as LKG); only the freshness
+            # SIGNAL stops lying.
+            created_at=watermark,
             schema_version=schema_version,
         )
 
@@ -214,6 +267,10 @@ class ProgressiveTier:
                 "key": key,
                 "row_count": entry.row_count,
                 "bytes_read": estimated_bytes,
+                # FIX-N-B measurement surface: makes null-watermark S3 metadata
+                # countable per entity_type (the frequency the design flagged as
+                # a UV-P because no such log field existed).
+                "watermark_provable": watermark_provable,
             },
         )
 
