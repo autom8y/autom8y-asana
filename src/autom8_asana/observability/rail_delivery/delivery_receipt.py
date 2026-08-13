@@ -32,9 +32,9 @@ This module does NOT modify EX-4's frozen schema.
 
 from __future__ import annotations
 
-import hashlib
-import json
 from dataclasses import dataclass
+
+from autom8_asana.observability.payload_hash import canonical_payload_hash
 
 # Mirrors EX-4 DeliveryOutcome values (schema.py:99-101). Kept as bare strings
 # so this module carries no import dependency on EX-4's not-yet-in-tree package.
@@ -53,19 +53,16 @@ Block = dict[str, object]
 def content_hash(blocks: list[Block], text: str) -> str:
     """Canonical content hash of a Slack payload — THE cross-sprint contract.
 
-    Both the generation side (EX-5, which sets ``report_generated.content_hash``)
-    and the delivery side (this receipt) MUST hash the payload this way, or the
-    swap-check is meaningless. Canonicalisation: JSON with sorted keys and no
-    incidental whitespace, so semantically-identical payloads hash identically
-    and any content change flips the hash.
+    REC-001: this delegates to the ONE shared canonicalization
+    ``observability.payload_hash.canonical_payload_hash`` — the SAME symbol the
+    generation side (EX-5, which sets ``report_generated.content_hash``) calls.
+    There is deliberately no second ``json.dumps`` of the payload here: a divergent
+    delivery-side canonicalization is exactly what made the pre-CC-1 swap-check
+    inert (generation hashed the blocks alone; delivery hashed ``{blocks, text}``;
+    the two disagreed even on an honest delivery). The wrapper is kept so callers
+    that already import ``content_hash`` from this module are undisturbed.
     """
-    canonical = json.dumps(
-        {"blocks": blocks, "text": text},
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=False,
-    )
-    return "sha256:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return canonical_payload_hash(blocks, text)
 
 
 @dataclass(frozen=True)

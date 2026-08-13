@@ -23,6 +23,34 @@ The same census queried `event = "report_generated"` and returned **zero
 rows** — hence NO generation fixture is drawn from live data. The generation
 half is genuinely absent (this is the EX-4 founding finding, narrowed).
 
+## The count-preserving swap fixture — DERIVED (CC-1 swap-detector teeth)
+
+`test_swap_detector_closure.py` builds its swap fixture **in code** (helper
+`_swap`), not as a checked-in JSONL, because it must be derived from a REAL
+machine-generated occurrence for the teeth to mean anything. Derivation:
+
+1. Call the actual EX-5 mechanism `readout.generation.render(...)` over the
+   synthetic `tests/fixtures/readout/rows_response_item1a.json` → a
+   `GeneratedOccurrence` with `blocks`, `text`, and a real `content_hash`
+   (= `canonical_payload_hash(blocks, text)`, REC-001).
+2. Deep-copy `blocks` and overwrite ONLY the `say_able_number` slot's `text` +
+   `say_able_value` with a different, hand-pasted-style payload, and pair it with
+   a different fallback `text`. This is the **count-preserving swap**: the block
+   COUNT is unchanged (`len(swapped) == occ.block_count`) but the CONTENT differs,
+   so `canonical_payload_hash(swapped, swapped_text) != occ.content_hash`.
+
+Why count-preserving is the load-bearing property: the pre-CC-1 join only
+compared `block_count`, so a same-length swap slipped through as `observable`
+(RED capture `RED-verbatim.txt` / `RED-reconverge.txt`). A swap that CHANGED the
+count would have been caught on the coarse block-count check and would NOT
+exercise the content-hash teeth. The fixture is deliberately length-invariant so
+the ONLY signal that can catch it is clause 4a (the content-hash comparison).
+
+The swap is SYNTHETIC/derived: no live surface emits a swapped delivery, and no
+defect is injected into production code — the swap is a deliberately-wrong INPUT
+that the repaired join CORRECTLY REJECTS (`content_hash_mismatch`), paired with an
+honest input that passes (`observable`). See `discriminating-canary-doctrine`.
+
 ## `readout_with_machine_generation.jsonl` — SYNTHETIC (teeth)
 
 A single tick's delivery + a matching `report_generated` provenance event

@@ -174,8 +174,13 @@ class TestTeeth:
         assert occ.rung_e_limb_a_attestation is RungEObservability.NOT_OBSERVABLE
         assert occ.rung_e_not_observable_reason is NotObservableReason.ASSEMBLED_BY_HUMAN
 
-    def test_content_hash_block_count_mismatch_is_not_observable(self) -> None:
-        """A generated artifact that differs from the delivered one cannot pass."""
+    def test_block_count_mismatch_is_not_observable(self) -> None:
+        """A generated artifact of a DIFFERENT length cannot pass.
+
+        The delivery carries no content_hash (the live report_posted shape), so
+        clause 4a is unattested and the mismatch is caught on clause 4b under its
+        OWN reason BLOCK_COUNT_MISMATCH — not the pre-CC-1 CONTENT_HASH_MISMATCH
+        mislabel (no hash was ever compared here)."""
         delivery = {
             "event": "report_posted",
             "invocation_id": "T-2",
@@ -195,7 +200,7 @@ class TestTeeth:
         }
         occ = join_occurrences([delivery], [generation])[0]
         assert occ.rung_e_limb_a_attestation is RungEObservability.NOT_OBSERVABLE
-        assert occ.rung_e_not_observable_reason is NotObservableReason.CONTENT_HASH_MISMATCH
+        assert occ.rung_e_not_observable_reason is NotObservableReason.BLOCK_COUNT_MISMATCH
 
 
 # --------------------------------------------------------------------------

@@ -15,17 +15,21 @@ authorship, which is the load-bearing "no human assembled it" claim (RUNG 2 limb
 anti-pattern this initiative exists to end; the mechanism forecloses it by
 construction.
 
-EX-4 CONCERN-1 discharge — the REAL content_hash
-------------------------------------------------
-EX-4's ``report_posted`` (delivery) carries no ``content_hash``, so its join
-compares ``block_count`` under a ``CONTENT_HASH_MISMATCH`` label. This mechanism
-emits a REAL ``content_hash`` — a SHA-256 over the canonical bytes of the
-assembled block payload — so the generation half binds the delivered artifact to
-the machine-authored one. When the delivery emitter closes its documented
-``content_hash`` gap, the join's swap-detection can compare the two hashes
-directly; today ``block_count`` (a coarse projection of the same payload) carries
-it. The hash is a pure function of the bytes: identical payload -> identical
-hash; any payload change flips it.
+EX-4 CONCERN-1 discharge — the REAL content_hash (REC-001)
+----------------------------------------------------------
+This mechanism emits a REAL ``content_hash`` binding the delivered artifact to
+the machine-authored one. It is computed by the ONE shared canonicalization
+``observability.payload_hash.canonical_payload_hash(blocks, text)`` — the SAME
+symbol the delivery side (``rail_delivery.delivery_receipt``) calls. Before CC-1
+the generation side hashed the blocks ALONE while delivery hashed
+``{blocks, text}``; the two digests disagreed even for an honest delivery, so the
+swap-check could never fire. Grounding BOTH sides on one canonicalization is
+REC-001; the ``text`` half is the D-4 fallback surface (``render_fallback_text``).
+The hash is a pure function of the bytes: identical ``{blocks, text}`` payload ->
+identical hash; any change in a block OR the fallback text flips it. Once the
+delivery emitter carries this same hash, the join compares the two digests
+directly (join clause 4a); ``block_count`` (join clause 4b) remains a coarser
+fallback for deliveries that carry no hash.
 
 DF-1 — this module reads ONLY the ``/rows`` response bytes. It imports NOTHING
 from ``query.temporal`` (``TemporalFilter``), ``section_timelines``, or the story
@@ -41,11 +45,10 @@ over an in-memory response and emits an in-memory event; delivery is the caller'
 
 from __future__ import annotations
 
-import hashlib
-import json
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from autom8_asana.observability.payload_hash import canonical_payload_hash
 from autom8_asana.observability.rung_receipts.schema import (
     GENERATION_EVENT,
     Assembler,
@@ -57,7 +60,11 @@ from autom8_asana.readout.item_1a import (
     compute_item_1a,
     enumerate_g4_prime,
 )
-from autom8_asana.readout.template import Ex2Disposition, render_blocks
+from autom8_asana.readout.template import (
+    Ex2Disposition,
+    render_blocks,
+    render_fallback_text,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -77,8 +84,13 @@ HUMAN_IN_LOOP = False
 class GeneratedOccurrence:
     """One machine-generated readout occurrence: the artifact + its provenance.
 
-    * ``blocks`` — the assembled payload (what would be delivered to Slack).
-    * ``content_hash`` — SHA-256 over the canonical bytes of ``blocks``.
+    * ``blocks`` — the assembled block payload (delivered to Slack).
+    * ``text`` — the D-4 fallback text of the Slack payload (``render_fallback_text``).
+      The delivered artifact is ``{blocks, text}``; both are hashed together.
+    * ``content_hash`` — SHA-256 over the canonical bytes of ``{blocks, text}`` via
+      the ONE shared canonicalization (REC-001, ``canonical_payload_hash``). It
+      matches the delivery side's hash for the SAME ``{blocks, text}`` — that
+      agreement is what lets the join's clause-4a swap-check fire.
     * ``report_generated`` — the event dict EX-4's ``GenerationReceipt`` consumes,
       keyed on ``invocation_id`` and carrying the REAL ``content_hash``.
     """
@@ -88,21 +100,10 @@ class GeneratedOccurrence:
     figure: Item1aFigure
     g4_bound: G4PrimeBound
     blocks: list[dict[str, object]]
+    text: str
     content_hash: str
     block_count: int
     report_generated: dict[str, object]
-
-
-def content_hash_of(blocks: Sequence[Mapping[str, object]]) -> str:
-    """SHA-256 over the canonical JSON bytes of the assembled block payload.
-
-    Canonicalisation (sorted keys, compact separators) makes the hash a stable,
-    order-insensitive-within-object function of the payload's content, so it
-    binds THIS artifact and flips on any content change.
-    """
-    canonical = json.dumps(list(blocks), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-    digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
-    return f"sha256:{digest}"
 
 
 def extract_rows_and_meta(
@@ -177,7 +178,16 @@ def render(
         generated_at=generated_at,
         ex2_disposition=ex2_disposition,
     )
-    content_hash = content_hash_of(blocks)
+    text = render_fallback_text(
+        figure,
+        cadence_label=cadence_label,
+        seq=seq,
+        generated_at=generated_at,
+    )
+    # REC-001: the ONE shared canonicalization over {blocks, text}. The delivery
+    # side hashes the SAME {blocks, text} through the SAME symbol, so an honest
+    # delivery's hash equals this one and the join's clause-4a swap-check can fire.
+    content_hash = canonical_payload_hash(blocks, text)
     block_count = len(blocks)
 
     report_generated: dict[str, object] = {
@@ -199,6 +209,7 @@ def render(
         figure=figure,
         g4_bound=g4_bound,
         blocks=blocks,
+        text=text,
         content_hash=content_hash,
         block_count=block_count,
         report_generated=report_generated,

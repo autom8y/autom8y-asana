@@ -128,12 +128,31 @@ class Rung4Status(StrEnum):
 
 
 class NotObservableReason(StrEnum):
-    """Why an occurrence is not RUNG-E-limb-(a)-observable."""
+    """Why an occurrence is not RUNG-E-limb-(a)-observable.
+
+    ``ASSEMBLED_BY_HUMAN`` — KNOWN OVER-CLAIM (CC-1, flagged for the critic). The
+    join reaches this reason via ``assembled_by is not Assembler.MACHINE``, which
+    is TRUE for both ``HUMAN`` and ``UNKNOWN``. An ``UNKNOWN`` assembler means
+    authorship was NOT established either way; labelling it ``assembled_by_human``
+    asserts a human authored the payload when only *un-attested* authorship was
+    shown. The wire token is DELIBERATELY NOT renamed here: it is a frozen enum
+    value on the ``rung_e_not_observable_reason`` JSON-schema surface, and
+    renaming it is a breaking schema change out of CC-1's mission scope. Recorded
+    as a residual for the follow-on that owns the schema-version bump (a truthful
+    split would be ``assembled_by_human`` vs ``assembled_by_unknown``).
+
+    ``CONTENT_HASH_MISMATCH`` (clause 4a) and ``BLOCK_COUNT_MISMATCH`` (clause 4b)
+    are DISTINCT: 4a fires only when both sides carry a ``content_hash`` and they
+    differ; 4b fires on a bare block-count disagreement. Before CC-1 a block-count
+    disagreement was mislabelled ``content_hash_mismatch`` though no hash was ever
+    compared — the split ends that over-claim.
+    """
 
     GENERATION_PROVENANCE_ABSENT = "generation_provenance_absent"
     HUMAN_IN_LOOP = "human_in_loop"
-    ASSEMBLED_BY_HUMAN = "assembled_by_human"
-    CONTENT_HASH_MISMATCH = "content_hash_mismatch"
+    ASSEMBLED_BY_HUMAN = "assembled_by_human"  # also fires for UNKNOWN — see docstring
+    CONTENT_HASH_MISMATCH = "content_hash_mismatch"  # clause 4a: hashes differ
+    BLOCK_COUNT_MISMATCH = "block_count_mismatch"  # clause 4b: block_counts differ
     NOT_DELIVERED = "not_delivered"
 
 
@@ -167,6 +186,18 @@ class DeliveryReceipt:
     here because the live ``report_posted`` event does NOT currently emit a
     Slack message ts -- recorded as a gap the delivery emitter should close, not
     papered over.
+
+    ``content_hash`` (REC-003, CC-1) is the delivery-side half of the swap-check.
+    It is ``str | None`` and defaults ``None`` because the LIVE ``report_posted``
+    emitter does NOT populate it today (own-hands census
+    ``7c59f3d8-821c-4b47-9034-f5d02a3d3fc8`` carried no such field). When a
+    delivery carries it, the join's clause 4a compares it to the generation hash
+    (both produced by the ONE canonicalization ``canonical_payload_hash``); when a
+    delivery carries ``None``, clause 4a is UNATTESTED and the join falls back to
+    the coarser clause-4b ``block_count`` check. Making it OPTIONAL rather than
+    absent is the whole point: the field must EXIST so a hash-bearing delivery can
+    be compared, without a schema that rejects the hashless deliveries the live
+    emitter actually produces.
     """
 
     invocation_id: str
@@ -174,6 +205,7 @@ class DeliveryReceipt:
     block_count: int
     delivered_at: str
     outcome: DeliveryOutcome
+    content_hash: str | None = None
     trace_id: str | None = None
     message_ts: str | None = None
     permalink: str | None = None
@@ -194,6 +226,9 @@ class DeliveryReceipt:
             block_count=_as_int(evt.get("block_count", 0)),
             delivered_at=str(evt.get("timestamp", "")),
             outcome=outcome,
+            # REC-003: projected iff present on the wire; None for the live
+            # report_posted emitter, which carries no content_hash today.
+            content_hash=_opt_str(evt.get("content_hash")),
             trace_id=_opt_str(evt.get("trace_id")),
             message_ts=_opt_str(evt.get("message_ts")),
             permalink=_opt_str(evt.get("permalink")),
@@ -340,7 +375,7 @@ def _enum_default(obj: object) -> str:
 
 DELIVERY_LOGS_INSIGHTS_QUERY = (
     "fields @timestamp, invocation_id, channel, block_count, abort_reason, "
-    "trace_id, message_ts, permalink "
+    "content_hash, trace_id, message_ts, permalink "
     '| filter event = "report_posted" '
     "| sort @timestamp asc"
 )
@@ -390,6 +425,15 @@ RUNG_E_LIMB_A_RECEIPT_JSON_SCHEMA: dict[str, object] = {
                         "block_count": {"type": "integer"},
                         "delivered_at": {"type": "string"},
                         "outcome": {"enum": ["readout", "abort", "other"]},
+                        # REC-003 (CC-1): the delivery-side swap-check field.
+                        # Present in `properties` but DELIBERATELY NOT in
+                        # `required` above: the live report_posted emitter does
+                        # not populate it (census 7c59f3d8-... carried no
+                        # content_hash), so a schema that required it would
+                        # reject every real delivery receipt — describing an
+                        # instrument nobody runs. Format "sha256:<hex>" from
+                        # canonical_payload_hash when present.
+                        "content_hash": {"type": ["string", "null"]},
                         "trace_id": {"type": ["string", "null"]},
                         "message_ts": {"type": ["string", "null"]},
                         "permalink": {"type": ["string", "null"]},
@@ -430,7 +474,8 @@ RUNG_E_LIMB_A_RECEIPT_JSON_SCHEMA: dict[str, object] = {
                 "generation_provenance_absent",
                 "human_in_loop",
                 "assembled_by_human",
-                "content_hash_mismatch",
+                "content_hash_mismatch",  # clause 4a
+                "block_count_mismatch",  # clause 4b (CC-1 split)
                 "not_delivered",
                 None,
             ],
