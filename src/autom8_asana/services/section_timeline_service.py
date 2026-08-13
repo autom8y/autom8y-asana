@@ -733,6 +733,10 @@ def _compute_day_counts(
                 billable_section_days=billable_days,
                 current_section=current_section,
                 current_classification=current_classification,
+                # Carry the imputation discriminator to the wire. story_count == 0
+                # marks an imputed timeline (no observed stories); `imputed` is
+                # computed from it on OfferTimelineEntry.
+                story_count=timeline.story_count,
             )
         )
     return entries
