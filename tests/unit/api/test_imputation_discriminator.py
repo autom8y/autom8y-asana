@@ -149,7 +149,9 @@ class TestConsumerBranchesOnDiscriminator:
         summary = summarize_imputation([_entry("i", 0)])
         assert summary.basis == "inferred-from-story-cache-warmth"
         # The field name itself carries the inference caveat.
-        assert "inferred" in type(summary).model_fields["inferred_imputation_rate"].description.lower()
+        assert (
+            "inferred" in type(summary).model_fields["inferred_imputation_rate"].description.lower()
+        )
         # And there is no field claiming a measured/live value.
         assert "measured_imputation_rate" not in type(summary).model_fields
 
@@ -214,7 +216,4 @@ class TestImputationSummaryOnLivePath:
         """The envelope contract carries the summary (not optional)."""
         assert "imputation" in SectionTimelinesResponse.model_fields
         assert SectionTimelinesResponse.model_fields["imputation"].is_required()
-        assert (
-            SectionTimelinesResponse.model_fields["imputation"].annotation
-            is ImputationSummary
-        )
+        assert SectionTimelinesResponse.model_fields["imputation"].annotation is ImputationSummary

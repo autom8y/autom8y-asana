@@ -248,9 +248,7 @@ _WEEKEND_UNTIL = date(2025, 6, 8)
 
 def _single_active_interval() -> tuple[SectionInterval, ...]:
     """One open ACTIVE interval entered on the weekend Saturday."""
-    return (
-        _make_interval("ACTIVE", AccountActivity.ACTIVE, _WEEKEND_SATURDAY, None),
-    )
+    return (_make_interval("ACTIVE", AccountActivity.ACTIVE, _WEEKEND_SATURDAY, None),)
 
 
 def _imputed_timeline() -> SectionTimeline:
@@ -336,9 +334,7 @@ class TestImputedIntervalNotAMove:
 
     def test_genuine_move_matches_since_only(self) -> None:
         """POSITIVE CONTROL for since-only: genuine move in window still matches."""
-        assert TemporalFilter(since=_WEEKEND_SINCE).matches(
-            _genuine_first_move_timeline()
-        ) is True
+        assert TemporalFilter(since=_WEEKEND_SINCE).matches(_genuine_first_move_timeline()) is True
 
     def test_moved_from_workaround_drops_genuine_first_move(self) -> None:
         """Exit criterion 2: prove the moved_from workaround is sign-inverted.
@@ -352,21 +348,27 @@ class TestImputedIntervalNotAMove:
         genuine = _genuine_first_move_timeline()
 
         # The correct fix: genuine first move MATCHES without needing moved_from.
-        assert TemporalFilter(
-            moved_to="ACTIVE",
-            since=_WEEKEND_SINCE,
-            until=_WEEKEND_UNTIL,
-        ).matches(genuine) is True
+        assert (
+            TemporalFilter(
+                moved_to="ACTIVE",
+                since=_WEEKEND_SINCE,
+                until=_WEEKEND_UNTIL,
+            ).matches(genuine)
+            is True
+        )
 
         # The rejected workaround: adding moved_from drops the genuine first
         # move (idx == 0 -> no predecessor -> False). This is the sign
         # inversion the sprint must NOT ship.
-        assert TemporalFilter(
-            moved_to="ACTIVE",
-            moved_from="STAGING",
-            since=_WEEKEND_SINCE,
-            until=_WEEKEND_UNTIL,
-        ).matches(genuine) is False
+        assert (
+            TemporalFilter(
+                moved_to="ACTIVE",
+                moved_from="STAGING",
+                since=_WEEKEND_SINCE,
+                until=_WEEKEND_UNTIL,
+            ).matches(genuine)
+            is False
+        )
 
 
 # ---------------------------------------------------------------------------
