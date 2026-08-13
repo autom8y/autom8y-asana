@@ -112,7 +112,15 @@ squashed — auto-merge with `--squash` should behave normally here.
 
 ---
 
-# §PROPOSED — recorded for the operator, NOT opened
+# §PROPOSED — superseded header, see note
+
+> ## ✅ BOTH CARDS RULED 2026-08-13 — this section's "not opened" text is HISTORICAL
+>
+> `RULING-operator-morning-set-2026-08-13.md` R-11..R-13: **CARD-FU-5 was OPENED
+> by operator ruling** (100-campaign cap → card) and **CARD-FU-6 was PROMOTED to
+> the security rite** (S2S authorization gap → `HANDOFF-10x-dev-to-security-s2s-authz-2026-08-13.md`,
+> dispatched). The text below is preserved as filed; reading it in isolation
+> would re-litigate an already-opened card — don't.
 
 Surfaced by the 2026-08-12 overnight campaign. Only the operator opens a card in
 this register (ruling R-12). Each below states its own evidence and its own
