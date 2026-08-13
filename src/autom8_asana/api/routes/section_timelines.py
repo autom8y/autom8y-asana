@@ -30,7 +30,10 @@ from autom8_asana.api.errors import raise_api_error
 from autom8_asana.api.models import SuccessResponse, build_success_response
 from autom8_asana.api.routes._security import pat_router
 from autom8_asana.models.business.activity import AccountActivity
-from autom8_asana.models.business.section_timeline import OfferTimelineEntry
+from autom8_asana.models.business.section_timeline import (
+    ImputationSummary,
+    OfferTimelineEntry,
+)
 from autom8_asana.services.section_timeline_service import (
     BUSINESS_OFFERS_PROJECT_GID,
     get_or_compute_timelines,
@@ -41,14 +44,51 @@ logger = get_logger(__name__)
 router = pat_router(prefix="/api/v1/offers", tags=["offers"])
 
 
+def summarize_imputation(entries: list[OfferTimelineEntry]) -> ImputationSummary:
+    """Consume the per-entry imputation discriminator into a response summary.
+
+    This is the consumer that BRANCHES on ``OfferTimelineEntry.imputed``: it
+    partitions entries into observed vs imputed and derives an INFERRED
+    contamination rate. Without a consumer branching on the flag, surfacing it
+    yields "an honestly empty readout" — disclosure alone measures nothing. The
+    rate is inferred from story-cache warmth (story_count == 0), never measured
+    by a live Asana re-query (that path is operator-reserved, UV-P-E-3).
+    """
+    total = len(entries)
+    imputed = 0
+    observed = 0
+    for entry in entries:
+        if entry.imputed:  # <-- the branch on the imputed-vs-observed discriminator
+            imputed += 1
+        else:
+            observed += 1
+    rate = (imputed / total) if total else 0.0
+    return ImputationSummary(
+        total_offers=total,
+        observed_offers=observed,
+        imputed_offers=imputed,
+        inferred_imputation_rate=rate,
+        basis="inferred-from-story-cache-warmth",
+    )
+
+
 class SectionTimelinesResponse(BaseModel):
     """Response wrapper for section timeline data.
 
     Attributes:
         timelines: List of timeline entries for all offers.
+        imputation: INFERRED imputation posture for the payload, derived by
+            branching on each entry's ``imputed`` discriminator.
     """
 
     timelines: list[OfferTimelineEntry] = Field(..., description="Timeline entries for all offers")
+    imputation: ImputationSummary = Field(
+        ...,
+        description=(
+            "Inferred imputation posture: how much of this payload was imputed "
+            "(story_count == 0) rather than observed. INFERRED, not measured."
+        ),
+    )
 
     model_config = ConfigDict(
         extra="forbid",
@@ -64,8 +104,17 @@ class SectionTimelinesResponse(BaseModel):
                             "billable_section_days": 22,
                             "current_section": "ACTIVE",
                             "current_classification": "active",
+                            "story_count": 4,
+                            "imputed": False,
                         }
-                    ]
+                    ],
+                    "imputation": {
+                        "total_offers": 1,
+                        "observed_offers": 1,
+                        "imputed_offers": 0,
+                        "inferred_imputation_rate": 0.0,
+                        "basis": "inferred-from-story-cache-warmth",
+                    },
                 }
             ]
         },
@@ -193,7 +242,10 @@ async def get_offer_section_timelines(
         },
     )
 
-    response_data = SectionTimelinesResponse(timelines=entries)
+    response_data = SectionTimelinesResponse(
+        timelines=entries,
+        imputation=summarize_imputation(entries),
+    )
     return build_success_response(data=response_data, request_id=request_id)
 
 
