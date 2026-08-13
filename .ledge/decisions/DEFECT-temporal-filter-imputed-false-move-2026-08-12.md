@@ -8,7 +8,17 @@ severity: correctness — silent false positives on a shipped query surface
 found_by: the rite-disjoint hygiene critic at delta pass 3, going one hop past where the sprint stopped
 verified_by: main thread, independently, at origin/main
 routes_to: OPERATOR — this is a product defect, not a say-ability question
+discharged: 2026-08-13 by PR #360 (commit 49cf12ca) — see banner
 ---
+
+> ## ✅ DISCHARGED — fixed by PR #360 (`49cf12ca`, merged 2026-08-13, on `origin/main` @ `d45aa305`)
+>
+> The EX-3 sprint added the imputed-interval guard (`timeline.story_count == 0`
+> never satisfies a non-empty transition filter) plus the `imputed`/`story_count`
+> wire discriminator, with two-sided teeth (RED on the natural weekend-query
+> shape, GREEN on the no-defect variant). The `routes_to: OPERATOR` above is the
+> historical routing; no operator action remains on the acute defect. The
+> imputation *rate* question (Q-8) is separate and still open.
 
 # DEFECT — the temporal filter reports never-moved offers as having moved
 
