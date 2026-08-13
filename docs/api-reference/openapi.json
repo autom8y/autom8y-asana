@@ -962,6 +962,73 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "ImputationSummary": {
+        "additionalProperties": false,
+        "description": "Response-level, INFERRED imputation posture for a timelines payload.\n\nA section-timelines response is contaminated to the extent that its entries\nwere imputed (``story_count == 0``) rather than observed. At the row level a\n100%-imputed response is indistinguishable from a fully-observed one unless\na consumer branches on ``OfferTimelineEntry.imputed`` — which the endpoint\ndoes to populate this block.\n\nThe rate is **INFERRED, not measured**. ``story_count == 0`` marks an offer\nwhose section history was synthesised because no stories were cached at\ncompute time — a property of story-cache warmth, not of a live re-query of\nAsana. A live authenticated re-query (UV-P-E-3) is the only thing that would\nturn this into a measurement, and it is operator-reserved. Do not report\n``inferred_imputation_rate`` as an observed fact.",
+        "examples": [
+          {
+            "basis": "inferred-from-story-cache-warmth",
+            "imputed_offers": 45,
+            "inferred_imputation_rate": 0.375,
+            "observed_offers": 75,
+            "total_offers": 120
+          }
+        ],
+        "properties": {
+          "basis": {
+            "const": "inferred-from-story-cache-warmth",
+            "default": "inferred-from-story-cache-warmth",
+            "description": "Provenance of the rate. Fixed value marking it as an inference from story_count == 0, not a live measurement.",
+            "title": "Basis",
+            "type": "string"
+          },
+          "imputed_offers": {
+            "description": "Entries imputed from creation time (story_count == 0).",
+            "examples": [
+              45
+            ],
+            "minimum": 0.0,
+            "title": "Imputed Offers",
+            "type": "integer"
+          },
+          "inferred_imputation_rate": {
+            "description": "imputed_offers / total_offers (0.0 when total is 0). INFERRED from story-cache warmth, NOT measured by a live Asana re-query. Treat as a contamination estimate, never as an observed rate.",
+            "examples": [
+              0.375
+            ],
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Inferred Imputation Rate",
+            "type": "number"
+          },
+          "observed_offers": {
+            "description": "Entries with at least one observed story (story_count > 0).",
+            "examples": [
+              75
+            ],
+            "minimum": 0.0,
+            "title": "Observed Offers",
+            "type": "integer"
+          },
+          "total_offers": {
+            "description": "Number of entries in this response.",
+            "examples": [
+              120
+            ],
+            "minimum": 0.0,
+            "title": "Total Offers",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total_offers",
+          "observed_offers",
+          "imputed_offers",
+          "inferred_imputation_rate"
+        ],
+        "title": "ImputationSummary",
+        "type": "object"
+      },
       "MembersRequest": {
         "additionalProperties": false,
         "description": "Request body for adding/removing project members.\n\nPer FR-API-PROJ-007/008: Add/remove members endpoints.\n\nAttributes:\n    members: List of user GIDs to add or remove.",
@@ -1112,9 +1179,11 @@
             "billable_section_days": 22,
             "current_classification": "active",
             "current_section": "ACTIVE",
+            "imputed": false,
             "offer_gid": "1234567890123456",
             "offer_id": "OFF-0042",
-            "office_phone": "+15551234567"
+            "office_phone": "+15551234567",
+            "story_count": 4
           }
         ],
         "properties": {
@@ -1166,6 +1235,12 @@
             ],
             "title": "Current Section"
           },
+          "imputed": {
+            "description": "True when this entry was imputed (story_count == 0): the offer's section history was synthesised from its creation timestamp and current classification, not observed. An imputed entry means 'we have never observed this offer moving', NOT 'this offer never moved' — those are indistinguishable in the day counts alone. Consumers making retrospective 'moved'/'never-moved' claims MUST branch on this flag.",
+            "readOnly": true,
+            "title": "Imputed",
+            "type": "boolean"
+          },
           "offer_gid": {
             "description": "Asana task GID",
             "examples": [
@@ -1213,12 +1288,23 @@
             ],
             "pattern": "^\\+[1-9]\\d{6,14}$",
             "title": "Office Phone"
+          },
+          "story_count": {
+            "description": "Number of observed section_changed stories after filtering. 0 means the timeline was IMPUTED from the offer's creation timestamp and current classification — no section history was observed. The day-count fields alone cannot distinguish an imputed entry from a genuinely-static one; this count can.",
+            "examples": [
+              4
+            ],
+            "minimum": 0.0,
+            "title": "Story Count",
+            "type": "integer"
           }
         },
         "required": [
           "offer_gid",
           "active_section_days",
-          "billable_section_days"
+          "billable_section_days",
+          "story_count",
+          "imputed"
         ],
         "title": "OfferTimelineEntry",
         "type": "object"
@@ -1906,23 +1992,36 @@
       },
       "SectionTimelinesResponse": {
         "additionalProperties": false,
-        "description": "Response wrapper for section timeline data.\n\nAttributes:\n    timelines: List of timeline entries for all offers.",
+        "description": "Response wrapper for section timeline data.\n\nAttributes:\n    timelines: List of timeline entries for all offers.\n    imputation: INFERRED imputation posture for the payload, derived by\n        branching on each entry's ``imputed`` discriminator.",
         "examples": [
           {
+            "imputation": {
+              "basis": "inferred-from-story-cache-warmth",
+              "imputed_offers": 0,
+              "inferred_imputation_rate": 0.0,
+              "observed_offers": 1,
+              "total_offers": 1
+            },
             "timelines": [
               {
                 "active_section_days": 18,
                 "billable_section_days": 22,
                 "current_classification": "active",
                 "current_section": "ACTIVE",
+                "imputed": false,
                 "offer_gid": "1234567890123456",
                 "offer_id": "OFF-0042",
-                "office_phone": "+15551234567"
+                "office_phone": "+15551234567",
+                "story_count": 4
               }
             ]
           }
         ],
         "properties": {
+          "imputation": {
+            "$ref": "#/components/schemas/ImputationSummary",
+            "description": "Inferred imputation posture: how much of this payload was imputed (story_count == 0) rather than observed. INFERRED, not measured."
+          },
           "timelines": {
             "description": "Timeline entries for all offers",
             "items": {
@@ -1933,7 +2032,8 @@
           }
         },
         "required": [
-          "timelines"
+          "timelines",
+          "imputation"
         ],
         "title": "SectionTimelinesResponse",
         "type": "object"

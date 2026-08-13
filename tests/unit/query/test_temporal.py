@@ -220,6 +220,158 @@ class TestFilterEmpty:
 
 
 # ---------------------------------------------------------------------------
+# Limb (ii): imputed intervals must never satisfy a transition query.
+#
+# DEFECT-temporal-filter-imputed-false-move-2026-08-12: an offer with zero
+# observed stories is given ONE synthesised ("imputed") interval whose
+# entered_at is the offer's *creation* timestamp and whose classification is
+# the offer's *current* one (story_count == 0). Every TemporalFilter criterion
+# is transition-semantics (moved_to = entered, since/until = the transition
+# timestamp, moved_from = predecessor), so a non-empty filter that matches the
+# imputed interval reports a NEVER-MOVED offer as HAVING MOVED.
+#
+# Two-sided teeth (discriminating-canary doctrine §2.3): the imputed and the
+# genuine timelines below are byte-identical in interval shape — a single
+# ACTIVE interval entered on the weekend. ONLY story_count differs (0 vs 1).
+# The filter result must flip on that discriminator alone: imputed → rejected,
+# genuine → matched. A fixture matching on shape rather than substance cannot
+# do that.
+# ---------------------------------------------------------------------------
+
+
+# Saturday of a weekend window. The natural query is "what moved into ACTIVE
+# between Saturday and Sunday" — moved_to + since/until, moved_from OMITTED.
+_WEEKEND_SATURDAY = datetime(2025, 6, 7, tzinfo=UTC)
+_WEEKEND_SINCE = date(2025, 6, 7)
+_WEEKEND_UNTIL = date(2025, 6, 8)
+
+
+def _single_active_interval() -> tuple[SectionInterval, ...]:
+    """One open ACTIVE interval entered on the weekend Saturday."""
+    return (_make_interval("ACTIVE", AccountActivity.ACTIVE, _WEEKEND_SATURDAY, None),)
+
+
+def _imputed_timeline() -> SectionTimeline:
+    """A never-moved offer: zero observed stories, one imputed interval.
+
+    entered_at == task_created_at (the weekend Saturday), classification ==
+    the offer's current one, story_count == 0. This is exactly what
+    ``_build_imputed_interval`` produces for an offer with no cached stories.
+    """
+    return SectionTimeline(
+        offer_gid="imputed-1",
+        office_phone="+15550000001",
+        offer_id="OFR-IMP",
+        intervals=_single_active_interval(),
+        task_created_at=_WEEKEND_SATURDAY,
+        story_count=0,  # <-- the imputation discriminator
+    )
+
+
+def _genuine_first_move_timeline() -> SectionTimeline:
+    """A genuinely-observed first move into ACTIVE on the weekend Saturday.
+
+    Byte-identical interval shape to ``_imputed_timeline`` — the ONLY
+    difference is story_count > 0 (a real section_changed story was observed).
+    intervals[0] is therefore a *genuine first move*.
+    """
+    return SectionTimeline(
+        offer_gid="genuine-1",
+        office_phone="+15550000002",
+        offer_id="OFR-GEN",
+        intervals=_single_active_interval(),
+        task_created_at=_WEEKEND_SATURDAY,
+        story_count=1,  # <-- one observed story: a real move
+    )
+
+
+class TestImputedIntervalNotAMove:
+    """Limb (ii) two-sided teeth: the imputation discriminator flips the match."""
+
+    def test_imputed_interval_rejected_by_weekend_move_query(self) -> None:
+        """NEGATIVE CONTROL (RED-before): a never-moved offer must NOT match.
+
+        The natural weekend shape: moved_to + since/until, moved_from OMITTED.
+        Pre-fix this returns True (the false positive the DEFECT describes);
+        post-fix it must return False.
+        """
+        f = TemporalFilter(
+            moved_to="ACTIVE",
+            since=_WEEKEND_SINCE,
+            until=_WEEKEND_UNTIL,
+            # moved_from intentionally OMITTED — the natural query shape.
+        )
+        assert f.matches(_imputed_timeline()) is False
+
+    def test_genuine_move_still_matches_same_query(self) -> None:
+        """POSITIVE CONTROL: a genuine move under the SAME filter must match.
+
+        Same interval shape as the imputed case; only story_count differs.
+        The fix must bite ONLY on imputation, never on genuine moves.
+        """
+        f = TemporalFilter(
+            moved_to="ACTIVE",
+            since=_WEEKEND_SINCE,
+            until=_WEEKEND_UNTIL,
+        )
+        assert f.matches(_genuine_first_move_timeline()) is True
+
+    def test_imputed_interval_still_matches_empty_filter(self) -> None:
+        """An EMPTY filter matches every timeline, imputed included (unchanged)."""
+        assert TemporalFilter().matches(_imputed_timeline()) is True
+
+    def test_imputed_rejected_by_moved_to_only(self) -> None:
+        """moved_to alone is transition-semantics — imputed must not match."""
+        assert TemporalFilter(moved_to="ACTIVE").matches(_imputed_timeline()) is False
+
+    def test_imputed_rejected_by_since_only(self) -> None:
+        """since alone consults entered_at (a transition) — imputed must not match."""
+        assert TemporalFilter(since=_WEEKEND_SINCE).matches(_imputed_timeline()) is False
+
+    def test_imputed_rejected_by_until_only(self) -> None:
+        """until alone consults entered_at (a transition) — imputed must not match."""
+        assert TemporalFilter(until=_WEEKEND_UNTIL).matches(_imputed_timeline()) is False
+
+    def test_genuine_move_matches_since_only(self) -> None:
+        """POSITIVE CONTROL for since-only: genuine move in window still matches."""
+        assert TemporalFilter(since=_WEEKEND_SINCE).matches(_genuine_first_move_timeline()) is True
+
+    def test_moved_from_workaround_drops_genuine_first_move(self) -> None:
+        """Exit criterion 2: prove the moved_from workaround is sign-inverted.
+
+        The workaround engages the ``idx == 0`` guard, which drops EVERY
+        offer's genuine first move (``_build_intervals_from_stories`` synthesises
+        no pre-first interval). The correct fix (this sprint) keeps the genuine
+        first move while rejecting the imputed one — the workaround does the
+        opposite of both.
+        """
+        genuine = _genuine_first_move_timeline()
+
+        # The correct fix: genuine first move MATCHES without needing moved_from.
+        assert (
+            TemporalFilter(
+                moved_to="ACTIVE",
+                since=_WEEKEND_SINCE,
+                until=_WEEKEND_UNTIL,
+            ).matches(genuine)
+            is True
+        )
+
+        # The rejected workaround: adding moved_from drops the genuine first
+        # move (idx == 0 -> no predecessor -> False). This is the sign
+        # inversion the sprint must NOT ship.
+        assert (
+            TemporalFilter(
+                moved_to="ACTIVE",
+                moved_from="STAGING",
+                since=_WEEKEND_SINCE,
+                until=_WEEKEND_UNTIL,
+            ).matches(genuine)
+            is False
+        )
+
+
+# ---------------------------------------------------------------------------
 # parse_date_or_relative() tests
 # ---------------------------------------------------------------------------
 
