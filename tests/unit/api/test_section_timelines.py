@@ -26,6 +26,7 @@ def _mock_entries() -> list[OfferTimelineEntry]:
             billable_section_days=10,
             current_section="ACTIVE",
             current_classification="active",
+            story_count=6,
         ),
         OfferTimelineEntry(
             offer_gid="activating_1",
@@ -35,6 +36,7 @@ def _mock_entries() -> list[OfferTimelineEntry]:
             billable_section_days=5,
             current_section="ACTIVATING",
             current_classification="activating",
+            story_count=3,
         ),
         OfferTimelineEntry(
             offer_gid="inactive_1",
@@ -44,6 +46,7 @@ def _mock_entries() -> list[OfferTimelineEntry]:
             billable_section_days=0,
             current_section="INACTIVE",
             current_classification="inactive",
+            story_count=0,  # imputed — exercises the mixed observed/imputed path
         ),
     ]
 
@@ -84,6 +87,7 @@ class TestSectionTimelinesClassificationParam:
                 billable_section_days=5,
                 current_section="ACTIVE",
                 current_classification="active",
+                story_count=2,
             ),
         ]
 
@@ -181,6 +185,7 @@ class TestSectionTimelinesResponseFields:
                 billable_section_days=0,
                 current_section=None,
                 current_classification=None,
+                story_count=0,
             ),
         ]
 

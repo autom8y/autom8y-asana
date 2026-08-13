@@ -8,10 +8,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from autom8y_api_schemas import OfficePhoneField
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
 
 if TYPE_CHECKING:
     from autom8_asana.models.business.activity import AccountActivity
@@ -207,6 +207,34 @@ class OfferTimelineEntry(BaseModel):
         description="Classification of current section (e.g., active, activating)",
         examples=["active"],
     )
+    story_count: int = Field(
+        ...,
+        ge=0,
+        description=(
+            "Number of observed section_changed stories after filtering. "
+            "0 means the timeline was IMPUTED from the offer's creation "
+            "timestamp and current classification — no section history was "
+            "observed. The day-count fields alone cannot distinguish an "
+            "imputed entry from a genuinely-static one; this count can."
+        ),
+        examples=[4],
+    )
+
+    @computed_field(  # type: ignore[prop-decorator]
+        description=(
+            "True when this entry was imputed (story_count == 0): the offer's "
+            "section history was synthesised from its creation timestamp and "
+            "current classification, not observed. An imputed entry means 'we "
+            "have never observed this offer moving', NOT 'this offer never "
+            "moved' — those are indistinguishable in the day counts alone. "
+            "Consumers making retrospective 'moved'/'never-moved' claims MUST "
+            "branch on this flag."
+        ),
+    )
+    @property
+    def imputed(self) -> bool:
+        """Whether this entry's timeline was imputed (no observed stories)."""
+        return self.story_count == 0
 
     model_config = {
         "extra": "forbid",
@@ -220,6 +248,78 @@ class OfferTimelineEntry(BaseModel):
                     "billable_section_days": 22,
                     "current_section": "ACTIVE",
                     "current_classification": "active",
+                    "story_count": 4,
+                    "imputed": False,
+                }
+            ]
+        },
+    }
+
+
+class ImputationSummary(BaseModel):
+    """Response-level, INFERRED imputation posture for a timelines payload.
+
+    A section-timelines response is contaminated to the extent that its entries
+    were imputed (``story_count == 0``) rather than observed. At the row level a
+    100%-imputed response is indistinguishable from a fully-observed one unless
+    a consumer branches on ``OfferTimelineEntry.imputed`` — which the endpoint
+    does to populate this block.
+
+    The rate is **INFERRED, not measured**. ``story_count == 0`` marks an offer
+    whose section history was synthesised because no stories were cached at
+    compute time — a property of story-cache warmth, not of a live re-query of
+    Asana. A live authenticated re-query (UV-P-E-3) is the only thing that would
+    turn this into a measurement, and it is operator-reserved. Do not report
+    ``inferred_imputation_rate`` as an observed fact.
+    """
+
+    total_offers: int = Field(
+        ...,
+        ge=0,
+        description="Number of entries in this response.",
+        examples=[120],
+    )
+    observed_offers: int = Field(
+        ...,
+        ge=0,
+        description="Entries with at least one observed story (story_count > 0).",
+        examples=[75],
+    )
+    imputed_offers: int = Field(
+        ...,
+        ge=0,
+        description="Entries imputed from creation time (story_count == 0).",
+        examples=[45],
+    )
+    inferred_imputation_rate: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "imputed_offers / total_offers (0.0 when total is 0). INFERRED from "
+            "story-cache warmth, NOT measured by a live Asana re-query. Treat as "
+            "a contamination estimate, never as an observed rate."
+        ),
+        examples=[0.375],
+    )
+    basis: Literal["inferred-from-story-cache-warmth"] = Field(
+        default="inferred-from-story-cache-warmth",
+        description=(
+            "Provenance of the rate. Fixed value marking it as an inference "
+            "from story_count == 0, not a live measurement."
+        ),
+    )
+
+    model_config = {
+        "extra": "forbid",
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "total_offers": 120,
+                    "observed_offers": 75,
+                    "imputed_offers": 45,
+                    "inferred_imputation_rate": 0.375,
+                    "basis": "inferred-from-story-cache-warmth",
                 }
             ]
         },

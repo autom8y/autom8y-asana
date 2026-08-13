@@ -379,8 +379,10 @@ class TestOfferTimelineEntry:
             office_phone="+15550001000",
             active_section_days=7,
             billable_section_days=10,
+            story_count=5,
         )
         data = entry.model_dump()
+        # story_count and the computed `imputed` flag reach the serialized wire.
         assert data == {
             "offer_gid": "1205925604226368",
             "office_phone": "+15550001000",
@@ -389,6 +391,8 @@ class TestOfferTimelineEntry:
             "billable_section_days": 10,
             "current_section": None,
             "current_classification": None,
+            "story_count": 5,
+            "imputed": False,
         }
 
     def test_null_phone(self) -> None:
@@ -398,6 +402,7 @@ class TestOfferTimelineEntry:
             office_phone=None,
             active_section_days=0,
             billable_section_days=3,
+            story_count=2,
         )
         data = entry.model_dump()
         assert data["office_phone"] is None
@@ -411,6 +416,7 @@ class TestOfferTimelineEntry:
             billable_section_days=5,
             current_section="ACTIVE",
             current_classification="active",
+            story_count=4,
         )
         data = entry.model_dump()
         assert data["current_section"] == "ACTIVE"
@@ -423,6 +429,7 @@ class TestOfferTimelineEntry:
             office_phone=None,
             active_section_days=0,
             billable_section_days=0,
+            story_count=1,
         )
         assert entry.current_section is None
         assert entry.current_classification is None
@@ -436,6 +443,7 @@ class TestOfferTimelineEntry:
             billable_section_days=5,
             current_section="ACTIVATING",
             current_classification="activating",
+            story_count=3,
         )
         assert isinstance(entry.current_classification, str)
         assert entry.current_classification == "activating"
@@ -448,6 +456,7 @@ class TestOfferTimelineEntry:
             offer_id="OFR-1234",
             active_section_days=5,
             billable_section_days=5,
+            story_count=3,
         )
         data = entry.model_dump()
         assert data["offer_id"] == "OFR-1234"
@@ -459,6 +468,7 @@ class TestOfferTimelineEntry:
             office_phone=None,
             active_section_days=0,
             billable_section_days=0,
+            story_count=0,
         )
         data = entry.model_dump()
         assert data["offer_id"] is None
@@ -470,6 +480,7 @@ class TestOfferTimelineEntry:
             office_phone=None,
             active_section_days=0,
             billable_section_days=0,
+            story_count=0,
         )
         assert entry.offer_id is None
 
@@ -483,5 +494,6 @@ class TestOfferTimelineEntry:
                 office_phone=None,
                 active_section_days=0,
                 billable_section_days=0,
+                story_count=0,
                 bogus_field="should fail",  # type: ignore[call-arg]
             )
