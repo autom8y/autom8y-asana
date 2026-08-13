@@ -1,0 +1,22 @@
+{
+  "data": {
+    "data": [
+      {"gid": "111", "name": "Acme onboarding offer", "section": "Discovery", "last_modified": "2026-08-10T08:00:00Z"},
+      {"gid": "112", "name": "Acme expansion offer", "section": "Discovery", "last_modified": "2026-08-12T09:00:00Z"},
+      {"gid": "221", "name": "Globex renewal offer", "section": "Negotiation", "last_modified": "2026-08-11T14:30:00Z"},
+      {"gid": "222", "name": "Globex upsell offer", "section": "Negotiation", "last_modified": "2026-08-09T11:00:00Z"},
+      {"gid": "331", "name": "Initech pilot offer", "section": "Onboarding", "last_modified": "2026-08-08T10:00:00Z"},
+      {"gid": "332", "name": "Initech seat offer", "section": "Onboarding", "last_modified": "2026-08-07T16:45:00Z"}
+    ],
+    "meta": {
+      "total_count": 20,
+      "returned_count": 6,
+      "limit": 6,
+      "offset": 0,
+      "entity_type": "offer",
+      "project_gid": "SYNTHETIC-PROJECT-EX5",
+      "query_ms": 8.1,
+      "honest_contract_complete": true
+    }
+  }
+}
