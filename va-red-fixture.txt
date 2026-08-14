@@ -1,0 +1,9 @@
+VERIFICATION-AUDITOR SYNTHETIC RED FIXTURE — NOT REAL CREDENTIAL MATERIAL.
+Authored by the eunomia verification-auditor seat to prove the
+"Secrets Scan (enforcing)" branch-protection gate actually BITES.
+Every string below is a fabricated, structurally-valid-but-worthless
+placeholder. This branch and PR are retired unmerged.
+
+codeartifact_atk = "Atk-VAAUDITSYNTHETICFIXTURE0000000000000000NOTREAL"
+aws_access_key_id = "AKIAVAAUDITSYNTH0000"
+slack_incoming_hook = "https://hooks.slack.com/services/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otReal00"
