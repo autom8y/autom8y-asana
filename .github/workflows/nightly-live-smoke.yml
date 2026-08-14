@@ -21,29 +21,55 @@
 #   "skipped" outcome or fewer than the expected number of `passed` tests.
 #   "0 errors, all green" with a silent skip is treated as FAILURE.
 #
-# ON FAILURE: this workflow fails loudly (red in the Actions tab). No paging is
-#   wired — the red run IS the signal. Failure modes that are *expected* until
-#   the IAM grant lands are documented in the PR body (see below).
+# ON FAILURE: this workflow fails loudly (red in the Actions tab) AND pages the
+#   fleet alert route (see PAGE-ON-RED below). The red-60-nights-unpaged era
+#   (2026-06-11 -> 2026-08-14) is over: a red run is no longer a signal only to
+#   whoever happens to open the Actions tab.
 #
-# KNOWN IAM PREREQUISITE (honest disclosure — read before relying on green):
-#   The smokes assert the EXECUTING principal can read
-#   s3://<bucket>/asana-cache/tasks/<gid>/task.json (an AccessDenied is a real
-#   Layer-4 grant FAILURE, by design). The OIDC role this workflow assumes is
-#   `github-actions-deploy` — the SAME role the existing `Test` workflow uses for
-#   AWS (its trust policy `repo:autom8y/autom8*:*` permits this satellite to
-#   assume it). HOWEVER, at authoring time that role's policy grants S3 read ONLY
-#   on `autom8y-terraform/duckdb-extensions/*`; it does NOT yet grant
-#   `autom8-s3/asana-cache/tasks/*`. The exact grant the smoke needs already
-#   exists on the runtime reader (`autom8y-asana-service-ecs-task` inline policy
-#   `autom8y-asana-service-task-s3`, Sid `S3DurableTaskCacheReadOnly`) but that
-#   role is `ecs-tasks.amazonaws.com`-only and is NOT OIDC-assumable.
-#   => Until a read-only `asana-cache/tasks/*` grant is added to
-#      `github-actions-deploy` (or a dedicated OIDC smoke role is provisioned and
-#      wired via the `LIVE_SMOKE_ROLE` repo variable below), this nightly will
-#      fail on AccessDenied. That failure is honest, not flaky. Track the grant
-#      against the autom8y#481 IAM substrate.
-#   The role and bucket are repo-variable-overridable so the grant fix needs NO
-#   workflow edit (set vars LIVE_SMOKE_ROLE / ASANA_CACHE_S3_BUCKET).
+# ROOT CAUSE OF THE 60-NIGHT RED (fixed 2026-08-14, nightly-smoke-resurrection):
+#   NOT the OIDC exchange and NOT the predicted IAM AccessDenied. The
+#   `autom8y-config` package registers a pytest11 plugin whose AUTOUSE fixture
+#   `config_clean_env` (autom8y_config/testing/fixtures.py) deletes every
+#   `AWS_*` env var at EVERY test's setup for hermetic-config isolation. The
+#   OIDC step exported valid credentials into the job env (verified in run logs:
+#   the CodeArtifact step authenticated with them), the smokes' import-time skip
+#   gate saw them and RAN — and then the fixture deleted them before the first
+#   boto3 call, so signing found no credentials at all: the exact
+#   `NoCredentialsError` on every nightly since inception. On workstations the
+#   same deletion is MASKED: botocore falls through to the developer's ~/.aws
+#   SSO profile (the fixture scrubs env, not the shared-config chain), so the
+#   smokes pass locally — phantom green over the same defect.
+#   CURE (two legs, both in this file):
+#     1. `-p no:autom8y_config` on the pytest invocation. The nightly is the
+#        repo's DESIGNATED non-hermetic run; the hermeticity plugin is
+#        semantically wrong here. The `Test` workflow keeps it.
+#     2. CRED-BRIDGE (operator-ruled for this lane, nightly-smoke-resurrection
+#        brief 2026-08-14: "cred-bridge supersedes OIDC where that scar
+#        applies" — no fleet doc names the pattern; the mechanism below is
+#        anchored directly): the OIDC `github-actions-deploy` role's S3
+#        grant is vendor-scoped only (verified live 2026-08-14: sole S3 stmt =
+#        `autom8y-terraform/duckdb-extensions/*`), so with credentials fixed the
+#        smoke would hit the header-predicted AccessDenied next. The role
+#        carries `secretsmanager:GetSecretValue` on the `autom8_env` CI secret
+#        (inline Sid `CIReadAutom8EnvSecret` — provisioned for exactly this
+#        bridge); the smoke runs with the bridged pair from that secret, whose
+#        principal holds the durable-cache read (HEAD-verified against the live
+#        smoke object 2026-08-14).
+#   DURABLE SUCCESSOR (unchanged, tracked against the autom8y#481 IAM
+#   substrate): a read-only `autom8-s3/asana-cache/tasks/*` grant on
+#   `github-actions-deploy` (or a dedicated OIDC smoke role wired via the
+#   `LIVE_SMOKE_ROLE` repo variable). When that lands, delete the cred-bridge
+#   step and the bridged env on the smoke step; `-p no:autom8y_config` stays.
+#
+# PAGE-ON-RED (meta-gap cure): 60 red nights paged NOBODY because a scheduled
+#   run's failure notifies only Actions-tab watchers — the fleet's live alert
+#   route (SNS autom8y-platform-alerts -> Slack + email) never heard of it. The
+#   final `if: failure()` step publishes there via the same cred-bridge.
+#   HONEST LIMIT: a failure BEFORE the cred-bridge step (checkout, OIDC
+#   exchange itself) has no credentials to page with — that residual window is
+#   accepted and owned by the /sre lane; if it recurs, the durable fix is a
+#   CloudWatch-side dead-man on this workflow's green heartbeat, not more
+#   in-job wiring.
 
 name: Nightly Live Smoke
 
@@ -93,6 +119,31 @@ jobs:
           role-to-assume: ${{ vars.LIVE_SMOKE_ROLE || format('arn:aws:iam::{0}:role/github-actions-deploy', vars.AWS_ACCOUNT_ID) }}
           aws-region: us-east-1
 
+      - name: Cred-bridge — fetch the CI service credentials
+        # Cred-bridge, operator-ruled for this lane (see ROOT CAUSE header,
+        # leg 2). The OIDC role can read the
+        # `autom8_env` CI secret (Sid CIReadAutom8EnvSecret) but NOT the
+        # durable-cache S3 path; the bridged pair from the secret can. Values
+        # are masked BEFORE leaving this step and travel via step outputs, not
+        # the job env, so only the smoke + page steps see them.
+        id: credbridge
+        run: |
+          SECRET_JSON="$(aws secretsmanager get-secret-value \
+            --secret-id autom8_env --query SecretString --output text \
+            --cli-connect-timeout 15 --cli-read-timeout 30)"
+          BRIDGE_KEY="$(jq -r '.AWS_ACCESS_KEY_ID // empty' <<<"$SECRET_JSON")"
+          BRIDGE_SECRET="$(jq -r '.AWS_SECRET_ACCESS_KEY // empty' <<<"$SECRET_JSON")"
+          if [ -z "$BRIDGE_KEY" ] || [ -z "$BRIDGE_SECRET" ]; then
+            echo "::error::cred-bridge: autom8_env is missing AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY — bridge broken, smoke cannot run"
+            exit 1
+          fi
+          echo "::add-mask::$BRIDGE_KEY"
+          echo "::add-mask::$BRIDGE_SECRET"
+          {
+            echo "key=$BRIDGE_KEY"
+            echo "secret=$BRIDGE_SECRET"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Login to CodeArtifact
         run: |
           # Retry the token fetch (CodeArtifact connect-timeout flake class):
@@ -139,7 +190,22 @@ jobs:
           uv pip install --system --no-sources --group dev
 
       - name: Run live-smoke suite (skip-gate satisfied; fail loud on skip)
+        env:
+          # Bridged pair (see cred-bridge step): the principal that CAN read
+          # the durable cache. Step-scoped on purpose — nothing else needs it.
+          AWS_ACCESS_KEY_ID: ${{ steps.credbridge.outputs.key }}
+          AWS_SECRET_ACCESS_KEY: ${{ steps.credbridge.outputs.secret }}
         run: |
+          # The OIDC action exported a session token for the deploy role into
+          # the job env. The bridged pair above is a long-lived key pair with
+          # NO token — a stale AWS_SESSION_TOKEN next to it breaks SigV4, so
+          # drop it for this step's children.
+          unset AWS_SESSION_TOKEN
+          # -p no:autom8y_config: the autom8y-config pytest11 plugin's AUTOUSE
+          # config_clean_env fixture deletes AWS_* env at every test setup —
+          # the 60-night NoCredentialsError root cause (see header). The
+          # nightly is the designated NON-hermetic run; hermeticity stays on
+          # in the Test workflow.
           # -o addopts="" drops the repo-wide --dist=loadgroup (needs xdist);
           # -p no:xdist runs in the main process. -rs surfaces skip reasons in
           # the summary so the assertion step below can detect a silent skip.
@@ -148,6 +214,7 @@ jobs:
           python -m pytest \
             tests/unit/cache/test_durable_task_cache_live_smoke.py \
             tests/unit/dataframes/builders/test_null_number_recovery_live_smoke.py \
+            -p no:autom8y_config \
             -o addopts="" -o asyncio_mode=auto \
             -p no:xdist -p no:cacheprovider \
             -rs -v --no-header \
@@ -186,3 +253,25 @@ jobs:
           fi
 
           echo "Live-smoke forcing function satisfied: ${PASSED} tests passed, 0 skipped."
+
+      - name: Page on RED (red-detector alerting — meta-gap cure)
+        # 60 red nights paged nobody: scheduled-run failures notify only
+        # Actions-tab watchers. Publish every RED to the fleet's live alert
+        # route (autom8y-platform-alerts -> Slack + email) via the cred-bridge.
+        # HONEST LIMIT (pegged in the header): a failure BEFORE the cred-bridge
+        # step has no credentials to page with.
+        if: failure()
+        env:
+          AWS_ACCESS_KEY_ID: ${{ steps.credbridge.outputs.key }}
+          AWS_SECRET_ACCESS_KEY: ${{ steps.credbridge.outputs.secret }}
+        run: |
+          unset AWS_SESSION_TOKEN
+          if [ -z "$AWS_ACCESS_KEY_ID" ]; then
+            echo "::error::page-on-red: failure occurred before the cred-bridge step — no credentials to page with (header HONEST LIMIT); this RED was NOT paged"
+            exit 1
+          fi
+          aws sns publish \
+            --topic-arn "arn:aws:sns:us-east-1:696318035277:autom8y-platform-alerts" \
+            --subject "RED: Nightly Live Smoke (autom8y-asana)" \
+            --message "Nightly Live Smoke FAILED on ${GITHUB_REF_NAME}. The live durable-cache read smoke is RED — treat as a real Layer-4 signal (see workflow header). Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          echo "page-on-red: published to autom8y-platform-alerts"
