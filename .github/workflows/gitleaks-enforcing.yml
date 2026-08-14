@@ -27,8 +27,13 @@ name: Secrets Scan (enforcing)
 # composite `gitleaks / Secrets Scan` to dodge that registration.
 #
 # RETIREMENT PATH. If the upstream `|| true` is ever removed (fix locus (a)),
-# this local fork becomes redundant: delete this file AND de-register the
-# `Secrets Scan (enforcing)` context, in that order.
+# this local fork becomes redundant: FIRST de-register the
+# `Secrets Scan (enforcing)` context from branch protection (repo-admin,
+# operator-reserved), THEN delete this file — strictly in that order.
+# Deleting the file while the context is still required leaves it
+# unreportable: GitHub holds it PENDING forever and every merge blocks,
+# with no bypass under enforce_admins: true (AR-1 mode 2 — the same
+# failure mode described above for the delegated context).
 
 concurrency:
   group: gitleaks-enforcing-${{ github.ref }}
