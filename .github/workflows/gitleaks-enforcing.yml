@@ -1,0 +1,106 @@
+name: Secrets Scan (enforcing)
+
+# CC-7 (chain-of-custody-closure Phase 2) — operator ruling R-3, TWO-ACTION boundary.
+#
+# WHY THIS FILE EXISTS. `.github/workflows/gitleaks.yml` delegates to the reusable
+# workflow `autom8y/autom8y-workflows/.github/workflows/security-gitleaks.yml`
+# pinned at f5601acbe3905270dfcb9069854c78c0f940ad05, whose "Run gitleaks" step
+# ends in `|| true`. That swallow makes the delegated `gitleaks / Secrets Scan`
+# check ALWAYS GREEN: it uploads SARIF but can never fail a merge. This workflow
+# is the local ENFORCING leg — same engine, same config, no swallow.
+#
+# THIS JOB IS ADDED ALONGSIDE, NOT IN PLACE OF, THE DELEGATED JOB.
+# Removing the delegation would leave the registered required context
+# `gitleaks / Secrets Scan` with nothing to report it — GitHub holds an
+# unreportable required context PENDING forever and every merge blocks.
+# (AR-1 mode 2, CRITIQUE-cc6-gitleaks-recon-2026-08-13.md:124-127.)
+#
+# ACTION 2 IS NOT DONE BY THIS FILE. A plain local job reports a check-run
+# context equal to its own `name:` — here `Secrets Scan (enforcing)`. That
+# string is NOT in branch protection's required_status_checks. Until it is
+# registered, a RED run here does NOT block a merge: this file alone is a
+# non-biting gate (AR-1 mode 1, CRITIQUE-cc6…:119-123). Registration is a
+# separate, repo-admin, operator-reserved action and MUST happen only AFTER
+# this job has landed on main and been observed reporting — see
+# .ledge/decisions/RUNBOOK-cc7-branch-protection-registration-2026-08-14.md.
+# The job name is deliberately honest and MUST NOT be spoofed to the literal
+# composite `gitleaks / Secrets Scan` to dodge that registration.
+#
+# RETIREMENT PATH. If the upstream `|| true` is ever removed (fix locus (a)),
+# this local fork becomes redundant: delete this file AND de-register the
+# `Secrets Scan (enforcing)` context, in that order.
+
+concurrency:
+  group: gitleaks-enforcing-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  gitleaks-enforcing:
+    # This `name:` IS the check-run context string consumed by ACTION 2.
+    # Changing it silently de-registers the gate. Do not rename without
+    # updating branch protection in the same change window.
+    name: Secrets Scan (enforcing)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1 (node24)
+        with:
+          # Full history. `gitleaks detect` walks `git log -p`; a shallow
+          # checkout would silently scan almost nothing.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Assert baseline is present
+        # The baseline is load-bearing: without it this job is red on inherited
+        # history and blocks every merge. Fail loudly and early rather than
+        # letting a missing/renamed file surface as an opaque scan failure.
+        run: test -f .gitleaksignore
+
+      - name: Install gitleaks (version-pinned + sha256-verified)
+        env:
+          # Pinned to the SAME version the upstream reusable workflow installs,
+          # so the enforcing leg and the advisory leg cannot diverge on engine
+          # behaviour. Bump version and checksum together, never separately.
+          GITLEAKS_VERSION: 8.24.3
+          GITLEAKS_SHA256: 9991e0b2903da4c8f6122b5c3186448b927a5da4deef1fe45271c3793f4ee29c
+        run: |
+          set -euo pipefail
+          asset="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -sSfL --retry 3 --retry-delay 5 \
+            -o "${RUNNER_TEMP}/${asset}" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${asset}"
+          echo "${GITLEAKS_SHA256}  ${RUNNER_TEMP}/${asset}" | sha256sum -c -
+          tar -xz -C "${RUNNER_TEMP}" -f "${RUNNER_TEMP}/${asset}" gitleaks
+          "${RUNNER_TEMP}/gitleaks" version
+
+      - name: Run gitleaks (enforcing — no exit-code swallow)
+        # NO `|| true`. NO `continue-on-error`. A non-zero exit here is the
+        # entire point of this workflow.
+        #
+        # --redact          : secrets are masked in the job log (CR-5). Note
+        #                     that no SARIF/JSON report is written here at all;
+        #                     report bodies carry secret values and the
+        #                     delegated job already owns SARIF upload.
+        # --exit-code 1     : explicit, so the enforcing intent is stated in the
+        #                     command rather than inherited from a default.
+        # --gitleaks-ignore-path : explicit binding to the committed baseline.
+        # Config is auto-discovered from the repo-root .gitleaks.toml.
+        run: |
+          set -euo pipefail
+          "${RUNNER_TEMP}/gitleaks" detect \
+            --source . \
+            --gitleaks-ignore-path .gitleaksignore \
+            --redact \
+            --no-banner \
+            --exit-code 1

@@ -1,0 +1,130 @@
+# gitleaks baseline — historical-finding suppression for the ENFORCING gate
+#
+# Authority: SPRINT CC-7 (chain-of-custody-closure Phase 2), operator ruling R-3.
+#   BUILD-cc7-gitleaks-biting-gate-2026-08-14.md
+#   CRITIQUE-cc6-gitleaks-recon-2026-08-13.md §5.2 (CF-5 baseline scope)
+#   RECON-gitleaks-enforcement-locus-2026-08-13.md §2 corollary
+#
+# WHAT THIS IS. Every line below is a gitleaks FINDING FINGERPRINT of the form
+#   {commit-sha}:{file-path}:{rule-id}:{start-line}
+# Fingerprints are keyed on the (commit, file, rule, line) tuple — NOT on a bare
+# commit SHA, NOT on a path glob, and NOT on a secret value. No credential value
+# appears in this file, and none may ever be added to it (CR-5).
+#
+# WHY IT EXISTS. `gitleaks detect` walks the FULL git history (checkout
+# fetch-depth: 0, no --log-opts range restriction). Every historical finding in
+# this repo's history trips on every run, forever — history is immutable, so
+# rotating a credential does NOT green the scan (gitleaks pattern-matches
+# history, it does not validate token liveness). Without this baseline the
+# enforcing job at .github/workflows/gitleaks-enforcing.yml is red on day one
+# and blocks every merge to main.
+#
+# WHAT IT DOES NOT DO. This baseline suppresses ONLY the exact historical
+# (commit, file, rule, line) tuples enumerated below. A NEW secret introduced in
+# ANY new commit produces a NEW fingerprint that is NOT in this list, and the
+# enforcing gate goes red. That two-sidedness is the whole point: the baseline
+# unblocks CI on inherited history without blinding the gate to new leaks. It is
+# also orthogonal to credential ROTATION, which is a separate, operator-reserved
+# remediation and is neither performed nor discharged by this file.
+#
+# MAINTENANCE. Do not add entries by hand and do not add path/rule globs. To
+# extend, re-run the enforcing scan, export the JSON report to a scratch path
+# OUTSIDE the repo, and lift ONLY the `.Fingerprint` field via jq. The report
+# body carries secret values; it must never be committed, printed, or pasted.
+#
+# Baseline snapshot: 49 fingerprints across 26 commits and 22 files,
+# generated from origin/main d75601531edd220e693ce279f10b2a9b1d171f20
+# with gitleaks v8.24.3 and the repo-root .gitleaks.toml.
+
+# .claude/sessions/session-20260212-002451-ec865d27/events.jsonl
+66e43a6b930f19e78c998be099e31eb0d0910230:.claude/sessions/session-20260212-002451-ec865d27/events.jsonl:asana-client-id:65
+
+# .claude/settings.local.json
+15cffee1d7a922578a23402ae7fe3b6957987665:.claude/settings.local.json:asana-native-pat:50
+15cffee1d7a922578a23402ae7fe3b6957987665:.claude/settings.local.json:asana-native-pat:51
+15cffee1d7a922578a23402ae7fe3b6957987665:.claude/settings.local.json:asana-native-pat:52
+525431de025246753649d346327c77213ba1e12b:.claude/settings.local.json:asana-native-pat:87
+525431de025246753649d346327c77213ba1e12b:.claude/settings.local.json:asana-native-pat:88
+
+# .github/workflows/test.yml
+30f87330b9fddf4dc75e08d94d07ae299afc068e:.github/workflows/test.yml:asana-client-id:22
+a3fe340fda8bc229c6ccccfdc9ce9df5286a7f96:.github/workflows/test.yml:asana-client-id:18
+
+# .ledge/reviews/DEFECT-seam1-entity-blind-prober-plane-split-2026-07-27.md
+20e92a6cdf57af6c5ddec3cfb96750a76b160b26:.ledge/reviews/DEFECT-seam1-entity-blind-prober-plane-split-2026-07-27.md:generic-api-key:80
+bdbf86cb853231e295a9703798ced239c4d383d4:.ledge/reviews/DEFECT-seam1-entity-blind-prober-plane-split-2026-07-27.md:generic-api-key:80
+
+# src/autom8_asana/client.py
+752062ea815cd8bad69b50f8dbc1d1a1d49e86bc:src/autom8_asana/client.py:asana-client-id:53
+83d6d7bb1a05056ec4a262b87749c2524136f610:src/autom8_asana/client.py:asana-client-id:103
+eff1d0d228630ae05cc13839c61f7047671563e5:src/autom8_asana/client.py:asana-client-id:30
+
+# tests/api/test_routes_internal.py
+d296244d837c79b9cd993f16976b19821e00dd79:tests/api/test_routes_internal.py:generic-api-key:307
+
+# tests/api/test_routes_query_rows.py
+81d42fbc7b46bf3d173df6bc6a00a1768ac614bd:tests/api/test_routes_query_rows.py:generic-api-key:761
+
+# tests/api/test_routes_query.py
+926da9493278612ddf352c5b00af6b5933b1b1e6:tests/api/test_routes_query.py:generic-api-key:577
+
+# tests/api/test_routes_resolver.py
+20711b26ca818816462ccd6cc77b1f1c3b11f74a:tests/api/test_routes_resolver.py:generic-api-key:401
+
+# tests/integration/test_gfr_tenant_roundtrip.py
+48f54bcf526eb34e4c6659740daaeb004c9802f1:tests/integration/test_gfr_tenant_roundtrip.py:generic-api-key:404
+e49c30d7d316ae4339c1dc8ed98692e049f0e310:tests/integration/test_gfr_tenant_roundtrip.py:generic-api-key:404
+
+# tests/test_auth/test_dependencies.py
+eff1d0d228630ae05cc13839c61f7047671563e5:tests/test_auth/test_dependencies.py:generic-api-key:133
+eff1d0d228630ae05cc13839c61f7047671563e5:tests/test_auth/test_dependencies.py:generic-api-key:149
+
+# tests/test_auth/test_dual_mode.py
+eff1d0d228630ae05cc13839c61f7047671563e5:tests/test_auth/test_dual_mode.py:generic-api-key:22
+eff1d0d228630ae05cc13839c61f7047671563e5:tests/test_auth/test_dual_mode.py:generic-api-key:33
+eff1d0d228630ae05cc13839c61f7047671563e5:tests/test_auth/test_dual_mode.py:generic-api-key:44
+eff1d0d228630ae05cc13839c61f7047671563e5:tests/test_auth/test_dual_mode.py:jwt:99
+f87c8be6fb5418cc00e28fdf687daa6e9b26ebd8:tests/test_auth/test_dual_mode.py:generic-api-key:162
+f87c8be6fb5418cc00e28fdf687daa6e9b26ebd8:tests/test_auth/test_dual_mode.py:generic-api-key:171
+f87c8be6fb5418cc00e28fdf687daa6e9b26ebd8:tests/test_auth/test_dual_mode.py:generic-api-key:189
+
+# tests/test_auth/test_integration.py
+ae2d598398c3261a61dd6567d42efdbb115184e7:tests/test_auth/test_integration.py:generic-api-key:296
+eff1d0d228630ae05cc13839c61f7047671563e5:tests/test_auth/test_integration.py:generic-api-key:104
+eff1d0d228630ae05cc13839c61f7047671563e5:tests/test_auth/test_integration.py:generic-api-key:64
+eff1d0d228630ae05cc13839c61f7047671563e5:tests/test_auth/test_integration.py:generic-api-key:82
+
+# tests/unit/api/middleware/test_idempotency_contracts.py
+c62c019b2289f1bd775467e81b8f46859b3c15aa:tests/unit/api/middleware/test_idempotency_contracts.py:generic-api-key:129
+
+# tests/unit/api/middleware/test_idempotency_finalize_scar.py
+8a3bb21b9b04fe92ad321043edaad2c05ff07d8c:tests/unit/api/middleware/test_idempotency_finalize_scar.py:generic-api-key:46
+
+# tests/unit/api/routes/test_projects_sections_hardened.py
+16d281d6fcb3de2648039082ab33c4ea58b1caba:tests/unit/api/routes/test_projects_sections_hardened.py:generic-api-key:57
+51cc12fefb595a23e1b049106413d8bc1a251134:tests/unit/api/routes/test_projects_sections_hardened.py:generic-api-key:57
+
+# tests/unit/api/routes/test_resolver_gid_contract.py
+f31dc664415d4423d65aad8da1e6a002b872d49c:tests/unit/api/routes/test_resolver_gid_contract.py:generic-api-key:397
+
+# tests/unit/auth/test_dual_mode.py
+9bb06bd8f5348b279a719a7a79200ce71d7dfb4b:tests/unit/auth/test_dual_mode.py:generic-api-key:162
+9bb06bd8f5348b279a719a7a79200ce71d7dfb4b:tests/unit/auth/test_dual_mode.py:generic-api-key:23
+
+# tests/unit/query/test_hierarchy.py
+55e6f7eb6677ab3ccfffd4a56f480f800482a285:tests/unit/query/test_hierarchy.py:generic-api-key:146
+
+# tests/unit/test_client.py
+eff1d0d228630ae05cc13839c61f7047671563e5:tests/unit/test_client.py:asana-client-id:380
+
+# tests/unit/test_config_validation.py
+3b1c48fff87836d2eab34217004169806fd77b23:tests/unit/test_config_validation.py:asana-client-id:468
+3b1c48fff87836d2eab34217004169806fd77b23:tests/unit/test_config_validation.py:asana-client-id:469
+3b1c48fff87836d2eab34217004169806fd77b23:tests/unit/test_config_validation.py:asana-client-id:507
+3b1c48fff87836d2eab34217004169806fd77b23:tests/unit/test_config_validation.py:asana-client-id:548
+3b1c48fff87836d2eab34217004169806fd77b23:tests/unit/test_config_validation.py:asana-client-id:560
+
+# tests/unit/test_settings.py
+eff1d0d228630ae05cc13839c61f7047671563e5:tests/unit/test_settings.py:asana-client-id:39
+eff1d0d228630ae05cc13839c61f7047671563e5:tests/unit/test_settings.py:asana-client-id:452
+eff1d0d228630ae05cc13839c61f7047671563e5:tests/unit/test_settings.py:asana-client-id:453
