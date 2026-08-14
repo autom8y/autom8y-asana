@@ -17,7 +17,6 @@ from autom8_asana.readout.generation import (
     GENERATOR_VERSION,
     HUMAN_IN_LOOP,
     GeneratedOccurrence,
-    content_hash_of,
     extract_rows_and_meta,
     render,
 )
@@ -35,6 +34,7 @@ from autom8_asana.readout.template import (
     Ex2Disposition,
     ReadoutSlot,
     render_blocks,
+    render_fallback_text,
 )
 
 __all__ = [
@@ -44,7 +44,6 @@ __all__ = [
     "GENERATOR_VERSION",
     "HUMAN_IN_LOOP",
     "GeneratedOccurrence",
-    "content_hash_of",
     "extract_rows_and_meta",
     "render",
     # item 1a computation
@@ -60,4 +59,5 @@ __all__ = [
     "Ex2Disposition",
     "ReadoutSlot",
     "render_blocks",
+    "render_fallback_text",
 ]

@@ -28,6 +28,7 @@ import pytest
 import autom8_asana.readout.generation as generation_mod
 import autom8_asana.readout.item_1a as item_1a_mod
 import autom8_asana.readout.template as template_mod
+from autom8_asana.observability.payload_hash import canonical_payload_hash
 from autom8_asana.observability.rung_receipts import run_query
 from autom8_asana.observability.rung_receipts.schema import (
     Assembler,
@@ -37,13 +38,13 @@ from autom8_asana.observability.rung_receipts.schema import (
 from autom8_asana.readout import (
     Ex2Disposition,
     G4PrimeSign,
+    GeneratedOccurrence,
     Item1aError,
     compute_item_1a,
     enumerate_g4_prime,
     render,
     render_blocks,
 )
-from autom8_asana.readout.generation import GeneratedOccurrence, content_hash_of
 
 FIXTURES = Path(__file__).parent.parent / "fixtures" / "readout"
 SCOPE = ["Discovery", "Negotiation", "Onboarding", "Closed Won"]
@@ -261,9 +262,9 @@ class TestContentHash:
         int(hexpart, 16)  # is hex — raises if not
 
     def test_content_hash_covers_the_delivered_payload(self) -> None:
-        """The emitted hash is exactly the hash of the assembled blocks."""
+        """The emitted hash is exactly the shared-canon hash of {blocks, text}."""
         occ = _generate()
-        assert occ.report_generated["content_hash"] == content_hash_of(occ.blocks)
+        assert occ.report_generated["content_hash"] == canonical_payload_hash(occ.blocks, occ.text)
 
     def test_content_hash_is_deterministic(self) -> None:
         assert _generate().content_hash == _generate().content_hash
@@ -363,17 +364,18 @@ class TestLimbAJoinGreen:
         assert after["receipts"][0]["rung_e_limb_a_attestation"] == "observable"
 
     def test_swap_is_caught_via_block_count(self) -> None:
-        """A delivered artifact different from the generated one cannot pass.
+        """A delivered artifact of a DIFFERENT length cannot pass.
 
-        EX-4's join compares block_count under the CONTENT_HASH_MISMATCH label
-        (report_posted carries no content_hash). Our generation half now carries
-        a REAL content_hash ready for when delivery closes that gap; today the
-        swap is caught on block_count."""
+        This ``_delivery_for`` helper builds a hashless delivery (the live
+        report_posted shape), so clause 4a is unattested and the swap is caught on
+        clause 4b's block-count — under its OWN reason BLOCK_COUNT_MISMATCH, not
+        mislabelled a hash mismatch (CC-1 split). The content-hash swap-check for
+        a count-PRESERVING swap is exercised in test_swap_detector_closure.py."""
         occ = _generate(invocation_id="EX5-SWAP")
         swapped_delivery = _delivery_for(occ, block_count=occ.block_count + 5)
         limb_a = run_query([swapped_delivery, occ.report_generated])["rung_e_limb_a"]
         assert limb_a["receipts"][0]["rung_e_not_observable_reason"] == (
-            NotObservableReason.CONTENT_HASH_MISMATCH.value
+            NotObservableReason.BLOCK_COUNT_MISMATCH.value
         )
 
     def test_rung_4_ladder_stays_operator_only(self) -> None:

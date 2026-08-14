@@ -80,6 +80,35 @@ _ORIENTATION_FOOTER = (
 )
 
 
+def render_fallback_text(
+    figure: Item1aFigure,
+    *,
+    cadence_label: str,
+    seq: int,
+    generated_at: str,
+) -> str:
+    """The D-4 fallback ``text`` surface of the Slack payload.
+
+    A Slack message is ``blocks`` PLUS a top-level ``text`` (the notification /
+    accessibility fallback). The ``{blocks, text}`` content-hash contract
+    (REC-001, ``observability.payload_hash``) needs a ``text`` to bind, so the
+    generation mechanism produces one HERE — deterministically, from the figure,
+    with NO human-typed slot (the load-bearing "no human assembled it" invariant
+    extends to the fallback text, not just the blocks).
+
+    It restates the ONE say-able number and its typed denominator as a flat
+    string. It carries the same recency-not-completeness register as the
+    orientation footer; it never recommends, ranks, or steers.
+    """
+    denom = DenominatorSlot(k=figure.k, n=figure.n)
+    return (
+        f"{cadence_label} offers readout · occurrence #{seq} · generated "
+        f"{generated_at}: the most recent observed offer edit across "
+        f"{denom.render()} was {figure.as_of_iso}. Recency statement — not a "
+        f"completeness guarantee and not a movement count."
+    )
+
+
 def render_blocks(
     figure: Item1aFigure,
     g4_bound: G4PrimeBound,
