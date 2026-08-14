@@ -1,0 +1,2 @@
+SYNTHETIC CC-7 bite-proof canary - NOT a real credential. DO NOT MERGE.
+token_shape: 1/123456789012:0123456789abcdef0123456789abcdef
