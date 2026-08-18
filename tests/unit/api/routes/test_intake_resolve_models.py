@@ -93,14 +93,42 @@ class TestBusinessResolveResponse:
         assert resp.office_phone is None
         assert resp.vertical is None
         assert resp.company_id is None
-        assert resp.has_unit is False  # default
-        assert resp.has_contact_holder is False  # default
+        assert resp.has_unit is None  # F-9 tri-state default: UNOBSERVED
+        assert resp.has_contact_holder is None  # F-9 tri-state default
 
-    def test_boolean_defaults_false(self) -> None:
-        """has_unit and has_contact_holder default to False."""
+    def test_sub_entity_defaults_unobserved(self) -> None:
+        """F-9: has_unit and has_contact_holder default to None (UNOBSERVED),
+        never False -- an unobserved sub-entity must not be representable as
+        an asserted absence."""
         resp = BusinessResolveResponse(found=True, task_gid="123")
-        assert resp.has_unit is False
-        assert resp.has_contact_holder is False
+        assert resp.has_unit is None
+        assert resp.has_contact_holder is None
+
+    def test_unobserved_sub_entities_are_omitted_from_the_wire(self) -> None:
+        """F-9 exclude-unset semantics: unset sub-entity fields do not appear
+        in the serialized output at all (the consuming probe's
+        ``model_fields_set`` read then resolves them to ABSENT/UNOBSERVED)."""
+        resp = BusinessResolveResponse(found=True, task_gid="123")
+        dumped = resp.model_dump()
+        assert "has_unit" not in dumped
+        assert "has_contact_holder" not in dumped
+        json_dumped = resp.model_dump_json()
+        assert "has_unit" not in json_dumped
+        assert "has_contact_holder" not in json_dumped
+
+    def test_asserted_false_sub_entities_stay_on_the_wire(self) -> None:
+        """F-9 teeth-preservation: an EXPLICITLY asserted false (a non-empty
+        listing observed without the holder) is serialized -- the first-create
+        tripwire keeps its positive-contradiction bite."""
+        resp = BusinessResolveResponse(
+            found=True,
+            task_gid="123",
+            has_unit=False,
+            has_contact_holder=True,
+        )
+        dumped = resp.model_dump()
+        assert dumped["has_unit"] is False
+        assert dumped["has_contact_holder"] is True
 
     def test_frozen(self) -> None:
         """BusinessResolveResponse is frozen."""

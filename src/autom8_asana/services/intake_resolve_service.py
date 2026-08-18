@@ -84,6 +84,24 @@ class BusinessVerificationError(Exception):
         super().__init__(f"business verification failed ({reason}) for gid={gid}")
 
 
+class SubtaskObservationError(Exception):
+    """UNAVAILABLE: the business resolved but its sub-entity observation faulted.
+
+    F-9 durable cure (5xx-on-subtask-fault): a faulted subtask listing is an
+    INSTRUMENT fault, never an observation. The pre-cure path swallowed the
+    fault with a warning and stamped ``has_unit=False`` /
+    ``has_contact_holder=False`` -- handing the W5-3 first-create tripwire a
+    fabricated positive contradiction, i.e. an ordinary transient Asana fault
+    could become an unattended production revert. Fail CLOSED instead (503);
+    the caller retries.
+    """
+
+    def __init__(self, reason: str, gid: str) -> None:
+        self.reason = reason
+        self.gid = gid
+        super().__init__(f"sub-entity observation failed ({reason}) for gid={gid}")
+
+
 def _business_descriptor() -> Any:
     """Registry descriptor for the business entity (DIP: no hardcoded ids)."""
     from autom8_asana.core.entity_registry import get_registry
@@ -230,6 +248,9 @@ class IntakeResolveService:
                 consulted or built. Fails closed (503), never ``found=false``.
             BusinessVerificationError: UNAVAILABLE -- a GID was resolved but
                 could not be verified as a business of record.
+            SubtaskObservationError: UNAVAILABLE -- the business resolved but
+                the sub-entity listing faulted. Fails closed (503) rather than
+                asserting unobserved sub-entity state (F-9).
         """
         # O(1) fast path via module-level function (testable via patch).
         gid = resolve_gid_from_index(office_phone)
@@ -275,26 +296,58 @@ class IntakeResolveService:
 
         company_id = _extract_custom_field(custom_fields, _COMPANY_ID_FIELD)
 
-        # Check for subtasks (unit, contact_holder)
-        has_unit = False
-        has_contact_holder = False
+        # Sub-entity observation (F-9 DURABLE CURE -- tri-state semantics):
+        #
+        #   * FAULT     -> SubtaskObservationError -> 503 (5xx-on-subtask-fault).
+        #                  An instrument fault is never data. The pre-cure
+        #                  warn-and-stamp-False path turned a transient Asana
+        #                  fault into a positive "no unit" assertion.
+        #   * EMPTY     -> UNOBSERVED: both fields stay UNSET and OFF the wire.
+        #                  A bare-zero listing cannot distinguish "no subtasks"
+        #                  from "subtasks not yet indexed" (production index
+        #                  lag: a business task indexed before its
+        #                  sub-entities), so it is never asserted as false.
+        #                  This is the same A-BARE-ZERO-IS-NOT-EVIDENCE
+        #                  doctrine the consuming probe applies to this very
+        #                  response (calendly-intake tripwire/probe.py).
+        #   * NON-EMPTY -> a REAL observation: the subtask index for this
+        #                  parent is demonstrably live, so presence/absence of
+        #                  each holder is asserted True/False on the wire, and
+        #                  the first-create tripwire keeps its teeth against a
+        #                  genuinely malformed create.
+        #
+        # Named residual (carried honestly, not papered over): a PARTIALLY
+        # lagged listing -- one sub-entity indexed, the other not yet -- still
+        # renders the lagging one as an asserted false. One read cannot
+        # discriminate that case; it is the ratified single-confirmation
+        # predicate's own limit.
         try:
             subtasks = await self._client.tasks.subtasks_async(
                 gid,
                 opt_fields=["name"],
             ).collect()
-            subtask_list = self._to_list(subtasks)
+        except Exception as exc:  # noqa: BLE001 - every fault fails CLOSED (F-9)
+            logger.error(
+                "business_subtask_observation_failed",
+                extra={"gid": gid, "error": str(exc), "error_type": type(exc).__name__},
+            )
+            raise SubtaskObservationError("subtask_fetch_failed", gid) from exc
+
+        subtask_list = self._to_list(subtasks)
+        sub_entity_fields: dict[str, bool] = {}
+        if subtask_list:
+            has_unit = False
+            has_contact_holder = False
             for st in subtask_list:
                 st_name = st.get("name", "") if isinstance(st, dict) else getattr(st, "name", "")
                 if st_name and "unit_holder" in st_name.lower():
                     has_unit = True
                 if st_name and "contact_holder" in st_name.lower():
                     has_contact_holder = True
-        except Exception as exc:  # noqa: BLE001
-            logger.warning(
-                "business_subtask_check_failed",
-                extra={"gid": gid, "error": str(exc)},
-            )
+            sub_entity_fields = {
+                "has_unit": has_unit,
+                "has_contact_holder": has_contact_holder,
+            }
 
         return BusinessResolveResponse(
             found=True,
@@ -303,8 +356,7 @@ class IntakeResolveService:
             office_phone=OfficePhone(office_phone) if office_phone else None,
             vertical=vertical,
             company_id=company_id,
-            has_unit=has_unit,
-            has_contact_holder=has_contact_holder,
+            **sub_entity_fields,
         )
 
     async def _resolve_gid_build_on_miss(self, office_phone: str) -> str | None:
