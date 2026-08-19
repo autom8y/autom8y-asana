@@ -35,10 +35,23 @@ from pydantic import BaseModel, ConfigDict, Field
 # "re-review asana_mcp/schemas.py" message. A7 semantic-score static gate is
 # NOTED as a production upgrade — this POC ships the content-hash + token-presence
 # check (a semantic-lite gate), not the full semantic-diff scorer.
+#
+# RE-PIN LOG — each entry records the drift the canary caught and what the
+# re-review of RowsArgs / AggregateArgs concluded. A re-pin without a recorded
+# re-review is the canary being silenced rather than answered.
+#
+#   2026-08-19 (SPR-V1, verification axis). Drift cause: four additive fields
+#   declared on RowsMeta and AggregateMeta, plus a module-level axis-roster
+#   constant and its union helper. RE-REVIEW: NO mirror change required. The
+#   mirrors transcribe the REQUEST models; the change is confined to RESPONSE
+#   metadata. Verified mechanically rather than by eye — the AST of
+#   RowsRequest, AggregateRequest and AggSpec is byte-identical across the
+#   diff, and the only classes that differ are RowsMeta and AggregateMeta,
+#   neither of which is mirrored here.
 NATIVE_SOURCE = {
     "rows_and_aggregate": "src/autom8_asana/query/models.py",
     "rows_and_aggregate_sha256": (
-        "cca0dbf9ecc524b7f2fbbaaeb8aa4d50d4fb514bc90a6f5aab7f14a7dde82af4"
+        "1c215c4465274c71b859ddc0059c2ab5c6cae9ba092656831c33f1eaf7f2f00c"
     ),
     "resolve": "src/autom8_asana/api/routes/resolver_models.py",
     "mirrored_rows_fields": [

@@ -393,6 +393,34 @@ substitutable:
 > > happens to R-O3. **R-O3's delegation status is therefore FLAGGED and
 > > UNRULED — nothing here discharges it**, and no limb may read this pin as
 > > having discharged it.
+> >
+> > **⚖ R-O3 DISCHARGED-BY-ARCHITECT, CONCURRING WITH THE PIN (2026-08-19).**
+> > The FLAGGED-AND-UNRULED status above is now discharged. R-O3 delegated the
+> > `backfill_used` vs `verification_backfill_used` choice to the architect at
+> > the producer-leg PR and required the choice be inscribed in that PR's body
+> > with the naming fence amended in the same PR. This amendment IS that
+> > inscription; the producer-leg PR carries the ruling verbatim in its body.
+> >
+> > **The ruling, verbatim** (TDD §6.2,
+> > `.ledge/specs/TDD-verification-axis-realization-2026-08-19.md`):
+> >
+> > > **Ruling: adopt the operator's pinned spelling
+> > > `verification_backfill_used` as the WIRE name; keep `backfill_used` as the
+> > > in-object field name.**
+> > >
+> > > Rationale: (1) the operator's 2026-08-13 pin is the later act and §E.2
+> > > lists the long form in the frozen fifteen; (2) `backfill_used` unqualified
+> > > is ambiguous on a wire that will carry other backfills, and clause 6 makes
+> > > spelling load-bearing precisely to pre-empt that; (3) inside a module named
+> > > `asana_verification` / `freshness`, the qualifier is redundant and the
+> > > existing `VerificationAge.backfill_used` (`metrics/freshness.py:98`) needs
+> > > no rename — avoiding churn in a module this PR is already touching. **The
+> > > wire name and the in-object name differ deliberately and are documented at
+> > > both ends.**
+> >
+> > The architect CONCURS with the operator's pin. The two acts agree; nothing
+> > in clause 5 changes. What changes is only R-O3's status: FLAGGED-AND-UNRULED
+> > → DISCHARGED.
 >
 > 6. **Spelling is load-bearing**, per §E.2. The forbidden near-misses are named
 >    here so they are refused rather than debated: `verification_seconds`,
@@ -1140,11 +1168,15 @@ verification_age_seconds
 verification_backfill_used
 ```
 
-**⚖ `verification_backfill_used` carries a flag.** The spelling is pinned by
-operator ruling of 2026-08-13; **R-O3's delegation of that choice to the
-architect at the producer-leg PR is FLAGGED and UNRULED** and is not discharged
-by the pin. See the qualification block under fence §1.2 NON-ALIASING clause 5
-before treating this name as settled.
+**⚖ `verification_backfill_used` carried a flag; the flag is now cleared.** The
+spelling is pinned by operator ruling of 2026-08-13. R-O3's delegation of that
+choice to the architect at the producer-leg PR was FLAGGED and UNRULED and was
+not discharged by the pin. **It is discharged as of 2026-08-19:
+DISCHARGED-BY-ARCHITECT, CONCURRING WITH THE PIN** — the architect adopts the
+pinned spelling as the WIRE name and keeps `backfill_used` as the in-object
+field name. The ruling is carried verbatim in the qualification block under
+fence §1.2 NON-ALIASING clause 5 and in the producer-leg PR body. The name is
+settled; nothing about clause 5 changed.
 
 **Spelling is load-bearing.** No abbreviation, no pluralization change, no
 re-casing, no `_ts`/`_at` substitution, no synonym. A limb that needs a name not
