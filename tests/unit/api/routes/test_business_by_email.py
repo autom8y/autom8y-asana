@@ -402,6 +402,87 @@ class TestFailsClosedOnUnavailable:
 
 
 # ---------------------------------------------------------------------------
+# Degraded-cascade UNAVAILABLE is DISCRIMINATED, not generic (DIC-S04b rider)
+# ---------------------------------------------------------------------------
+
+
+class TestCascadeNotReadyIsDiscriminated:
+    """A degraded cascade is its own 503, not "Asana is down".
+
+    ``_check_cascade_health`` refuses the index build when a cascade-sourced
+    key column exceeds the 20% null gate -- correct fail-closed design. But
+    ``CascadeNotReadyError`` is a ``ServiceError``, not one of the
+    ``_INDEX_BUILD_ERRORS``, so it propagated to the route's boundary catch and
+    was rendered as the generic ``ASANA_UNAVAILABLE``. The accurate diagnosis
+    lived only in the Lambda logs; the operator reading the 503 was pointed at
+    the wrong subsystem entirely.
+
+    Two-sided: the degraded case must carry the discriminating code AND the
+    genuinely-unrelated failure must keep the generic one.
+    """
+
+    @staticmethod
+    def _cascade_degraded_strategy() -> MagicMock:
+        from autom8_asana.services.errors import CascadeNotReadyError
+
+        strategy = MagicMock()
+        strategy.resolve = AsyncMock(
+            side_effect=CascadeNotReadyError(
+                entity_type="contact",
+                project_gid=CONTACT_PROJECT_GID,
+                degraded_columns={"office_phone": 0.966914},
+                max_null_rate=0.966914,
+            )
+        )
+        return strategy
+
+    def test_degraded_cascade_is_503_cascade_not_ready(self, client: TestClient) -> None:
+        response = _call(client, strategy=self._cascade_degraded_strategy())
+
+        assert response.status_code == 503
+        body = response.json()
+        assert "CASCADE_NOT_READY" in response.text
+        assert "ASANA_UNAVAILABLE" not in response.text
+        # The offending column and the observed rate are in the answer, so the
+        # 503 is self-diagnosing rather than log-only.
+        assert "office_phone" in response.text
+        assert "96.7%" in response.text
+        # Still UNAVAILABLE: never downgraded to a confident miss.
+        assert '"found": false' not in response.text
+        assert body.get("data") is None or "found" not in str(body.get("data"))
+
+    def test_unrelated_failure_keeps_the_generic_code(self, client: TestClient) -> None:
+        """Two-sided partner: a non-cascade fault must NOT be relabelled.
+
+        Without this, the new branch could widen to swallow every 503 and the
+        discrimination would be cosmetic.
+        """
+        strategy = MagicMock()
+        strategy.resolve = AsyncMock(side_effect=RuntimeError("connection reset by peer"))
+
+        response = _call(client, strategy=strategy)
+
+        assert response.status_code == 503
+        assert "ASANA_UNAVAILABLE" in response.text
+        assert "CASCADE_NOT_READY" not in response.text
+
+    def test_degraded_cascade_response_holds_no_pii(
+        self, client: TestClient, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """The new branch inherits the PII fence (it logs the email too)."""
+        with caplog.at_level("ERROR"):
+            response = _call(client, strategy=self._cascade_degraded_strategy())
+
+        assert response.status_code == 503
+        emitted = "\n".join(
+            [r.getMessage() for r in caplog.records]
+            + [str(getattr(r, "email", "")) for r in caplog.records]
+        )
+        assert EMAIL not in emitted
+        assert EMAIL not in response.text
+
+
+# ---------------------------------------------------------------------------
 # Registry coupling -- the criterion may not drift from the registry
 # ---------------------------------------------------------------------------
 
