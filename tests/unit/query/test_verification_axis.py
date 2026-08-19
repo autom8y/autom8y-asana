@@ -12,6 +12,7 @@ wire field name and a mismatch is silently inert.
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -206,6 +207,201 @@ class TestCapabilityRosterLiterals:
 
     def test_declare_axes_of_nothing_is_empty(self) -> None:
         assert declare_axes((), ()) == []
+
+
+class TestConsumerCoherenceContract:
+    """What the SDK parser refuses. Pinned here so the producer cannot drift into it.
+
+    The consumer does not merely read these fields — it cross-checks them, and
+    every incoherence is a REFUSE. Three of its guards bite on the producer's
+    emission rule directly, and two of them fail in the direction that would
+    take down every production response at once. They are asserted at the wire,
+    on real serialized JSON, not on the Python object.
+    """
+
+    #: Spellings that NAME the axis but are not its spelling. A roster carrying
+    #: one of these while declaring none of the real three is a producer that
+    #: meant to declare the axis and got the token wrong — which the consumer
+    #: refuses on rather than letting it read as AXIS-ABSENT.
+    _NEAR_MISS_TOKENS = (
+        "verification",
+        "verification_axis",
+        "verification_seconds",
+        "verif_age",
+        "v_age",
+        "verified_age_seconds",
+        "last_verified_at",
+        "verification_watermark",
+        "verified_watermark",
+    )
+
+    async def test_derived_response_serializes_backfill_used_as_literal_false(
+        self, offer_df: pl.DataFrame, offer_schema: DataFrameSchema
+    ) -> None:
+        """The single highest-blast-radius assertion in this file.
+
+        A null companion on a DERIVED axis is refused by the consumer. If the
+        derived arm emitted null — or dropped the key — every production
+        response would refuse and the cure would land dead while looking
+        deployed. Asserted on serialized JSON so a serializer-level
+        ``exclude_none``/``exclude_unset`` would break it too.
+        """
+        engine, _ = _make_engine(
+            offer_df, manifest=_divergent_manifest(active_age=100.0, activating_age=200.0)
+        )
+
+        meta = await _run_rows(engine, offer_schema, classification="active")
+        wire = json.loads(meta.model_dump_json())
+
+        assert "verification_backfill_used" in wire, "the key must be on the wire, not dropped"
+        assert wire["verification_backfill_used"] is False, (
+            "a derived axis must disclose literal false, never null"
+        )
+        assert wire["verified_at"] is not None
+        assert wire["verification_age_seconds"] is not None
+
+    async def test_backfill_flag_is_never_true_alongside_a_stamp(
+        self, offer_df: pl.DataFrame, offer_schema: DataFrameSchema
+    ) -> None:
+        """A reached-for value must never gate."""
+        engine, _ = _make_engine(
+            offer_df, manifest=_divergent_manifest(active_age=100.0, activating_age=200.0)
+        )
+
+        meta = await _run_rows(engine, offer_schema, classification="active")
+
+        assert meta.verified_at is not None
+        assert meta.verification_backfill_used is False
+
+    @pytest.mark.parametrize(
+        ("manifest", "raise_on_read", "classification"),
+        [
+            (None, None, "active"),
+            (None, RuntimeError("s3 exploded"), "active"),
+            (
+                _divergent_manifest(active_age=100.0, activating_age=200.0),
+                None,
+                "active",
+            ),
+        ],
+        ids=["axis-null-absent", "axis-null-raised", "axis-derived"],
+    )
+    async def test_the_stamp_and_the_age_are_null_together_or_neither(
+        self,
+        offer_df: pl.DataFrame,
+        offer_schema: DataFrameSchema,
+        manifest: Any,
+        raise_on_read: BaseException | None,
+        classification: str,
+    ) -> None:
+        """The age is null iff the stamp is null. Any other pairing is refused."""
+        engine, _ = _make_engine(offer_df, manifest=manifest, raise_on_read=raise_on_read)
+
+        meta = await _run_rows(engine, offer_schema, classification=classification)
+
+        assert (meta.verified_at is None) == (meta.verification_age_seconds is None)
+
+    @pytest.mark.parametrize(
+        ("manifest", "raise_on_read"),
+        [
+            (None, None),
+            (None, RuntimeError("s3 exploded")),
+            (_divergent_manifest(active_age=100.0, activating_age=200.0), None),
+        ],
+        ids=["axis-null-absent", "axis-null-raised", "axis-derived"],
+    )
+    async def test_the_roster_is_all_three_or_nothing_on_every_arm(
+        self,
+        offer_df: pl.DataFrame,
+        offer_schema: DataFrameSchema,
+        manifest: Any,
+        raise_on_read: BaseException | None,
+    ) -> None:
+        """A strict subset is a malformed roster, not a partial capability.
+
+        The consumer refuses a partial declaration. Every emission arm must
+        therefore declare the whole axis or none of it — there is no arm where
+        the producer declares two names.
+        """
+        engine, _ = _make_engine(offer_df, manifest=manifest, raise_on_read=raise_on_read)
+
+        meta = await _run_rows(engine, offer_schema, classification="active")
+
+        declared = [
+            name
+            for name in ("verified_at", "verification_age_seconds", "verification_backfill_used")
+            if name in meta.axes_present
+        ]
+        assert len(declared) == 3, f"partial declaration {declared!r} is refused by the consumer"
+
+    async def test_the_roster_carries_no_near_miss_token(
+        self, offer_df: pl.DataFrame, offer_schema: DataFrameSchema
+    ) -> None:
+        """A near-miss spelling is refused; it must never be emitted."""
+        engine, _ = _make_engine(
+            offer_df, manifest=_divergent_manifest(active_age=100.0, activating_age=200.0)
+        )
+
+        meta = await _run_rows(engine, offer_schema, classification="active")
+
+        for token in self._NEAR_MISS_TOKENS:
+            assert token not in meta.axes_present
+
+    async def test_verified_at_is_offset_bearing_iso_8601(
+        self, offer_df: pl.DataFrame, offer_schema: DataFrameSchema
+    ) -> None:
+        """``verified_at`` is the load-bearing instant: the consumer re-derives from it.
+
+        The consumer computes its OWN ``now - verified_at`` and gates on that;
+        the emitted age is disclosure. So the instant must be unambiguous — an
+        offset-less string would be interpreted against the consumer's own
+        assumption rather than the producer's.
+        """
+        engine, _ = _make_engine(
+            offer_df, manifest=_divergent_manifest(active_age=100.0, activating_age=200.0)
+        )
+
+        meta = await _run_rows(engine, offer_schema, classification="active")
+
+        assert meta.verified_at is not None
+        parsed = datetime.fromisoformat(meta.verified_at)
+        assert parsed.tzinfo is not None, "an offset-less instant is ambiguous to the consumer"
+        assert parsed.utcoffset() == timedelta(0)
+        assert parsed == _NOW - timedelta(seconds=100.0)
+
+    async def test_a_naive_manifest_stamp_never_reaches_the_wire(
+        self, offer_df: pl.DataFrame, offer_schema: DataFrameSchema
+    ) -> None:
+        """A timezone-less stamp refuses rather than emitting an ambiguous instant.
+
+        The consumer would otherwise re-derive an age from a string whose zone
+        it has to guess. Refusing is the only honest arm.
+        """
+        naive = datetime(2026, 8, 19, 14, 58, 20)  # noqa: DTZ001  # deliberately naive INPUT
+        manifest = SectionManifest(
+            project_gid=_PROJECT_GID,
+            entity_type="offer",
+            sections={
+                f"a{i}": _section(name.upper(), last_verified_at=naive)
+                for i, name in enumerate(
+                    sorted(OFFER_CLASSIFIER.sections_for(AccountActivity.ACTIVE))
+                )
+            },
+            total_sections=22,
+            completed_sections=22,
+            schema_version="1.6.0",
+        )
+        engine, _ = _make_engine(offer_df, manifest=manifest)
+
+        meta = await _run_rows(engine, offer_schema, classification="active")
+
+        assert meta.verified_at is None
+        assert meta.verification_age_seconds is None
+        assert meta.axes_present == [
+            "verified_at",
+            "verification_age_seconds",
+            "verification_backfill_used",
+        ], "still declared: a refusal, not a silent disappearance"
 
 
 class TestBothMetasDeclareTheFields:
