@@ -56,6 +56,7 @@ from autom8_asana.services.business_by_email_service import (
     redact_email,
     resolve_business_by_email,
 )
+from autom8_asana.services.errors import CascadeNotReadyError
 from autom8_asana.services.intake_resolve_service import (
     BusinessVerificationError,
     IntakeResolveService,
@@ -397,6 +398,8 @@ async def resolve_business_by_email_route(
         - 401 SERVICE_TOKEN_REQUIRED: PAT token provided (S2S only)
         - 422 VALIDATION_ERROR: Invalid request body
         - 503 INDEX_NOT_READY: contact index could not be consulted
+        - 503 CASCADE_NOT_READY: contact index built but its cascade-sourced key
+          column exceeds the null threshold (degraded, not absent)
         - 503 ASANA_UNAVAILABLE: Asana call failed
     """
     start_time = time.monotonic()
@@ -417,6 +420,35 @@ async def resolve_business_by_email_route(
     try:
         async with AsanaClient(token=auth.asana_pat) as client:
             result = await resolve_business_by_email(email=body.email, client=client)
+    except CascadeNotReadyError as exc:
+        # The contact frame built, but its cascade-sourced key column is degraded
+        # past the 20% null gate, so the index cannot be trusted to discriminate
+        # ABSENT from "we could not look". That IS an UNAVAILABLE, and the gate is
+        # correct to refuse -- but it is a DIFFERENT unavailable than "Asana is
+        # down", and until now it fell through the broad boundary catch and was
+        # rendered as the generic ASANA_UNAVAILABLE. The accurate diagnosis lived
+        # only in the Lambda logs; an operator reading the 503 was pointed at the
+        # wrong subsystem. Naming it CASCADE_NOT_READY and carrying the offending
+        # columns + observed null rate makes the response self-diagnosing.
+        logger.error(
+            "intake_resolve_business_by_email_cascade_not_ready",
+            extra={
+                "request_id": request_id,
+                "email": redacted,
+                "entity_type": exc.entity_type,
+                "degraded_columns": exc.degraded_columns,
+                "max_null_rate": exc.max_null_rate,
+            },
+        )
+        raise_api_error(
+            request_id,
+            503,
+            "CASCADE_NOT_READY",
+            "The contact index is degraded: cascade-sourced key column(s) "
+            f"{sorted(exc.degraded_columns)} exceed the null threshold "
+            f"(observed {exc.max_null_rate:.1%}). Resolution is refused rather "
+            "than answered from incomplete data. Retry after the next warm cycle.",
+        )
     except ContactIndexUnavailableError as exc:
         # UNAVAILABLE, never found=false. A downgrade here would tell the
         # caller "this email belongs to no business" on the strength of an

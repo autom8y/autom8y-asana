@@ -214,7 +214,20 @@ async def test_second_cycle_resumes_from_shrunken_uncached() -> None:
 
 
 async def test_unexpected_error_still_fails_closed() -> None:
-    """Non-rate-limit unexpected errors keep the pre-existing fail-closed path."""
+    """Non-rate-limit unexpected errors still bank nothing when nothing fetched.
+
+    The INVARIANT this pins is unchanged: an unexpected fault must not conjure a
+    banked batch. Only the telemetry moved. DIC-S04b added per-chunk isolation,
+    so an unmodeled exception now aborts the remaining chunks and falls through
+    to the normal banking + summary path (``hierarchy_gap_chunk_aborted``)
+    instead of unwinding to the outer BROAD-CATCH
+    (``hierarchy_gap_warming_failed``). Here every gid raises, so there is
+    nothing to bank and the fail-closed outcome is byte-identical.
+
+    That relocation is the point: the old path discarded ALREADY-FETCHED parents
+    on any unmodeled error, which is the total-loss wound that a single deleted
+    ancestor (404) rode to zero out the contact cascade permanently.
+    """
     gids = [str(7000 + i) for i in range(3)]
 
     async def side_effect(gid: str, opt_fields: Any = None) -> dict[str, Any]:
@@ -228,4 +241,5 @@ async def test_unexpected_error_still_fails_closed() -> None:
     assert warmed == 0
     store.put_batch_async.assert_not_awaited()
     events_warn = [c.args[0] for c in mock_logger.warning.call_args_list]
-    assert "hierarchy_gap_warming_failed" in events_warn
+    assert "hierarchy_gap_chunk_aborted" in events_warn
+    assert "hierarchy_gap_no_tasks_fetched" in events_warn

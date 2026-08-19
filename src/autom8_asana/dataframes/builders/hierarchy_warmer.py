@@ -17,7 +17,7 @@ from autom8y_log import get_logger
 from autom8_asana.core.errors import S3_TRANSPORT_ERRORS
 from autom8_asana.dataframes.builders.base import gather_with_limit
 from autom8_asana.dataframes.builders.fields import BASE_OPT_FIELDS
-from autom8_asana.errors import RateLimitError
+from autom8_asana.errors import ForbiddenError, GoneError, NotFoundError, RateLimitError
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine
@@ -51,6 +51,35 @@ _GAP_WARM_CHUNK_SIZE = 200
 # spend. Progress is banked; the next SWR cycle resumes from the shrunken
 # uncached set.
 _GAP_WARM_SATURATION_ABORT_FRACTION = 0.5
+
+# PERMANENT per-GID Asana faults on a gap-parent GET. Unlike a 429 these never
+# self-heal by retrying: the referenced parent task has been deleted (404 "Not a
+# recognized ID"), permanently removed (410), or is outside the token's scope
+# (403). The GID is a stale ancestor reference carried in a resumed parquet
+# ``parent_gid`` column, not a transport fault.
+#
+# ★ These MUST be tolerated PER-FETCH, exactly like RateLimitError above. They
+# are NOT members of S3_TRANSPORT_ERRORS (that tuple is boto/network only), so
+# before this cure a single deleted ancestor propagated out of gather_with_limit
+# — which runs a bare asyncio.gather with no return_exceptions — into the outer
+# BROAD-CATCH, returning 0 and DISCARDING every parent that fetched fine.
+#
+# That is the same wound the 429 arc cured, with one difference that made it far
+# worse: a 404 is PERMANENT, so the sweep did not merely lose a cycle, it lost
+# EVERY cycle. Live receipt (2026-08-19, contact frame 1200775689604552):
+#   hierarchy_gap_fetch_starting  uncached_count=795
+#   hierarchy_gap_warming_failed  error="task: Not a recognized ID:
+#                                 1214958033084487 (HTTP 404)" NotFoundError
+#   hierarchy_gaps_warmed         gaps_warmed=0
+#   cascade_key_null_audit        office_phone null_rate=0.966914  severity=error
+# One deleted task held 23,484 contact rows off their Business cascade, which
+# tripped the 20% CascadeNotReadyError gate and 503'd
+# POST /v1/resolve/business-by-email.
+_GAP_WARM_PERMANENT_FAULTS: tuple[type[Exception], ...] = (
+    NotFoundError,
+    GoneError,
+    ForbiddenError,
+)
 
 
 class HierarchyWarmer:
@@ -160,11 +189,26 @@ class HierarchyWarmer:
         ``_fetch_immediate_parents`` finds no parents to fetch, leaving the
         chain incomplete and cascade fields unresolvable.
 
+        Per DIC-S04b (contact-cascade rot): the step is now resilient in BOTH
+        directions it was silently failing.
+
+        1. A PERMANENT per-GID fault (deleted / gone / forbidden parent) is
+           tolerated per-fetch instead of aborting the sweep. One deleted
+           ancestor used to zero the whole warm — permanently, since a 404
+           never heals — leaving ``office_phone`` 96.7% null on the contact
+           frame and 503'ing the email-fallback resolve endpoint.
+        2. A parent that IS cached but whose OWN parent edge is unknown to the
+           hierarchy index is re-banked from its cached dict (no Asana call).
+           Presence in the task cache was being read as "chain complete"; it is
+           not, and ``get_ancestor_chain()`` terminated at the holder, so the
+           cascade never reached the Business that owns the field.
+
         Args:
             df: Merged DataFrame with 'parent_gid' column.
 
         Returns:
-            Count of gap tasks fetched and cached.
+            Count of parents banked into the hierarchy this sweep: gap tasks
+            fetched from the API plus cached-but-unlinked parents re-banked.
         """
         if self._store is None or "parent_gid" not in df.columns:
             return 0
@@ -178,16 +222,41 @@ class HierarchyWarmer:
         if not parent_gids:
             return 0
 
-        # Filter to parent GIDs not already cached as full task data
+        # Partition the parents by what this step actually needs from each one.
+        #
+        # The step's purpose is the NEXT edge (holder -> business), not mere task
+        # presence. "Cached as a task" was being read as "hierarchy complete", but
+        # those are different facts: reconstruct_hierarchy_from_dataframe registers
+        # the CHILD's edge (contact -> holder) and leaves the holder's OWN parent
+        # edge unknown, so get_ancestor_chain() terminates at the holder and the
+        # cascade never reaches the Business that owns Office Phone.
+        #
+        # A cached-but-unlinked parent needs NO Asana call — its cached dict already
+        # carries ``parent`` (BASE_OPT_FIELDS always requests parent.gid). Routing it
+        # through the same banking path registers its edge and lets put_batch_async's
+        # ancestor warm discover the Business, at zero extra gap-GET cost.
         from autom8_asana.cache.models.entry import EntryType
 
-        uncached = []
+        hierarchy = self._store.get_hierarchy_index()
+
+        uncached: list[str] = []
+        unlinked_dicts: list[dict[str, Any]] = []
         for gid in parent_gids:
             cached = self._store.cache.get_versioned(gid, EntryType.TASK)
             if cached is None:
                 uncached.append(gid)
+                continue
+            # Cached, but is its own ancestor edge known to the index?
+            if hierarchy.get_parent_gid(gid) is not None:
+                continue
+            data = getattr(cached, "data", None)
+            # Only re-bank when the cached dict can actually contribute the edge.
+            # A dict without ``parent`` would re-enter this branch every cycle and
+            # buy nothing, so it is skipped rather than banked repeatedly.
+            if isinstance(data, dict) and isinstance(data.get("parent"), dict):
+                unlinked_dicts.append(data)
 
-        if not uncached:
+        if not uncached and not unlinked_dicts:
             return 0
 
         logger.info(
@@ -197,6 +266,7 @@ class HierarchyWarmer:
                 "entity_type": self._entity_type,
                 "total_parent_gids": len(parent_gids),
                 "uncached_count": len(uncached),
+                "cached_unlinked_count": len(unlinked_dicts),
             },
         )
 
@@ -217,6 +287,14 @@ class HierarchyWarmer:
             aborted_early = False
             chain_warm_completed = True
 
+            # Bank the cached-but-unlinked parents FIRST. They cost no gap GET, and
+            # banking them up front means an early saturation/abort below still
+            # leaves their edges registered and their Businesses warmed. Banked
+            # once here rather than folded into fetched_task_dicts so neither the
+            # per-chunk nor the end-of-sweep banking can double-put them.
+            if unlinked_dicts and not await self._bank_gap_chunk(unlinked_dicts):
+                chain_warm_completed = False
+
             async def _fetch_gap_parent(gid: str) -> tuple[dict[str, Any] | None, bool]:
                 """Fetch one gap parent. Returns (task_dict|None, rate_limited)."""
                 try:
@@ -233,6 +311,23 @@ class HierarchyWarmer:
                         },
                     )
                     return None, True
+                except _GAP_WARM_PERMANENT_FAULTS as e:
+                    # ★ Per-GID tolerance for a PERMANENTLY unresolvable ancestor
+                    # (deleted / gone / out-of-scope). Never abort the sweep: this
+                    # one stale parent_gid says nothing about the other 794.
+                    # Not counted as rate_limited — it must not feed the
+                    # saturation abort, which exists to yield a saturated budget.
+                    logger.warning(
+                        "hierarchy_gap_parent_unresolvable",
+                        extra={
+                            "project_gid": self._project_gid,
+                            "entity_type": self._entity_type,
+                            "parent_gid": gid,
+                            "error": str(e),
+                            "error_type": type(e).__name__,
+                        },
+                    )
+                    return None, False
                 except S3_TRANSPORT_ERRORS as e:
                     logger.warning(
                         "hierarchy_gap_fetch_failed",
@@ -257,10 +352,35 @@ class HierarchyWarmer:
 
             for chunk_start in range(0, len(uncached), _GAP_WARM_CHUNK_SIZE):
                 chunk = uncached[chunk_start : chunk_start + _GAP_WARM_CHUNK_SIZE]
-                results = await gather_with_limit(
-                    [fetch_one(gid) for gid in chunk],
-                    max_concurrent=self._max_concurrent,
-                )
+                try:
+                    results = await gather_with_limit(
+                        [fetch_one(gid) for gid in chunk],
+                        max_concurrent=self._max_concurrent,
+                    )
+                except Exception as e:  # BROAD-CATCH: per-chunk isolation  # noqa: BLE001
+                    # Structural backstop for the WHOLE discard-on-one-error class,
+                    # not just the modeled faults above. gather_with_limit runs a
+                    # bare asyncio.gather, so ANY unmodeled per-fetch exception used
+                    # to unwind past the banking below into the outer BROAD-CATCH ->
+                    # return 0. Breaking here instead falls through to the normal
+                    # banking + telemetry path, so an unmodeled fault costs the
+                    # REMAINING chunks and never the already-fetched ones. A future
+                    # error class added upstream therefore degrades to partial
+                    # progress rather than reopening the total-loss wound.
+                    logger.warning(
+                        "hierarchy_gap_chunk_aborted",
+                        extra={
+                            "project_gid": self._project_gid,
+                            "entity_type": self._entity_type,
+                            "chunk_start": chunk_start,
+                            "chunk_size": len(chunk),
+                            "fetched_before_abort": len(fetched_task_dicts),
+                            "error": str(e),
+                            "error_type": type(e).__name__,
+                        },
+                    )
+                    aborted_early = True
+                    break
                 chunk_dicts = [d for d, _ in results if d is not None]
                 fetched_task_dicts.extend(chunk_dicts)
                 chunk_rate_limited = sum(1 for _, limited in results if limited)
@@ -292,9 +412,12 @@ class HierarchyWarmer:
                         "entity_type": self._entity_type,
                         "attempted": len(uncached),
                         "rate_limited": rate_limited_total,
+                        "cached_unlinked_banked": len(unlinked_dicts),
                     },
                 )
-                return 0
+                # The unlinked parents were still banked above, so their edges ARE
+                # registered even when every gap GET came back empty.
+                return len(unlinked_dicts)
 
             # Baseline single end-of-sweep banking (byte-identical when INERT). The
             # cure already banked per-chunk above, so this runs ONLY when inert.
@@ -315,6 +438,7 @@ class HierarchyWarmer:
                         "entity_type": self._entity_type,
                         "attempted": len(uncached),
                         "fetched": len(fetched_task_dicts),
+                        "cached_unlinked_banked": len(unlinked_dicts),
                         "rate_limited": rate_limited_total,
                         "aborted_early": aborted_early,
                         "chain_warm_completed": chain_warm_completed,
@@ -328,10 +452,11 @@ class HierarchyWarmer:
                         "entity_type": self._entity_type,
                         "attempted": len(uncached),
                         "fetched": len(fetched_task_dicts),
+                        "cached_unlinked_banked": len(unlinked_dicts),
                     },
                 )
 
-            return len(fetched_task_dicts)
+            return len(fetched_task_dicts) + len(unlinked_dicts)
         except Exception as e:  # BROAD-CATCH: enrichment  # noqa: BLE001
             logger.warning(
                 "hierarchy_gap_warming_failed",

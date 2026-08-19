@@ -224,9 +224,16 @@ async def test_armed_truncation_preserves_already_banked_chunks(monkeypatch: Any
     """GREEN: a mid-sweep crash on a late chunk keeps the earlier chunks durable.
 
     Simulates the 900s Lambda-wall truncation the §3.3 inversion warns of: an
-    unexpected fault while fetching chunk 3 sends the sweep to the BROAD-CATCH
-    (return 0), but chunks 1+2 were ALREADY banked per-chunk before chunk 3 ran.
-    Under the old single end-of-sweep banking this would forfeit everything.
+    unexpected fault while fetching chunk 3 truncates the sweep, but chunks 1+2
+    were ALREADY banked per-chunk before chunk 3 ran. Under the old single
+    end-of-sweep banking this would forfeit everything.
+
+    DIC-S04b amended the RETURN VALUE only, not the durability invariant this
+    test exists for. Per-chunk isolation now catches the fault at the chunk
+    boundary and falls through to the summary path, so the sweep reports the 8
+    parents it actually banked instead of unwinding to the outer BROAD-CATCH and
+    reporting 0. The banked set -- what durability actually means here -- is
+    unchanged, and is still asserted below.
     """
     monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", _WARMER_FUNCTION_NAME)
     set_budget_allocator(_SpyAllocator(enabled=True))
@@ -242,8 +249,8 @@ async def test_armed_truncation_preserves_already_banked_chunks(monkeypatch: Any
     with patch.object(hw_module, "_GAP_WARM_CHUNK_SIZE", 4):
         warmed = await warmer.warm_hierarchy_gaps_async(_df(gids))
 
-    # The sweep truncates (BROAD-CATCH -> 0), but chunks 1+2 are already durable.
-    assert warmed == 0
+    # The sweep truncates, and now reports the 8 parents it genuinely banked.
+    assert warmed == 8
     assert store.put_batch_async.await_count == 2  # chunks 1 and 2 banked pre-crash
     survived = {t["gid"] for c in store.put_batch_async.await_args_list for t in c.args[0]}
     assert survived == {str(4000 + i) for i in range(8)}  # first 8 GIDs durable
