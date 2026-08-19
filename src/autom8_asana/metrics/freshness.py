@@ -732,6 +732,257 @@ def read_manifest_sync(persistence: Any, project_gid: str, entity_type: str | No
     )
 
 
+@dataclass(frozen=True, slots=True)
+class _VerificationFold:
+    """Raw facts from ONE join-and-fold pass over a manifest. Policy-free.
+
+    The fold reports; the callers decide. ``compute_verification_age`` (the
+    ADR-006 metrics CLI) and ``compute_serve_verification`` (the wire axis)
+    differ ONLY in the two parameters they pass and in how they read these
+    facts — there is exactly one derivation of the quantity in this codebase
+    (TDD §2.3 R-1 ruling: "one fold, two policies, zero fourth derivations").
+
+    Attributes:
+        oldest: ``min`` over the instants that were usable, or ``None``.
+        contributing: sections that yielded a usable instant.
+        matched_names: lower-cased manifest names that fell in scope. The
+            caller subtracts this from its requested set to find sections
+            that are ABSENT from the manifest entirely — a state the
+            manifest-side iteration cannot see.
+        unstamped: in-scope sections present in the manifest that yielded NO
+            usable instant.
+        null_named_entries: manifest entries skipped because ``name`` is
+            null/empty (they cannot participate in a name-based join).
+        backfill_used: True iff at least one section fell back to
+            ``written_at``. Only reachable when ``allow_written_at_backfill``.
+    """
+
+    oldest: datetime | None
+    contributing: int
+    matched_names: frozenset[str]
+    unstamped: int
+    null_named_entries: int
+    backfill_used: bool
+
+
+def _fold_oldest_verified(
+    manifest: Any,
+    section_names: frozenset[str] | None,
+    *,
+    allow_written_at_backfill: bool,
+) -> _VerificationFold:
+    """Join ``section_names`` against manifest entries and fold ``min`` over stamps.
+
+    The single derivation site for ``min(last_verified_at)``. Private by
+    design: a fourth derivation elsewhere in the tree is what R-1 refuses.
+
+    Args:
+        manifest: ``SectionManifest`` (never ``None`` — callers guard).
+        section_names: Lower-cased section names to scope to, or ``None`` for
+            "every named section in the manifest" (the whole-frame case, TDD
+            §4.3).
+        allow_written_at_backfill: When True, a section with
+            ``last_verified_at is None`` falls back to ``written_at``
+            (ADR-006 §Decision-6, the metrics-CLI policy). When False, no
+            substitution occurs — CONTRACT §1.2 NON-ALIASING clause 1 names
+            ``written_at`` verbatim in the forbidden-source list, so the wire
+            axis MUST pass False.
+
+    Returns:
+        A ``_VerificationFold`` of policy-free facts.
+    """
+    oldest: datetime | None = None
+    contributing = 0
+    unstamped = 0
+    null_named_entries = 0
+    backfill_used = False
+    matched: set[str] = set()
+
+    for _gid, info in manifest.sections.items():
+        # info.name may be None on pre-re-seed manifests. The join is
+        # name-based; a null name cannot match. Counted, not silently dropped,
+        # so the whole-frame caller can treat it as unprovable.
+        if not info.name:
+            null_named_entries += 1
+            continue
+        lowered = info.name.lower()
+        if section_names is not None and lowered not in section_names:
+            continue
+        matched.add(lowered)
+
+        candidate = info.last_verified_at
+        if candidate is None and allow_written_at_backfill:
+            # §Decision-6 backfill: legacy / never-probed sections produce a
+            # still-correct floor for the CLI and backfill to a real stamp on
+            # the next probe.
+            candidate = info.written_at
+            if candidate is not None:
+                backfill_used = True
+        if candidate is None:
+            unstamped += 1
+            continue
+
+        contributing += 1
+        if oldest is None or candidate < oldest:
+            oldest = candidate
+
+    return _VerificationFold(
+        oldest=oldest,
+        contributing=contributing,
+        matched_names=frozenset(matched),
+        unstamped=unstamped,
+        null_named_entries=null_named_entries,
+        backfill_used=backfill_used,
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class ServeVerification:
+    """The verification axis as it goes on the wire for ONE serve-path response.
+
+    Deliberately a SEPARATE value object from ``VerificationAge`` (X-4). The
+    two carry different policies and must not be interchanged:
+
+    ============  ==============================  =========================
+    .             ``VerificationAge`` (CLI)       ``ServeVerification`` (wire)
+    ============  ==============================  =========================
+    grain         ``classifier.active_sections()``  the REQUEST's resolved set
+    backfill      ``written_at`` allowed           refused (NON-ALIASING cl.1)
+    unprovable    ``max_age_seconds=0``, fresh     ``None`` — never a number
+    skew          clamped to 0                     UNCLAMPED (§5.4)
+    ============  ==============================  =========================
+
+    ``verification_age_seconds`` is UNCLAMPED by design: clamping a
+    future-dated stamp to 0 would make it read as maximally fresh and pass
+    every threshold trivially. A negative age is carried and disclosed, never
+    synthesized away (mirrors the SDK content-axis precedent).
+
+    ``verification_backfill_used`` is the clause-5 companion. On the wire it
+    discloses WHY the axis is null: ``True`` = at least one in-scope section
+    carried no verification stamp (the state the CLI would have backfilled);
+    ``False`` = the axis is derived, fully stamped, no reach. It is never
+    ``True`` alongside a non-null ``verified_at``.
+    """
+
+    verified_at: str | None
+    verification_age_seconds: float | None
+    verification_backfill_used: bool | None
+    in_scope_count: int
+    missing_count: int
+    refusal_reason: str | None
+
+    #: ``manifest`` was absent, unparseable, or the read raised.
+    REASON_MANIFEST_UNAVAILABLE = "manifest_unavailable"
+    #: The request resolved to no sections at all.
+    REASON_EMPTY_SCOPE = "empty_scope"
+    #: At least one in-scope section is absent from the manifest or unstamped.
+    REASON_UNSTAMPED_SECTIONS = "unstamped_sections"
+
+    @classmethod
+    def undecidable(cls, reason: str, *, in_scope_count: int = 0) -> ServeVerification:
+        """AXIS-NULL with no backfill claim: the axis could not even be attempted.
+
+        ``verification_backfill_used`` is ``None`` (not ``False``) because no
+        section was ever inspected — asserting "no backfill was used" would
+        overstate what the emitter knows.
+        """
+        return cls(
+            verified_at=None,
+            verification_age_seconds=None,
+            verification_backfill_used=None,
+            in_scope_count=in_scope_count,
+            missing_count=0,
+            refusal_reason=reason,
+        )
+
+    @property
+    def derivable(self) -> bool:
+        """True iff the axis carries a real value (the consumer may GATE on it)."""
+        return self.verified_at is not None
+
+
+def compute_serve_verification(
+    *,
+    manifest: Any,
+    section_names: frozenset[str] | None,
+    now: datetime | None = None,
+) -> ServeVerification:
+    """Derive the wire verification axis for ONE request's resolved section set.
+
+    Implements the TDD §5.3 emission rule verbatim::
+
+        if manifest unavailable            -> all null            (AXIS-NULL)
+        elif in_scope is empty             -> all null            (AXIS-NULL)
+        elif any in-scope section missing  -> null + backfill=True (AXIS-NULL)
+        else                               -> min(last_verified_at), UNCLAMPED age
+
+    "missing" means absent from the manifest OR present with
+    ``last_verified_at is None``. Such a section is NEVER dropped from the
+    denominator, NEVER skipped, and NEVER substituted from ``written_at`` —
+    CONTRACT §1.2 VERIFICATION GRAIN + NON-ALIASING clause 1. The caller
+    declares the axis in ``axes_present`` regardless, so the consumer can tell
+    AXIS-NULL (refuse) from AXIS-ABSENT (old producer, stay dormant).
+
+    Args:
+        manifest: ``SectionManifest`` or ``None``. ``None`` covers absent /
+            parse-failed / read-raised — all three are AXIS-NULL.
+        section_names: The request's resolved classification section set
+            (lower-cased), or ``None`` for the whole-frame case, which scopes
+            to every section in the manifest (TDD §4.3).
+        now: Override for ``datetime.now(tz=UTC)``; injectable for tests.
+
+    Returns:
+        A ``ServeVerification``. Never raises on manifest shape.
+    """
+    if now is None:
+        now = datetime.now(tz=UTC)
+
+    if manifest is None:
+        return ServeVerification.undecidable(ServeVerification.REASON_MANIFEST_UNAVAILABLE)
+
+    if section_names is not None and not section_names:
+        return ServeVerification.undecidable(ServeVerification.REASON_EMPTY_SCOPE)
+
+    fold = _fold_oldest_verified(manifest, section_names, allow_written_at_backfill=False)
+
+    if section_names is not None:
+        # A classifier-assigned section that the manifest does not carry at all
+        # is `missing`. The manifest-side iteration cannot see it; only this
+        # subtraction can. (CRITIC §1.2 — the direction neither seat tested.)
+        absent = len(section_names - fold.matched_names)
+        in_scope = len(section_names)
+        missing = absent + fold.unstamped
+    else:
+        # Whole-frame: the frame's own section set. A null-named entry is in
+        # the frame and cannot be proven verified, so it counts as missing
+        # rather than vanishing from the denominator.
+        in_scope = fold.contributing + fold.unstamped + fold.null_named_entries
+        missing = fold.unstamped + fold.null_named_entries
+
+    if in_scope == 0:
+        return ServeVerification.undecidable(ServeVerification.REASON_EMPTY_SCOPE)
+
+    if missing > 0 or fold.oldest is None:
+        return ServeVerification(
+            verified_at=None,
+            verification_age_seconds=None,
+            verification_backfill_used=True,
+            in_scope_count=in_scope,
+            missing_count=max(missing, 1),
+            refusal_reason=ServeVerification.REASON_UNSTAMPED_SECTIONS,
+        )
+
+    return ServeVerification(
+        verified_at=fold.oldest.isoformat(),
+        # UNCLAMPED: see the class docstring. A negative age is disclosed.
+        verification_age_seconds=(now - fold.oldest).total_seconds(),
+        verification_backfill_used=False,
+        in_scope_count=in_scope,
+        missing_count=0,
+        refusal_reason=None,
+    )
+
+
 def compute_verification_age(
     *,
     manifest: Any,
@@ -782,51 +1033,31 @@ def compute_verification_age(
     if classifier is None:
         return VerificationAge.unavailable(threshold_seconds)
 
+    # X-4 (CRITIC §6): this hardcode is PRESERVED. `compute_verification_age`
+    # keeps its ruled ADR-006 CLI behaviour — active grain, written_at
+    # backfill, clamped skew. The wire axis is a SEPARATE caller
+    # (`compute_serve_verification`) of the SAME fold, not a replacement of
+    # this one. A builder who "replaces" this line breaks a ruled behaviour.
     active_names = classifier.active_sections()
     if not active_names:
         return VerificationAge.unavailable(threshold_seconds)
 
-    # Build the in-scope set by joining classifier names (lower-case)
-    # against manifest entries' SectionInfo.name (case-normalized).
-    oldest: datetime | None = None
-    in_scope = 0
-    backfill_used = False
-    for _gid, info in manifest.sections.items():
-        # info.name may be None on pre-re-seed manifests. With ≥2 sections
-        # this is also surfaced by the §2.6 contract violation in the
-        # warm path; here we simply skip null-name entries (the join is
-        # name-based; they cannot match).
-        if not info.name:
-            continue
-        if info.name.lower() not in active_names:
-            continue
-        # In scope.
-        candidate = info.last_verified_at
-        if candidate is None:
-            # §Decision-6 backfill: fall back to written_at; legacy /
-            # never-probed sections produce a still-correct floor and
-            # backfill to a real stamp on the next probe.
-            candidate = info.written_at
-            if candidate is not None:
-                backfill_used = True
-        if candidate is None:
-            continue
-        in_scope += 1
-        if oldest is None or candidate < oldest:
-            oldest = candidate
+    # Join classifier names (lower-case) against manifest entries'
+    # SectionInfo.name (case-normalized) via the shared fold.
+    fold = _fold_oldest_verified(manifest, active_names, allow_written_at_backfill=True)
 
-    if oldest is None or in_scope == 0:
+    if fold.oldest is None or fold.contributing == 0:
         return VerificationAge.unavailable(threshold_seconds)
 
-    age = int((now - oldest).total_seconds())
+    age = int((now - fold.oldest).total_seconds())
     if age < 0:
         age = 0  # clock skew protection (mirrors max_age clamp)
     return VerificationAge(
-        oldest_verified_at=oldest,
+        oldest_verified_at=fold.oldest,
         max_age_seconds=age,
         threshold_seconds=threshold_seconds,
-        in_scope_count=in_scope,
-        backfill_used=backfill_used,
+        in_scope_count=fold.contributing,
+        backfill_used=fold.backfill_used,
         available=True,
     )
 

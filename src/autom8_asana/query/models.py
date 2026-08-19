@@ -28,6 +28,40 @@ from autom8_asana.query.join import JoinSpec
 # Sprint 2 receiver-surface — A1 body-precedence field validator.
 _ASANA_GID_PATTERN: re.Pattern[str] = re.compile(r"^\d{16}$")
 
+# ---------------------------------------------------------------------------
+# CAP-SIG — the verification axis roster (CONTRACT §1.5b, CRITIC X-6)
+# ---------------------------------------------------------------------------
+
+# The literal wire field names this producer speaks for the verification axis.
+# PINNED — spelling is load-bearing (CONTRACT §1.2 clause 6). The consumer
+# tests membership BY WIRE FIELD NAME (`QueryMeta.declares_axis`), so a single
+# collapsed token like "verification" answers False, the consumer reads
+# AXIS-ABSENT, and the cure goes silently inert with a passing gate. These three
+# strings must match the SDK parser's literals exactly; a divergence splits the
+# wire without any error surfacing.
+VERIFICATION_AXIS_FIELDS: tuple[str, str, str] = (
+    "verified_at",
+    "verification_age_seconds",
+    "verification_backfill_used",
+)
+
+
+def declare_axes(*rosters: tuple[str, ...]) -> list[str]:
+    """Union axis rosters into one order-preserving, de-duplicated roster.
+
+    ``axes_present`` MUST be assembled as a UNION, never an assignment
+    (CRITIC X-6). The failure mode is silent: the moment a second axis roster
+    is added, an assignment un-declares the first one, and an un-declared axis
+    reads to the consumer as AXIS-ABSENT — no alarm, no refusal, a gate that
+    keeps passing on whatever it fell back to. Writing the union from the start
+    makes that regression impossible to introduce by addition.
+    """
+    seen: dict[str, None] = {}
+    for roster in rosters:
+        for axis in roster:
+            seen[axis] = None
+    return list(seen)
+
 
 class Op(StrEnum):
     """Supported comparison operators.
@@ -259,6 +293,39 @@ class AggregateMeta(BaseModel):
             "side-channel is available."
         ),
         examples=[False],
+    )
+    # Verification axis (CONTRACT §1.2 [A-2026-08-12]) — DECLARED, never
+    # POPULATED on this path. execute_aggregate does not read the
+    # SectionManifest, so it has no stamp to fold and must not pretend
+    # otherwise. Both metas are extra="forbid" and share the
+    # engine._get_freshness_meta side-channel: a field declared on RowsMeta and
+    # absent here would RAISE the moment the spread carried it (the
+    # stale_served mirror precedent above). Declared + null + axes_present=[]
+    # is the sanctioned AXIS-ABSENT state for aggregate: the consumer reads
+    # "this producer does not speak the axis here" and keeps prior behaviour.
+    verified_at: str | None = Field(
+        default=None,
+        description=(
+            "Verification axis: not derived on the aggregate path (this endpoint "
+            "reads no SectionManifest). Always null; see axes_present."
+        ),
+    )
+    verification_age_seconds: float | None = Field(
+        default=None,
+        description="Verification axis: not derived on the aggregate path. Always null.",
+    )
+    verification_backfill_used: bool | None = Field(
+        default=None,
+        description="Verification axis: not derived on the aggregate path. Always null.",
+    )
+    axes_present: list[str] = Field(
+        default_factory=list,
+        description=(
+            "CAP-SIG: the freshness axes this response speaks, by wire field name. "
+            "Empty on the aggregate path (AXIS-ABSENT) — the consumer must keep its "
+            "prior behaviour rather than refuse."
+        ),
+        examples=[[]],
     )
 
 
@@ -517,6 +584,64 @@ class RowsMeta(BaseModel):
             "can fail fast on a present-but-empty column. Null when no contract is "
             "declared."
         ),
+    )
+    # -----------------------------------------------------------------------
+    # Verification axis (CONTRACT §1.2 [A-2026-08-12], frozen §E.2)
+    # -----------------------------------------------------------------------
+    # "How long since these rows were confirmed against the live source" —
+    # NOT "how long since a human last touched a task". The axis advances ONLY
+    # through a per-section probe that reached Asana, returned a verdict other
+    # than PROBE_FAILED, and (where a delta was required) applied it. It never
+    # advances on assembly, a build clock, a cache write, a fetch that returned
+    # nothing, or the passage of time.
+    #
+    # NON-ALIASING: these fields never coalesce with data_age_seconds /
+    # staleness_ratio / freshness (the content-mutation axis above) and are
+    # never populated from `written_at`, which is a write clock. A response may
+    # carry a stale content axis and a fresh verification axis simultaneously —
+    # that combination ("quiet business, healthy warmer") is the whole point.
+    verified_at: str | None = Field(
+        default=None,
+        description=(
+            "ISO-8601 UTC instant: min(last_verified_at) over THIS request's "
+            "resolved classification section set. Null iff the axis is underivable "
+            "(AXIS-NULL) — never substituted from a write clock, never omitted from "
+            "the denominator. Read axes_present to tell AXIS-NULL from AXIS-ABSENT."
+        ),
+        examples=["2026-08-19T14:46:32.232624+00:00"],
+    )
+    verification_age_seconds: float | None = Field(
+        default=None,
+        description=(
+            "now - verified_at, in seconds. Null iff verified_at is null. UNCLAMPED: "
+            "a future-dated stamp yields a NEGATIVE value, disclosed rather than "
+            "clamped to 0 (a clamp would read as maximally fresh and pass every "
+            "threshold trivially)."
+        ),
+        examples=[1132.4],
+    )
+    verification_backfill_used: bool | None = Field(
+        default=None,
+        description=(
+            "Required companion to the axis. True = at least one in-scope section "
+            "carried no verification stamp, so the axis is null (the state a "
+            "mutation-axis backfill would have masked as fresh). False = the axis is "
+            "derived, fully stamped, no reach. Null = the axis could not be attempted. "
+            "Never True alongside a non-null verified_at."
+        ),
+        examples=[False],
+    )
+    axes_present: list[str] = Field(
+        default_factory=list,
+        description=(
+            "CAP-SIG: the freshness axes this response speaks, by wire field name. "
+            "The discriminator between AXIS-ABSENT (roster omits the axis — an older "
+            "producer image; consumer keeps prior behaviour) and AXIS-NULL (roster "
+            "declares the axis, value is null — consumer refuses loudly). Without it "
+            "the two are indistinguishable and a refusal becomes a deploy-order "
+            "accident."
+        ),
+        examples=[list(VERIFICATION_AXIS_FIELDS)],
     )
 
 

@@ -58,6 +58,58 @@ def _to_pascal_case(s: str) -> str:
     return "".join(word.capitalize() for word in s.split("_"))
 
 
+# The axis rosters the /rows path already declares, BEFORE the verification
+# axis is unioned in. Empty today: `axes_present` is net-new on this producer
+# (no other CAP-SIG roster exists in this tree). It is a named constant rather
+# than an inline literal so a future content-axis roster is added by UNION at
+# the call site instead of by assignment — see query.models.declare_axes.
+_ROWS_BASE_AXES: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class _ServeManifestRead:
+    """The result of the ONE SectionManifest read a /rows request performs.
+
+    X-2a: `get_manifest_async` memoizes ONLY on its success branch — a manifest
+    that is absent, unparseable, or whose read raised is never cached. A second
+    derivation calling `get_manifest_async` again would therefore repeat the
+    whole read (and, via the SEAM-1 dual-read fallback, up to two more S3 GETs)
+    on exactly the degraded paths where latency amplification hurts most. So
+    the read happens once and the RESULT is threaded to every derivation within
+    the request.
+
+    This is not a hoisted handle: the object's lifetime is one request, the
+    same as the per-request `EntityQueryService` that owns the persistence. A
+    module-level or cross-request cache would be the pre-refused unbounded-TTL
+    design arrived at silently.
+
+    Attributes:
+        manifest: The ``SectionManifest``, or ``None`` on every failure mode.
+        outcome: Which mode — ``ok`` | ``no_section_persistence`` |
+            ``no_manifest`` | ``read_failed``.
+        error: The exception, when ``outcome == "read_failed"``.
+    """
+
+    manifest: Any | None
+    outcome: str
+    error: BaseException | None = None
+
+    OK = "ok"
+    NO_SECTION_PERSISTENCE = "no_section_persistence"
+    NO_MANIFEST = "no_manifest"
+    READ_FAILED = "read_failed"
+
+
+@dataclass(frozen=True, slots=True)
+class _VerificationMeta:
+    """The four verification wire fields for one response, ready to spread."""
+
+    verified_at: str | None
+    verification_age_seconds: float | None
+    verification_backfill_used: bool | None
+    axes_present: list[str]
+
+
 @dataclass
 class QueryEngine:
     """Orchestrates filtered row retrieval.
@@ -251,9 +303,29 @@ class QueryEngine:
         # at query time and delegates to is_honest_complete() at
         # section_persistence.py (canonical derivation site).
         # DEF-005 scar: manifest read must use same storage backend as writer.
+        #
+        # X-2a: ONE read, threaded to BOTH derivations. The manifest object was
+        # already being fetched here, used for a single boolean, and discarded
+        # — the verification stamp rides in that same object, so the axis costs
+        # zero additional S3 GETs. Re-calling get_manifest_async for the second
+        # derivation would NOT be free: the memo is written only on the success
+        # branch, so every degraded path would repeat the read.
+        manifest_read = await self._read_serve_manifest(project_gid, entity_type)
         honest_contract_complete = await self._derive_honest_contract_complete(
-            project_gid, entity_type=entity_type
+            project_gid, entity_type=entity_type, manifest_read=manifest_read
         )
+
+        # 12.55 Verification axis — "how long since these rows were confirmed
+        # against the live source", scoped to THIS request's resolved
+        # classification set (co-sourcing). Sibling of the honest-contract
+        # derivation, not a modification of it: honest_contract_complete's
+        # value is untouched and this axis does not couple to it.
+        verification = self._derive_verification_axis(
+            manifest_read,
+            project_gid=project_gid,
+            classification_sections=classification_sections,
+        )
+        _span.set_attribute("verification.axis_derivable", verification.verified_at is not None)
 
         # 12.6 FM-5 ARM-B (ADR-fm5-armb-contract-locus D2): co-derive the
         # consumer-column honest-refusal contract at THIS one gate (one-gate graft,
@@ -294,6 +366,15 @@ class QueryEngine:
                 contract_complete=contract_complete,
                 unservable_required_columns=unservable_required_columns,
                 column_manifest=column_manifest,
+                # Explicit kwargs, NOT routed through _get_freshness_meta: that
+                # helper has no manifest access and is shared with the
+                # aggregate path, so routing through it would either force a
+                # manifest read into aggregate or emit nulls that a consumer
+                # would read as AXIS-NULL on a path that never declares the axis.
+                verified_at=verification.verified_at,
+                verification_age_seconds=verification.verification_age_seconds,
+                verification_backfill_used=verification.verification_backfill_used,
+                axes_present=verification.axes_present,
                 **join_meta,  # type: ignore[arg-type]
                 **freshness_meta,  # type: ignore[arg-type]
             ),
@@ -541,8 +622,124 @@ class QueryEngine:
             "stale_served": stale_served,
         }
 
-    async def _derive_honest_contract_complete(
+    async def _read_serve_manifest(
         self, project_gid: str, entity_type: str | None = None
+    ) -> _ServeManifestRead:
+        """Perform the request's SINGLE SectionManifest read.
+
+        Every serve-path derivation that needs the manifest consumes THIS
+        result — see ``_ServeManifestRead`` for why re-calling
+        ``get_manifest_async`` is not equivalent.
+
+        DEF-005 guard: reads via the provider's ``section_persistence``
+        attribute (same storage backend as the writer) to avoid a cache-split.
+        SEAM-1 NFR-2: ``entity_type`` is threaded so the probe reads the v2
+        entity-keyed manifest rather than the legacy entity-agnostic one.
+
+        Never raises: every failure mode is captured in the returned value so
+        each consumer applies its own disposition (``honest_contract_complete``
+        degrades to False; the verification axis degrades to AXIS-NULL).
+        """
+        try:
+            section_persistence = getattr(self.provider, "section_persistence", None)
+            if section_persistence is None:
+                return _ServeManifestRead(None, _ServeManifestRead.NO_SECTION_PERSISTENCE)
+
+            from autom8_asana.dataframes.section_persistence import SectionManifest
+
+            manifest = await section_persistence.get_manifest_async(
+                project_gid, entity_type=entity_type
+            )
+            if not isinstance(manifest, SectionManifest):
+                return _ServeManifestRead(None, _ServeManifestRead.NO_MANIFEST)
+            return _ServeManifestRead(manifest, _ServeManifestRead.OK)
+        except Exception as exc:  # noqa: BLE001  # BROAD-CATCH: defensive; never blocks response
+            return _ServeManifestRead(None, _ServeManifestRead.READ_FAILED, error=exc)
+
+    def _derive_verification_axis(
+        self,
+        manifest_read: _ServeManifestRead,
+        *,
+        project_gid: str,
+        classification_sections: frozenset[str] | None,
+    ) -> _VerificationMeta:
+        """Derive the verification axis for THIS response's bytes.
+
+        Grain = the request's RESOLVED classification section set — the same
+        ``classification_sections`` that filtered the rows being returned, not
+        a hardcoded pool. CONTRACT §1.4 CO-SOURCING: the freshness signal in
+        the meta describes the bytes in that same response, so a fixed union
+        (billable / active) would answer a single-classification request with a
+        fold over sections absent from its own bytes. The billable grain the
+        contract requires is reconstituted at the CONSUMER, which combines both
+        single-classification legs.
+
+        ``classification_sections is None`` (no classification requested) is
+        the whole-frame case: scope to every section in the manifest, which is
+        the co-sourcing-correct answer for a whole-frame response.
+
+        Failure disposition is AXIS-NULL (declared + null), never a silent
+        omission: an undeclared axis is indistinguishable from an older
+        producer image, and that conflation is precisely what makes a transient
+        S3 error read as "no cure deployed".
+
+        Never raises.
+        """
+        from autom8_asana.metrics.freshness import compute_serve_verification
+        from autom8_asana.query.models import VERIFICATION_AXIS_FIELDS, declare_axes
+
+        # The roster is ALWAYS declared on this path, derived or not. That is
+        # what lets the consumer separate "cannot derive" (refuse) from
+        # "producer does not speak this axis" (stay dormant).
+        axes_present = declare_axes(_ROWS_BASE_AXES, VERIFICATION_AXIS_FIELDS)
+
+        try:
+            serve = compute_serve_verification(
+                manifest=manifest_read.manifest,
+                section_names=classification_sections,
+            )
+        except Exception:  # noqa: BLE001  # BROAD-CATCH: defensive; never blocks response
+            logger.warning(
+                "serve_verification_axis_derivation_failed",
+                project_gid=project_gid,
+                exc_info=True,
+            )
+            return _VerificationMeta(None, None, None, axes_present)
+
+        if serve.derivable:
+            logger.debug(
+                "serve_verification_axis_derived",
+                project_gid=project_gid,
+                verified_at=serve.verified_at,
+                verification_age_seconds=serve.verification_age_seconds,
+                in_scope_count=serve.in_scope_count,
+            )
+        else:
+            # RISK-1: a manifest-read failure now yields a REFUSING axis rather
+            # than a silent fallback. Emitted at warning with a named reason so
+            # the rate is observable BEFORE anyone proposes a fallback.
+            logger.warning(
+                "serve_verification_axis_null",
+                project_gid=project_gid,
+                reason=serve.refusal_reason,
+                manifest_read_outcome=manifest_read.outcome,
+                in_scope_count=serve.in_scope_count,
+                missing_count=serve.missing_count,
+            )
+
+        return _VerificationMeta(
+            verified_at=serve.verified_at,
+            verification_age_seconds=serve.verification_age_seconds,
+            verification_backfill_used=serve.verification_backfill_used,
+            axes_present=axes_present,
+        )
+
+    async def _derive_honest_contract_complete(
+        self,
+        project_gid: str,
+        entity_type: str | None = None,
+        *,
+        manifest_read: _ServeManifestRead | None = None,
     ) -> bool:
         """Derive honest_contract_complete from SectionPersistence manifest.
 
@@ -563,6 +760,9 @@ class QueryEngine:
         Args:
             project_gid: Asana project GID.
             entity_type: Entity type from the query context (SEAM-1 dual-read).
+            manifest_read: The request's already-performed manifest read. When
+                omitted this method performs its own read, preserving the
+                standalone contract for callers outside ``execute_rows``.
 
         Returns:
             True iff all manifest sections are COMPLETE with no FAILED sections.
@@ -572,28 +772,34 @@ class QueryEngine:
         # attribute if available (EntityQueryService exposes it).
         # Fall back to False if not accessible — never shortcut-stamps True.
         try:
-            section_persistence = getattr(self.provider, "section_persistence", None)
-            if section_persistence is None:
+            if manifest_read is None:
+                manifest_read = await self._read_serve_manifest(project_gid, entity_type)
+
+            if manifest_read.outcome == _ServeManifestRead.READ_FAILED:
+                err = manifest_read.error
+                logger.warning(
+                    "honest_contract_derivation_failed",
+                    project_gid=project_gid,
+                    exc_info=(type(err), err, err.__traceback__) if err is not None else True,
+                )
+                return False
+
+            if manifest_read.outcome == _ServeManifestRead.NO_SECTION_PERSISTENCE:
                 logger.debug(
                     "honest_contract_no_section_persistence",
                     project_gid=project_gid,
                 )
                 return False
 
-            from autom8_asana.dataframes.section_persistence import (
-                SectionManifest,
-                is_honest_complete,
-            )
-
-            manifest = await section_persistence.get_manifest_async(
-                project_gid, entity_type=entity_type
-            )
-            if not isinstance(manifest, SectionManifest):
+            manifest = manifest_read.manifest
+            if manifest is None:
                 logger.debug(
                     "honest_contract_no_manifest",
                     project_gid=project_gid,
                 )
                 return False
+
+            from autom8_asana.dataframes.section_persistence import is_honest_complete
 
             result = is_honest_complete(manifest)
             logger.debug(
