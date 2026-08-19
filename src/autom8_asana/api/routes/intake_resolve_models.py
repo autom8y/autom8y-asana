@@ -216,7 +216,109 @@ class ContactResolveResponse(BaseModel):
     )
 
 
+# ---------------------------------------------------------------------------
+# Business-by-Email Resolution (OW-10a email fallback)
+# ---------------------------------------------------------------------------
+
+
+class BusinessByEmailResolveRequest(BaseModel):
+    """Resolve a business indirectly, via a contact's email.
+
+    The fallback for bookings that carry no office-phone answer. Email is the
+    ONLY input: this surface deliberately accepts no second criterion, because
+    every additional narrowing knob is a way to turn an ambiguous email into a
+    confident wrong answer.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    email: str = Field(
+        min_length=3,
+        max_length=320,  # RFC 3696 practical ceiling
+        description="Contact email address. Exact match against contact_email.",
+        examples=["jane@acmechiro.example"],
+    )
+
+
+class BusinessByEmailResolveResponse(BaseModel):
+    """Result of email->business resolution.
+
+    ``found=True`` is asserted ONLY on a unique, E.164-valid business phone.
+    Every other outcome is ``found=False`` carrying a ``reason`` that names
+    WHICH non-answer occurred -- the C3 failure-discrimination discipline. A
+    collapsed "not found" would make "this email is unknown", "this email is
+    shared across two companies" and "this contact's office phone never
+    cascaded" indistinguishable, and they have three different remedies.
+
+    ``found=False`` is never a guess and never a best-effort pick: an
+    ``office_phone`` here becomes a business-of-record downstream, where a
+    wrong value SUCCEEDS against the wrong business rather than failing.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    found: bool = Field(
+        description="True only when the email resolved to exactly one business.",
+        examples=[True],
+    )
+    office_phone: OfficePhoneField | None = Field(
+        default=None,
+        description=(
+            "Office phone of the resolved business, cascaded from the parent "
+            "Business onto the contact row. Null unless found=True. Feed this "
+            "to POST /v1/resolve/business for the full business record."
+        ),
+        examples=["+19259998806"],
+    )
+    vertical: str | None = Field(
+        default=None,
+        description=(
+            "Business vertical, when unambiguous across the matched contact "
+            "rows. Context only -- never part of the found decision."
+        ),
+        examples=["chiro"],
+    )
+    contact_gid: str | None = Field(
+        default=None,
+        description=(
+            "Asana task GID of the matched contact. Populated only when "
+            "exactly one contact row matched, so it is never an arbitrary "
+            "pick from several."
+        ),
+        examples=["1234567890123457"],
+    )
+    reason: str = Field(
+        description=(
+            "Discriminated outcome. One of: 'unique_match' (found=True); "
+            "'email_not_found' (no contact carries this email); "
+            "'email_ambiguous' (the email points at 2+ distinct businesses); "
+            "'office_phone_absent' (contact(s) matched but no office phone "
+            "cascaded); 'office_phone_malformed' (a phone cascaded but is not "
+            "E.164, so it would be refused downstream)."
+        ),
+        examples=["unique_match"],
+    )
+    match_count: int = Field(
+        default=0,
+        ge=0,
+        description="Number of contact ROWS matched (not distinct businesses).",
+        examples=[1],
+    )
+    distinct_business_count: int = Field(
+        default=0,
+        ge=0,
+        description=(
+            "Number of DISTINCT businesses the matched contacts belong to. "
+            "This is the value the unique-match policy gates on; >1 forces "
+            "found=False with reason='email_ambiguous'."
+        ),
+        examples=[1],
+    )
+
+
 __all__ = [
+    "BusinessByEmailResolveRequest",
+    "BusinessByEmailResolveResponse",
     "BusinessResolveRequest",
     "BusinessResolveResponse",
     "ContactResolveRequest",
