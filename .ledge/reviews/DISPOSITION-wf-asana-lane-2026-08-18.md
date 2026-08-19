@@ -343,3 +343,13 @@ plan lane's committed `image_tag` default vs the live image) + one ALB target-gr
 attribute. Flagged LOUDLY on the PR for the merge owner: confirm the apply path
 receives the live `image_tag` (satellite dispatch passes it at deploy time) before
 merging. This drift predates the branch and appears on every PR plan of this stack.
+> **C-7 addendum (2026-08-19, operator ruling)**: the drift flag is CURED AT SOURCE —
+> `production.tfvars` `image_tag` refreshed `e043a93 -> 844bbde` inside #1647
+> (`c0f1c1d4`, drift-log firing #11; pin now matches live digest `sha256:8c3f5e0e…`;
+> the stale tag's mutable re-push would have landed never-run digest
+> `sha256:f29b218b…`). Fresh CI plan at that head (run `32259778209`, verbatim):
+> **`Plan: 0 to add, 7 to change, 0 to destroy.`** — ZERO image_uri lines; the 7 =
+> this lane's 3× lambda env + 3× IAM secrets policy + the pre-existing ALB
+> target-group attr. Two-sided at the plan surface: the six backward repoints were
+> present on the stale pin (run `32217879669`) and are gone on the refreshed pin,
+> while the lane's intended changes persist unchanged.
