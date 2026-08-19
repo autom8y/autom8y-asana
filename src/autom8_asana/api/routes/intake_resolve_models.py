@@ -2,12 +2,26 @@
 
 Contract constraint: These models MUST produce the exact same JSON shape
 as the interop models in autom8y-client-sdk/asana/models.py.
+
+F-9 exception to that constraint (durable observation semantics, W-F lane):
+``BusinessResolveResponse.has_unit`` / ``.has_contact_holder`` are tri-state
+producer-side and are OMITTED from the wire when unobserved. The interop
+models keep ``bool = False`` unchanged -- an omitted key parses to the same
+attribute value there, while ``model_fields_set`` (the field the consuming
+tripwire probe reads, calendly-intake ``tripwire/probe.py::read_field``)
+correctly excludes it. Asserted values remain shape-identical.
 """
 
 from __future__ import annotations
 
 from autom8y_api_schemas import LeadPhoneField, OfficePhoneField
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SerializerFunctionWrapHandler,
+    model_serializer,
+)
 
 # ---------------------------------------------------------------------------
 # Business Resolution (ADR section 2.1)
@@ -71,16 +85,64 @@ class BusinessResolveResponse(BaseModel):
         description="External company GUID. Null if not onboarded.",
         examples=["b1c2d3e4-f5a6-7890-bcde-f12345678901"],
     )
-    has_unit: bool = Field(
-        default=False,
-        description="True if a unit subtask exists under the business.",
+    # F-9 DURABLE CURE (tri-state sub-entity observation).
+    # The pre-cure ``bool = False`` declaration made "not observed"
+    # UNREPRESENTABLE: the producing service always stamped an explicit
+    # false onto the wire, so ordinary production index lag (business task
+    # indexed before its sub-entities) rendered as a POSITIVE assertion
+    # ``has_unit: false`` -- which the W5-3 first-create tripwire correctly
+    # read as a written(True) != read(False) contradiction -> MISMATCH ->
+    # unattended revert of the client-facing subscription. Tri-state makes
+    # the unknown state representable; the serializer below keeps it OFF
+    # the wire entirely (the consuming probe's ``read_field`` then resolves
+    # it to ABSENT/UNOBSERVED, which can never revert production).
+    has_unit: bool | None = Field(
+        default=None,
+        description=(
+            "Tri-state: True = a unit subtask was observed; False = a "
+            "non-empty subtask listing was observed without one (a real "
+            "assertion of absence); None/omitted = NOT OBSERVED (never "
+            "rendered as false on the wire)."
+        ),
         examples=[True],
     )
-    has_contact_holder: bool = Field(
-        default=False,
-        description="True if a contact_holder subtask exists under the business.",
+    has_contact_holder: bool | None = Field(
+        default=None,
+        description=(
+            "Tri-state: True = a contact_holder subtask was observed; "
+            "False = a non-empty subtask listing was observed without one; "
+            "None/omitted = NOT OBSERVED (never rendered as false on the "
+            "wire)."
+        ),
         examples=[True],
     )
+
+    # ★ NO return annotation on this serializer (critique A-1): annotating it
+    # `-> dict[str, Any]` makes pydantic derive the SERIALIZATION json-schema
+    # from the annotation and erases every property from
+    # model_json_schema(mode="serialization"). Latent today only because the
+    # router mounts include_in_schema=False (intake_resolve.py:51). The
+    # targeted mypy ignore below exists BECAUSE the annotation must stay off;
+    # do not "fix" it by re-annotating.
+    @model_serializer(mode="wrap")
+    def _omit_unobserved_sub_entities(  # type: ignore[no-untyped-def]
+        self, handler: SerializerFunctionWrapHandler
+    ):
+        """F-9: exclude-unset semantics, scoped to the two sub-entity fields.
+
+        Implemented at the model level rather than via the route's
+        ``response_model_exclude_unset`` because the route-level flag also
+        strips ``meta.timestamp`` (a ``default_factory`` field on the fleet
+        ``ResponseMeta`` envelope) -- a collateral wire regression. Scoping
+        the omission here changes exactly the two fields the F-9 ruling
+        governs and nothing else.
+        """
+        out = handler(self)
+        if isinstance(out, dict):
+            for field in ("has_unit", "has_contact_holder"):
+                if field not in self.model_fields_set:
+                    out.pop(field, None)
+        return out
 
 
 # ---------------------------------------------------------------------------

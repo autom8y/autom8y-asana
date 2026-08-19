@@ -40,6 +40,7 @@ from autom8_asana.api.routes.internal import (
 from autom8_asana.services.intake_resolve_service import (
     BusinessVerificationError,
     IntakeResolveService,
+    SubtaskObservationError,
     is_valid_e164,
 )
 
@@ -97,6 +98,8 @@ async def resolve_business(
         - 401 SERVICE_TOKEN_REQUIRED: PAT token provided (S2S only)
         - 503 INDEX_NOT_READY: business index could not be consulted or built
         - 503 BUSINESS_VERIFY_FAILED: a GID resolved but is unverified
+        - 503 SUBTASK_OBSERVATION_FAILED: sub-entity listing faulted (F-9:
+          never rendered as has_unit/has_contact_holder=false)
         - 503 ASANA_UNAVAILABLE: Asana call failed
     """
     start_time = time.monotonic()
@@ -145,6 +148,26 @@ async def resolve_business(
             "BUSINESS_VERIFY_FAILED",
             "A candidate business was found but could not be verified as a business "
             "of record. No result is returned rather than an unverified one.",
+        )
+    except SubtaskObservationError as exc:
+        # F-9 durable cure (5xx-on-subtask-fault): the business resolved, but
+        # the sub-entity listing faulted. Fail CLOSED: stamping
+        # has_unit/has_contact_holder=false here hands the first-create
+        # tripwire a fabricated positive contradiction.
+        logger.error(
+            "intake_resolve_business_subtask_unobserved",
+            extra={
+                "request_id": request_id,
+                "gid": exc.gid,
+                "reason": exc.reason,
+            },
+        )
+        raise_api_error(
+            request_id,
+            503,
+            "SUBTASK_OBSERVATION_FAILED",
+            "The business resolved but its sub-entity observation faulted. "
+            "Failing closed rather than asserting unobserved sub-entity state.",
         )
     except RuntimeError as exc:
         if "not initialized" in str(exc).lower() or "not ready" in str(exc).lower():
