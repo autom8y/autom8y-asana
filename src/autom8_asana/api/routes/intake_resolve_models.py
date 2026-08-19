@@ -14,8 +14,6 @@ correctly excludes it. Asserted values remain shape-identical.
 
 from __future__ import annotations
 
-from typing import Any
-
 from autom8y_api_schemas import LeadPhoneField, OfficePhoneField
 from pydantic import (
     BaseModel,
@@ -119,10 +117,13 @@ class BusinessResolveResponse(BaseModel):
         examples=[True],
     )
 
+    # ★ NO return annotation on this serializer (critique A-1): annotating it
+    # `-> dict[str, Any]` makes pydantic derive the SERIALIZATION json-schema
+    # from the annotation and erases every property from
+    # model_json_schema(mode="serialization"). Latent today only because the
+    # router mounts include_in_schema=False (intake_resolve.py:51).
     @model_serializer(mode="wrap")
-    def _omit_unobserved_sub_entities(
-        self, handler: SerializerFunctionWrapHandler
-    ) -> dict[str, Any]:
+    def _omit_unobserved_sub_entities(self, handler: SerializerFunctionWrapHandler):
         """F-9: exclude-unset semantics, scoped to the two sub-entity fields.
 
         Implemented at the model level rather than via the route's

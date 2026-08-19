@@ -87,13 +87,15 @@ tripwire catch as a success — a catch remains a structural-defect report.
 1. **Partial-lag**: a non-empty listing whose OTHER holder is still lagging asserts a false
    the probe can trip on. One read cannot discriminate it; it is the ratified
    single-confirmation predicate's own limit (probe.py:68-73), narrowed by this cure from
-   "any lag" to "partial lag only".
+   "any lag" to "partial lag only". *(SUPERSEDED — the "narrowed" framing is INVERTED;
+   see §8 C-2 per critique A-3.)*
 2. **Total-subtask-loss**: a malformed create that lost BOTH subtasks yields an empty
    listing → UNOBSERVED on the sub-entity legs. The probe's other legs (gid identity,
    key readback, corroborated absence) and recon remain the catch for that class.
 3. **Availability trade (deliberate)**: a transient Asana subtask hiccup now 503s the
    resolve instead of silently degrading — consistent with the endpoint's ratified
    fail-closed three-outcome contract (ADR-resolve-cure-design-2026-08-08 D-2a/D-2b).
+   *(RESTATED with the real blast radius in §8 C-1 per critique A-2.)*
 
 ## §2 LANDING — the two-sided proof (pipeline-steward seat)
 
@@ -235,7 +237,102 @@ Evidence grade **MODERATE (ceiling)** — both author seats are this agent; ever
 claim above is own-hands re-derived and re-runnable, but no claim here is
 externally corroborated yet. This lane does NOT self-certify:
 
-- [ ] **structure-evaluator@arch critique** — to be attached by the dispatching main
-  thread post-exit (degeneracy guard, shape :377). Attack surface offered: §1's
-  empty-listing→UNOBSERVED rule (does it under-power the sub-entity teeth beyond the
-  ratified intent?), §3's deferral reasoning, §6.1's serializer-vs-route-flag delta.
+- [x] **structure-evaluator@arch critique** — RENDERED 2026-08-18, inscribed at
+  `.ledge/reviews/CRITIQUE-s09-wf-asana-2026-08-18.md` (transcribed by this seat as
+  scribe; content is the critic's). Verdicts: PR A #382 GO-WITH-CONDITIONS (A-1..A-5),
+  PR B #1647 GO-WITH-CONDITIONS (B-1 BLOCKING; B-2, B-3). The critic re-derived the
+  RED-before own-hands from a pristine 844bbde5 tree (4F/2P exactly, no G-THEATER),
+  cleared the consumer census, and CONCURRED with the S-COR-2 deferral. Condition
+  discharge state: §8.
+
+## §8 Post-critique corrections and registrations (2026-08-19, append-only)
+
+Per critique conditions; original text above left intact with pointer lines — never
+silently rewritten.
+
+**C-1 (A-2 discharge) — §1 residual 3 RESTATED with the real blast radius.**
+The 503 is NOT absorbed quietly by consumers: the calendly pipeline's resolve stage
+calls `resolve_business_async` unguarded
+(`autom8y services/calendly-intake/src/calendly_intake/pipeline/stages/resolve.py:85`)
+and the stage is CRITICAL (`.../pipeline/orchestrator.py:224`), so an exhausted-retry
+503 becomes a pipeline failure → HTTP 500 to Calendly (Calendly's webhook retry then
+governs redelivery). Mitigation exists: 503 is in the SDK's `retryable_status_codes`
+(`autom8y-http/src/autom8y_http/config.py:127-130`, backoff + jitter). Cost of that
+mitigation, named: retries amplify Asana call volume exactly when Asana is unhealthy —
+the 429-storm lineage. **Signal binding**: `SUBTASK_OBSERVATION_FAILED` currently has
+ZERO alarm/metric binding (SCAR-ALARM-BINDING-001 shape). Chosen path = **OWNED CARD**,
+not in-PR binding: an alarm landed without its own two-sided bite proof would recreate
+the exact scar class the critic named.
+> **CARD-SUBTASK-OBS-503-SIGNAL** — owner: **sre rite / observability-engineer seat**
+> (dispatched at S-10's bake-tracking entry, which that seat already owns).
+> Trigger (hard precondition): BEFORE the next armed first-create window opens (S-04
+> entry / any WS-B replay), a metric-filter or alarm binding on the
+> `intake_resolve_business_subtask_unobserved` log event must exist WITH a two-sided
+> bite receipt — or S-04's entry criteria must name its absence explicitly.
+
+**C-2 (A-3 discharge) — §1 residual 1 RE-DERIVED against the 7-holder gather shape.**
+The original "narrowed from any-lag to partial-lag-only" framing was INVERTED.
+Verified at referent: `HOLDER_TYPES` is SEVEN holders
+(`src/autom8_asana/services/intake_create_service.py:45-53`) created in ONE
+`asyncio.gather` (`:440`). The protected shape — EMPTY listing → UNOBSERVED — requires
+ALL SEVEN subtasks un-indexed simultaneously; the still-biting shape — non-empty
+listing missing `unit_holder` — requires only ONE to lag behind any other. The cure
+therefore protects the RARER lag geometry; the more probable partial-index geometry
+still renders an asserted false. Compounding (critic finding): the probe gates its
+`has_unit` check on `created.unit_gid` — the Phase-3 **Unit task**
+(`intake_create_service.py:200`) — while `has_unit` reports the `unit_holder`
+**business subtask**; different objects, so the check can arm on creates whose
+subtask-listing timing is entirely independent of the gating object.
+> `[UV-P: which lag geometry production actually exhibits at first-create — all-7-
+> un-indexed (protected) vs partial-index (unprotected) — and at what frequency |
+> METHOD: S-04's live F-9 outcome observation (shape :244, "recorded either way")
+> plus the probe's per-check receipts | REASON: no live first-create has traversed
+> the cured producer; the geometry is unmeasurable from unit fixtures]`
+The honest claim after re-derivation: the durable cure ELIMINATES the fault-fabrication
+channel (503, structural) and the all-un-indexed channel (omission, structural), and
+LEAVES the partial-index channel as the ratified single-confirmation predicate's limit
+— now correctly weighted as the more probable of the two lag shapes, carried by OW-3's
+suspension law at any armed window until S-04 measures it.
+
+**C-3 (A-4 discharge) — §1 table row omitted, now recorded.** The `found=false` wire
+also changed: pre-cure it carried both explicit falses (receipt:
+`autom8y .ledge/reviews/CERT-intake-cf-1-gate2-2026-08-09.md:429` —
+`"has_unit":false,"has_contact_holder":false`); cured, both keys are omitted (the
+constructor's found=false path never sets them). Benign for the probe (it reads
+sub-entity fields only on `spine_found=true`) and for SDK consumers (defaults
+identical), but it is a wire-shape delta and belongs in the §1 table.
+
+**C-4 (A-5 discharge) — reporting corrections.** (a) "66/66 adjacent suites"
+double-counted: the 4-file run was 60 non-F-9 + 6 F-9 = 66 total; adjacent = **60**.
+(b) `test_intake_resolve_models.py` is IN-SCOPE (modified by this PR), not adjacent.
+(c) `test_intake_resolve_business_index.py` lives under `tests/unit/services/`, not
+`tests/unit/api/routes/`.
+
+**C-5 (B-2 discharge) — coverage-denominator gate REGISTERED.** Post-#1647-deploy the
+WS-D ASANA leg becomes QUIETLY-PARTIAL, not healthy: 1-column-keyed entities are
+structurally dropped by key ARITY (not project membership) — `gid_lookup.from_dataframe`
+mints `pv1:{phone}` 2-segment keys, `extract_mappings_from_index` gates
+`len(parts)==3`, and the skip is a silent `logger.debug`.
+> **GATE-WSD-DENOMINATOR** — owner: **sre rite / observability-engineer seat at S-10
+> bake-tracking** (same dispatch as CARD-SUBTASK-OBS-503-SIGNAL). Precondition on
+> READING the deadman post-deploy: no `bookings_incomplete` / `missing_asana` /
+> `bookings_aged_out_unresolved` datapoint may be read as healthy OR as correlation
+> truth until EITHER the T2 census (Businesses-project Vertical CF population) OR a
+> map-coverage metric (pushed-keys ∕ eligible-entities per project) bounds the
+> denominator the ASANA leg can actually see.
+
+**C-6 (B-1 discharge, BLOCKING — realized in PR #1647).**
+`STATUS_PUSH_ENABLED = "false"` added to `environment_variables` on ALL THREE warmer
+modules. Mechanism verified own-hands at referent: `cache_warmer.py:64` imports and
+`:1137` awaits `_push_account_status_for_completed_entities`;
+`_is_status_push_enabled()` is DEFAULT-ON (`gid_push.py:447-451` — "Enabled by
+default"); the URL/API-key absence WAS the only wall, and #1647 sets both — without
+this lever the apply would have UN-GATED the account-status push on all three warmer
+Lambdas, undeclared, creating a two-runtime snapshot-replace last-writer-wins plane
+split (SCAR-SEAM1-PROBER-001 shape; the Lambda lane's push set is the narrower
+`completed_entities ∩ PIPELINE_TYPE_BY_PROJECT_GID`). The push stays DARK — exactly
+the status quo; ARMING the dual-run is an operator word that has not been given.
+
+**C-7 (B-3) — terraform-plan UV-P stays OPEN** until the Service Terraform CI plan
+posts on #1647; the posted plan is the citation that closes it. Not closed in this
+revision.

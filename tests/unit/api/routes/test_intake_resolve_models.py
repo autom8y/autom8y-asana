@@ -116,6 +116,23 @@ class TestBusinessResolveResponse:
         assert "has_unit" not in json_dumped
         assert "has_contact_holder" not in json_dumped
 
+    def test_serialization_schema_retains_all_properties(self) -> None:
+        """A-1 regression guard (CRITIQUE-s09-wf-asana-2026-08-18): a return
+        annotation on the scoped model serializer makes pydantic derive the
+        serialization json-schema from the annotation, erasing every property.
+        Latent today only because the router mounts include_in_schema=False."""
+        schema = BusinessResolveResponse.model_json_schema(mode="serialization")
+        assert set(schema.get("properties", {})) == {
+            "found",
+            "task_gid",
+            "name",
+            "office_phone",
+            "vertical",
+            "company_id",
+            "has_unit",
+            "has_contact_holder",
+        }
+
     def test_asserted_false_sub_entities_stay_on_the_wire(self) -> None:
         """F-9 teeth-preservation: an EXPLICITLY asserted false (a non-empty
         listing observed without the holder) is serialized -- the first-create
