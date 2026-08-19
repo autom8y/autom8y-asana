@@ -333,6 +333,13 @@ split (SCAR-SEAM1-PROBER-001 shape; the Lambda lane's push set is the narrower
 `completed_entities ∩ PIPELINE_TYPE_BY_PROJECT_GID`). The push stays DARK — exactly
 the status quo; ARMING the dual-run is an operator word that has not been given.
 
-**C-7 (B-3) — terraform-plan UV-P stays OPEN** until the Service Terraform CI plan
-posts on #1647; the posted plan is the citation that closes it. Not closed in this
-revision.
+**C-7 (B-3) — terraform-plan UV-P CLOSED.** Service Terraform CI plan posted on #1647
+head `467379ee` (run `32217879669`, Plan (asana, production) SUCCESS):
+**`Plan: 0 to add, 13 to change, 0 to destroy`**. Six changes are this lane's
+(3× `aws_lambda_function.main` env + 3× `aws_iam_role_policy.secrets[0]`, warmer
+modules only). ★The other SEVEN are PRE-EXISTING DRIFT the untargeted merge-apply
+would also realize — six `image_uri` repoints `asana:844bbde -> asana:e043a93` (the
+plan lane's committed `image_tag` default vs the live image) + one ALB target-group
+attribute. Flagged LOUDLY on the PR for the merge owner: confirm the apply path
+receives the live `image_tag` (satellite dispatch passes it at deploy time) before
+merging. This drift predates the branch and appears on every PR plan of this stack.
