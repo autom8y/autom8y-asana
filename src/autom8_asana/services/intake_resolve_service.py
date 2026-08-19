@@ -326,7 +326,7 @@ class IntakeResolveService:
                 gid,
                 opt_fields=["name"],
             ).collect()
-        except Exception as exc:  # noqa: BLE001 - every fault fails CLOSED (F-9)
+        except Exception as exc:  # BROAD-CATCH: every fault fails CLOSED via re-raise (F-9)
             logger.error(
                 "business_subtask_observation_failed",
                 extra={"gid": gid, "error": str(exc), "error_type": type(exc).__name__},

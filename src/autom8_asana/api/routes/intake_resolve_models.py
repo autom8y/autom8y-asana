@@ -121,9 +121,13 @@ class BusinessResolveResponse(BaseModel):
     # `-> dict[str, Any]` makes pydantic derive the SERIALIZATION json-schema
     # from the annotation and erases every property from
     # model_json_schema(mode="serialization"). Latent today only because the
-    # router mounts include_in_schema=False (intake_resolve.py:51).
+    # router mounts include_in_schema=False (intake_resolve.py:51). The
+    # targeted mypy ignore below exists BECAUSE the annotation must stay off;
+    # do not "fix" it by re-annotating.
     @model_serializer(mode="wrap")
-    def _omit_unobserved_sub_entities(self, handler: SerializerFunctionWrapHandler):
+    def _omit_unobserved_sub_entities(  # type: ignore[no-untyped-def]
+        self, handler: SerializerFunctionWrapHandler
+    ):
         """F-9: exclude-unset semantics, scoped to the two sub-entity fields.
 
         Implemented at the model level rather than via the route's

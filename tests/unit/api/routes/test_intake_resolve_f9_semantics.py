@@ -63,7 +63,7 @@ from autom8y_core.models.asana_service import (
 # Re-export the fixtures the tests below consume (pytest resolves them by
 # name from the imported module's fixture registry only if conftest-visible;
 # importing them explicitly keeps this module self-sufficient).
-from tests.unit.api.routes.test_intake_resolve import (  # noqa: F401
+from tests.unit.api.routes.test_intake_resolve import (
     AUTH_HEADER,
     BUSINESS_GID,
     BUSINESS_MEMBERSHIPS,
