@@ -1,10 +1,22 @@
 """Intake resolve routes for business and contact resolution.
 
-POST /v1/resolve/business - Resolve business by phone/vertical
-POST /v1/resolve/contact  - Resolve contact by email/phone within business scope
+POST /v1/resolve/business          - Resolve business by phone/vertical
+POST /v1/resolve/contact           - Resolve contact by email/phone within business scope
+POST /v1/resolve/business-by-email - Resolve business INDIRECTLY, via contact email (OW-10a)
 
 Per ADR-INT-001: Never return 404 for not-found; use found=False.
 Per ADR-INT-002: Email-then-phone priority, NO name matching.
+
+★ PATH SHADOWING (load-bearing): every path in this module is a LITERAL that
+  sits inside the subtree claimed by ``resolver.py``'s wildcard
+  ``POST /v1/resolve/{entity_type}``. This router is therefore mounted BEFORE
+  ``resolver_router`` in ``api/main.py`` (Starlette matches in registration
+  order), and that ordering is asserted by
+  ``tests/unit/api/routes/test_business_by_email.py``. Adding a literal here
+  without preserving that mount order routes the request into the wildcard
+  instead. The failure is loud rather than silent -- the wildcard answers
+  404 UNKNOWN_ENTITY_TYPE for a non-entity segment -- but it is still a
+  regression, so the order is pinned by test rather than by comment alone.
 
 Authentication:
     All routes require service token (S2S JWT) authentication.
@@ -28,6 +40,8 @@ from autom8_asana.api.errors import raise_api_error
 from autom8_asana.api.models import SuccessResponse, build_success_response
 from autom8_asana.api.routes._security import s2s_router
 from autom8_asana.api.routes.intake_resolve_models import (
+    BusinessByEmailResolveRequest,
+    BusinessByEmailResolveResponse,
     BusinessResolveRequest,
     BusinessResolveResponse,
     ContactResolveRequest,
@@ -36,6 +50,11 @@ from autom8_asana.api.routes.intake_resolve_models import (
 from autom8_asana.api.routes.internal import (
     ServiceClaims,
     require_service_claims,
+)
+from autom8_asana.services.business_by_email_service import (
+    ContactIndexUnavailableError,
+    redact_email,
+    resolve_business_by_email,
 )
 from autom8_asana.services.intake_resolve_service import (
     BusinessVerificationError,
@@ -311,6 +330,139 @@ async def resolve_contact(
             "business_gid": body.business_gid,
             "found": result.found,
             "match_field": result.match_field,
+            "duration_ms": round(elapsed_ms, 2),
+            "caller_service": claims.service_name,
+        },
+    )
+
+    return build_success_response(data=result, request_id=request_id)
+
+
+# ---------------------------------------------------------------------------
+# POST /v1/resolve/business-by-email  (OW-10a email fallback)
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/resolve/business-by-email",
+    response_model=SuccessResponse[BusinessByEmailResolveResponse],
+    openapi_extra={
+        "x-fleet-side-effects": [],
+        "x-fleet-idempotency": {"idempotent": True, "key_source": None},
+        "x-fleet-cross-service-refs": {
+            "service": "autom8y-asana",
+            "entity": "business",
+        },
+    },
+)
+async def resolve_business_by_email_route(
+    body: BusinessByEmailResolveRequest,
+    request_id: RequestId,
+    auth: AuthContextDep,
+    claims: Annotated[ServiceClaims, Depends(require_service_claims)],
+) -> SuccessResponse[BusinessByEmailResolveResponse]:
+    """Resolve a business's office phone from a contact email (OW-10a fallback).
+
+    A DEDICATED surface, deliberately not an extra field on
+    ``POST /v1/resolve/business``. That endpoint's contract is "office_phone is
+    the primary key"; its criterion is built by a registry guard that refuses
+    anything other than a phone lookup, on purpose. Widening it would have to
+    weaken that guard for every caller. This endpoint is additive instead: it
+    walks contact_email -> contact row -> cascaded office_phone, then hands the
+    phone back so the caller can use the unchanged business path.
+
+    Authentication: S2S JWT only (require_service_claims dependency).
+
+    UNIQUE-MATCH-ONLY. ``found=True`` requires exactly ONE distinct business.
+    Zero matches, an email spanning 2+ businesses, a missing cascade, or a
+    non-E.164 cascade are all ``200 found=false`` with a discriminating
+    ``reason``. No row is ever guessed: the phone returned here becomes a
+    business-of-record downstream, where a wrong value succeeds against the
+    wrong business instead of failing.
+
+    Three-outcome contract, inherited from the business path
+    (ADR-resolve-cure-design-2026-08-08 D-2b): ABSENT (200 found=false) and
+    UNAVAILABLE (503) stay distinct. An index that could not be consulted is
+    never rendered as ``found=false``.
+
+    Request Body:
+        BusinessByEmailResolveRequest with email.
+
+    Returns:
+        BusinessByEmailResolveResponse with found + office_phone + reason.
+        Never returns 404 for not-found (ADR-INT-001).
+
+    Error Responses:
+        - 401 MISSING_AUTH: No Authorization header
+        - 401 SERVICE_TOKEN_REQUIRED: PAT token provided (S2S only)
+        - 422 VALIDATION_ERROR: Invalid request body
+        - 503 INDEX_NOT_READY: contact index could not be consulted
+        - 503 ASANA_UNAVAILABLE: Asana call failed
+    """
+    start_time = time.monotonic()
+
+    # PII fence: the raw email never reaches a log line (redact_email keeps the
+    # domain, masks the local part) -- mirroring the phone redaction above.
+    redacted = redact_email(body.email)
+
+    logger.info(
+        "intake_resolve_business_by_email_request",
+        extra={
+            "request_id": request_id,
+            "email": redacted,
+            "caller_service": claims.service_name,
+        },
+    )
+
+    try:
+        async with AsanaClient(token=auth.asana_pat) as client:
+            result = await resolve_business_by_email(email=body.email, client=client)
+    except ContactIndexUnavailableError as exc:
+        # UNAVAILABLE, never found=false. A downgrade here would tell the
+        # caller "this email belongs to no business" on the strength of an
+        # index we could not read -- which sends the calendly pipeline to
+        # CREATE and mints a duplicate.
+        logger.error(
+            "intake_resolve_business_by_email_unavailable",
+            extra={
+                "request_id": request_id,
+                "email": redacted,
+                "reason": exc.reason,
+            },
+        )
+        raise_api_error(
+            request_id,
+            503,
+            "INDEX_NOT_READY",
+            "The contact index could not be consulted for this request. "
+            "This is a transient service condition -- retry shortly.",
+        )
+    except Exception as exc:  # BROAD-CATCH: boundary
+        logger.exception(
+            "intake_resolve_business_by_email_error",
+            extra={
+                "request_id": request_id,
+                "email": redacted,
+                "error": str(exc),
+            },
+        )
+        raise_api_error(
+            request_id,
+            503,
+            "ASANA_UNAVAILABLE",
+            "Failed to resolve business by email. Asana service unavailable.",
+        )
+
+    elapsed_ms = (time.monotonic() - start_time) * 1000
+    logger.info(
+        "intake_resolve_business_by_email_complete",
+        extra={
+            "request_id": request_id,
+            "email": redacted,
+            "found": result.found,
+            "reason": result.reason,
+            "match_count": result.match_count,
+            "distinct_business_count": result.distinct_business_count,
             "duration_ms": round(elapsed_ms, 2),
             "caller_service": claims.service_name,
         },
