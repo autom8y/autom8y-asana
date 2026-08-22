@@ -28,6 +28,15 @@ logger = get_logger(__name__)
 
 # Cascade null rate thresholds (per ADR-cascade-contract-policy,
 # calibrated against SCAR-005's 30% production incident).
+#
+# THRESHOLD SLACK DISCLOSURE (structure-evaluator RULING 2026-08-22, C5) --
+# the 0.20 literal is deliberately UNCHANGED by the denominator rescope.  On
+# the observed contact frame (8,846 rows) a 20% error threshold tolerates
+# 1,769 null joinable rows against a projected true fault population of ~273.
+# That slack is real and is recorded here for remediation-planner to weigh as
+# a separate decision.  It is NOT re-tuned as part of the rescope: changing
+# the denominator and the threshold in one move would make the resulting
+# production reading uninterpretable.
 CASCADE_NULL_WARN_THRESHOLD = 0.05  # 5% null rate -> WARNING
 CASCADE_NULL_ERROR_THRESHOLD = 0.20  # 20% null rate -> ERROR
 
@@ -177,6 +186,149 @@ async def validate_cascade_fields_async(
 
 
 # ---------------------------------------------------------------------------
+# Parent-mediated cascade denominator
+# (structure-evaluator RULING CONCUR-WITH-CONDITIONS, 2026-08-22)
+# ---------------------------------------------------------------------------
+
+#: The in-frame column that records a row's Asana parent.  It ships in
+#: ``BASE_COLUMNS`` (base schema 1.1.0) for every entity, so the rescope
+#: needs no join and no second frame.
+_PARENT_GID_COLUMN = "parent_gid"
+
+
+class CascadeDenominatorCollapsedError(RuntimeError):
+    """Every row in a parent-mediated frame is unparented.
+
+    The cascade denominator is empty, so no null rate can be computed --
+    not a healthy one and not a degraded one.  Per RULING C3 this is a
+    fail-CLOSED condition: the gate REFUSES rather than reporting the
+    ``0.0`` that an ``if total > 0 else 0.0`` guard would fabricate.
+    A frame in this state cannot answer resolution queries at all.
+
+    Raised by :func:`check_cascade_health`.  Callers at a service boundary
+    are expected to translate this into their own not-ready error so the
+    condition surfaces as an explicit refusal rather than a 500.
+    """
+
+    def __init__(self, entity_type: str, total_rows: int, orphan_rows: int) -> None:
+        self.entity_type = entity_type
+        self.total_rows = total_rows
+        self.orphan_rows = orphan_rows
+        super().__init__(
+            f"Cascade denominator collapsed for {entity_type}: "
+            f"{orphan_rows}/{total_rows} rows have no parent_gid, so the "
+            f"parent-mediated cascade population is empty"
+        )
+
+
+@dataclass(frozen=True)
+class CascadeDenominator:
+    """The row population a cascade null rate is measured against.
+
+    Per RULING C1 the denominator for a parent-mediated cascade entity is
+    rows where ``parent_gid`` is not null -- computed IN-FRAME, one column,
+    NO join.
+
+    The refused alternative was "rows that resolve to a Business row".  That
+    definition is join-mediated, and a join regression would silently migrate
+    rows OUT of the denominator, shrinking the population until the gate read
+    healthy precisely as the data got worse.  Under the in-frame definition a
+    row whose ``parent_gid`` points at a parent the join cannot follow stays
+    in the denominator AND stays in the numerator as a null -- so the gate
+    gets LOUDER as the join degrades, which is the direction we want.
+
+    Orphan rows (``parent_gid`` null -- no parent in Asana at all) are
+    excluded from BOTH numerator and denominator.  A cascade cannot deliver a
+    value to a row that has no ancestor to deliver it from; counting those
+    rows as cascade faults made the gate unclearable by any join or warm fix.
+
+    Attributes:
+        frame: The rows the null rate is computed over.  Identical to the
+            input frame when the rescope does not apply.
+        total_rows: Rows in the input frame.
+        joinable_rows: Rows with a non-null ``parent_gid`` -- the denominator.
+        orphan_rows: ``total_rows - joinable_rows``.
+        orphan_rate: ``orphan_rows / total_rows`` (0.0 for an empty frame).
+        rescoped: True when parent-mediated scoping was applied.  False means
+            the frame carries no ``parent_gid`` column, in which case the
+            denominator falls back to ``total_rows``.
+    """
+
+    frame: pl.DataFrame
+    total_rows: int
+    joinable_rows: int
+    orphan_rows: int
+    orphan_rate: float
+    rescoped: bool
+
+    def as_log_fields(self) -> dict[str, object]:
+        """Denominator fields for structured log ``extra`` (RULING C2)."""
+        return {
+            "total_rows": self.total_rows,
+            "joinable_rows": self.joinable_rows,
+            "orphan_rows": self.orphan_rows,
+            "orphan_rate": round(self.orphan_rate, 6),
+        }
+
+
+def resolve_cascade_denominator(
+    df: pl.DataFrame,
+    cascade_columns: list[tuple[str, str]],
+) -> CascadeDenominator:
+    """Resolve the row population a cascade null rate is measured against.
+
+    Implements the RULING C4 scope fence.  The rescope applies only to
+    entities that DECLARE a parent-mediated cascade, and that declaration is
+    read from the schema (``cascade:`` sources, surfaced as
+    ``DataFrameSchema.get_cascade_columns()``) -- never from a hardcoded
+    entity list.  ``business`` is the root of the cascade and declares no
+    ``cascade:`` source, so it is un-gated by construction: its
+    ``office_phone`` column carries ``source="cf:Office Phone"`` and only a
+    *description* mentioning the cascade.  A blanket ``parent_gid`` filter
+    applied without this fence would zero the denominator of every root and
+    holder entity and fail the gate OPEN.
+
+    Falls back to the full frame (``rescoped=False``) when the frame carries
+    no ``parent_gid`` column.  That fallback can only make the gate stricter,
+    never laxer, because orphans then remain in both numerator and
+    denominator -- the pre-rescope behaviour.
+
+    Args:
+        df: Frame to scope.
+        cascade_columns: ``schema.get_cascade_columns()`` output -- empty for
+            a root entity.
+
+    Returns:
+        The resolved :class:`CascadeDenominator`.
+    """
+    total_rows = len(df)
+
+    declares_parent_mediated_cascade = bool(cascade_columns)
+    if not declares_parent_mediated_cascade or _PARENT_GID_COLUMN not in df.columns:
+        return CascadeDenominator(
+            frame=df,
+            total_rows=total_rows,
+            joinable_rows=total_rows,
+            orphan_rows=0,
+            orphan_rate=0.0,
+            rescoped=False,
+        )
+
+    joinable = df.filter(pl.col(_PARENT_GID_COLUMN).is_not_null())
+    joinable_rows = joinable.height
+    orphan_rows = total_rows - joinable_rows
+
+    return CascadeDenominator(
+        frame=joinable,
+        total_rows=total_rows,
+        joinable_rows=joinable_rows,
+        orphan_rows=orphan_rows,
+        orphan_rate=(orphan_rows / total_rows) if total_rows > 0 else 0.0,
+        rescoped=True,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Cascade key null rate audit (ADR-cascade-contract-policy)
 # ---------------------------------------------------------------------------
 
@@ -207,6 +359,13 @@ def audit_cascade_key_nulls(
     audited -- these are the columns where a null means the row will be
     excluded from the DynamicIndex and resolution returns NOT_FOUND.
 
+    Null rates are measured against the parent-mediated denominator
+    (:func:`resolve_cascade_denominator`), NOT the full frame, so that the
+    audit and the gate read the same number.  ``total_rows``,
+    ``joinable_rows``, ``orphan_rows`` and ``orphan_rate`` are emitted
+    alongside so an operator can see the full frame and the scoped
+    population at once (RULING C2).
+
     Severity thresholds (per ADR-cascade-contract-policy):
         - null_rate > 5%  -> WARNING
         - null_rate > 20% -> ERROR
@@ -228,10 +387,16 @@ def audit_cascade_key_nulls(
         return
 
     key_set = set(key_columns)
-    total_rows = len(df)
+    denominator = resolve_cascade_denominator(df, cascade_columns)
+    total_rows = denominator.total_rows
+    scoped = denominator.frame
+    # A collapsed denominator has no rate to report.  Emit ``None`` rather
+    # than the 0.0 an ``else 0.0`` guard would fabricate -- 0.0 reads as
+    # perfect health, which is the opposite of what an all-orphan frame is.
+    collapsed = denominator.joinable_rows == 0
 
     cascade_key_nulls: dict[str, dict[str, object]] = {}
-    max_severity = "ok"
+    max_severity = "error" if collapsed else "ok"
 
     for col_name, cascade_field_name in cascade_columns:
         # Only audit columns that are both cascade-sourced AND key columns.
@@ -240,16 +405,18 @@ def audit_cascade_key_nulls(
         if col_name not in df.columns:
             continue
 
-        null_count = int(df[col_name].null_count())
-        null_rate = null_count / total_rows if total_rows > 0 else 0.0
+        null_count = int(scoped[col_name].null_count())
+        null_rate = None if collapsed else null_count / denominator.joinable_rows
 
         cascade_key_nulls[col_name] = {
             "null_count": null_count,
-            "null_rate": round(null_rate, 6),
+            "null_rate": None if null_rate is None else round(null_rate, 6),
             "cascade_source": cascade_field_name,
             "source_entity": _CASCADE_SOURCE_MAP.get(cascade_field_name, "unknown"),
         }
 
+        if null_rate is None:
+            continue
         if null_rate > CASCADE_NULL_ERROR_THRESHOLD:
             max_severity = "error"
         elif null_rate > CASCADE_NULL_WARN_THRESHOLD and max_severity != "error":
@@ -258,20 +425,31 @@ def audit_cascade_key_nulls(
     if not cascade_key_nulls:
         return
 
+    def _rate_over(col_data: dict[str, object], threshold: float) -> bool:
+        rate = col_data["null_rate"]
+        return rate is not None and float(rate) > threshold  # type: ignore[arg-type]
+
     # Attach cascade audit attributes to the ambient span (computation.progressive.build).
     # trace.get_current_span() returns a no-op span when no span is active -- set_attribute
     # calls are safe no-ops in that case.
     _span = _otel_trace.get_current_span()
     _span.set_attribute("computation.cascade_audit.entity_type", entity_type)
     _span.set_attribute("computation.cascade_audit.total_rows", total_rows)
+    # RULING C2 -- the denominator is part of the reading, not context for it.
+    _span.set_attribute("computation.cascade_audit.joinable_rows", denominator.joinable_rows)
+    _span.set_attribute("computation.cascade_audit.orphan_rows", denominator.orphan_rows)
+    _span.set_attribute("computation.cascade_audit.orphan_rate", round(denominator.orphan_rate, 6))
+    _span.set_attribute("computation.cascade_audit.denominator_rescoped", denominator.rescoped)
     _span.set_attribute("computation.cascade_audit.max_severity", max_severity)
     _span.set_attribute("computation.cascade_audit.null_column_count", len(cascade_key_nulls))
+    if collapsed:
+        _span.set_attribute("computation.cascade_audit.denominator_collapsed", True)
 
     if max_severity in ("warning", "error"):
         columns_at_warning = ",".join(
             col
             for col, data in cascade_key_nulls.items()
-            if float(data["null_rate"]) > CASCADE_NULL_WARN_THRESHOLD  # type: ignore[arg-type]
+            if _rate_over(data, CASCADE_NULL_WARN_THRESHOLD)
         )
         if columns_at_warning:
             _span.set_attribute("computation.cascade_audit.columns_at_warning", columns_at_warning)
@@ -280,7 +458,7 @@ def audit_cascade_key_nulls(
         columns_at_error = ",".join(
             col
             for col, data in cascade_key_nulls.items()
-            if float(data["null_rate"]) > CASCADE_NULL_ERROR_THRESHOLD  # type: ignore[arg-type]
+            if _rate_over(data, CASCADE_NULL_ERROR_THRESHOLD)
         )
         if columns_at_error:
             _span.set_attribute("computation.cascade_audit.columns_at_error", columns_at_error)
@@ -288,7 +466,9 @@ def audit_cascade_key_nulls(
     extra = {
         "entity_type": entity_type,
         "project_gid": project_gid,
-        "total_rows": total_rows,
+        **denominator.as_log_fields(),
+        "denominator_rescoped": denominator.rescoped,
+        "denominator_collapsed": collapsed,
         "cascade_key_nulls": cascade_key_nulls,
         "severity": max_severity,
     }
@@ -445,11 +625,22 @@ class CascadeHealthResult:
         healthy: True if all cascade key columns are below error threshold.
         degraded_columns: Dict of column_name -> null_rate for columns exceeding threshold.
         max_null_rate: Highest null rate observed, or 0.0 if all healthy.
+        total_rows: Rows in the checked frame.
+        joinable_rows: Rows with a non-null ``parent_gid`` -- the denominator
+            the rates above were measured against.
+        orphan_rows: Rows with no parent in Asana, excluded from the rates.
+        orphan_rate: ``orphan_rows / total_rows``.
+        denominator_rescoped: True when parent-mediated scoping was applied.
     """
 
     healthy: bool
     degraded_columns: dict[str, float]
     max_null_rate: float
+    total_rows: int = 0
+    joinable_rows: int = 0
+    orphan_rows: int = 0
+    orphan_rate: float = 0.0
+    denominator_rescoped: bool = False
 
 
 def check_cascade_health(
@@ -464,8 +655,21 @@ def check_cascade_health(
     column for DynamicIndex resolution (per EntityDescriptor.key_columns).
     A column is degraded if its null rate exceeds CASCADE_NULL_ERROR_THRESHOLD.
 
-    This function is pure computation -- no logging, no side effects. The
-    caller decides how to act on the result (raise, log, ignore).
+    Rates are measured against the parent-mediated denominator per RULING C1
+    (see :func:`resolve_cascade_denominator`): rows with a non-null
+    ``parent_gid``.  Orphan rows -- rows with no parent in Asana at all --
+    are excluded from both numerator and denominator, because a cascade
+    cannot deliver a value to a row that has no ancestor to deliver it from.
+    Counting them as cascade faults put the threshold out of reach of any
+    join or warm fix, which made the gate unclearable rather than strict.
+
+    This function is pure computation apart from one refusal: it RAISES
+    :class:`CascadeDenominatorCollapsedError` when the frame is non-empty,
+    the entity declares a parent-mediated cascade, at least one cascade key
+    column is present to gate, and ``joinable_rows == 0``.  That is the
+    fail-CLOSED condition of RULING C3 -- there is no rate to return, and
+    returning ``healthy=True`` would be fake health.  Otherwise the caller
+    still decides how to act on the result (raise, log, ignore).
 
     Args:
         df: Post-build DataFrame to check.
@@ -475,28 +679,61 @@ def check_cascade_health(
 
     Returns:
         CascadeHealthResult indicating pass/fail with details.
+
+    Raises:
+        CascadeDenominatorCollapsedError: If every row in a gated
+            parent-mediated frame is unparented.
     """
     if df.is_empty():
         return CascadeHealthResult(healthy=True, degraded_columns={}, max_null_rate=0.0)
 
     cascade_columns = schema.get_cascade_columns()
+    # RULING C4 scope fence: a root entity (business) declares no ``cascade:``
+    # source and is un-gated.  Applying a parent_gid filter here would zero
+    # its denominator and fail the gate OPEN.
     if not cascade_columns:
         return CascadeHealthResult(healthy=True, degraded_columns={}, max_null_rate=0.0)
 
     key_set = set(key_columns)
-    total_rows = len(df)
+    gated_columns = [
+        col_name
+        for col_name, _cascade_field_name in cascade_columns
+        if col_name in key_set and col_name in df.columns
+    ]
+
+    denominator = resolve_cascade_denominator(df, cascade_columns)
+
+    if not gated_columns:
+        # Nothing this gate governs on this frame.  Report the denominator
+        # for observability but do not refuse on a frame we do not gate.
+        return CascadeHealthResult(
+            healthy=True,
+            degraded_columns={},
+            max_null_rate=0.0,
+            total_rows=denominator.total_rows,
+            joinable_rows=denominator.joinable_rows,
+            orphan_rows=denominator.orphan_rows,
+            orphan_rate=denominator.orphan_rate,
+            denominator_rescoped=denominator.rescoped,
+        )
+
+    if denominator.joinable_rows == 0:
+        # RULING C3 -- fail CLOSED.  Do NOT mirror the pre-rescope
+        # ``if total_rows > 0 else 0.0`` guard: a fabricated 0.0 would report
+        # a wholly-unparented frame as perfectly healthy.
+        raise CascadeDenominatorCollapsedError(
+            entity_type=entity_type,
+            total_rows=denominator.total_rows,
+            orphan_rows=denominator.orphan_rows,
+        )
+
+    scoped = denominator.frame
     degraded: dict[str, float] = {}
     max_rate = 0.0
 
-    for col_name, _cascade_field_name in cascade_columns:
-        # Only check columns that are both cascade-sourced AND key columns
-        if col_name not in key_set:
-            continue
-        if col_name not in df.columns:
-            continue
-
-        null_count = int(df[col_name].null_count())
-        null_rate = null_count / total_rows
+    for col_name in gated_columns:
+        null_count = int(scoped[col_name].null_count())
+        null_rate = null_count / denominator.joinable_rows
 
         if null_rate > max_rate:
             max_rate = null_rate
@@ -509,4 +746,9 @@ def check_cascade_health(
         healthy=healthy,
         degraded_columns=degraded,
         max_null_rate=max_rate,
+        total_rows=denominator.total_rows,
+        joinable_rows=denominator.joinable_rows,
+        orphan_rows=denominator.orphan_rows,
+        orphan_rate=denominator.orphan_rate,
+        denominator_rescoped=denominator.rescoped,
     )
