@@ -48,6 +48,9 @@ TS_COMPLETED = datetime(2024, 3, 10, 9, 0, 0, tzinfo=UTC)
 DATE_DUE = date(2024, 7, 15)
 DATE_PRIMARY = date(2024, 6, 1)
 N_ROWS = 10
+# Ancestor GID prefix for parent-mediated cascade fixtures.  Three distinct
+# ancestors across the frame so the rows are not trivially homogeneous.
+_PARENT_GID_BASE = "120065301256"
 
 
 # ---------------------------------------------------------------------------
@@ -93,6 +96,8 @@ def _build_business_df(
             "last_modified": [TS_MODIFIED] * n_rows,
             "section": ["Active"] * n_rows,
             "tags": [["vip", "dental"]] * n_rows,
+            # Business is the ROOT of the cascade -- unparented by design,
+            # and un-gated because BUSINESS_SCHEMA declares no cascade: source.
             "parent_gid": [None] * n_rows,
             "company_id": [f"COMP-{i:04d}" for i in range(n_rows)],
             "office_phone": office_phones,
@@ -135,7 +140,11 @@ def _build_offer_df(
             "last_modified": [TS_MODIFIED] * n_rows,
             "section": ["Active"] * n_rows,
             "tags": [["google-ads"]] * n_rows,
-            "parent_gid": [None] * n_rows,
+            # Parent-mediated cascade entities have an ancestor by
+            # definition -- that ancestor IS what the cascade descends from.
+            # A frame of unparented rows is a COLLAPSED denominator, which
+            # check_cascade_health now refuses outright rather than scoring.
+            "parent_gid": [f"{_PARENT_GID_BASE}{i % 3:04d}" for i in range(n_rows)],
             "office": [f"Acme Dental Office {i}" for i in range(n_rows)],
             "office_phone": office_phones,
             "vertical": [verticals[i % len(verticals)] for i in range(n_rows)],
@@ -200,7 +209,11 @@ def _build_asset_edit_df(
             "last_modified": [TS_MODIFIED] * n_rows,
             "section": ["In Progress"] * n_rows,
             "tags": [["video"]] * n_rows,
-            "parent_gid": [None] * n_rows,
+            # Parent-mediated cascade entities have an ancestor by
+            # definition -- that ancestor IS what the cascade descends from.
+            # A frame of unparented rows is a COLLAPSED denominator, which
+            # check_cascade_health now refuses outright rather than scoring.
+            "parent_gid": [f"{_PARENT_GID_BASE}{i % 3:04d}" for i in range(n_rows)],
             # Process fields (10)
             "started_at": ["2024-05-01T10:00:00Z"] * n_rows,
             "process_completed_at": ["2024-05-15T16:00:00Z"] * n_rows,
@@ -259,7 +272,11 @@ def _build_asset_edit_holder_df(
             "last_modified": [TS_MODIFIED] * n_rows,
             "section": ["Active"] * n_rows,
             "tags": [["holder"]] * n_rows,
-            "parent_gid": [None] * n_rows,
+            # Parent-mediated cascade entities have an ancestor by
+            # definition -- that ancestor IS what the cascade descends from.
+            # A frame of unparented rows is a COLLAPSED denominator, which
+            # check_cascade_health now refuses outright rather than scoring.
+            "parent_gid": [f"{_PARENT_GID_BASE}{i % 3:04d}" for i in range(n_rows)],
             "office_phone": office_phones,
         },
         schema_overrides={

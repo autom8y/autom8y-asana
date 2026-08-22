@@ -624,7 +624,14 @@ class UniversalResolutionStrategy:
         """Gate resolution against degraded cascade data.
 
         Raises CascadeNotReadyError if any cascade-sourced key column
-        exceeds the null rate error threshold.
+        exceeds the null rate error threshold, measured against the
+        parent-mediated denominator (rows with a non-null ``parent_gid``).
+
+        Also raises CascadeNotReadyError when the denominator has COLLAPSED
+        -- every row unparented, so no rate exists at all.  That collapse
+        arrives as a CascadeDenominatorCollapsedError from the dataframes
+        layer and is translated here, at the service boundary, so the
+        condition surfaces as an explicit 503 refusal rather than a 500.
 
         Only runs when:
         - Entity descriptor is available with key_columns
@@ -637,12 +644,15 @@ class UniversalResolutionStrategy:
             project_gid: Project GID for error context.
 
         Raises:
-            CascadeNotReadyError: If cascade-sourced key columns are degraded.
+            CascadeNotReadyError: If cascade-sourced key columns are degraded,
+                or if the parent-mediated denominator has collapsed.
         """
         from autom8_asana.core.entity_registry import get_registry
         from autom8_asana.dataframes.builders.cascade_validator import (
+            CascadeDenominatorCollapsedError,
             check_cascade_health,
         )
+        from autom8_asana.services.errors import CascadeNotReadyError
 
         desc = get_registry().get(self.entity_type)
         if desc is None or not desc.key_columns:
@@ -652,16 +662,48 @@ class UniversalResolutionStrategy:
         if schema is None:
             return
 
-        result = check_cascade_health(
-            df=df,
-            entity_type=self.entity_type,
-            schema=schema,
-            key_columns=desc.key_columns,
-        )
+        try:
+            result = check_cascade_health(
+                df=df,
+                entity_type=self.entity_type,
+                schema=schema,
+                key_columns=desc.key_columns,
+            )
+        except CascadeDenominatorCollapsedError as exc:
+            logger.error(
+                "cascade_denominator_collapsed",
+                extra={
+                    "entity_type": self.entity_type,
+                    "project_gid": project_gid,
+                    "total_rows": exc.total_rows,
+                    "orphan_rows": exc.orphan_rows,
+                    "joinable_rows": 0,
+                },
+            )
+            # parent_gid IS 100% null in a collapsed frame -- naming it keeps
+            # the operator-facing message literally true rather than empty.
+            raise CascadeNotReadyError(
+                entity_type=self.entity_type,
+                project_gid=project_gid,
+                degraded_columns={"parent_gid": 1.0},
+                max_null_rate=1.0,
+            ) from exc
 
         if not result.healthy:
-            from autom8_asana.services.errors import CascadeNotReadyError
-
+            logger.error(
+                "cascade_health_degraded",
+                extra={
+                    "entity_type": self.entity_type,
+                    "project_gid": project_gid,
+                    "degraded_columns": result.degraded_columns,
+                    "max_null_rate": result.max_null_rate,
+                    "total_rows": result.total_rows,
+                    "joinable_rows": result.joinable_rows,
+                    "orphan_rows": result.orphan_rows,
+                    "orphan_rate": round(result.orphan_rate, 6),
+                    "denominator_rescoped": result.denominator_rescoped,
+                },
+            )
             raise CascadeNotReadyError(
                 entity_type=self.entity_type,
                 project_gid=project_gid,
