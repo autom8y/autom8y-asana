@@ -8,13 +8,37 @@ The capability-roster literals are spelled out here rather than imported. A test
 that imports the constant it is checking cannot catch a rename — and a rename is
 exactly the failure this axis is most exposed to, because the consumer matches by
 wire field name and a mismatch is silently inert.
+
+CLOCK DISCIPLINE — read before adding a test here
+-------------------------------------------------
+Every stamp in this file is expressed relative to ``_NOW``, and ``_NOW`` is the
+clock the code under test reads: the ``frozen_serve_clock`` autouse fixture binds
+it into ``compute_serve_verification``'s documented ``now`` seam. Fixture clock
+and derivation clock are ONE clock, so an emitted age is exactly the age the
+fixture stamped.
+
+This is not decoration. As landed in #384 this file pinned ``_NOW`` to a fixed
+calendar instant while the derivation computed against the real wall clock, so
+every emitted ``verification_age_seconds`` was ``wall_clock - _NOW + fixture_age``
+— a number that grows without bound. It crossed this file's hard-coded 52566.7s
+bound around 2026-08-20T05:30Z and from then on failed every PR and every merge
+repo-wide. A fixed calendar instant asserted against a live clock is structurally
+incapable of staying true; it does not fail when the code breaks, it fails when
+the calendar advances.
+
+So: never assert a wall-clock-derived age against a hard-coded bound. Either
+thread the clock (as here and as ``tests/unit/metrics/test_serve_verification.py``
+does directly), or assert relative to the same clock the code reads.
+``test_the_emitted_age_is_measured_against_the_frozen_clock`` is the tripwire that
+fails loudly if this freeze ever detaches, instead of letting the rot return.
 """
 
 from __future__ import annotations
 
+import functools
 import json
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import polars as pl
@@ -26,6 +50,7 @@ from autom8_asana.dataframes.section_persistence import (
     SectionManifest,
     SectionStatus,
 )
+from autom8_asana.metrics.freshness import compute_serve_verification
 from autom8_asana.models.business.activity import (
     OFFER_CLASSIFIER,
     AccountActivity,
@@ -42,8 +67,39 @@ from autom8_asana.query.models import (
 )
 from autom8_asana.services.query_service import EntityQueryService
 
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
+#: The one clock. Both the fixture stamps below and the derivation under test
+#: read it — see the module docstring's CLOCK DISCIPLINE note. Held identical to
+#: the derivation-level suite's ``_NOW`` so the two suites stay coherent.
 _NOW = datetime(2026, 8, 19, 15, 0, 0, tzinfo=UTC)
 _PROJECT_GID = "1143843662099250"
+
+#: The engine imports ``compute_serve_verification`` inside the function body, so
+#: this module attribute is what it resolves at call time. Spelled once here and
+#: shared with the derivation-raises test, which depends on the same target
+#: biting — if the engine ever stops resolving through it, that test fails too.
+_DERIVATION_TARGET = "autom8_asana.metrics.freshness.compute_serve_verification"
+
+
+@pytest.fixture(autouse=True)
+def frozen_serve_clock() -> Iterator[None]:
+    """Bind ``_NOW`` into the derivation's ``now`` seam for every test in this file.
+
+    ``compute_serve_verification`` documents ``now`` as "Override for
+    ``datetime.now(tz=UTC)``; injectable for tests" and the derivation-level suite
+    threads it on every call. The serve path cannot: ``QueryEngine`` calls the
+    derivation with two arguments and owns no clock of its own, so the wire-level
+    seat has no argument to pass. Binding the parameter here reaches the same seam
+    from the outside.
+
+    Only ``now`` is pinned. The real function runs on the real manifest with the
+    real resolved section set — the fold, the missing-count subtraction, the
+    backfill rule and the isoformat emission are all untouched production code.
+    """
+    with patch(_DERIVATION_TARGET, functools.partial(compute_serve_verification, now=_NOW)):
+        yield
 
 
 def _section(name: str, *, last_verified_at: datetime | None) -> SectionInfo:
@@ -647,10 +703,7 @@ class TestAxisNullIsDeclaredNotDropped:
             offer_df, manifest=_divergent_manifest(active_age=100.0, activating_age=200.0)
         )
 
-        with patch(
-            "autom8_asana.metrics.freshness.compute_serve_verification",
-            side_effect=RuntimeError("derivation exploded"),
-        ):
+        with patch(_DERIVATION_TARGET, side_effect=RuntimeError("derivation exploded")):
             meta = await _run_rows(engine, offer_schema, classification="active")
 
         assert meta.axes_present == [
@@ -699,6 +752,11 @@ class TestAxisNullIsDeclaredNotDropped:
         This combination — quiet business, healthy warmer — is the state the
         mutation axis can never produce and the whole reason the verification
         axis exists.
+
+        The content axis is stamped stale (52566.7s, ratio 14.6) and the probe
+        fresh (100s). Both numbers are fixture-owned, and the probe age is read
+        off the same clock that stamped it, so the ordering asserted below is a
+        property of the emission — not of what day the suite happens to run on.
         """
         engine, _ = _make_engine(
             offer_df, manifest=_divergent_manifest(active_age=100.0, activating_age=200.0)
@@ -715,7 +773,64 @@ class TestAxisNullIsDeclaredNotDropped:
         assert meta.stale_served is True
         assert meta.verified_at is not None
         assert meta.verification_age_seconds is not None
+        # The probe carries the age the fixture stamped, not a wall-clock drift.
+        assert meta.verification_age_seconds == pytest.approx(100.0)
+        # The load-bearing discrimination: the two axes did not coalesce.
         assert meta.verification_age_seconds < meta.data_age_seconds
+
+
+class TestTheFixtureClockIsTheDerivationClock:
+    """Anti-rot tripwire for the #384 landmine. See the module docstring.
+
+    These do not test the axis. They test that this FILE cannot rot the way it
+    rotted once: they fail the moment the emitted age stops being measured
+    against ``_NOW``, which is the only condition under which a fixture-relative
+    assertion elsewhere in this file can start drifting with the calendar.
+
+    Without the freeze the ages below are ``wall_clock - _NOW + age``. At the
+    moment #384 landed that was ~0 and every assertion passed; three days later
+    it was 226129.9 and the suite failed repo-wide. A tripwire that only bites
+    after the damage is not a tripwire — so these assert the exact value, which
+    is wrong immediately rather than eventually.
+    """
+
+    @pytest.mark.parametrize("age", [100.0, 5000.0, 99999.0])
+    async def test_the_emitted_age_is_measured_against_the_frozen_clock(
+        self, offer_df: pl.DataFrame, offer_schema: DataFrameSchema, age: float
+    ) -> None:
+        engine, _ = _make_engine(
+            offer_df, manifest=_divergent_manifest(active_age=age, activating_age=age + 1.0)
+        )
+
+        meta = await _run_rows(engine, offer_schema, classification="active")
+
+        assert meta.verification_age_seconds == pytest.approx(age), (
+            "the derivation is reading a clock this file does not control — "
+            "a fixture-relative age has become a wall-clock age and every "
+            "bounded assertion in this file is now on a countdown"
+        )
+
+    async def test_the_stamp_and_the_age_agree_on_the_same_instant(
+        self, offer_df: pl.DataFrame, offer_schema: DataFrameSchema
+    ) -> None:
+        """``now - verified_at`` must reproduce the emitted age exactly.
+
+        The consumer re-derives its own age from ``verified_at`` and gates on
+        that. If the producer's age were measured against a different instant
+        than the one it discloses, the two would disagree in production and the
+        disclosure would be a lie — invisible to every other test here, all of
+        which check the two fields independently.
+        """
+        engine, _ = _make_engine(
+            offer_df, manifest=_divergent_manifest(active_age=100.0, activating_age=200.0)
+        )
+
+        meta = await _run_rows(engine, offer_schema, classification="active")
+
+        assert meta.verified_at is not None
+        assert meta.verification_age_seconds is not None
+        re_derived = (_NOW - datetime.fromisoformat(meta.verified_at)).total_seconds()
+        assert meta.verification_age_seconds == pytest.approx(re_derived)
 
 
 class TestAggregatePathDeclaresNothing:
