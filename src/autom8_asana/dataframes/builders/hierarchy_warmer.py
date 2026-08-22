@@ -537,6 +537,17 @@ class HierarchyWarmer:
         durable regardless. Returns ``False`` (and emits
         ``hierarchy_gap_chain_warm_rate_limited``) when the recursive chain-warm was
         rate-limited, matching the pre-existing partial-progress semantics.
+
+        Per DIC-S04c: this is ALSO the structural backstop for the whole
+        discard-on-one-ancestor class. ``put_batch_async``'s recursive chain warm
+        makes its OWN Asana GETs (holder -> business), and this method used to
+        tolerate ONLY ``RateLimitError`` -- so any other per-GID fault from that
+        depth unwound the entire gap sweep to ``return 0``. Since S04b banks the
+        cached-but-unlinked parents through here FIRST, that unwind now happens
+        before a single gap GET is issued. Catching broadly here means an
+        unmodeled fault at ancestor depth costs at most THIS batch's chain warm,
+        never the sweep -- and the batch itself is already durably stored,
+        because ``put_batch_async`` stores before it warms.
         """
         try:
             await self._store.put_batch_async(
@@ -554,6 +565,18 @@ class HierarchyWarmer:
                     "entity_type": self._entity_type,
                     "stored": len(task_dicts),
                     "retry_after": e.retry_after,
+                },
+            )
+            return False
+        except Exception as e:  # BROAD-CATCH: chain-warm isolation  # noqa: BLE001
+            logger.warning(
+                "hierarchy_gap_chain_warm_failed",
+                extra={
+                    "project_gid": self._project_gid,
+                    "entity_type": self._entity_type,
+                    "stored": len(task_dicts),
+                    "error": str(e),
+                    "error_type": type(e).__name__,
                 },
             )
             return False
