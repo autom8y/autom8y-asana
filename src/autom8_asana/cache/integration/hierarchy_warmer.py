@@ -13,6 +13,7 @@ from autom8y_log import get_logger
 
 from autom8_asana.cache.models.entry import EntryType
 from autom8_asana.core.errors import CACHE_TRANSIENT_ERRORS
+from autom8_asana.errors import ForbiddenError, GoneError, NotFoundError
 
 if TYPE_CHECKING:
     from autom8_asana.cache.policies.hierarchy import HierarchyIndex
@@ -20,6 +21,18 @@ if TYPE_CHECKING:
     from autom8_asana.clients.tasks import TasksClient
 
 logger = get_logger(__name__)
+
+# PERMANENT per-GID Asana faults on an ancestor fetch (deleted / gone / out of
+# scope). NOT members of ``CACHE_TRANSIENT_ERRORS`` (boto/redis/OS only), and
+# they never self-heal. Kept in lockstep with
+# ``unified._PERMANENT_ANCESTOR_FAULTS`` and
+# ``dataframes.builders.hierarchy_warmer._GAP_WARM_PERMANENT_FAULTS`` -- the
+# three fetch sites of one parent chain (contact -> holder -> business).
+_PERMANENT_ANCESTOR_FAULTS: tuple[type[Exception], ...] = (
+    NotFoundError,
+    GoneError,
+    ForbiddenError,
+)
 
 # Fields needed for hierarchy registration AND cascade resolution
 # Per ADR-hierarchy-registration-architecture: Include custom_fields for cascade resolution
@@ -92,6 +105,19 @@ async def _fetch_parent(
     try:
         task = await tasks_client.get_async(gid, opt_fields=_HIERARCHY_OPT_FIELDS)
         return task.model_dump(exclude_none=True)
+    except _PERMANENT_ANCESTOR_FAULTS as e:
+        # ★ Per-GID tolerance for a PERMANENTLY unresolvable ancestor -- the
+        # SAME class the gap-GET (DIC-S04b) and the immediate-parent fetch
+        # (DIC-S04c, unified.py) already tolerate. This is the third and last
+        # site in the chain: ``warm_ancestors_async`` fans these out through a
+        # bare ``asyncio.gather``, so ONE deleted ancestor propagated up through
+        # ``put_batch_async`` -> ``_bank_gap_chunk`` -> the gap-warm
+        # BROAD-CATCH -> ``return 0``, permanently.
+        logger.warning(
+            "hierarchy_warm_ancestor_unresolvable",
+            extra={"gid": gid, "error": str(e), "error_type": type(e).__name__},
+        )
+        return None
     except CACHE_TRANSIENT_ERRORS as e:
         logger.warning(
             "hierarchy_warm_fetch_failed",

@@ -26,6 +26,7 @@ from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.cache.models.freshness_unified import FreshnessIntent
 from autom8_asana.cache.policies.hierarchy import HierarchyIndex
 from autom8_asana.core.errors import CACHE_TRANSIENT_ERRORS
+from autom8_asana.errors import ForbiddenError, GoneError, NotFoundError
 
 if TYPE_CHECKING:
     from autom8_asana.batch.client import BatchClient
@@ -33,6 +34,38 @@ if TYPE_CHECKING:
     from autom8_asana.protocols.cache import CacheProvider
 
 logger = get_logger(__name__)
+
+# PERMANENT per-GID Asana faults on an ANCESTOR fetch. The referenced parent has
+# been deleted (404 "Not a recognized ID"), permanently removed (410), or sits
+# outside the token's scope (403). Unlike the transport faults in
+# ``CACHE_TRANSIENT_ERRORS`` (boto/redis/OS only) these NEVER self-heal, so the
+# retry loop below cannot help and must not be entered.
+#
+# ★ These MUST be tolerated PER-GID. ``_fetch_immediate_parents`` runs a bare
+# ``asyncio.gather`` with no ``return_exceptions``, so before this cure ONE
+# deleted grandparent propagated out of the gather, out of ``put_batch_async``,
+# and past ``HierarchyWarmer._bank_gap_chunk`` (which tolerates only
+# ``RateLimitError``) into the gap-warm outer BROAD-CATCH -> ``return 0``.
+#
+# This is the DIC-S04b wound one level up the chain. S04b hardened the gap-GET
+# (contact -> holder); the ancestor GET it hands to ``put_batch_async``
+# (holder -> business) was never hardened, so the sweep kept dying -- now BEFORE
+# the first gap GET, because S04b banks the cached-but-unlinked parents first.
+#
+# Live receipt (cache-warmer, contact frame 1200775689604552, 2026-08-20, on
+# the S04b image 55e69d78): a ``hierarchy_gap_fetch_starting`` reporting 2,679
+# total parents / 795 uncached / 1,882 cached-but-unlinked, followed 3.1s later
+# by ``hierarchy_gap_warming_failed`` carrying NotFoundError "task: Not a
+# recognized ID: 1215624688510678 (HTTP 404)", then ``hierarchy_gaps_warmed``
+# with zero warmed and a ``cascade_key_null_audit`` at 89.75% office_phone null
+# (severity error). Those 3.1s contain NO ``hierarchy_gap_parent_unresolvable``
+# and NO ``hierarchy_gap_chunk_aborted``: the fault fired inside the FIRST
+# ``_bank_gap_chunk``, before a single gap GET was issued.
+_PERMANENT_ANCESTOR_FAULTS: tuple[type[Exception], ...] = (
+    NotFoundError,
+    GoneError,
+    ForbiddenError,
+)
 
 
 @dataclass
@@ -595,6 +628,22 @@ class UnifiedTaskStore:
                             self._hierarchy.register(parent_dict)
                             await self.put_async(parent_dict, opt_fields=_HIERARCHY_OPT_FIELDS)
                             return True
+                        return False
+                    except _PERMANENT_ANCESTOR_FAULTS as e:
+                        # ★ Per-GID tolerance for a PERMANENTLY unresolvable
+                        # ancestor. Never propagate: this one stale parent edge
+                        # says nothing about the other N-1, and retrying a 404
+                        # buys nothing but latency. Absence is REPORTED, never
+                        # papered over with an invented row -- we return False
+                        # and the parent simply stays uncached.
+                        logger.warning(
+                            "warm_immediate_parent_unresolvable",
+                            extra={
+                                "parent_gid": parent_gid,
+                                "error": str(e),
+                                "error_type": type(e).__name__,
+                            },
+                        )
                         return False
                     except CACHE_TRANSIENT_ERRORS as e:
                         if attempt < max_retries - 1:
