@@ -44,6 +44,7 @@ from autom8_asana.api.models import (
 )
 from autom8_asana.api.routes._security import pat_router
 from autom8_asana.api.routes.internal import ServiceClaims, require_service_claims
+from autom8_asana.api.write_authz import WriteClass, require_write_authz
 from autom8_asana.auth.bot_pat import BotPATError, get_bot_pat
 from autom8_asana.core.project_registry import UNIT_PROJECT
 
@@ -223,6 +224,7 @@ async def get_project(
         "x-fleet-idempotency": {"idempotent": False, "key_source": None},
         "x-fleet-rate-limit": {"tier": "external"},
     },
+    dependencies=[Depends(require_write_authz(WriteClass.PROJECTS))],
 )
 async def create_project(
     body: CreateProjectRequest,
@@ -272,6 +274,7 @@ async def create_project(
         "x-fleet-idempotency": {"idempotent": False, "key_source": None},
         "x-fleet-rate-limit": {"tier": "external"},
     },
+    dependencies=[Depends(require_write_authz(WriteClass.PROJECTS))],
 )
 async def update_project(
     gid: GidStr,
@@ -335,6 +338,7 @@ async def update_project(
         "x-fleet-idempotency": {"idempotent": True, "key_source": None},
         "x-fleet-rate-limit": {"tier": "external"},
     },
+    dependencies=[Depends(require_write_authz(WriteClass.PROJECTS))],
 )
 async def delete_project(
     gid: GidStr,
@@ -464,6 +468,7 @@ async def list_sections(
         "x-fleet-idempotency": {"idempotent": True, "key_source": None},
         "x-fleet-rate-limit": {"tier": "external"},
     },
+    dependencies=[Depends(require_write_authz(WriteClass.PROJECTS))],
 )
 async def add_members(
     gid: GidStr,
@@ -510,6 +515,7 @@ async def add_members(
         "x-fleet-idempotency": {"idempotent": True, "key_source": None},
         "x-fleet-rate-limit": {"tier": "external"},
     },
+    dependencies=[Depends(require_write_authz(WriteClass.PROJECTS))],
 )
 async def remove_members(
     gid: GidStr,

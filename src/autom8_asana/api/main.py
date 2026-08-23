@@ -163,6 +163,11 @@ _OAUTH2_SCOPE_DEFINITIONS: dict[str, str] = {
     "resolver:read": "Resolve business identifiers to Asana entities (S2S)",
     "query:read": "Schema introspection and entity queries (S2S)",
     "intake:write": "Create and resolve entities via intake pipeline (S2S)",
+    # RE-2 / DEV-4: the comment-create write class was absent from this
+    # taxonomy entirely (design §2.2 "the hole") — `_resolve_scopes_for_operation
+    # ("/v1/receipts", "post")` returned []. It is the write class most likely to
+    # be forgotten again precisely because it was the one nobody had written down.
+    "receipts:write": "Post receipt comments to Asana business tasks (S2S)",
     "admin:manage": "Administrative operations (cache, config, diagnostics)",
     "webhooks:receive": "Receive inbound webhook notifications",
 }
@@ -185,6 +190,12 @@ _SCOPE_RULES: list[tuple[str, list[str], list[str]]] = [
     ("/v1/resolve", ["resolver:read"], ["resolver:read"]),
     ("/v1/query", ["query:read"], ["query:read"]),
     ("/v1/intake", ["intake:write"], ["intake:write"]),
+    # RE-2 / DEV-4: closes the `/v1/receipts` hole. Runtime enforcement for this
+    # class does NOT come from here — this table is still documentation-only
+    # (see the header above); enforcement is `api/write_authz.py`
+    # `WriteClass.RECEIPTS`. Listing it keeps the published contract and the
+    # enforced contract naming the same surface.
+    ("/v1/receipts", ["receipts:write"], ["receipts:write"]),
     ("/v1/matching", ["query:read"], ["query:read"]),
     ("/v1/admin", ["admin:manage"], ["admin:manage"]),
     ("/v1/internal", ["admin:manage"], ["admin:manage"]),

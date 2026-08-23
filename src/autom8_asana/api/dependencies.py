@@ -49,19 +49,42 @@ class AuthContext:
     Provides the PAT to use for Asana API calls, regardless of
     how the request was authenticated.
 
+    RE-2 / DEV-3 (design §5.1 L1-3): this context is the ONLY identity a
+    dual-mode write route ever sees. The `tasks.py` / `projects.py` /
+    `sections.py` / `workflows.py` write family takes no ``ServiceClaims``
+    parameter at all, so before DEV-3 there was no identity in scope for those
+    handlers to authorize on — the gap was a claims-plumbing omission, not just
+    a missing check. ``claims`` below closes that.
+
+    The dual-mode split is load-bearing and must not be flattened:
+
+    * **PAT branch** — the user's own PAT is passed through unchanged, so Asana's
+      own ACL already authorizes the call with that user's real permissions.
+      ``claims`` is None here and write-class authorization is SKIPPED by design.
+      Gating this branch would break every human/PAT caller for no security
+      gain.
+    * **JWT branch** — the caller is lent the SHARED bot PAT, which carries the
+      bot's full workspace authority rather than the caller's. This is the
+      unauthorized path SEC-001 names, and the branch write-class authorization
+      exists to gate.
+
     Attributes:
         mode: How the request was authenticated (jwt or pat)
         asana_pat: The PAT to use for Asana API calls
         caller_service: Service name from JWT (None for PAT mode)
+        claims: Validated SDK ``ServiceClaims`` (JWT mode only; None for PAT
+            mode). Supplies the issuer-asserted principal for write-class
+            authorization. Never populated on the PAT branch.
     """
 
-    __slots__ = ("mode", "asana_pat", "caller_service")
+    __slots__ = ("mode", "asana_pat", "caller_service", "claims")
 
     def __init__(
         self,
         mode: AuthMode,
         asana_pat: str,
         caller_service: str | None = None,
+        claims: object | None = None,
     ) -> None:
         """Initialize auth context.
 
@@ -69,10 +92,12 @@ class AuthContext:
             mode: Authentication mode (JWT or PAT)
             asana_pat: PAT to use for Asana API calls
             caller_service: Service name (JWT mode only)
+            claims: Validated service claims (JWT mode only)
         """
         self.mode = mode
         self.asana_pat = asana_pat
         self.caller_service = caller_service
+        self.claims = claims
 
 
 async def _extract_bearer_token(
@@ -260,10 +285,14 @@ async def get_auth_context(
         },
     )
 
+    # RE-2 / DEV-3: carry the validated claims so dual-mode write routes have an
+    # issuer-asserted principal to authorize on. PAT-branch contexts (returned
+    # above) keep `claims=None`, which is what makes the gate skip them.
     return AuthContext(
         mode=auth_mode,
         asana_pat=bot_pat,
         caller_service=claims.service_name,
+        claims=claims,
     )
 
 

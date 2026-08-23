@@ -8,6 +8,7 @@ This module provides pytest fixtures for testing the FastAPI routes:
 """
 
 from collections.abc import AsyncGenerator, Generator
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -83,11 +84,27 @@ def app():
         # Default auth context: JWT mode with a stub bot PAT.
         # Tests that need PAT-rejection or missing-auth responses rely on
         # require_service_claims, which validates independently of this override.
+        #
+        # RE-2 / DEV-3: `claims` is REQUIRED on a JWT-mode context. Production
+        # `get_auth_context` always populates it (dependencies.py JWT branch),
+        # and the write-authz gate resolves its principal from it. A JWT context
+        # without claims yields an unresolvable principal and is correctly
+        # refused with 403 — so omitting it here would make this fixture
+        # diverge from production and mask the gate rather than exercise it.
+        # `autom8_data` is allowlisted for the suite in tests/conftest.py.
         async def _mock_get_auth_context() -> AuthContext:
             return AuthContext(
                 mode=AuthMode.JWT,
                 asana_pat="test_bot_pat",
                 caller_service="autom8_data",
+                claims=SimpleNamespace(
+                    sub="autom8_data",
+                    service_name="autom8_data",
+                    client_id=None,
+                    scope=None,
+                    scopes=[],
+                    permissions=[],
+                ),
             )
 
         test_app.dependency_overrides[get_auth_context] = _mock_get_auth_context

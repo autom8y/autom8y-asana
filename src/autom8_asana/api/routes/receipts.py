@@ -66,6 +66,7 @@ from autom8_asana.api.routes.receipts_models import (
     ReceiptPostRequest,
     ReceiptPostResponse,
 )
+from autom8_asana.api.write_authz import WriteClass, require_write_authz
 from autom8_asana.services.receipts_service import (
     CompanyAmbiguous,
     CompanyIdFieldUnconfigured,
@@ -95,6 +96,7 @@ router = s2s_router(prefix="/v1", tags=["receipts"], include_in_schema=False)
             "entity": "forwarding_receipt",
         },
     },
+    dependencies=[Depends(require_write_authz(WriteClass.RECEIPTS))],
 )
 async def post_receipt(
     body: ReceiptPostRequest,

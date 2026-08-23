@@ -8,6 +8,7 @@ dry-run, params override, response shape, and audit logging.
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -155,12 +156,26 @@ def app(monkeypatch):
         mock_discover.side_effect = setup_registry
         test_app = create_app()
 
-        # Default auth context
+        # Default auth context.
+        #
+        # RE-2 / DEV-3: `claims` is REQUIRED on a JWT-mode context. Production
+        # `get_auth_context` always populates it (dependencies.py JWT branch);
+        # a JWT context without claims yields an unresolvable principal, which
+        # the write-authz gate correctly refuses (403). Supplying it here keeps
+        # the fixture faithful to what production builds.
         async def _mock_get_auth_context() -> AuthContext:
             return AuthContext(
                 mode=AuthMode.JWT,
                 asana_pat="test_bot_pat",
                 caller_service="autom8_data",
+                claims=SimpleNamespace(
+                    sub="autom8_data",
+                    service_name="autom8_data",
+                    client_id=None,
+                    scope=None,
+                    scopes=[],
+                    permissions=[],
+                ),
             )
 
         test_app.dependency_overrides[get_auth_context] = _mock_get_auth_context

@@ -40,6 +40,7 @@ from autom8_asana.api.routes.internal import (
     ServiceClaims,
     require_service_claims,
 )
+from autom8_asana.api.write_authz import WriteClass, require_write_authz
 from autom8_asana.services.intake_create_service import (
     VALID_PROCESS_TYPES,
     IntakeCreateService,
@@ -69,6 +70,7 @@ router = s2s_router(prefix="/v1/intake", tags=["intake-create"], include_in_sche
         "x-fleet-idempotency": {"idempotent": False, "key_source": None},
         "x-fleet-cross-service-refs": {"service": "autom8y-data", "entity": "business"},
     },
+    dependencies=[Depends(require_write_authz(WriteClass.INTAKE))],
 )
 async def create_intake_business(
     body: IntakeBusinessCreateRequest,
@@ -205,6 +207,7 @@ async def create_intake_business(
         "x-fleet-idempotency": {"idempotent": True, "key_source": None},
         "x-fleet-cross-service-refs": {"service": "autom8y-asana", "entity": "unit"},
     },
+    dependencies=[Depends(require_write_authz(WriteClass.INTAKE))],
 )
 async def route_intake_process(
     body: IntakeRouteRequest,
