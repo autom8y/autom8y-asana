@@ -15,7 +15,7 @@ rung_claimed: rung-ENFORCED-IN-PROCESS
 rung_not_claimed: rung-ENFORCED-ON-THE-WIRE
 self_assessment_cap: MODERATE
 evidence_grade_ceiling: MODERATE
-critic: verification-auditor@eunomia (rite-disjoint, NOT YET SEATED at authorship)
+critic: "verification-auditor@eunomia (rite-disjoint) — SEATED 2026-08-23; verdict CONCUR-WITH-FLAGS; see §10.1"
 ---
 
 # RECEIPT — RE-2 DEV-1..4
@@ -140,10 +140,26 @@ the same conclusion independently.
 `AuthClient._dev_bypass_service_claims` (`autom8y_auth/client.py:554-570`) **mints**
 `ServiceClaims(sub="dev-bypass-service", scope="*", …)` whenever `dev_mode` is set.
 Had RE-2 shipped option (a) as originally posed, **every dev-mode token would have
-satisfied every write gate** — a fail-open reachable by an env toggle, not by a
-legacy accident. Pinned as a test (`test_the_wildcard_carrier_is_not_hypothetical`)
-so that if a future SDK removes the wildcard, the ruling is revisited deliberately
-rather than drifting.
+satisfied every write gate**. Pinned as a test
+(`test_the_wildcard_carrier_is_not_hypothetical`) so that if a future SDK removes
+the wildcard, the ruling is revisited deliberately rather than drifting.
+
+**Reachability bound, stated precisely (rite-disjoint critic advisory, accepted).**
+Calling this "reachable by an env toggle" — as an earlier draft of this receipt did
+— **over-stated it**, and the correction matters more than the rhetorical force it
+costs. `AuthSettings.model_post_init` (`autom8y_auth/config.py:181-186`) fails
+closed: *"AUTH__DEV_MODE=true is only permitted when AUTOM8Y_ENV=LOCAL"* raises
+`ValueError` at settings construction. So the dev-bypass carrier is **not reachable
+in a deployed environment** by flipping one variable; it requires `AUTOM8Y_ENV=LOCAL`
+as well, which is not the production posture.
+
+This does **not** weaken the axis ruling, and it is worth being clear why. The
+ruling does not rest on the dev-bypass being production-reachable. It rests on
+`has_scope` being **fail-open by contract** for *any* `scope == "*"` carrier,
+whoever mints it — the SDK's dev path is a demonstration that such carriers are
+real and minted in-fleet, not the threat model itself. A control must not depend
+on the assumption that no wildcard token will ever exist; that assumption is
+exactly what a second, unfenced minting path would silently invalidate.
 
 **Design consequence, restated:** option (a) is not merely "dominated by (f)" as the
 design put it. On this evidence it is **inadmissible**.
@@ -348,9 +364,42 @@ against a second clean `origin/main` worktree.
 | F-2 not executed; PAT un-rotated | `describe-secret` (metadata only) | `LastChangedDate` 2026-04-08 < leak-filed 2026-07-07 |
 | PAT consumer topology | ECS describe-services/task-definition + Lambda list-functions | 1 ECS service + 8 Lambdas |
 
-**Self-assessment: MODERATE** per `self-ref-evidence-grade-rule` / F-C. The
-rite-disjoint critic (`verification-auditor@eunomia`) was **NOT seated** at
-authorship; completeness of the sweeps is a single-seat assertion. The strongest
+### §10.1 Rite-disjoint critique — SEATED, and it found a real hole
+
+`verification-auditor@eunomia` (rite-disjoint) rendered **CONCUR-WITH-FLAGS**. It
+did not accept this seat's receipts: it reproduced all 59 tests, re-censused 26/26
+independently, byte-verified the F-2 metadata, confirmed CORRECTION-3 verbatim
+against the SDK, and — decisively — **planted its own mutation probes**:
+
+| Probe | Result |
+|---|---|
+| `is_authorized` mutated to fail-open on empty allowlist | **7 RED** — teeth bite |
+| mode-fallback mutated (ENFORCE → OBSERVE) | **18 RED** — teeth bite |
+| write-authz dependency stripped from a route | **GUARD-1 RED** — coverage guard bites |
+| **live `has_scope(...) → return True` planted inside `is_authorized`** | **GUARD-2 PASSED — BLIND** |
+
+The fourth probe found a genuine defect in this seat's own instrument.
+`AXIS_BAN_EXEMPT = {"write_authz.py"}` was a whole-**FILE** exemption, so GUARD-2
+was blind in the single highest-value module in the change. My stated reasoning —
+"the module documenting the ruling must be allowed to name the primitives" — was
+wrong: all 7 legitimate mentions are docstrings, already exempt **structurally** by
+AST, per node. The file-level exemption bought nothing and cost the guard its teeth
+exactly where they mattered most.
+
+**Fixed** (`test_write_authz_coverage.py`): `AXIS_BAN_EXEMPT: set[str] = set()`,
+plus two regression pins — one asserting the set stays empty, one reproducing the
+critic's mutant shape. Verified two-sided against the **real** module source in
+memory (no defect written to disk): unmutated → `[]`; critic's mutant → caught at
+`write_authz.py:273`. Battery re-run **61 passed**.
+
+This is the wave's own D-5 lesson landing on its author: a guard that has not been
+attacked is not known to bite. Four of five probes confirmed the teeth; the fifth
+is why the critique was not ceremony.
+
+**Self-assessment: MODERATE** per `self-ref-evidence-grade-rule` / F-C — unchanged
+by the critique, which is CONCUR-**WITH-FLAGS**, not an elevation. Completeness of
+the original sweeps remains a single-seat assertion, and the Class-D consumer
+discovery (RUNBOOK §2) shows that assertion under-counted at least once. The strongest
 claim here — the `has_scope` wildcard fail-open and the axis ruling that follows —
 carries **independent rite-disjoint corroboration** from the auth service's own
 maintainers at `service-accounts.yaml:682-683`, authored without reference to this

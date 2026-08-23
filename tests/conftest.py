@@ -238,6 +238,18 @@ def reset_all_singletons():
 # own autouse fixture so its RED cases test the gate rather than this fixture.
 # ---------------------------------------------------------------------------
 
+# NEVER DEPLOY THIS VALUE. It is a TEST fixture, not a starting allowlist.
+#
+# Two of these three principals must never appear in a deployed
+# `ASANA_WRITERS_*` variable:
+#   - `dev-bypass-service` is the SDK's dev-bypass identity
+#     (autom8y_auth/client.py:554-570), which carries `scope="*"`. Allowlisting it
+#     in a real environment would hand write authority to the bypass path.
+#   - `email_booking_intake` / `autom8_data` are the identities THESE TESTS
+#     present; they are not a census of who legitimately writes in production.
+#
+# The production allowlist is derived from OBSERVED traffic during the
+# `ASANA_WRITE_AUTHZ_MODE=observe` soak (RECEIPT §6), never copied from here.
 _TEST_WRITE_PRINCIPALS = "autom8_data,email_booking_intake,dev-bypass-service"
 
 

@@ -51,8 +51,8 @@ So the admissible axes are, in preference order:
 The ``scope``/``scopes`` axis is REFUSED for authorization at any layer.
 ``has_permission_no_wildcard`` below is the layer-2-ready predicate, and it
 refuses ``"*"`` explicitly rather than inheriting a permissive default.
-``tests/unit/api/test_write_authz_axis.py`` is the drift guard that keeps the
-refused axis out of ``src/`` permanently.
+``tests/unit/api/test_write_authz_coverage.py`` (GUARD-2) is the drift guard that
+keeps the refused axis out of ``src/`` permanently.
 
 FAIL-CLOSED POSTURE
 -------------------

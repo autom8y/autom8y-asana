@@ -62,7 +62,10 @@ this seat. The token's value is unknown to this artifact and does not appear in 
 
 ## §2 Consumer topology (own-hands, 2026-08-23) — what step 3 actually means
 
-Two consumer classes, with **different propagation semantics**. This distinction is
+Four consumer classes (A/B runtime, C human, D CI), with **different propagation
+semantics**. Classes A-C were enumerated in the first draft; **Class D was found
+only at rite-disjoint critique** — see the UV-P at §6, which returned NOT NULL. The
+runtime distinction below is
 the reason the old step 3 was not unattended-fireable.
 
 ### Class A — ECS (1 service): needs a forced redeploy
@@ -102,6 +105,47 @@ the old PAT is revoked and the moment each consumer picks up the new one, that
 consumer is broken. Lambdas recover on cache expiry without intervention; the ECS
 service does not recover until you redeploy it. **Revoke last, not first**, if you
 want a zero-gap rotation (see §3 note on ordering).
+
+### Class D — CI (`github-actions-deploy`): pre-revoke check REQUIRED
+
+Added at rite-disjoint critique. This class was **missing** from the first draft of
+this runbook, and it is the one most likely to break loudly *after* the operator
+believes the rotation finished.
+
+CloudTrail over `2026-08-13 → 2026-08-23` (40-event sample, `ResourceName =
+autom8y/asana/asana-pat`) shows a CI principal actively touching this secret:
+
+| Principal | Calls in window | Operation |
+|---|---|---|
+| `arn:aws:sts::696318035277:assumed-role/github-actions-deploy/GitHubActions` | **26** | `DescribeSecret` (`errorCode: none`) |
+| `AWSReservedSSO_AdministratorAccess_…/tomtenuta` | 11 | `GetSecretValue` |
+| `AWSReservedSSO_AdministratorAccess_…/tomtenuta` | 3 | `DescribeSecret` |
+
+Two things follow.
+
+1. **A pre-revoke check is required.** In this sample the CI role reads *metadata*
+   only — no `GetSecretValue` by `github-actions-deploy` appears. If that holds, CI
+   is unaffected by rotation. But the sample is 40 events over ~10 days, **not a
+   full audit**, and a deploy path that reads the value on a less frequent trigger
+   would not appear. **Before Step 4 (REVOKE), re-run the lookup below** and
+   confirm CI is still metadata-only:
+
+   ```bash
+   aws cloudtrail lookup-events --region us-east-1 \
+     --lookup-attributes AttributeKey=ResourceName,AttributeValue=autom8y/asana/asana-pat \
+     --max-results 200 \
+     --query 'Events[?EventName==`GetSecretValue`].[EventTime,Username]' --output table
+   ```
+   If `github-actions-deploy` appears in that output, CI **does** consume the value
+   and a rotation will break deploys until the next successful run — sequence
+   accordingly (and prefer the zero-gap ordering in §3).
+
+2. **The human/admin path is the real value-reader here.** The 11 `GetSecretValue`
+   calls are the SSO admin role — the `just fetch-secrets` class (Class C). That is
+   the copy Step 7 shreds.
+
+> **CR-5 note:** all of the above is CloudTrail *metadata* — event names, principals,
+> timestamps. No secret value was retrieved by this seat at any point.
 
 ### Class C — local developer path (no action, but shred)
 
@@ -170,6 +214,12 @@ Class B (Lambda) needs no action. To force it, publish a no-op config update per
 function; otherwise allow the extension cache to expire.
 
 ### Step 4 — REVOKE the leaked PAT
+
+> **PRE-REVOKE CHECK (Class D, §2) — run this first.** Confirm CI is still
+> metadata-only on this secret before revoking; the command is in §2 Class D. If
+> `github-actions-deploy` appears under `GetSecretValue`, revoking here breaks
+> deploys until the next successful run.
+
 Asana Developer Console → owning user → PATs → **revoke** the OLD token.
 Every copy in git history, in every clone and fork, becomes inert at this instant.
 **This is the step that actually closes the exposure.** (Under revoke-first
@@ -238,7 +288,18 @@ R-CC7-1 carry exists to prevent.
 
 [UV-P: the eight Lambda consumers actually pick up AWSCURRENT within their extension cache TTL without a redeploy | METHOD: post-rotation invocation + CloudWatch confirmation of a successful Asana call per function | REASON: the propagation semantics are read from the `autom8y_config` lambda-extension contract and the observed `ASANA_PAT_ARN` wiring, NOT from a post-rotation observation — no rotation has occurred. The TTL value itself was not probed.]
 
-[UV-P: no consumer outside the 1 ECS service + 8 Lambdas reads this secret | METHOD: CloudTrail `GetSecretValue` audit over a full billing period, keyed on the secret ARN | REASON: the enumeration here is a point-in-time scan of ECS service definitions and Lambda environment variables in us-east-1. A consumer in another region, an EC2/EKS reader, a CI job, or a human shell would not appear in it. `LastAccessedDate` proves reads are happening but not who is making them.]
+**[UV-P — PARTIALLY DISCHARGED, returned NOT NULL]** The original claim was *"no
+consumer outside the 1 ECS service + 8 Lambdas reads this secret"*, deferred to a
+CloudTrail audit. The rite-disjoint critic ran that probe. It **returned NOT NULL**:
+a CI principal (`github-actions-deploy`, 26× `DescribeSecret`) and a human admin
+path (11× `GetSecretValue`) are both live consumers that the ECS/Lambda scan could
+not see. Both are now enumerated as Classes D and C. The original UV-P's own stated
+blind spot — *"a CI job, or a human shell would not appear in it"* — is precisely
+what fired, which is the intended behaviour of a UV-P rather than a failure of it.
+
+The residual, restated narrowly:
+
+[UV-P: no consumer outside Classes A-D reads this secret | METHOD: CloudTrail audit over a full billing period (not a 40-event sample), keyed on the secret ARN, in every region | REASON: the Class-D discovery rests on a 40-event `lookup-events` sample spanning 2026-08-13 → 2026-08-23. A consumer that reads on a monthly or release-triggered cadence, or in another region, is still outside this window. The direction of the correction is instructive: the first enumeration UNDER-counted consumer classes by two, so the prior should be that more exist, not that the set is now closed.]
 
 ---
 

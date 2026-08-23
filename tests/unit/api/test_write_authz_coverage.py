@@ -147,9 +147,25 @@ class TestGuard1WriteRouteCoverage:
 # to catch `claims.has_scope(...)`, `require_scope(...)`, and imports thereof.
 FAIL_OPEN_AXIS = re.compile(r"\b(has_scope|require_scope)\b")
 
-# The axis ruling is ABOUT these primitives, so the module that documents it and
-# the tests that pin the upstream hazard must be allowed to name them.
-AXIS_BAN_EXEMPT = {"write_authz.py"}
+# DELIBERATELY EMPTY — and it must stay that way.
+#
+# This began as `{"write_authz.py"}`, on the reasoning that the module which
+# DOCUMENTS the axis ruling must be allowed to name the primitives it refuses.
+# That reasoning was wrong, and the rite-disjoint critic proved it by planting a
+# live `claims.has_scope("asana:write") -> return True` inside `is_authorized`:
+# GUARD-2 PASSED. A whole-FILE exemption blinded the guard in the single
+# highest-value module in the change — the one place a fail-open would be most
+# damaging and least visible.
+#
+# The file-level exemption was never needed: every legitimate mention in
+# write_authz.py sits in a module/function docstring, and `_docstring_lines`
+# already exempts those STRUCTURALLY (by AST, per node, not per file). Prose
+# stays legal; a real call does not. Verified: all 7 mentions in write_authz.py
+# are docstring-covered with this set empty, and the planted mutant is killed.
+#
+# If a future module genuinely needs to name these primitives in CODE, that is a
+# design decision requiring the axis ruling to be revisited — not an entry here.
+AXIS_BAN_EXEMPT: set[str] = set()
 
 
 def _docstring_lines(text: str) -> set[int]:
@@ -225,6 +241,46 @@ class TestGuard2FailOpenAxisBan:
     def test_red_guard_trips_on_require_scope_dependency(self) -> None:
         synthetic = {"routes/evil.py": "from autom8y_auth import require_scope\n"}
         assert fail_open_axis_hits(synthetic) == ["routes/evil.py:1"]
+
+    def test_no_file_is_exempt_from_the_axis_ban(self) -> None:
+        """Regression pin for the critic-planted mutant.
+
+        GUARD-2 once carried `AXIS_BAN_EXEMPT = {"write_authz.py"}`. The
+        rite-disjoint critic planted a live `has_scope(...) -> return True` inside
+        `is_authorized` and GUARD-2 PASSED — blind in exactly the module where a
+        fail-open matters most.
+
+        This asserts the exemption set is empty, so no file can be whole-file
+        blinded again. It is paired with the mutant test below: emptiness alone
+        would be satisfied by a guard that never fires.
+        """
+        assert not AXIS_BAN_EXEMPT, (
+            "A whole-file axis-ban exemption re-introduces the blind spot the "
+            f"critic proved. Docstring prose is already exempt by AST. Got: {AXIS_BAN_EXEMPT}"
+        )
+
+    def test_red_guard_kills_the_mutant_planted_in_write_authz(self) -> None:
+        """RED teeth: a real `has_scope` call inside write_authz.py is CAUGHT.
+
+        Reproduces the critic's mutant shape — a live call inside the gate's own
+        predicate, in a module whose docstrings legitimately discuss `has_scope`.
+        The docstring must stay legal; the call must not.
+        """
+        synthetic = {
+            "autom8_asana/api/write_authz.py": (
+                '"""Enforcement is NOT keyed on ServiceClaims.has_scope()."""\n'
+                "\n"
+                "def is_authorized(principal, allowlist):\n"
+                '    """Deny-by-default membership test — never via has_scope."""\n'
+                '    if _H.has_scope("asana:write"):\n'
+                "        return True\n"
+                "    return principal in allowlist\n"
+            )
+        }
+        hits = fail_open_axis_hits(synthetic)
+        assert hits == ["autom8_asana/api/write_authz.py:5"], (
+            f"mutant survived GUARD-2 — the axis ban is blind. hits={hits}"
+        )
 
     def test_docstring_exemption_is_not_a_bypass(self) -> None:
         """The prose exemption must not shelter an adjacent real call.
