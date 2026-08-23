@@ -14,8 +14,16 @@ from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 from fastapi import (
+    # `Request` MUST stay a runtime import: FastAPI resolves the annotation via
+    # get_type_hints() at route registration, so moving it behind TYPE_CHECKING
+    # would raise NameError. It used to carry a TC002 suppression saying exactly
+    # that. The suppression is now dead: adding the runtime-used `Depends` to
+    # this block (RE-2 DEV-2) stops ruff proposing a TYPE_CHECKING move, so TC002
+    # no longer fires here. The RUF100 drift-guard (test.yml:438) caught the
+    # stale directive. Rationale kept — it is still true; directive dropped — it
+    # is not.
     Depends,
-    Request,  # noqa: TC002 — FastAPI resolves Request annotation via get_type_hints() at route registration; moving behind TYPE_CHECKING would raise NameError
+    Request,
 )
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
