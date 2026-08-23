@@ -221,6 +221,15 @@ proving the exemption is not a bypass.
 | `tests/unit/api` @ `origin/main` (clean baseline worktree) | **0 failed** |
 | `tests/unit/api` @ this branch, first pass | **272 failed** — all attributable to this change |
 | `tests/unit/api` @ this branch, final | **1570 passed, 0 failed** |
+| `tests/unit tests/contracts tests/arch` @ this branch | **16009 passed, 1 failed, 13 skipped, 3 xfailed** |
+| The 1 failure, re-run @ `origin/main` baseline | **FAILS IDENTICALLY — pre-existing, NOT attributable to this change** |
+
+The single whole-suite failure is
+`tests/unit/services/test_query_service.py::TestEntityServiceValidateAdversarial::test_project_gid_none_raises_service_not_configured`.
+It was **not** assumed unrelated on the strength of its path: it was re-run in the
+clean `origin/main` baseline worktree and fails there identically. It is recorded
+here rather than dropped, because "a failure in a directory I did not touch" is an
+attribution *claim*, and attribution claims get differenced, not asserted.
 
 The 272 are recorded rather than hidden, because they are the **strongest single
 piece of evidence that the gate is real**: with no allowlist configured, the
@@ -333,6 +342,7 @@ against a second clean `origin/main` worktree.
 | Gate denies unauthorized on a real route | live TestClient against real app | 403 + structured receipt, OBSERVED |
 | Baseline is clean | full `tests/unit/api` at `origin/main` | 0 failed |
 | Post-change suite is clean | full `tests/unit/api` at branch | 1570 passed, 0 failed |
+| Whole suite | `tests/unit tests/contracts tests/arch` at branch | 16009 passed, 1 failed (pre-existing, baseline-differenced) |
 | Teeth suite | `test_write_authz*.py` | 59 passed |
 | Lint/format | `ruff check src/ tests/`, `ruff format --check` | clean |
 | F-2 not executed; PAT un-rotated | `describe-secret` (metadata only) | `LastChangedDate` 2026-04-08 < leak-filed 2026-07-07 |
