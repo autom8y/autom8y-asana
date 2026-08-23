@@ -421,6 +421,7 @@
     predicate leg (d) via ESCALATION. Receipt: RECEIPT-credential-topology-closure-c1 (R-C1-927).
   unblock_signal: ECS env identity corrected + a GREEN-CONTROL metrics-smoke run + #927..#962 family closed
   unblock_owner: sre/infra rite
+  deadline: 2026-09-10  # D-6 close — provably-landed WS-H receipt (iv) gate; re-escalated own-hands-confirmed-live 2026-08-23 (autom8y .ledge/decisions/PACKET-corroboration-allowlist-2026-08-23.md §6.3)
   evidence_anchors:
     - .ledge/reviews/RECEIPT-credential-topology-closure-c1-2026-07-07.md (R-C1-927)
 
