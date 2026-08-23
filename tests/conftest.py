@@ -214,3 +214,49 @@ def reset_all_singletons():
     SystemContext.reset_all()
     yield
     SystemContext.reset_all()
+
+
+# ---------------------------------------------------------------------------
+# RE-2 / SEC-001: write-class authorization allowlists for the test suite.
+#
+# `api/write_authz.py` is deny-by-default: with no allowlist configured, every
+# S2S caller is refused on every Asana write route. That is the ratified
+# behaviour (design §5.1 L1-2, "empty allowlist == deny-all, loudly"), and it
+# means the test suite — like production — must now DECLARE which principals may
+# write. Authorizing them here mirrors the deployment-time configuration; it is
+# not a bypass.
+#
+# The principals below are the service identities the route tests present. They
+# were derived from observed `write_authz_denied` receipts, not guessed. If a new
+# write-route test fails with 403 INSUFFICIENT_PRIVILEGE, the correct fix is to
+# add its principal here (or set the env var in that test) — NOT to weaken the
+# gate.
+#
+# Deliberately NOT set here: `ASANA_WRITE_AUTHZ_MODE`. The suite runs in the
+# default ENFORCE posture, so these tests exercise the same code path production
+# does. `tests/unit/api/test_write_authz.py` strips all of this back off in its
+# own autouse fixture so its RED cases test the gate rather than this fixture.
+# ---------------------------------------------------------------------------
+
+# NEVER DEPLOY THIS VALUE. It is a TEST fixture, not a starting allowlist.
+#
+# Two of these three principals must never appear in a deployed
+# `ASANA_WRITERS_*` variable:
+#   - `dev-bypass-service` is the SDK's dev-bypass identity
+#     (autom8y_auth/client.py:554-570), which carries `scope="*"`. Allowlisting it
+#     in a real environment would hand write authority to the bypass path.
+#   - `email_booking_intake` / `autom8_data` are the identities THESE TESTS
+#     present; they are not a census of who legitimately writes in production.
+#
+# The production allowlist is derived from OBSERVED traffic during the
+# `ASANA_WRITE_AUTHZ_MODE=observe` soak (RECEIPT §6), never copied from here.
+_TEST_WRITE_PRINCIPALS = "autom8_data,email_booking_intake,dev-bypass-service"
+
+
+@pytest.fixture(autouse=True)
+def _write_authz_test_allowlists(monkeypatch):  # type: ignore[no-untyped-def]
+    """Authorize the suite's known test principals for every write class."""
+    from autom8_asana.api.write_authz import ALLOWLIST_ENV
+
+    for env_name in ALLOWLIST_ENV.values():
+        monkeypatch.setenv(env_name, _TEST_WRITE_PRINCIPALS)

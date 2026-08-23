@@ -33,6 +33,7 @@ from autom8_asana.api.routes.internal import (
     ServiceClaims,
     require_service_claims,
 )
+from autom8_asana.api.write_authz import WriteClass, require_write_authz
 from autom8_asana.errors import NotFoundError, RateLimitError
 from autom8_asana.services.intake_custom_field_service import IntakeCustomFieldService
 
@@ -53,6 +54,7 @@ router = s2s_router(prefix="/v1/tasks", tags=["intake-custom-fields"], include_i
         "x-fleet-idempotency": {"idempotent": False, "key_source": None},
         "x-fleet-rate-limit": {"tier": "external"},
     },
+    dependencies=[Depends(require_write_authz(WriteClass.INTAKE))],
 )
 async def write_custom_fields(
     task_gid: str,

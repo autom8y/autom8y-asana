@@ -33,20 +33,55 @@ router = s2s_router(prefix="/api/v1/internal", tags=["internal"], include_in_sch
 class ServiceClaims(BaseModel):
     """Claims extracted from a validated service token.
 
+    RE-2 / DEV-1 (design §5.1 L1-1, "un-loss the claims model"): this is a
+    LOCAL narrowing of ``autom8y_auth.claims.ServiceClaims``, not the SDK model.
+    Before DEV-1 it copied only ``sub``/``service_name``/``scope``/
+    ``permissions`` and dropped everything else — including ``client_id``, the
+    issuer-asserted key the fleet authorizes on
+    (``SCHEDULING_ENROLLMENT_WRITER_CLIENT_IDS``,
+    ``services/auth/service-accounts.yaml:680-683``). That lossiness was
+    load-bearing: the authorization key was discarded before any route could
+    see it, so no route *could* have made an authorization decision on it.
+
+    ``client_id`` is carried so that write-class authorization
+    (``api/write_authz.py``) has a signature-covered principal to key on.
+
+    Note on ``service_account_id``: the canonical ``sa.yaml_id`` is emitted by
+    the auth service but is NOT a field on the SDK's ``ServiceClaims``, which
+    declares ``extra="ignore"`` and therefore drops it during validation. It
+    survives only on ``request.state.claims_dict`` (populated by
+    ``JWTAuthMiddleware``), which is where ``resolve_principal`` reads it —
+    the same precedence already proven at ``idempotency.py:508-530`` and
+    documented at ``rate_limit.py:25-46``. It is deliberately NOT mirrored onto
+    this model, because doing so would fabricate a field the SDK never
+    populates and invite a silent ``None`` to be read as an identity.
+
     Attributes:
-        sub: Subject (service identifier)
-        service_name: Name of the calling service
-        scope: Permission scope (e.g., multi-tenant)
+        sub: Subject (service identifier — the SA UUID).
+        service_name: Name of the calling service. On the SDK model this is a
+            ``@property`` returning ``sub`` (``claims.py:183-185``); it is NOT
+            an independently issuer-asserted claim. See ``rate_limit.py:42-46``
+            for the prior in-repo defect caused by treating it as one.
+        scope: RFC 6749 scope claim. Carried for LOGGING ONLY. It must never be
+            used for an authorization decision — ``scope == "*"`` is a legacy
+            wildcard sentinel that makes ``has_scope`` fail open
+            (``claims.py:220-222``); see the axis ruling in
+            ``api/write_authz.py``.
         permissions: Service permissions populated from ServiceAccount scopes.
             Used for fine-grained authorization on privileged routes
             (e.g., super-admin gating on /v1/admin/cache/refresh per
-            Bedrock W4C-P3 / SEC-DT-10).
+            Bedrock W4C-P3 / SEC-DT-10), and the layer-2 axis for write-class
+            authorization (plain membership, no wildcard).
+        client_id: ServiceAccount ``client_id``, present on ServiceAccount
+            tokens. Issuer-asserted and signature-covered. Tier-2 principal for
+            write-class authorization.
     """
 
     sub: str
     service_name: str
     scope: str | None = None
     permissions: list[str] = []
+    client_id: str | None = None
 
 
 # --- Authentication Dependencies ---
@@ -154,11 +189,23 @@ async def require_service_claims(request: Request) -> ServiceClaims:
         },
     )
 
+    # RE-2 / DEV-1: carry `client_id` across the narrowing.
+    #
+    # The isinstance() narrowing is load-bearing, not defensive clutter. An
+    # authorization key must be a genuine string or absent — never a duck-typed
+    # object. Without it, any object exposing a `client_id` attribute (a stub, a
+    # proxy, a partially-populated model) would be admitted here and later
+    # compared against the writer allowlist, where `__eq__` is the object's to
+    # define. Anything that is not a `str` degrades to None, which
+    # `resolve_principal` reads as "tier absent" and falls through to `sub`. It
+    # never yields a spurious identity.
+    raw_client_id = getattr(claims, "client_id", None)
     return ServiceClaims(
         sub=claims.sub,
         service_name=claims.service_name,
         scope=claims.scope,
         permissions=list(claims.permissions),
+        client_id=raw_client_id if isinstance(raw_client_id, str) else None,
     )
 
 

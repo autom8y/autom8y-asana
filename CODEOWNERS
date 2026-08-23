@@ -1,0 +1,40 @@
+# CODEOWNERS — autom8y-asana
+#
+# Closes the named-owner gap recorded at
+# `.ledge/decisions/DESIGN-re2-two-layer-authz-2026-08-13.md` §6:
+#
+#   "Named-owner gap found (and it is this design's own): autom8y-asana has no
+#    CODEOWNERS file at origin/main (verified NULL at both CODEOWNERS and
+#    .github/CODEOWNERS). The layer-1 owner is therefore imputed, not
+#    mechanically derived."
+#
+# Before this file, layer-1 ownership of the Asana write surface was an
+# INFERENCE (drawn from the `owner: platform-team` stamp on asana-related
+# service accounts in the monorepo's services/auth/service-accounts.yaml).
+# After it, ownership is a mechanical fact resolvable by tooling — which is
+# what makes every other owner-of-record claim in the RE-2 build auditable
+# rather than asserted.
+#
+# Mirrors the monorepo convention at autom8y `CODEOWNERS:1` (`* @autom8y/platform-team`).
+
+# Default owner for everything in this repository.
+*                                       @autom8y/platform-team
+
+# --- Asana write surface (RE-2 / SEC-001) -----------------------------------
+# The write-class authorization gate and every route it guards. Changes here
+# alter who may drive an Asana write with the shared bot credential.
+/src/autom8_asana/api/write_authz.py    @autom8y/platform-team
+/src/autom8_asana/api/dependencies.py   @autom8y/platform-team
+/src/autom8_asana/api/routes/internal.py            @autom8y/platform-team
+/src/autom8_asana/api/routes/receipts.py            @autom8y/platform-team
+/src/autom8_asana/api/routes/tasks.py               @autom8y/platform-team
+/src/autom8_asana/api/routes/projects.py            @autom8y/platform-team
+/src/autom8_asana/api/routes/sections.py            @autom8y/platform-team
+/src/autom8_asana/api/routes/entity_write.py        @autom8y/platform-team
+/src/autom8_asana/api/routes/intake_create.py       @autom8y/platform-team
+/src/autom8_asana/api/routes/intake_custom_fields.py @autom8y/platform-team
+/src/autom8_asana/api/routes/workflows.py           @autom8y/platform-team
+
+# --- Credential surface -----------------------------------------------------
+/src/autom8_asana/auth/                 @autom8y/platform-team
+/terraform/                             @autom8y/platform-team

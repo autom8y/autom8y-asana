@@ -16,7 +16,7 @@ Per TDD-ASANA-SATELLITE:
 - Responses use standard envelope: {"data": ..., "meta": {...}}
 """
 
-from fastapi import status
+from fastapi import Depends, status
 
 from autom8_asana.api.dependencies import (
     AsanaClientDualMode,
@@ -39,6 +39,7 @@ from autom8_asana.api.models import (
     build_success_response,
 )
 from autom8_asana.api.routes._security import pat_router
+from autom8_asana.api.write_authz import WriteClass, require_write_authz
 from autom8_asana.services.errors import ServiceError
 
 router = pat_router(prefix="/api/v1/sections", tags=["sections"])
@@ -99,6 +100,7 @@ async def get_section(
         "x-fleet-idempotency": {"idempotent": False, "key_source": None},
         "x-fleet-rate-limit": {"tier": "external"},
     },
+    dependencies=[Depends(require_write_authz(WriteClass.SECTIONS))],
 )
 async def create_section(
     body: CreateSectionRequest,
@@ -148,6 +150,7 @@ async def create_section(
         "x-fleet-idempotency": {"idempotent": False, "key_source": None},
         "x-fleet-rate-limit": {"tier": "external"},
     },
+    dependencies=[Depends(require_write_authz(WriteClass.SECTIONS))],
 )
 async def update_section(
     gid: GidStr,
@@ -198,6 +201,7 @@ async def update_section(
         "x-fleet-idempotency": {"idempotent": True, "key_source": None},
         "x-fleet-rate-limit": {"tier": "external"},
     },
+    dependencies=[Depends(require_write_authz(WriteClass.SECTIONS))],
 )
 async def delete_section(
     gid: GidStr,
@@ -248,6 +252,7 @@ async def delete_section(
         "x-fleet-idempotency": {"idempotent": True, "key_source": None},
         "x-fleet-rate-limit": {"tier": "external"},
     },
+    dependencies=[Depends(require_write_authz(WriteClass.SECTIONS))],
 )
 async def add_task_to_section(
     gid: GidStr,
@@ -300,6 +305,7 @@ async def add_task_to_section(
         "x-fleet-idempotency": {"idempotent": False, "key_source": None},
         "x-fleet-rate-limit": {"tier": "external"},
     },
+    dependencies=[Depends(require_write_authz(WriteClass.SECTIONS))],
 )
 async def reorder_section(
     gid: GidStr,

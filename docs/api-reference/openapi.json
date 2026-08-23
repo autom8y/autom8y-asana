@@ -3173,6 +3173,7 @@
               "projects:read": "Read access to Asana projects and their sections",
               "projects:write": "Create, update, delete projects and manage members",
               "query:read": "Schema introspection and entity queries (S2S)",
+              "receipts:write": "Post receipt comments to Asana business tasks (S2S)",
               "resolver:read": "Resolve business identifiers to Asana entities (S2S)",
               "sections:read": "Read access to project sections",
               "sections:write": "Create, update, delete, and reorder sections",

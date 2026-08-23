@@ -62,6 +62,12 @@ class TestServiceClaims:
             # cache-refresh gating); default empty list when ServiceAccount has
             # no scopes populated.
             "permissions": [],
+            # client_id added per RE-2 / DEV-1 (design §5.1 L1-1, "un-loss the
+            # claims model"). It is the issuer-asserted principal the write-class
+            # authorization gate keys on; before DEV-1 it was dropped during the
+            # local narrowing of the SDK's ServiceClaims. Defaults to None on
+            # tokens that carry no client_id (e.g. APIKey-issued tokens).
+            "client_id": None,
         }
 
     def test_model_dump_exclude_none(self) -> None:

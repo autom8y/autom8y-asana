@@ -29,7 +29,7 @@ Per TDD-ASANA-SATELLITE:
 
 from typing import Annotated
 
-from fastapi import Query, status
+from fastapi import Depends, Query, status
 
 from autom8_asana.api.dependencies import (
     AsanaClientDualMode,
@@ -58,6 +58,7 @@ from autom8_asana.api.models import (
     build_success_response,
 )
 from autom8_asana.api.routes._security import pat_router
+from autom8_asana.api.write_authz import WriteClass, require_write_authz
 from autom8_asana.services.errors import ServiceError
 from autom8_asana.services.task_service import CreateTaskParams, UpdateTaskParams
 
@@ -193,6 +194,7 @@ async def get_task(
         "x-fleet-idempotency": {"idempotent": False, "key_source": None},
         "x-fleet-rate-limit": {"tier": "external"},
     },
+    dependencies=[Depends(require_write_authz(WriteClass.TASKS))],
 )
 async def create_task(
     body: CreateTaskRequest,
@@ -254,6 +256,7 @@ async def create_task(
         "x-fleet-idempotency": {"idempotent": True, "key_source": None},
         "x-fleet-rate-limit": {"tier": "external"},
     },
+    dependencies=[Depends(require_write_authz(WriteClass.TASKS))],
 )
 async def update_task(
     gid: GidStr,
@@ -318,6 +321,7 @@ async def update_task(
         "x-fleet-idempotency": {"idempotent": True, "key_source": None},
         "x-fleet-rate-limit": {"tier": "external"},
     },
+    dependencies=[Depends(require_write_authz(WriteClass.TASKS))],
 )
 async def delete_task(
     gid: GidStr,
@@ -483,6 +487,7 @@ async def list_dependents(
         "x-fleet-idempotency": {"idempotent": False, "key_source": None},
         "x-fleet-rate-limit": {"tier": "external"},
     },
+    dependencies=[Depends(require_write_authz(WriteClass.TASKS))],
 )
 async def duplicate_task(
     gid: GidStr,
@@ -537,6 +542,7 @@ async def duplicate_task(
         "x-fleet-idempotency": {"idempotent": True, "key_source": None},
         "x-fleet-rate-limit": {"tier": "external"},
     },
+    dependencies=[Depends(require_write_authz(WriteClass.TASKS))],
 )
 async def add_tag(
     gid: GidStr,
@@ -586,6 +592,7 @@ async def add_tag(
         "x-fleet-idempotency": {"idempotent": True, "key_source": None},
         "x-fleet-rate-limit": {"tier": "external"},
     },
+    dependencies=[Depends(require_write_authz(WriteClass.TASKS))],
 )
 async def remove_tag(
     gid: GidStr,
@@ -638,6 +645,7 @@ async def remove_tag(
         "x-fleet-idempotency": {"idempotent": False, "key_source": None},
         "x-fleet-rate-limit": {"tier": "external"},
     },
+    dependencies=[Depends(require_write_authz(WriteClass.TASKS))],
 )
 async def move_to_section(
     gid: GidStr,
@@ -691,6 +699,7 @@ async def move_to_section(
         "x-fleet-idempotency": {"idempotent": False, "key_source": None},
         "x-fleet-rate-limit": {"tier": "external"},
     },
+    dependencies=[Depends(require_write_authz(WriteClass.TASKS))],
 )
 async def set_assignee(
     gid: GidStr,
@@ -739,6 +748,7 @@ async def set_assignee(
         "x-fleet-idempotency": {"idempotent": True, "key_source": None},
         "x-fleet-rate-limit": {"tier": "external"},
     },
+    dependencies=[Depends(require_write_authz(WriteClass.TASKS))],
 )
 async def add_to_project(
     gid: GidStr,
@@ -788,6 +798,7 @@ async def add_to_project(
         "x-fleet-idempotency": {"idempotent": True, "key_source": None},
         "x-fleet-rate-limit": {"tier": "external"},
     },
+    dependencies=[Depends(require_write_authz(WriteClass.TASKS))],
 )
 async def remove_from_project(
     gid: GidStr,

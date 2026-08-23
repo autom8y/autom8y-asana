@@ -14,7 +14,16 @@ from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 from fastapi import (
-    Request,  # noqa: TC002 — FastAPI resolves Request annotation via get_type_hints() at route registration; moving behind TYPE_CHECKING would raise NameError
+    # `Request` MUST stay a runtime import: FastAPI resolves the annotation via
+    # get_type_hints() at route registration, so moving it behind TYPE_CHECKING
+    # would raise NameError. It used to carry a TC002 suppression saying exactly
+    # that. The suppression is now dead: adding the runtime-used `Depends` to
+    # this block (RE-2 DEV-2) stops ruff proposing a TYPE_CHECKING move, so TC002
+    # no longer fires here. The RUF100 drift-guard (test.yml:438) caught the
+    # stale directive. Rationale kept — it is still true; directive dropped — it
+    # is not.
+    Depends,
+    Request,
 )
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -26,6 +35,7 @@ from autom8_asana.api.errors import raise_api_error
 from autom8_asana.api.models import SuccessResponse, build_success_response
 from autom8_asana.api.rate_limit import limiter
 from autom8_asana.api.routes._security import pat_router
+from autom8_asana.api.write_authz import WriteClass, require_write_authz
 from autom8_asana.core.scope import EntityScope
 
 if TYPE_CHECKING:
@@ -267,6 +277,7 @@ async def list_workflows(
         "x-fleet-idempotency": {"idempotent": False, "key_source": None},
         "x-fleet-rate-limit": {"tier": "external"},
     },
+    dependencies=[Depends(require_write_authz(WriteClass.WORKFLOWS))],
 )
 @limiter.limit("10/minute")
 async def invoke_workflow(
