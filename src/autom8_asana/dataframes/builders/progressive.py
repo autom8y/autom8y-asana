@@ -335,6 +335,21 @@ class ProgressiveProjectBuilder:
                 sections_delta_updated=sections_delta_updated,
             )
 
+        # Reconcile the manifest against the LIVE section listing before it is
+        # used for anything. ``section_gids`` is this cycle's
+        # ``GET /projects/{gid}/sections`` result (build_progressive_async
+        # step 1), so entries it does not contain are sections deleted in
+        # Asana. Left in place they are tombstones: their probes 404 every
+        # cycle, a failed probe never stamps, and min(last_verified_at) is
+        # pinned forever (the 2026-08-26 offers stall). Pruning here -- ahead
+        # of the resume set, the freshness probe and the merge -- is what
+        # keeps a workspace restructure from pinning the verification floor.
+        #
+        # A section that is merely UNHEALTHY is never pruned: the
+        # discriminator is membership in the live listing, not probe health.
+        # See SectionManifest.prune_absent_sections for the full contract.
+        await self._persistence.reconcile_manifest_sections_async(manifest, section_gids)
+
         # Resume: only fetch incomplete sections
         sections_to_fetch = manifest.get_incomplete_section_gids()
         sections_resumed = manifest.completed_sections
