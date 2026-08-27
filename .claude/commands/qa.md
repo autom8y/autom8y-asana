@@ -1,7 +1,7 @@
 ---
 name: qa
 description: Validation-only with review and approval
-argument-hint: "<feature-name> [--requirements=PATH]"
+argument-hint: "<feature-name> [--requirements=PATH] | --receipts <artifact-or-report>"
 allowed-tools: Bash, Read, Task, Glob, Grep
 model: opus
 ---
@@ -18,6 +18,23 @@ Auto-injected by SessionStart hook (project, rite, session, git, workflow).
 2. **Prerequisites check**:
    - Verify implementation exists to validate
    - If missing: WARN "No implementation found. Consider /build first."
+
+## `--receipts` mode (ECO-2, S1 station-exit receipt gate)
+
+If `$ARGUMENTS` contains `--receipts`, this is a THIN, non-gating check — it
+does NOT invoke the validation-agent workflow below. Run:
+
+```bash
+ari procession receipts --artifacts=<artifact-or-report path(s), comma-separated>
+```
+
+This shells directly into the SAME probe `ari procession proceed` uses at
+station-exit (`enforceReceiptGate`) — zero independent logic lives in this
+dromenon. It checks every realized-state token
+(`committed|CLOSED|lifted|contained|shipped|merged|done`) found in the named
+artifact(s) for a co-located Gate-C anchor verified against the git substrate
+(never the dirty working tree). Report the command's PASS/REFUSE verbatim;
+do not re-adjudicate or soften a REFUSE.
 
 ## Your Task
 
@@ -77,6 +94,7 @@ VALIDATION_AGENT=$(grep -B1 "next: null" .knossos/ACTIVE_WORKFLOW.yaml | grep "a
 ```
 /qa "user-authentication"
 /qa "API documentation" --requirements=.ledge/reviews/AUDIT-api.md
+/qa --receipts .ledge/reviews/HANDOFF-example.md
 ```
 
 ## Reference

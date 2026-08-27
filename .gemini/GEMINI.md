@@ -7,17 +7,21 @@ Use the available agents and slash commands. Agents activate automatically when 
 <!-- KNOSSOS:START quick-start regenerate=true source=ACTIVE_RITE+agents -->
 ## Quick Start
 
-5-agent workflow (sre):
+> Rite scope: this block governs the **autom8y-asana** repo.
+
+5-agent workflow (10x-dev):
 
 | Agent | Role |
 | ----- | ---- |
-| **potnia** | Coordinates reliability engineering initiative phases |
-| **observability-engineer** | Designs observability strategy and establishes SLO/SLI baselines |
-| **incident-commander** | Coordinates reliability plans and creates incident runbooks |
-| **platform-engineer** | Implements infrastructure changes and reliability improvements |
-| **chaos-engineer** | Designs and executes chaos experiments to verify resilience |
+| **potnia** | Coordinates development lifecycle phases and routes work to specialists |
+| **requirements-analyst** | Gathers requirements and produces PRD artifacts |
+| **architect** | Creates technical design documents and architecture decisions |
+| **principal-engineer** | Implements code according to design specifications |
+| **qa-adversary** | Validates implementation through adversarial testing |
 
 Agents activate when your prompt matches their description.
+
+Authoritative active rite for this working directory: `ari rite current` (nearest `.knossos/ACTIVE_RITE`). Rite blocks from ancestor CLAUDE.md files are context-only.
 <!-- KNOSSOS:END quick-start -->
 
 <!-- KNOSSOS:START agent-routing -->
@@ -43,11 +47,11 @@ Agents cannot spawn other agents — only the main thread can dispatch sub-agent
 
 Prompts in `.gemini/agents/`:
 
-- `potnia.md` - Coordinates reliability engineering initiative phases
-- `observability-engineer.md` - Designs observability strategy and establishes SLO/SLI baselines
-- `incident-commander.md` - Coordinates reliability plans and creates incident runbooks
-- `platform-engineer.md` - Implements infrastructure changes and reliability improvements
-- `chaos-engineer.md` - Designs and executes chaos experiments to verify resilience
+- `potnia.md` - Coordinates development lifecycle phases and routes work to specialists
+- `requirements-analyst.md` - Gathers requirements and produces PRD artifacts
+- `architect.md` - Creates technical design documents and architecture decisions
+- `principal-engineer.md` - Implements code according to design specifications
+- `qa-adversary.md` - Validates implementation through adversarial testing
 
 ### Summonable Heroes
 Operational agents available on demand. Their commands handle the lifecycle:

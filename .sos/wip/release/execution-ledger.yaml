@@ -72,3 +72,635 @@ summary:
       sha: "bbba220c8198d9a789e2c1bba36c1fa940556deb"
   prs_created: []
   failed: []
+
+# ==========================================================================
+# WAVE: 2026-08-11 — offers-freshness-axis-contract (session session-20260811-115247-a1ccd942)
+# Everything above this marker (generated_at 2026-03-26) is a pre-existing,
+# UNRELATED artifact from a prior initiative — preserved verbatim per the
+# dispatching charge's explicit "preserve the stale section" instruction.
+# Do not read the root-level phases/summary/pipeline_expectations keys above
+# as belonging to this wave. This wave's own self-contained ledger lives
+# entirely under `wave_2026_08_11` below.
+#
+# Scope of this wave-section: REL-1 (autom8y#1516) + REL-2 (autom8y#1506)
+# only, per HANDOFF-offers-cure-to-releaser-release-2026-08-11.md items
+# REL-1/REL-2. REL-4 (autom8y-asana fix/al5-alarm-actions-staging) was filed
+# separately at execution-ledger-rel4-al5-alarm-2026-08-11.yaml (independent
+# branch B) by a parallel leg of this same session — no collision occurred
+# on this file (REL-4's leg wrote its own slug-suffixed file instead).
+# ==========================================================================
+wave_2026_08_11:
+  crusade: offers-freshness-axis-contract
+  session: session-20260811-115247-a1ccd942
+  branch_label: "Branch A (#1516 -> #1506; REL-3 dependency per the handoff DAG)"
+  source_handoff: .ledge/handoffs/HANDOFF-offers-cure-to-releaser-release-2026-08-11.md
+  qa_verdict: "GO-CONFIRMED-AT-HEAD for #1506 @73fdb253 (QA artifact §H)"
+  authority: "Operator cross-rite grant 2026-08-11 (/cross-rite-handoff --to=releaser), user-grade execution authority"
+  preflight:
+    clock_bind_command: "date -u"
+    started_at_utc: "2026-08-11T15:56:04Z"
+
+  satellites_quiet_receipt:
+    method: "gh run list --repo autom8y/{repo} --branch main --status in_progress (per gated satellite), followed by gh api run + jobs detail for any hit"
+    checked_at_utc: "2026-08-11T15:56:04Z"
+    cleared_at_utc: "2026-08-11T16:10:06Z"
+    satellites:
+      - repo: autom8y-ads
+        result: quiet
+        detail: "no in_progress runs on main"
+      - repo: autom8y-scheduling
+        result: quiet
+        detail: "no in_progress runs on main"
+      - repo: autom8y-asana
+        result: "waited for 1 genuine in-flight run; 1 stale zombie run judged non-blocking"
+        detail: >
+          Run 31509086262 "Post-Merge Coverage" (push, main), created_at
+          2026-08-11T15:49:05Z — genuinely active (job "Aggregate Coverage
+          Gate" progressing). Polled to completion per the 20-min wait
+          instruction; completed status=completed conclusion=success at
+          2026-08-11T16:10:06Z (~21min total run time). Separately, run
+          29256917120 "Aegis Synthetic Coverage" (push, main) created_at
+          2026-07-13T14:11:53Z showed status=in_progress/conclusion=null at
+          the top level, but its sole job "Aegis Memory & Coverage Gate"
+          completed successfully in 40s at authoring time — a run-level
+          orphaned/zombie status (job terminal, run never flipped to
+          completed) roughly 29 days stale. Judgment call: treated as
+          non-blocking (waiting cannot resolve an orphaned run; it holds no
+          active CI capacity that could race the publish window) rather than
+          polling it for the 20-min budget. Documented here rather than
+          silently ignored.
+      - repo: autom8y-data
+        result: "1 stale zombie run, non-blocking"
+        detail: >
+          Run 31333465237 "Satellite Dispatch" (workflow_run, main),
+          created_at 2026-08-09T20:07:55Z, status=in_progress/conclusion=null
+          at the top level (~43h stale at check time); its sole job
+          "dispatch" is status=completed/conclusion=skipped. Same
+          orphaned-run pattern as above — non-blocking.
+      - repo: autom8y-sms
+        result: "1 run with completed job but stuck run-level status, non-blocking"
+        detail: >
+          Run 31508393558 "Satellite Dispatch" (workflow_run, main),
+          created_at 2026-08-11T15:41:22Z, status=in_progress/conclusion=null
+          at the top level; its sole job "dispatch" is
+          status=completed/conclusion=success (completed within seconds of
+          start). Same orphaned-run pattern — non-blocking.
+    verdict: "Publish window judged quiet as of 2026-08-11T16:10:06Z (when the one genuine in-flight run, autom8y-asana Post-Merge Coverage, cleared SUCCESS). Proceeded immediately to FORK-R1."
+
+  items:
+    - id: REL-1
+      pr: "autom8y#1516"
+      title: "ci(consumer-gate): retry satellite runs cancelled by concurrency supersession"
+      disposition: merged
+      fork_r1_evaluation:
+        snapshot_command: "gh pr checks 1516 --repo autom8y/autom8y"
+        snapshot_result: "all listed checks pass/skipped; no FAILURE; mergeable=MERGEABLE but mergeStateStatus=BEHIND"
+        initial_merge_attempt: "gh pr merge 1516 --repo autom8y/autom8y --merge  ->  refused: \"head branch is not up to date with the base branch\""
+        remediation: "gh api -X PUT repos/autom8y/autom8y/pulls/1516/update-branch (ordinary GitHub update-branch merge, non-destructive, no force-push, no rebase) -> new head 68ff8c99b87d785d970c0bf5838b7d2fa3439d46"
+        post_update_poll: >
+          Fresh CI triggered on the new head (all checks reset to pending, as
+          expected). Per the rulebook's "do NOT wait beyond one fresh poll"
+          cap, waited ~90s and re-polled exactly once via gh pr checks.
+          Result: all checks SUCCESS except two non-required checks still
+          pending ("Analyze Python", "Cross-repo callee pin corroboration
+          (ADVISORY, network)" — the latter explicitly labelled ADVISORY in
+          its own name).
+        required_status_checks_context_list:
+          source: "gh api repos/autom8y/autom8y/rules/branches/main (required_status_checks.parameters.required_status_checks[].context)"
+          contexts:
+            - sli-receipt-gate
+            - "Defense 3 — migration-pairing gate"
+            - lambda-count-metric-deadman-pairing
+            - "credential-topology coherence gate (committed legs)"
+            - canary-deploy-timeout-budget
+            - no-silent-green-gate
+            - "Keyspace-coherence invariant (AST)"
+            - Semgrep Architecture Enforcement
+        fork_r1_table_disposition: "ALL required-status-check contexts = SUCCESS (the 2 still-pending checks are non-required) -> merge #1516 first, per table row 1"
+        merge_state_at_merge: "mergeStateStatus=UNSTABLE, mergeable=MERGEABLE"
+      merge_method: "merge (regular merge commit — matches the two immediately-preceding main-history merges, #1510/#1507, both \"Merge pull request #N\"; repo allows merge/squash/rebase, mixed history, most-recent precedent followed)"
+      command: "gh pr merge 1516 --repo autom8y/autom8y --merge --subject \"Merge pull request #1516 from autom8y/ci/consumer-gate-cancelled-supersede-retry\""
+      merge_commit_sha: "d60a6c5b55d339451a497d7a4b4031eac6ed5d6a"
+      merged_at_utc: "2026-08-11T16:14:01Z"
+      status: success
+
+    - id: REL-2
+      pr: "autom8y#1506"
+      title: "feat(sdk): declare the frozen offers-freshness roster and derive the content axis"
+      disposition: merged
+      head_verification:
+        expected_head: "73fdb253c6e365e28f9b9d8a214b10ebda654bd5"
+        verified_head_before_update: "73fdb253c6e365e28f9b9d8a214b10ebda654bd5"
+        drift: NONE
+        note: "Confirmed STILL 73fdb253 and MERGEABLE=true before any action; matches QA GO-CONFIRMED-AT-HEAD artifact §H."
+      branch_update_required: true
+      branch_update_reason: "mergeStateStatus=BEHIND after REL-1's merge advanced main"
+      branch_update_command: "gh api -X PUT repos/autom8y/autom8y/pulls/1506/update-branch"
+      post_update_head: "0cf87f44c4402c21a6c0062d5608ee6fdc9aaa0b"
+      c2_content_freeze_receipt:
+        claim: "the update-merge introduced NO sdks/ content drift relative to the QA-verified head 73fdb253"
+        commands:
+          - "git diff origin/main...0cf87f44c4402c21a6c0062d5608ee6fdc9aaa0b --name-only -- sdks/"
+          - "git diff 73fdb253c6e365e28f9b9d8a214b10ebda654bd5..0cf87f44c4402c21a6c0062d5608ee6fdc9aaa0b -- sdks/"
+        name_only_result:
+          - sdks/python/autom8y-core/CHANGELOG.md
+          - sdks/python/autom8y-core/pyproject.toml
+          - sdks/python/autom8y-core/src/autom8y_core/__init__.py
+          - sdks/python/autom8y-core/src/autom8y_core/clients/asana_query.py
+          - sdks/python/autom8y-core/src/autom8y_core/errors.py
+          - sdks/python/autom8y-core/src/autom8y_core/helpers/__init__.py
+          - sdks/python/autom8y-core/src/autom8y_core/helpers/asana_freshness.py
+          - sdks/python/autom8y-core/src/autom8y_core/models/asana_service.py
+          - sdks/python/autom8y-core/tests/test_asana_freshness.py
+          - sdks/python/autom8y-core/tests/test_asana_query_content_axis.py
+        content_delta_73fdb253_vs_post_update_head: EMPTY
+        exit_code: 0
+        verdict: "PASS — sdks-scoped content delta vs 73fdb253 is EMPTY (C-2 receipt shape satisfied). Proceeded to merge (a NON-empty delta would have been a halt)."
+      required_checks_after_update:
+        result: "7 of 8 required contexts SUCCESS immediately; sli-receipt-gate stuck in propagation-stall pattern"
+        propagation_stall_detail: >
+          sli-receipt-gate (run 31511363027, job/check-run id 93845691924)
+          remained status=in_progress/conclusion=null at both the Actions
+          job endpoint and the Checks API for the same SHA, for >10 minutes,
+          DESPITE the parent workflow run independently reporting
+          status=completed/conclusion=success (created_at 2026-08-11T16:14:42Z,
+          updated_at 2026-08-11T16:15:01Z, never changed thereafter). This is
+          the exact "propagation-stalled... run-level SUCCESS receipt" class
+          the rulebook names for #1516 (same underlying platform anomaly,
+          manifesting on #1506's check instead this time).
+        one_permitted_rerequest:
+          attempt_1_check_run_rerequest: "gh api -X POST repos/autom8y/autom8y/check-runs/93845691924/rerequest  ->  404 Not Found (endpoint requires GitHub-App auth context, not available to this PAT)"
+          attempt_2_job_rerun: "gh api -X POST repos/autom8y/autom8y/actions/jobs/93845691924/rerun  ->  202/empty success"
+          outcome: "resolved cleanly: queued -> in_progress -> completed/success within ~31s (completed_at 2026-08-11T16:26:39Z)"
+        applied_table_after: "all 8 required contexts SUCCESS; mergeStateStatus=UNSTABLE (only non-required items outstanding), mergeable=MERGEABLE"
+      merge_method: "merge (regular merge commit, same convention rationale as REL-1)"
+      command: "gh pr merge 1506 --repo autom8y/autom8y --merge --subject \"Merge pull request #1506 from autom8y/feat/sdk-offers-content-axis\""
+      merge_commit_sha: "f70eae2b95462a337c3fd9be791b41afaea58ee1"
+      merged_at_utc: "2026-08-11T16:27:20Z"
+      t2_clock_start_utc: "2026-08-11T16:27:20Z"
+      t3_hard_stop_utc: "2026-08-12T05:19:45Z"
+      t2_clock_note: "4h tripwire to 4.14.0 served, per dispatch. T2 clock start = mergedAt (GitHub-authoritative), not a locally-observed wall-clock timestamp."
+      status: success
+
+  publish_trigger:
+    workflow_name: "SDK Publish"
+    workflow_path: ".github/workflows/sdk-publish-v2.yml"
+    run_id: 31512481187
+    trigger: "push (merge commit f70eae2b95462a337c3fd9be791b41afaea58ee1 on main)"
+    run_started_at_utc: "2026-08-11T16:27:23Z"
+    status_at_handback: "in_progress"
+    conclusion_at_handback: null
+    healthy_baseline: "~20.6 min end-to-end"
+    waited_for_conclusion: false
+    note: "Per dispatch: DO NOT wait for conclusion — pipeline-monitor leg owns verification. Re-run authority (max 2, Class T only) belongs to the monitor leg, not this leg."
+    unrelated_prior_run_flagged:
+      run_id: 31506028453
+      trigger: workflow_dispatch
+      status: completed
+      conclusion: failure
+      created_at_utc: "2026-08-11T15:15:24Z"
+      note: "Predates this wave's REL-2 merge and was triggered manually (workflow_dispatch), not by our push — unrelated to this leg's action, flagged for pipeline-monitor awareness only."
+
+  rel2_verdict:
+    note: "Appended by the REL-3 leg (own-hands re-verification, not copy-forward from dispatch context) once REL-2's REL-3 hard precondition needed confirming."
+    publish_run:
+      run_id: 31512481187
+      verified_via: "gh run view 31512481187 --repo autom8y/autom8y --json status,conclusion,createdAt,updatedAt"
+      status: completed
+      conclusion: success
+      created_at_utc: "2026-08-11T16:27:23Z"
+      updated_at_utc: "2026-08-11T16:48:00Z"
+    codeartifact_receipt:
+      verified_via: "aws codeartifact describe-package-version --domain autom8y --domain-owner 696318035277 --repository autom8y-python --format pypi --package autom8y-core --package-version 4.14.0"
+      status: Published
+      version: "4.14.0"
+      published_time_raw: "2026-08-11T18:46:41.720000+02:00"
+      published_time_utc: "2026-08-11T16:46:41Z"
+      note: "Raw AWS response is CEST (+02:00); converted to UTC before ledgering per the platform's known CEST-mislabeled-as-Z scar. 18:46:41+02:00 == 16:46:41Z."
+    t2_clock_summary:
+      t2_start_utc: "2026-08-11T16:27:20Z"
+      served_utc: "2026-08-11T16:46:41Z"
+      elapsed: "~19min21s"
+      t3_hard_stop_utc: "2026-08-12T05:19:45Z"
+      tripwire_fired: false
+    verdict: "REL-2 CONFIRMED SUCCESS end-to-end. The REL-3 hard precondition (CodeArtifact serves 4.14.0) is SATISFIED — proceeded to REL-3."
+
+  fences_confirmed:
+    - "Exactly #1516 and #1506 touched — no #338/#339 (operator time-gate), no K-ASR branch actions (REL-3), no force-push, no publish re-run initiated from this leg, no serve-path contact, no `ari session` invoked in the monorepo."
+    - "Two update-branch actions were performed (#1516, #1506) — ordinary GitHub update-branch API merges (base into head), non-destructive, not force-pushes; explicitly the class of action the dispatch pre-authorized for #1506's BEHIND state, applied by extension to #1516 which hit the identical structural condition."
+
+  rel3:
+    id: REL-3
+    branch: "fix/asr-offers-watermark-repoint"
+    repo: "autom8y/autom8y"
+    worktree: "services/account-status-recon/.knossos/worktrees/wt.sre.offers-limb-b.20260811T101823.bf57"
+    chain: "c730bc5a -> 2910fc24 -> 7d634c1a -> fdef8bd6 (pre-merge branch head)"
+    dependency: REL-2
+    scope_note: "Deploy verification (image build/deploy + C-NULL-DEPLOYED receipt) is explicitly OUT of this leg's scope per dispatch — that is pipeline-monitor's leg. This leg covers PR-land only: merge origin/main, clean-diff proof, tests, PR draw, contract signature, PR merge."
+
+    step_1_merge_main:
+      command: "git -C {worktree} fetch origin && git -C {worktree} merge origin/main --no-edit"
+      fetch_result: "2 new tags fetched (autom8y-core/v4.13.1, autom8y-core/v4.14.0); no conflicts"
+      merge_result: "Merge made by the 'ort' strategy — 13 files changed, 2153 insertions(+), 1401 deletions(-); no conflicts"
+      merge_commit_sha: "eeb773233c234e053dc3d10502086df1b3924397"
+      status: success
+
+    step_2_clean_diff_proof:
+      command_1: "git -C {worktree} diff origin/main...HEAD --name-only"
+      result_1:
+        - services/account-status-recon/pyproject.toml
+        - services/account-status-recon/src/account_status_recon/config.py
+        - services/account-status-recon/src/account_status_recon/fetcher.py
+        - services/account-status-recon/src/account_status_recon/readiness.py
+        - services/account-status-recon/tests/conftest.py
+        - services/account-status-recon/tests/test_fetcher.py
+        - services/account-status-recon/tests/test_readiness.py
+      command_2: "git -C {worktree} diff origin/main...HEAD -- sdks/"
+      result_2: EMPTY
+      verdict: "PASS — diff scoped entirely to services/account-status-recon/; sdks/ diff is empty (K-SDK content from PR #1506 already lives on main, not re-carried by this branch's PR)."
+      status: success
+
+    step_3_test_suite:
+      command: "just -f {worktree}/services/account-status-recon/Justfile -d {worktree}/services/account-status-recon test"
+      runner: "pytest -v (via just test.just meta-task)"
+      result: "660 passed, 1 xfailed, 1 warning in 5.58s"
+      note: "Exceeds the ~649+ expectation (R-6 amendment commit fdef8bd6 added coverage)."
+      status: success
+
+    step_4_pr:
+      push_command: "git -C {worktree} push origin fix/asr-offers-watermark-repoint"
+      push_result: "fdef8bd6c..eeb773233  fix/asr-offers-watermark-repoint -> fix/asr-offers-watermark-repoint"
+      push_note: "GitHub reported pre-existing Dependabot advisories on the default branch (171 total, 3 critical/58 high/83 moderate/27 low) — informational, not a push failure; matches the repo-wide baseline, not introduced by this push."
+      pr_create_command: "gh pr create --repo autom8y/autom8y --base main --head fix/asr-offers-watermark-repoint --title \"fix(asr): gate offers on the content freshness axis (K-ASR)\" --body-file {scratchpad}/pr-body.md"
+      pr_number: 1539
+      pr_url: "https://github.com/autom8y/autom8y/pull/1539"
+      pr_body_sources:
+        - "CERT-offers-cure-s4-2026-08-11.md §3(c) (FIX-N merge-holds / forced S5 order / refinement-#7 Lane-B context, cited as wave-context only — not implemented by this PR) + §5 condition C-3 (K-ASR signature completion) + §F K-ASR signature block"
+        - "CONTRACT-offers-freshness-axis-frozen-2026-08-11.md §F K-ASR (R-6 honest-quiet-tolerance note, four guards C-NULL/T-GUARD/F-GUARD/AXIS-DROPPED tooth, wire-field names)"
+        - "own-hands verification: pyproject.toml SDK floor >=4.6.0 (grep); entity_registry.py:548 freshness_sla_seconds=3600; ASR config.py threshold 3600/abort-derived-7200 (grep against CONTRACT citations)"
+      status: success
+
+    step_5_contract_signature:
+      target_file: "CONTRACT-offers-freshness-axis-frozen-2026-08-11.md"
+      edits:
+        - "§F K-ASR PR link slot: filled with https://github.com/autom8y/autom8y/pull/1539 + note that sdks/ diff verified empty at draw time"
+        - "§F K-ASR Head SHA slot: added post-merge branch head eeb773233c234e053dc3d10502086df1b3924397 alongside the pre-existing fdef8bd6 branch-head note"
+        - "§F K-ASR Signed line: changed from 'INCOMPLETE pending the PR link above' to 'COMPLETE as of 2026-08-11' per §F's own two-condition completeness rule (PR link + verbatim wire-field quote, both now present); explicitly scoped as an implementation-against-vocabulary attestation only, not a landing/activation receipt (GATE-1 and the REALIZE predicate remain separately gated)"
+      fence_check_before:
+        command: "diff <(sed -n '143,639p' DESIGN-s1-arch-watermark-contract-2026-08-11.md) <(awk fence-extract CONTRACT...md); md5 of extracted fence"
+        result: "exit=0, empty diff; md5=7ef694808e46d72a9a042fabde92638a (matches expected baseline)"
+      fence_check_after:
+        command: "same as before, re-run post-edit"
+        result: "exit=0, empty diff; md5=7ef694808e46d72a9a042fabde92638a (UNCHANGED)"
+      verdict: "PASS — §F edits are entirely outside the §C verbatim-core fence (fence spans file lines ~111-609; §F starts at ~line 926); fence integrity confirmed byte-identical before and after."
+      status: success
+
+    step_6_merge:
+      pre_merge_ci_check: "gh pr checks 1539 --repo autom8y/autom8y --watch — all required + advisory checks SUCCESS (CodeQL, CI (account-status-recon)/Run Tests, sli-receipt-gate x3, Semgrep, gitleaks, dependency-review, credential-topology gates, keyspace-coherence, C1b CONDITION-1, canary-deploy-timeout-budget, no-silent-green-gate, lambda-count-metric-deadman-pairing, cloudwatch-alarm-applicability-gate, Defense-3 migration-pairing, Ruleset context name parity x3, SDK Testing Adoption, CodeRabbit); mergeStateStatus flipped BLOCKED -> CLEAN"
+      merge_method: "merge (regular merge commit) — matches PR #1506's convention (2-parent merge commit, title 'Merge pull request #1506 from ...'), confirmed via git log --pretty='%H %P' on f70eae2b before choosing method"
+      command: "gh pr merge 1539 --repo autom8y/autom8y --merge --delete-branch=false"
+      merge_commit_sha: "c21cab9d8317f7b2755ed742506489a23e9e3b8b"
+      merged_at_utc: "2026-08-11T19:51:51Z"
+      clock_bind_command: "date -u"
+      status: success
+
+    status: success
+    verdict: "REL-3 PR-land leg COMPLETE. PR #1539 drawn, tested green (660/1 xfailed), signed in the frozen contract, merged via merge-commit. Deploy verification and C-NULL-DEPLOYED receipt are explicitly out of scope — handed to pipeline-monitor."
+
+  status: success
+  summary:
+    published: []
+    bumped: []
+    merged:
+      - repo: autom8y
+        pr: 1516
+        merge_commit_sha: "d60a6c5b55d339451a497d7a4b4031eac6ed5d6a"
+        merged_at_utc: "2026-08-11T16:14:01Z"
+      - repo: autom8y
+        pr: 1506
+        merge_commit_sha: "f70eae2b95462a337c3fd9be791b41afaea58ee1"
+        merged_at_utc: "2026-08-11T16:27:20Z"
+      - repo: autom8y
+        pr: 1539
+        merge_commit_sha: "c21cab9d8317f7b2755ed742506489a23e9e3b8b"
+        merged_at_utc: "2026-08-11T19:51:51Z"
+    prs_created:
+      - repo: autom8y
+        pr: 1539
+        url: "https://github.com/autom8y/autom8y/pull/1539"
+    failed: []
+    halted_branches: []
+
+  pipeline_monitor_rel3_c_null_deployed:
+    seat: pipeline-monitor
+    step: "REL-3 step 6 — deploy verification + C-NULL-DEPLOYED receipt"
+    observed_at_utc: "2026-08-11T19:59:43Z"
+    gh_run:
+      repo: "autom8y/autom8y"
+      workflow: "Service Deploy Dispatch (build+deploy for account-status-recon)"
+      run_id: 31529992548
+      run_url: "https://github.com/autom8y/autom8y/actions/runs/31529992548"
+      head_sha: "c21cab9d8317f7b2755ed742506489a23e9e3b8b"
+      status: completed
+      conclusion: success
+      jobs:
+        - {name: "Detect Changes", conclusion: success}
+        - {name: "CI (account-status-recon) / Run Tests", conclusion: success}
+        - {name: "Build (account-status-recon) / Build and Push", conclusion: success}
+        - {name: "Deploy Lambda (account-status-recon) / Deploy Lambda via Terraform", conclusion: success}
+        - {name: "Smoke Advisory (account-status-recon)", conclusion: success}
+        - {name: "Deploy Summary", conclusion: success}
+    four_link_identity_chain:
+      link_1_merge_sha: "c21cab9d8317f7b2755ed742506489a23e9e3b8b"
+      link_2_build_image_tag: "696318035277.dkr.ecr.us-east-1.amazonaws.com/autom8y/account-status-recon:c21cab9"
+      link_3_ecr_digest: "sha256:98423e5d522f1b119d3ead37d51c41b0864e8043f6943c5dbfd41afb0be8e8e8"
+      link_4_lambda_resolved_image_uri: "696318035277.dkr.ecr.us-east-1.amazonaws.com/autom8y/account-status-recon@sha256:98423e5d522f1b119d3ead37d51c41b0864e8043f6943c5dbfd41afb0be8e8e8"
+      digest_equality_confirmed: true
+      note: "link 2 tag resolved digest-only via ECR describe-images (imageDigest lookup, tag was truncated to :c21cab9 by the build metadata action); links 3 and 4 verified equal by digest string comparison, not by tag."
+    build_resolution_proof:
+      claim: "autom8y-core==4.14.0 resolved and installed into the ASR build image"
+      source: "gh run view 31529992548 --repo autom8y/autom8y --log --job 93907882433"
+      log_lines_verbatim:
+        - "#16 1.947 autom8y-core==4.14.0 \\"
+        - "#17 3.569  + autom8y-core==4.14.0"
+    threshold_unmoved_witness:
+      command: "aws lambda get-function-configuration --function-name autom8y-account-status-recon --query 'Environment.Variables'"
+      OFFER_STALENESS_THRESHOLD_SECONDS: "3600"
+      new_threshold_env_vars_detected: false
+      note: "full env var dump inspected; only pre-existing *_THRESHOLD_SECONDS/_PCT keys present (CAMPAIGN_STALENESS_THRESHOLD_SECONDS=3600, BILLING_STALENESS_THRESHOLD_SECONDS=7200, others unchanged); no new threshold key introduced by this deploy."
+    receipt_path: ".sos/wip/release/RECEIPT-c-null-deployed-2026-08-11.md"
+    status: success
+    verdict: "C-NULL-DEPLOYED receipt issued. All four identity-chain links verified by digest equality (sha256:98423e5d...). autom8y-core==4.14.0 resolution proven from build logs. OFFER_STALENESS_THRESHOLD_SECONDS=3600 confirmed unchanged. REL-3 acceptance criteria 2-3 satisfied; gates REL-5 (FIX-N admits, time-gated 2026-08-12T09:19:45Z) and REL-6 (REALIZE attestation)."
+
+  rel_6_realize_attestation:
+    seat: "eunomia/verification-auditor (rite-disjoint attester, borrowed co-seat)"
+    item: REL-6
+    artifact: ".ledge/reviews/ATTEST-rel6-realize-offers-content-axis-2026-08-12.md"
+    dispatched_early: true
+    dispatch_rationale: "operator wants maximum speed-to-signal; two-phase charge (Phase 0 mechanism now, Phase 1 REALIZE at the 00:00Z organic tick)"
+    fences_held:
+      read_only_infrastructure: true
+      manual_lambda_invoke: false
+      asana_serve_path_touched: false
+      threshold_changed: false
+      l4_keep_warm: "REFUSED (control arm preserved)"
+      clock: "UTC only via date -u / epoch-UTC log queries"
+
+    phase_0_mechanism:
+      observed_at_utc: "2026-08-11T21:02:00Z"
+      weight_under_r2: ZERO
+      weight_rationale: "deploy-adjacent — Lambda LastModified 2026-08-11T19:57:54Z, invocation START 2026-08-11T20:00:42.743Z (delta 3m27s)"
+      tick:
+        invocation_id: "f418d9a9-a60f-4927-9457-e98ac49730be"
+        trace_id: "c91369947c65a6defe632e04f2d8b94d"
+        log_group: "/aws/lambda/autom8y-account-status-recon"
+        window_epoch_utc: "1786478280000 -> 1786479000000 (19:58:00Z -> 20:10:00Z)"
+        events_returned: 20
+        pull_complete: "true (no nextToken, single log stream)"
+      substrate_identity:
+        image_tag: "696318035277.dkr.ecr.us-east-1.amazonaws.com/autom8y/account-status-recon:c21cab9"
+        resolved_digest: "sha256:98423e5d522f1b119d3ead37d51c41b0864e8043f6943c5dbfd41afb0be8e8e8"
+        lambda_last_modified: "2026-08-11T19:57:54.000+0000"
+        offer_staleness_threshold_seconds: "3600 (UNMOVED)"
+        code_read_at: "origin/main @ c21cab9d8317f7b2755ed742506489a23e9e3b8b"
+      emission_contract_confirmed: true
+      emission_contract_receipts:
+        gate_clean_silent: "readiness.py:526-527 (no axis log on the unclamped GATE path)"
+        gate_clamped: "readiness.py:528-536 -> offer_freshness_axis_clamped (warning)"
+        refuse: "readiness.py:537-550 -> offer_freshness_axis_refused (error); value = refusal_staleness_seconds()"
+        dormant: "readiness.py:551-557 -> offer_freshness_axis_dormant (info); value = data_age_seconds"
+        capability_absent: "fetcher.py:449-462 -> offers_content_axis_unavailable (warning) AND axis keys omitted -> DORMANT log also fires (doubly loud)"
+        combination_rule: "readiness.py:361-365 -> content_age_seconds = max(ages) = OLDEST constituent watermark"
+        sdk_derivation: "asana_freshness.py:464-465 -> watermark = max(last_modified over RETURNED rows); age = now - watermark"
+      consumer_observation:
+        offers_readiness_check_fail: "staleness_seconds=83123.287954, threshold_seconds=3600, abort_threshold_seconds=7200.0 @ 2026-08-11T20:01:22.917682Z"
+        readiness_gate_abort: "Source 'offers' is 1385 min stale (abort threshold: 120 min) @ 20:01:22.917764Z"
+        billing: "readiness_check_pass 290.599426 / 7200"
+        campaigns: "readiness_check_pass 137 / 3600"
+        axis_events_present: "NONE (dormant/refused/clamped/unavailable all absent)"
+        info_level_flow_alive: "yes — 8 info events in-window incl. two readiness_check_pass at 20:01:22.9175/.9176, bracketing the 428us gap where an axis log would sit"
+      producer_corroboration:
+        log_group: "/ecs/autom8y-asana-service"
+        trace_propagated: "YES — 843 events on trace c91369947c65a6defe632e04f2d8b94d in the 20:00-20:06Z window"
+        lkg_serve: "dataframe_cache_memory_lkg_serve @20:01:21.269729Z entity_type=offer row_count=4192 age_seconds=6581.2 freshness=stale (2nd constituent 6581.3 @20:01:21.459557Z)"
+        query_rows_active: "@20:01:21.403563Z returned_count=67 total_count=67"
+        query_rows_activating: "@20:01:21.561198Z returned_count=48 total_count=48 (T-GUARD OK on both)"
+        swr_triggered_by_asr_read: "YES — swr_refresh_triggered @20:01:21.269850Z, swr_build_started @20:01:21.283793Z, final_artifacts_written(offer) @20:02:46.492737Z row_count=4193 watermark=2026-08-11T20:01:41.297583Z"
+        section_watermark_probe: "GET .../tasks?...&section=1202496785025459&modified_since=2026-08-10T20:55:58.289000+00:00 @20:01:22.011986Z"
+      content_vs_cache_age_resolution:
+        question: "does 83123.287954 equal the CONTENT watermark age (cure active) or the cache created_at age (OBS inference wrong)?"
+        answer: "CONTENT age — decisively"
+        cache_created_at_age_same_trace: 6581.2
+        serving_frame_build_watermark_age: 6819.46
+        refuse_sentinel_would_be: 7201.0
+        derived_axis_now: "2026-08-11T20:01:21.576954Z (= +15.756ms after the producer's SECOND query_rows_complete, exactly where fetcher.py:540 captures it)"
+        derived_content_watermark: "2026-08-10T20:55:58.289000+00:00"
+        cross_stream_identity: "BYTE-IDENTICAL to the producer's own same-trace modified_since stamp for section 1202496785025459; that stamp IS max(last_modified) per progressive.py:1727-1730 / freshness.py:645-648, emitted verbatim at freshness.py:299-305; last_modified IS the Asana task modified_at per extractors/base.py:481-493"
+      obs_artifact_adjudication: "CORROBORATED, not refuted. OBS-tick-2000Z inference (disposition=GATE clean; 83123s is a content-watermark age) is CONFIRMED and its evidence grade upgraded from moderate-inferred (elimination-only) to STRONG (positive same-trace numeric identity). Its derived watermark (~2026-08-10T20:56:20Z) was correct to within ~22s; the exact value is 2026-08-10T20:55:58.289000Z."
+      claims:
+        M-1: {claim: "clean-GATE is the ONLY silent branch", verdict: CONFIRMED, grade: STRONG}
+        M-2: {claim: "20:00Z tick disposition = GATE (clean); content axis LIVE in production", verdict: CONFIRMED, grade: STRONG}
+        M-3: {claim: "83123.287954 = content_age_seconds; watermark 2026-08-10T20:55:58.289000Z", verdict: CONFIRMED, grade: STRONG}
+        M-4: {claim: "same-trace producer corroboration obtained, microsecond-exact, cross-service", verdict: CONFIRMED, grade: STRONG}
+        M-5: {claim: "threshold unmoved, no synthetic warm, no manual invoke, L4 still REFUSED", verdict: CONFIRMED, grade: STRONG}
+        M-6: {claim: "substrate genuinely stale — binding cohort edit-dormant ~23h", verdict: CONFIRMED, grade: STRONG}
+        M-7: {claim: "DORMANT-on-first-tick HALT tripwire NOT in play", verdict: CONFIRMED, grade: STRONG}
+      verdict: "REALIZED-MECHANISM-BUT-SUBSTRATE-STALE (mechanism half only; ZERO REALIZE weight by R-2 — deploy-adjacent)"
+      status: success
+
+    phase_0e_pass_precondition_analysis:
+      note: "ANALYSIS, NOT A VERDICT. Feeds operator card D-5b. Surfaced, not ruled."
+      grade: MODERATE
+      basis_window: "2026-08-10T18:00Z -> 2026-08-11T20:50Z (26.8h) of /ecs/autom8y-asana-service"
+      pass_predicate: "content_age = tick_now - MIN(max(last_modified|active), max(last_modified|activating)) <= 3600, over the SERVED frame; requires (i) an edit within 3600s of the tick in EACH cohort AND (ii) an offer-entity frame rebuild between the later edit and the tick"
+      offers_surface_traffic_26h:
+        asr_caller_8156aa10: "14 events (7 ticks x 2 constituents)"
+        caller_f55e4cdd: "1 event @12:20:10Z (full frame, 4192 rows)"
+        caller_e1459bc4: "2 events @13:00:08/09Z (active 67 + activating 48)"
+        conclusion: "non-ASR organic traffic EXISTS but is very sparse (3 events / 26.8h, business hours only); in a 6-min sample around the tick, offers traffic was 100% ASR"
+      frame_refresh_independent_of_queries: "YES — cache warmers (/aws/lambda/autom8-asana-cache-warmer{,-bulk}, 73+155 starts in-window) produce 22 offer-entity final_artifacts_written puts in 26.8h. The naive 'structurally can never pass' worry is REFUTED on this leg."
+      swr_trap_receipted: "the tick is served the LKG frame and only THEN triggers the rebuild (+85s) — a tick can never see the frame its own read produces"
+      frame_lag_at_each_tick:
+        "2026-08-11T00:00:45": "17 min (put 2026-08-10T23:43:43) -> (ii) satisfiable"
+        "2026-08-11T04:00:46": "4h00m (put 00:02:22) -> (ii) FAILS"
+        "2026-08-11T08:00:46": "3h58m (put 04:02:16) -> (ii) FAILS"
+        "2026-08-11T12:00:45": "39 min (put 11:21:42) -> (ii) satisfiable"
+        "2026-08-11T16:00:46": "5 min (put 15:55:35) -> (ii) satisfiable"
+        "2026-08-11T20:01:21": "1h50m (put 18:11:40) -> MARGINAL"
+      edit_cadence:
+        overnight: "00:00Z -> 10:27Z = eight consecutive freshness_probe_complete passes ALL {clean: 34}. Zero content/structure change."
+        business_hours: "change events at 10:27(1), 17:04(2), 18:06/07(2), 19:06(2), 20:01(1), 20:05(1); plus 2026-08-10 20:01(5) and 21:05(2). Concentrated in a few sections; 1143843662099256 accounts for 6 of 11."
+        binding_section: "1202496785025459 last changed at the 2026-08-10T21:05 probe (structure_changed, delta_tasks=2), watermark 2026-08-10T20:55:58.289; CLEAN on ~20 probe passes since (~23h dormant)"
+      realistic_first_pass_window: "12:00Z or 16:00Z on a business day where BOTH the active and activating cohorts are touched within the same pre-tick hour. 04:00Z and 08:00Z are structurally incapable (no overnight offer warm). Over the full 26.8h observed, ZERO ticks would have passed on the content axis. An occasional coincidence, not a scheduled event; no rate estimated from a single window (refused to synthesize one)."
+      d5b_surfacings:
+        threshold_referent_shift: "OFFER_STALENESS_THRESHOLD_SECONDS=3600 formerly asked 'was the serving cache built within the last hour?' (platform-scale, engineered to be satisfiable); it now asks 'was an offer row edited within the last hour?' (business-scale, normally answered no). Number UNMOVED and must stay unmoved for the REALIZE test; its MEANING moved underneath it. This is the empirical substrate R-11 deferred to await."
+        behaviour_delta_at_consuming_job: "baseline 2026-08-09T00:00Z -> 2026-08-11T16:00Z (old clock): 10 ticks PASS (834.9-3087.8s), 4 ABORT (9129.9/10083.3/14303.4/14309.7s) — aborts PRE-DATE the cure. At the 20:00Z tick the old clock would have reported ~6581s: above threshold (warn) but BELOW the 7200s abort line, so the job would have PROCEEDED; the content axis reported 83123s and the job ABORTED. Expected steady state: abort on every tick until both cohorts are edited within the same hour."
+        r4_r8_positioning: "squarely inside the R-4 review-prompt class ('a refusal storm on healthy runs'); adjacent to the R-8 trigger class ('new refusals/errors at the consuming job'). NO ROLLBACK RECOMMENDED — that adjudication is the operator's, and the abort is the honest control-arm behaviour this wave deliberately preserved. Serving-path latency/availability: NO regression (producer served both constituents in 2.89ms/3.43ms; the ASR's 47.2s duration is dominated by a pre-existing token-exchange retry storm unrelated to this change)."
+        residual_defect_class: "freshness.py:293-299 documents that null-watermark sections (~21/34 offer per QA 2026-05-27) bypass the modified_since content check and retain hash-only detection: in-place edits preserving a section's GID set are INVISIBLE. Direction of error is STALE, never FRESH (safe direction, not an R-4 false-fresh risk), but it pushes the first-PASS window further out than edit cadence alone implies."
+
+    phase_1_realize_verdict:
+      status: complete
+      judged_at_utc: "2026-08-12T06:20:00Z"
+      park_failure_disclosure: "the 2026-08-11T21:06Z background waiter armed for 00:02:30Z was KILLED before firing (harness task b93z6qvwm, terminal status 'killed'); no re-invocation occurred and section 7 sat PENDING until the coordinator re-dispatched at ~06:05Z. Evidence consequence: NONE (both ticks are cron-driven and were already complete and immutable in CloudWatch; the delay yielded a SECOND organic tick the original plan would not have had). Process consequence: recorded as a real miss — a parked verification that depends on a live process surviving 3h is fragile; the durable form is a re-dispatch at the target time."
+      ticks_judged: 2
+      pull:
+        log_group: "/aws/lambda/autom8y-account-status-recon"
+        window_epoch_utc: "1786492680000 -> 1786508100000 (2026-08-11T23:58:00Z -> 2026-08-12T04:15:00Z)"
+        events_returned: 32
+        pull_complete: "true (no nextToken; two streams)"
+
+      tick_a_0000Z:
+        invocation_id: "aba84962-67f5-458d-969b-c224eb8ded7a"
+        trace_id: "a0dc4a5e259e65229ee3d779764322b9"
+        log_stream: "2026/08/12/[$LATEST]983b5e9a17d64bc8b203998005dbaa64"
+        deploy_adjacent: false
+        deploy_delta: "4h03m after image live (19:57:54Z -> 00:00:40.700Z START)"
+        offers_readiness_check_fail: "staleness_seconds=16269.568696, threshold_seconds=3600, abort_threshold_seconds=7200.0 @ 2026-08-12T00:01:02.372968Z"
+        readiness_gate_abort: "Source 'offers' is 271 min stale (abort threshold: 120 min) @ 00:01:02.373071Z"
+        billing: "readiness_check_pass 282.764908 / 7200"
+        campaigns: "readiness_check_pass 892 / 3600"
+        axis_events_present: "NONE"
+        producer_lkg_serve_age_seconds: 6619.6
+        producer_query_rows: "active 68/68 @00:00:47.023322Z; activating 48/48 @00:00:47.216531Z"
+        producer_served_frame_put: "2026-08-11T22:10:27.470644Z, watermark 2026-08-11T22:05:06.294045Z, row_count 4193"
+        derived_axis_now: "2026-08-12T00:00:47.225696Z (+9.165 ms after the producer's SECOND query_rows_complete)"
+        derived_content_watermark: "2026-08-11T19:29:37.657000+00:00"
+        cross_stream_identity: "BYTE-IDENTICAL to the producer's same-trace persisted section watermark for section 1143843662099256 (progressive.py:1727-1730 -> freshness.py:299-305)"
+        verdict: "REALIZED-MECHANISM-BUT-SUBSTRATE-STALE"
+
+      tick_b_0400Z:
+        invocation_id: "d095e10c-a5bf-4cd6-babb-defa3b516e29"
+        trace_id: "1adaac49dcdcb50c16cf63a6800590d0"
+        log_stream: "2026/08/12/[$LATEST]a9fba352d4be40f381af15976b37f5a7"
+        deploy_adjacent: false
+        deploy_delta: "8h03m after image live"
+        offers_readiness_check_fail: "staleness_seconds=30668.480824, threshold_seconds=3600, abort_threshold_seconds=7200.0 @ 2026-08-12T04:01:04.874920Z"
+        readiness_gate_abort: "Source 'offers' is 511 min stale (abort threshold: 120 min) @ 04:01:04.875027Z"
+        billing: "readiness_check_pass 290.184150 / 7200"
+        campaigns: "readiness_check_pass 784 / 3600"
+        axis_events_present: "NONE"
+        producer_lkg_serve_age_seconds: 6584.6
+        producer_query_rows: "active 68/68 @04:00:45.750978Z; activating 48/48 @04:00:46.130648Z"
+        producer_served_frame_put: "2026-08-12T02:11:01.185268Z, watermark 2026-08-12T02:05:07.888329Z, row_count 4193"
+        derived_axis_now: "2026-08-12T04:00:46.137824Z (+7.176 ms after the producer's SECOND query_rows_complete)"
+        derived_content_watermark: "2026-08-11T19:29:37.657000+00:00 (IDENTICAL to tick A)"
+        cross_stream_identity: "BYTE-IDENTICAL to the same producer section watermark, unchanged across both traces"
+        verdict: "REALIZED-MECHANISM-BUT-SUBSTRATE-STALE"
+
+      positive_exclusion_of_dormant_and_refuse:
+        method: "numeric, not absence-only"
+        absence_leg: "regex sweep for offer_freshness_axis_dormant|offer_freshness_axis_refused|offer_freshness_axis_clamped|offers_content_axis_unavailable|dormant|refus|clamp over ALL 32 events => 0 hits; info-level flow alive on both invocations (7 info events each; level census 14 info / 2 error / 4 warning)"
+        refuse_excluded: "sentinel would be exactly 7201.0 (readiness.py:387-394); observed 16269.568696 and 30668.480824"
+        dormant_excluded: "quantity would be data_age_seconds = cache created_at age, co-logged same-trace by the producer as 6619.6 and 6584.6; observed values differ by 2.5x and 4.7x"
+        clamp_excluded: "no offer_freshness_axis_clamped warning on either tick"
+        tguard_refuse_excluded: "producer logged returned_count == total_count on BOTH constituents at BOTH ticks (68/68, 48/48)"
+        fetch_failure_excluded: "an offers readiness_check_* event cannot exist unless the `if offers and offers.success` block at readiness.py:489 was entered"
+        frame_watermark_rival_excluded: "served-frame build-watermark age would have been 6940.93 (tick A) and 6938.25 (tick B)"
+
+      cross_tick_discriminator:
+        question: "does the axis track CONTENT (should advance ~+14400s across a 4h gap with an unmoved watermark) or CACHE (would stay in the ~6500s band)?"
+        answer: "CONTENT — decisively"
+        reported_value_advance_seconds: 14398.912128
+        tick_separation_seconds: 14402.501952
+        ratio: "99.975%"
+        cache_age_band_across_the_two_ticks: "6619.6 and 6584.6 (width 35.0s)"
+        if_cache_tracking_tick_b_would_report: 6584.6
+        tick_b_actually_reported: 30668.480824
+        residual_explained: "the 3.589824s residual is NOT watermark movement: axis_now-to-readiness-log lag was 15.147272s (tick A) vs 18.737096s (tick B); the difference is 3.589824s to the microsecond. Measured axis_now-to-axis_now the watermark is IDENTICAL."
+        claim_P1: "the offers freshness gate measures CONTENT age, not cache age"
+        claim_P1_grade: STRONG
+        claim_P1_basis: "three tick observations (20:00Z, 00:00Z, 04:00Z), each microsecond-reconciled against an independently-logged producer watermark, with the cache-age quantity co-logged on the same traces"
+
+      r2_bar_application:
+        gate_on_content_axis_not_dormant_fallback: "SATISFIED on both ticks (established positively, not by absence alone)"
+        same_trace_producer_corroboration: "SATISFIED on both ticks (byte-identical watermark; axis_now within 10ms of the producer's second constituent query)"
+        no_synthetic_warm: "SATISFIED"
+        no_manual_invoke: "SATISFIED"
+        no_threshold_moved: "SATISFIED (3600 unmoved)"
+        deploy_adjacent: "NO on both ticks — these are qualifying organic ticks carrying FULL weight"
+        pass_achieved: false
+        pass_blocker: "content age 16269.57s and 30668.48s both > 3600 (fail) and > 7200 (abort)"
+      halt_tripwire: "NOT FIRED — no DORMANT disposition on either tick"
+      refusing_constituents: "NONE — REFUSE did not fire on either tick; nothing to report verbatim"
+      verdict_summary: "BOTH organic ticks: REALIZED-MECHANISM-BUT-SUBSTRATE-STALE. Mechanism realized at full weight on two consecutive qualifying ticks; operator PASS (R-2 victory) NOT achieved."
+
+      forecast_scoring:
+        frozen_at_utc: "2026-08-11T21:05:00Z"
+        point_forecast_seconds: 97487
+        actual_seconds: 16269.568696
+        result: "MISS — 6.0x over"
+        floor_forecast: ">=14340"
+        floor_result: "HELD (actual exceeds floor by 1930s)"
+        abort_prediction: "HIT (>7200 -> readiness_gate_abort observed)"
+        verdict_prediction: "HIT (REALIZED-MECHANISM-BUT-SUBSTRATE-STALE)"
+        refuse_discriminator: "correctly did not fire (value != 7201.0)"
+        dormant_discriminator: "correctly did not fire (16269.57 != 6619.6)"
+        served_frame_hedge: "correctly stated — an overnight warmer rebuild DID land (offer put 2026-08-11T22:10:27.470644Z)"
+        root_cause_of_the_miss: "section 5.4 asserted the binding cohort had been 'edit-dormant ~23h'. FALSE as a statement about EDITS; true only about the SERVED FRAME's watermark. Producer record: section 1143843662099256 was edited at 2026-08-11T19:29:37.657 — 31m44s BEFORE the 20:00Z tick — and picked up by the freshness_delta_section_updated at 20:01:40.634891Z, 19 SECONDS AFTER the tick had already read the 18:11:40Z frame. Section 1202496785025459 (the 20:00Z binding section) was edited at 2026-08-11T20:37:11.719, ~36 min AFTER that tick, picked up at the 21:05:22.240225Z delta pass. Section 5 mis-attributed a FRAME-LAG failure to an EDIT-DORMANCY failure."
+        section_5_claims_that_survive:
+          - "overnight quiet: 11 consecutive freshness_probe_complete passes 22:05Z(11th)->06:05Z(12th) with ZERO content_changed/structure_changed; both tick-triggered SWR builds reported sections_delta_updated: 0"
+          - "the max(ages) combination rule is the binding constraint — CONFIRMED empirically: the binding constituent SWAPPED between the 20:00Z and 00:00Z ticks (1202496785025459 cohort -> 1143843662099256 cohort) precisely because the former advanced past the latter"
+          - "all D-5b surfacings (threshold referent shift, behaviour delta at the consuming job, R-4/R-8 positioning, null-watermark residual)"
+        section_5_claims_falsified:
+          - "the '~23h edit-dormant binding cohort' cadence model (section 5.4 / 5.5) — corrected at section 7.6"
+
+      forward_analysis_7_6:
+        note: "ANALYSIS, NOT A RULING. Feeds operator card D-5b."
+        grade: MODERATE
+        corrected_edit_cadence: "offers ARE organically edited several times per business day (10:27, 17:04, 18:06/07, 19:06, 20:01, 21:05 on 2026-08-11; 20:01 and 21:05 on 2026-08-10), concentrated in a small set of sections with 1143843662099256 most active. Overnight (~22:05->06:05) ZERO changes, two nights running. The obstacle is NOT edit-scarcity."
+        sharp_finding: "on 2026-08-11 — the one day BOTH cohorts were edited — the two cohort maxima ended at 19:29:37.657 and 20:37:11.719, a spread of 4054.1s (67.6 min). A PASS needs tick <= older_max + 3600 AND the frame rebuilt after the LATER max. The passing window [2026-08-11T20:37:11.719, 2026-08-11T20:29:37.657] is EMPTY (start > end). NO tick placement at any cadence could have passed that day, because the INTER-COHORT EDIT SPREAD EXCEEDED THE 3600s THRESHOLD ITSELF. Frame lag was not even the binding constraint that day."
+        tick_expectations_2026_08_12:
+          "08:00Z": "ABORT near-certain. Frame lag ~1h55m (last offer put 06:05:52Z, wm 06:05:11Z); overnight quiet holds; binding watermark still 2026-08-11T19:29:37.657. PRE-REGISTERED POINT FORECAST: staleness ~45068 s (12.52 h) at a ~08:00:46Z axis_now, i.e. the 04:00Z value + ~14400 s."
+          "12:00Z": "ABORT expected. Frame-freshness leg historically good (39-min lag on 2026-08-11); needs BOTH cohorts edited inside the same pre-tick hour — an edit conjunction not yet observed in 36h."
+          "16:00Z": "ABORT expected, but this is the MOST FAVOURABLE tick of the day (5-min frame lag observed on 2026-08-11) and is where a first PASS would most plausibly appear."
+        honest_bottom_line: "in 36h of continuous observation covering nine organic ticks, the passing window has been EMPTY at every tick — twice for frame-lag reasons and, on the one day both cohorts moved, because the cohorts moved 67.6 min apart against a 60-min tolerance. A first PASS-REALIZED is possible at a 12:00Z or 16:00Z tick but requires a tighter edit conjunction than anything observed. NO probability offered: N=1 day of two-cohort edit data cannot support a rate."
+        d5b_sharpening: "the 3600s threshold is now competing NOT with frame-rebuild latency (the warmers handle that well) but with the SPREAD BETWEEN TWO INDEPENDENTLY-EDITED BUSINESS COHORTS, which no amount of platform tuning controls. This materially sharpens, rather than restates, the D-5b question."
+
+      r4_r8_positioning_after_three_ticks:
+        note: "SURFACED, NOT RULED. No rollback recommended — that adjudication is the operator's."
+        r4_refusal_storm: "three consecutive organic aborts (20:00Z, 00:00Z, 04:00Z) on runs whose sibling sources all PASS (billing 282.8/290.2s, campaigns 892/784s) is squarely R-4's 'refusal storm on healthy runs' review-prompt shape"
+        r4_false_fresh: "R-4's FIRST trigger ('a false-fresh pass') has NOT occurred and cannot occur on this evidence — every observed reading errs STALE"
+        r8_serving_path: "NO regression — producer query times 2.72/2.81/2.89/2.64 ms across the four constituent queries; both LKG serves succeeded; no producer error events on either trace"
+        r8_consuming_job: "the consuming job IS aborting, but the abort is the honest control-arm behaviour this wave deliberately preserved (L4 keep-warm REFUSED), and aborts pre-date the cure (4 of 14 baseline ticks under the old clock)"
+        unrelated_observation: "the 00:00Z producer build hit a 429 storm (aimd_at_minimum, hierarchy_gap_fetch_rate_limited on parent 1203136853369412, hierarchy_gap_warming_partial 647/648, build 126.5s). Did NOT affect the gate reading (the gate read the LKG frame before the build). Recorded for the standing 429/warmer watch, not attributed to this change."
+
+      park_waiter_incident:
+        task_id: b93z6qvwm
+        armed_at_utc: "2026-08-11T21:06:46Z"
+        target_utc: "2026-08-12T00:02:30Z"
+        terminal_status: killed
+        fired: false
+        evidence_impact: none
+        process_impact: "recorded as a real miss; durable form is a re-dispatch at the target time rather than a 3h live park"
+
+  rel_6_wave_close_operator_ruling:
+    ruled_at: "2026-08-12T07:50:00Z (operator, in-session, verbatim in RULING file)"
+    ruling: "wave CLOSES at REALIZED-MECHANISM; Option 4 opens via next operator /interview sitting"
+    record: ".ledge/decisions/RULING-operator-wave-close-realized-mechanism-2026-08-12.md"
+    r2_disposition: "bar honored not forfeited — no threshold moved, no warm, no invoke; terminal rung = the rung the evidence supports"
+    interview_packet: ".ledge/decisions/PACKET-option4-interview-stack-2026-08-12.md"
+    w1_evidence: ".sos/wip/EVIDENCE-w1-cohort-spread-14day-2026-08-12.md (0/175 ticks pass at deployed threshold over 29d; no threshold works; Option 1 dead)"
+    pythia_consult_inscribed: ".sos/wip/CONSULT-pythia-d5b-routing-2026-08-12.md"
+    still_armed: "REL-5 FIX-N admits at 09:20Z per R-5 (unaffected by close)"
+  post_close_observation_0800Z:
+    tick: "2026-08-12T08:01:02.66Z invocation 605a2ccb"
+    offers_staleness_seconds: 45069.205159
+    verdict_weight: "none — wave closed at REALIZED-MECHANISM (post-close observation only)"
+    forecast_scored: "attester pre-registered ~45068s (ATTEST §7.6) → HIT within ~1.2s; third consecutive tick advancing at 1s/s against the same 2026-08-11T19:29:37.657Z watermark — binding cohort untouched for 12.5h, mechanism tracking perfectly"
+  rel_5_fixn_admits:
+    gate_clear: "2026-08-12T09:19:45Z window close verified via date -u (tight 10s waker fired 09:19:4xZ); C-NULL-DEPLOYED receipted (both R-5 gates)"
+    pr_338_null_decay:
+      merged: "2026-08-12T09:27:00Z squash @2601c8c5c1e5e4a2919a6fc18193c8dcc9d0d5d8"
+      head_at_merge: "updated twice (09:10:53Z overlap-update; 09:20:53Z re-update after external #345/#347/#349 landed) — 9 required checks green at merged head = head-move delta receipt per S5 rule / #1539 precedent"
+      notes: "repo convention = SQUASH (verified via #341 single-parent); first --merge attempt rejected harmlessly; auto-merge armed 09:20:53Z, landed on CI green"
+      external_confound: "main absorbed tiered-population-floor bridge (#347) mid-window — different initiative, operator-interview-ratified in parallel session; FIX-N CI re-ran green over the combination"
+    pr_339_preload_stamp: "PENDING — fires after #338 deploy convergence (SPACE-THEM rollback-unit ruling)"
+    pr_338_deploy_convergence:
+      workflows: "all 6 terminal SUCCESS for 2601c8c5 at 09:49:48Z (Test, Satellite Dispatch, CodeQL, Gitleaks, Aegis, Post-Merge Coverage)"
+      ecs: "task-def 759 PRIMARY rollout COMPLETED 2026-08-12T09:57:29Z (758 drained); running==desired"
+    pr_339_preload_stamp_update: "branch updated + squash auto-merge armed 09:57:53Z (fires on CI green ~6min); SPACE-THEM honored — 30min51s between merges, separate rollback units (338→759 receipted before 339 armed)"
+    al5_rebaseline_boundary: "P-8 NOTE — from the 339 deploy onward, OfferFrameAgeSeconds reads true substrate age (created_at=s3_watermark); no AL-5 comparison valid across this boundary; tuning re-baseline booked in interview item C2"
+    pr_339_merged: "2026-08-12T10:24:31Z squash @41f1fa80f298a11710ddd5038122867ea633c4ae (two update rounds vs parallel-session main movement; auto-merge armed 09:57:53Z)"
+    pr_339_deploy_convergence: "all 6 workflows SUCCESS 10:50:54Z; ECS task-def 762 PRIMARY rollout COMPLETED 11:05:08Z"
+    rel_5_status: "COMPLETE — both FIX-N packets merged+deployed as separate rollback units (338→759 @09:57:29Z; 339→762 @11:05:08Z); wave mechanical record CLOSED end-to-end (REL-1..REL-5 receipted, REL-6 closed at REALIZED-MECHANISM by operator ruling)"
+    successor_ratified: ".ledge/decisions/RULING-operator-option4-interview-2026-08-12.md (12 rulings: P-1..P-12)"

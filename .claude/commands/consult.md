@@ -44,7 +44,7 @@ Provide ecosystem guidance and recommendations. $ARGUMENTS
 
 ### Query provided (e.g., `/consult "improve code quality"`)
 1. Parse user intent using knowledge base
-2. **Query `ari ask`** (skip if extracted intent is empty): Run `ari ask -o json --limit=10 "<user_intent>"` via the Bash tool to get canonical ranked results from the ecosystem index. Use `--domain=DOMAIN` when intent maps clearly to a single domain. Parse the JSON response and use top results to ground your recommendation. **Fail-open guard:** If `ari ask` fails (non-zero exit, not found, timeout, or unparseable JSON), proceed using the embedded routing tables below -- do not surface the failure.
+2. **Query `ari ask`** (skip if extracted intent is empty): Run `ari ask -o json --limit=10 "<user_intent>" 2>/dev/null` via the Bash tool to get canonical ranked results from the ecosystem index. Use `--domain=DOMAIN` when intent maps clearly to a single domain. Parse the JSON response and use top results to ground your recommendation. **stderr discipline:** `ari ask` writes INFO progress (content-store, BM25 index, embeddings) to **stderr** and the JSON to **stdout** — always redirect stderr with `2>/dev/null` when machine-parsing; NEVER merge it with `2>&1` (the timestamped log line `2026/...` parses as the number `2026` then fails with `Extra data: line 1 column 5`). **Fail-open guard:** If `ari ask` fails (non-zero exit, not found, timeout, or unparseable JSON), proceed using the embedded routing tables below -- do not surface the failure.
 3. Use `rite-discovery` skill to enrich matched rites with detailed profiles
 4. Match to appropriate rite and workflow, grounding in `ari ask` results when available
 5. **Reference invocation patterns**: Use `prompting` skill to retrieve exact copy-paste patterns
@@ -70,6 +70,7 @@ Display all rites dynamically (use `rite-discovery` skill):
 | forge        | /forge        | Rite creation and validation       |
 | hygiene      | /hygiene      | Code quality, refactoring          |
 | intelligence | /intelligence | Analytics, A/B testing, research   |
+| oikos        | /oikos        | Whole-product, felt-first terminal building (sovereign-terminal) -- NOT 10x-dev, NOT ui |
 | releaser     | /releaser     | Multi-repo release orchestration, publish packages, bump consumers, CI monitoring |
 | review       | /review       | Language-agnostic codebase health assessment |
 | rnd          | /rnd          | Exploration, prototyping           |
@@ -83,10 +84,17 @@ Display all rites dynamically (use `rite-discovery` skill):
 Display all commands by category:
 ```
 Session (5): /sos start, /sos park, /sos resume, /handoff, /sos wrap
-Rite (14): /rite, /10x, /arch, /docs, /hygiene, /debt, /releaser, /review, /sre, /security, /intelligence, /rnd, /strategy, /slop-chop
+Rite (15): /rite, /10x, /arch, /docs, /hygiene, /debt, /oikos, /releaser, /review, /sre, /security, /intelligence, /rnd, /strategy, /slop-chop
+oikos Domain (2): /oikos-wave, /oikos-felt
 Workflow (4): /task, /sprint, /hotfix, /spike
 Operations (5): /architect, /build, /qa, /pr, /code-review
 ```
+
+### Standing views & return ceremony (fleet fan-in)
+| Surface | Invocation | Intent |
+|---|---|---|
+| agora | `ari agora census\|dashboard` | Standing fleet orientation -- what your sessions are doing across orgs |
+| anabasis | `/anabasis` ceremony · `ari anabasis docket\|charge\|reenter\|receipt` plumbing | Return home / fan-in parallel sessions, re-enter threads; dispatches heroes, never acts |
 
 ## Response Format
 

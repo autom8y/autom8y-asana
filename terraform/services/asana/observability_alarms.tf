@@ -390,18 +390,31 @@ variable "substrate_freshness_gids" {
 
 variable "offer_frame_stale_threshold_seconds" {
   description = <<-EOT
-    AL-5 staleness threshold (seconds). 7200 = "served frame older than 120 min" ==
-    the ASR readiness gate's abort threshold (ASR runs 4h ticks and aborts when the
-    offer frame it reads is > 120 min old). Aligning AL-5 to the ASR abort threshold
-    makes it a FAITHFUL ASR-abort predictor: it fires iff the frame is stale enough
-    that an ASR tick landing in the window would abort.
+    AL-5 staleness threshold (seconds). 7200 = "served frame BUILT more than 120 min
+    ago". The 7200 number was ORIGINALLY chosen to mirror the ASR readiness gate's
+    120-min abort threshold, on the (then-true) assumption that the two alarms read
+    the same quantity.
 
+    *** THAT ALIGNMENT IS DEAD (2026-08-11 content-axis cure). ***
+    This threshold is NO LONGER an ASR-abort predictor and 7200 no longer has an
+    ASR-derived justification -- it is currently an UNANCHORED number inherited from
+    a superseded axis. The ASR gate now aborts on CONTENT-WATERMARK age (how old the
+    DATA is); this variable thresholds SERVED-FRAME age (how long ago the frame was
+    BUILT). Live falsification, same GID, same instant: at 2026-08-11T20:01:22Z the
+    ASR gate read offers staleness_seconds=83123.29 and ABORTED, while this alarm's
+    input read 6581.3s -- 12.6x apart, below threshold, alarm OK. See the RE-POINT
+    block above the al5_offer_frame_stale resource for the pending re-baseline and
+    the recommended successor semantics (operator interview item C2).
+
+    HISTORY (superseded reasoning, left standing per amend-in-place convention).
     F1a pacing re-scope (2026-08-05): raised 3600 -> 7200. The prior 3600 (60 min)
     was DEGENERATE against the pre-cure OfferFrameAgeSeconds sawtooth (peaks 674-1231
     min, i.e. 10-20x the threshold) -- trivially always-breaching, non-actionable --
     and it also fired on 60-120 min peaks that do NOT cause an ASR abort. The pacing
-    cure collapses the peak below 120 min, so 7200 is the actionable "an ASR abort
-    would have happened" line. Still LOOSER than the code FRESH TTL (offer=180s,
+    cure collapses the peak below 120 min, so 7200 WAS THEN the actionable "an ASR
+    abort would have happened" line -- true on 2026-08-05, false since the
+    2026-08-11 cure moved the gate to the content axis. Still LOOSER than the code
+    FRESH TTL (offer=180s,
     default=300s) / STALE onset (>900s) and within the LKG-servable band (offer
     FRESHNESS_CONTRACT_MAX_AGE=16200s); a separate tighter freshness alarm (toward the
     TTL) can be added later without conflating it with the ASR-abort gate.
@@ -448,11 +461,74 @@ resource "aws_cloudwatch_log_metric_filter" "al5_offer_frame_age" {
   }
 }
 
+# ----------------------------------------------------------------------------
+# AL-5 RE-POINT BLOCK (authored 2026-08-12, W-2 / pythia P-7 + P-8).
+# NOT APPLIED. Description text only; no threshold, window, or action changed.
+#
+# (1) WHAT WAS FALSE. The prior description asserted AL-5 "fires iff an ASR tick
+#     landing in the window would abort". That was true when authored and is
+#     FALSE now. The 2026-08-11 content-axis cure re-pointed the ASR readiness
+#     gate at CONTENT-WATERMARK age; AL-5 still reads SERVED-FRAME BUILD age.
+#     Two different quantities, decoupled in BOTH directions. Receipts:
+#       - GREEN-while-aborting: 2026-08-11T20:01:22Z the gate read offers
+#         staleness_seconds=83123.29 ("1385 min stale") and ABORTED; AL-5's own
+#         input in that bucket read Max=6581.3s (< 7200) and AL-5 was OK.
+#       - Same shape 2026-08-12T08:01:02Z: gate 45069.21s ABORT; AL-5 input
+#         6585.0s in the preceding bucket; AL-5 cleared to OK 48s after the abort.
+#     Ratio between the two axes ran 6.8x-12.6x over the sampled aborts.
+#     CODE RECEIPT (src/autom8_asana/cache/integration/dataframe_cache.py):
+#       :136  age = datetime.now(UTC) - self.created_at   <- BUILD axis, feeds AL-5
+#       :138  def is_fresh_by_watermark(current_watermark) <- CONTENT axis, separate
+#     The two axes are distinct methods on the same object. The decoupling is
+#     STRUCTURAL, not a tuning artifact -- no threshold change can close it.
+#
+# (2) NEW FINDING (not in the pythia consult): AL-5 IS FLAPPING. describe-alarm-
+#     history shows TEN state transitions on 2026-08-12 ALONE (02:05:50Z ALARM,
+#     03:05:50Z OK, 06:03:50Z ALARM, 07:05:50Z OK, 07:33:50Z ALARM, 08:01:50Z OK,
+#     08:03:50Z ALARM, 08:05:50Z OK, 09:33:50Z ALARM, 09:35:50Z OK) -- five of
+#     those alarms lasted <= 2 MINUTES. Every transition fires alarm_actions AND
+#     ok_actions into autom8y-platform-alerts (live Slack + email subscribers),
+#     so this is ~10 notifications/day of pure noise.
+#     Cause: 2-of-8 M-of-N over 30-min buckets whose Max straddles 7200 on the
+#     sawtooth. This is an active alert-fatigue generator independent of (1).
+#
+# (3) P-8 RE-BASELINE, PENDING (correction to the interview packet): FIX-N-C1
+#     (asana PR #339) changes preload-hydrated entries' created_at from now() to
+#     the s3_watermark, so OfferFrameAgeSeconds jumps from ~0-anchored to TRUE
+#     SUBSTRATE AGE. As of 2026-08-12T09:40Z #339 is still OPEN and titled
+#     [MERGE-HELD] -- it did NOT merge at 09:20Z as the packet assumed, so the
+#     boundary is AHEAD, not behind. When it lands: the 7200 / 2-of-8 tuning was
+#     calibrated on the PRE-C1 sawtooth (2026-08-05) and NO reading is comparable
+#     across the boundary. Re-baseline from >=7 days of post-merge data before
+#     reading any AL-5 trend. Do not hold #339 for this.
+#
+# (4) RECOMMENDATION ONLY -- NOT A DECISION. Operator interview item C2(ii),
+#     "what SHOULD AL-5 predict now?". Recommended: keep AL-5 on the BUILD/SERVE
+#     axis and stop pretending it is an ASR predictor. Concretely:
+#       a. Re-scope AL-5 to its actual and still-valuable job: per-GID serve-path
+#          starvation (the SCAR-015 cure). That job is real and nothing else
+#          covers it.
+#       b. Do NOT re-point AL-5 at the content axis. The ASR gate already owns
+#          that axis and owns it better (it reads the manifest directly); a second
+#          content-axis alarm re-imports the co-sourcing shape §1.4 forbids.
+#       c. Re-derive the threshold from the SERVE contract, not from ASR. The
+#          honest anchors are the code's own bands (FRESH TTL 180s, STALE onset
+#          900s, FRESHNESS_CONTRACT_MAX_AGE 16200s), not 7200.
+#       d. Fix the flap first (2): widen to Minimum-over-window or raise M, and
+#          drop ok_actions. Flap-fixing is independent of the re-point and can
+#          ship alone.
+#       e. Sequence: fix flap -> land #339 -> re-baseline 7 days -> then set the
+#          new threshold. Setting a number before the re-baseline is guesswork.
+#       f. The ASR-abort predictor AL-5 was pretending to be does not exist and
+#          is NOT re-creatable on this metric. If one is wanted, it belongs on the
+#          ASR side keyed on the gate's own quantity.
+# ----------------------------------------------------------------------------
+
 resource "aws_cloudwatch_metric_alarm" "al5_offer_frame_stale" {
   for_each = var.substrate_freshness_gids
 
   alarm_name        = "asana-AL5-offer-frame-stale-${each.key}"
-  alarm_description = "Per-GID offer frame staleness: served LKG frame for project_gid=${each.key} older than ${var.offer_frame_stale_threshold_seconds}s (== ASR 120-min abort threshold), 2-of-8 datapoints over a 4h ASR-tick window (M-of-N sparsity cure). Fires iff an ASR tick landing in the window would abort. RB-SUBSTRATE-FRESHNESS. Cures SCAR-015 entity-level blindness (per-GID axis). NON-PAGING until AL-5 armed + apply-imported; confirm-first."
+  alarm_description = "PER-GID SERVED-FRAME BUILD AGE for project_gid=${each.key}: the LKG frame being served was BUILT more than ${var.offer_frame_stale_threshold_seconds}s ago, on 3-of-4 hourly datapoints over a 4h window (missing data IGNORED, not counted healthy). AXIS: BUILD/SERVE (dataframe_cache_memory_lkg_serve extra.age_seconds = age of the frame), NOT content. THIS IS NOT AN ASR-ABORT PREDICTOR -- since the 2026-08-11 content-axis cure the ASR readiness gate aborts on CONTENT-WATERMARK age, a different quantity. Decoupled BOTH ways, proven live: 2026-08-11T20:01:22Z the gate read offers staleness 83123s and ABORTED while this alarm read 6581s and stayed OK. AL-5 can be GREEN while every ASR tick aborts, and RED while ticks would pass. Do not infer ASR readiness from this alarm. Valid use: per-GID serve-path starvation (SCAR-015 cure). Threshold 7200 is inherited from the dead ASR alignment and is pending re-baseline after FIX-N-C1 (#339). RB-SUBSTRATE-FRESHNESS. NON-PAGING until armed + apply-imported; confirm-first."
   namespace         = var.substrate_freshness_namespace
   metric_name       = "OfferFrameAgeSeconds"
   dimensions = {
@@ -461,6 +537,108 @@ resource "aws_cloudwatch_metric_alarm" "al5_offer_frame_stale" {
   statistic           = "Maximum"
   comparison_operator = "GreaterThanThreshold"
   threshold           = var.offer_frame_stale_threshold_seconds
+  # FLAP CURE (2026-08-12, W-2 / P-7(b)). SUPERSEDES the F1a sampling numbers below;
+  # the F1a INTENT -- eval span == one 4h ASR tick -- is PRESERVED EXACTLY (3600 x 4
+  # == 1800 x 8 == 4h). Threshold, statistic, metric, dimensions and BOTH action lists
+  # are UNTOUCHED by this change.
+  #
+  # THE DISEASE (measured, not inferred). describe-alarm-history for
+  # asana-AL5-offer-frame-stale-1143843662099250 shows ELEVEN state transitions in the
+  # 21h to 2026-08-12T09:35:50Z -- 12.6 per 24h -- five of them ALARM episodes lasting
+  # <= 2 MINUTES. alarm_actions AND ok_actions both route to autom8y-platform-alerts
+  # (live Slack + email), so every transition is a notification: ~12.6 pages/day of
+  # pure noise. This is an alert-fatigue generator and it is INDEPENDENT of the
+  # axis-decoupling defect cured in the description above.
+  #
+  # THE MECHANISM (verbatim receipts, two consecutive live evaluations 4 min apart):
+  #   eval 2026-08-12T08:01:50Z -> "6894.3 (12/08/26 07:31:00), 6585.0 (12/08/26 03:31:00)"  -> OK
+  #   eval 2026-08-12T08:03:50Z -> "7300.5 (12/08/26 06:03:00), 12448.4 (12/08/26 05:33:00)" -> ALARM
+  #   eval 2026-08-12T08:05:50Z -> "6894.3 (12/08/26 07:35:00), 6585.0 (12/08/26 03:35:00)"  -> OK
+  # The SAME two sample values (6894.3 / 6585.0) are reported at bucket-starts :31 and
+  # then :35 -- i.e. the 1800s bucket ANCHOR DRIFTS between evaluations, and with a
+  # Maximum statistic over a SPARSE series that re-bucketing alternately MERGES and
+  # SPLITS a pair of near-threshold samples one period apart, flipping the breaching
+  # count across M=2 every two minutes. The state is a function of bucket alignment,
+  # not of what the service did.
+  #
+  # WHY THE 1800s BUCKET IS THE ROOT SAMPLING ERROR (measured over 2026-08-09T12:00Z
+  # -> 2026-08-12T09:17Z, 66 serve-event minutes in 69.3h):
+  #   median inter-serve-event gap = 56 min   (p90 132 min, max 240 min)
+  #   bucket density: 1800s -> 38.1% populated | 3600s -> 70.0% | 7200s -> 91.4%
+  # A 1800s bucket is SMALLER THAN THE MEDIAN INTER-EVENT GAP, so ~62% of the
+  # evaluation window is synthetic filler. Under treat_missing_data=notBreaching that
+  # filler also handed the ALARM->OK test 5 of the 7 non-breaching datapoints it needs
+  # for free -- the live StateReason says so verbatim: "5 missing datapoints were
+  # treated as [NonBreaching] (minimum 7 datapoints for ALARM -> OK transition)".
+  # Recovery was therefore driven by absence of data, not by evidence of health.
+  #
+  # THE FOUR CHANGES, each inside the operator's authorized lever set
+  # (M-of-N / evaluation-period stretch / missing-data treatment):
+  #   period 1800 -> 3600           bucket >= median inter-event gap; density 38%->70%,
+  #                                 halving the boundaries a lone sample can drift over.
+  #   evaluation_periods 8 -> 4     holds the eval span at EXACTLY 4h (F1a intent kept).
+  #   datapoints_to_alarm 2 -> 3    3 of the last 4 observed hours must breach; a single
+  #                                 re-bucketed spike moves the count by 1 and can no
+  #                                 longer carry the transition alone. ALARM->OK bar
+  #                                 becomes N-M+1 = 2 REAL non-breaching observations.
+  #   treat_missing_data
+  #     "notBreaching" -> "missing" evaluate OBSERVATIONS, not filler. Removes the free
+  #                                 non-breaching datapoints that made recovery
+  #                                 automatic. NOT a regression of the darkness blind
+  #                                 spot: notBreaching already forced a fully-dark GID
+  #                                 to OK; "missing" merely holds the last honest state
+  #                                 instead of asserting health. Darkness detection is
+  #                                 still NOT this alarm's job (see header).
+  #
+  # MODELLED EFFECT (state machine replayed against the real 69h sample series; the
+  # model is validated -- it reproduces the live 12.6 transitions/24h AND the
+  # characteristic 2-minute :04->:06 / :34->:36 flap pairs):
+  #   current  1800/8/2 notBreaching -> 12.5 transitions/24h, 14.0% alarm duty
+  #   authored 3600/4/3 missing      ->  6.6 transitions/24h, 14.6% alarm duty
+  # A 1.9x reduction in notifications with sensitivity held flat.
+  #
+  # HONEST LIMIT -- STATED, NOT HIDDEN. This DAMPS the flap; it does not ELIMINATE it.
+  # A 100+ config sweep over period x evaluation_periods x datapoints_to_alarm x
+  # missing-data found NO configuration inside the authorized lever set with a minimum
+  # dwell above 2 minutes that still fires meaningfully: every config with a lower flap
+  # rate than the above bought it by dropping alarm duty toward 0 (i.e. by not firing).
+  # The residual 2-minute flap is inherent to Maximum-over-sparse-buckets under anchor
+  # drift. Two levers WOULD cure it and are DELIBERATELY NOT AUTHORED here because they
+  # sit outside the authorized lever set and change semantics rather than sampling:
+  #   (i)  drop ok_actions -- halves notifications at a stroke (one line), at the cost
+  #        of losing auto-resolve notices;
+  #   (ii) move to a composite or anomaly-detection alarm.
+  # Either is a one-word operator decision; neither is taken unilaterally.
+  #
+  # POST-C1 REGIME ASSUMPTION -- THE THING TO FALSIFY AT RE-BASELINE.
+  # This is tuned for the signal that starts NOW, not the dead pre-C1 sawtooth.
+  # rev-762 (task definition autom8y-asana-service:762, carrying FIX-N-C1 / PR #339,
+  # merged 2026-08-12T10:24:13Z) reached rolloutState COMPLETED at 2026-08-12T11:04:18Z.
+  # From that instant, per the merged diff, the ONE sanctioned call site
+  # (api/preload/progressive.py) passes created_at=s3_watermark into put_async, so
+  # preload-hydrated entries stop reporting BOOT-CLOCK uptime and start reporting the
+  # substrate's own recency. ASSUMED consequences:
+  #   1. the deploy-synchronised reset to ~0 DISAPPEARS (age no longer restarts with
+  #      the worker);
+  #   2. the baseline RISES -- possibly far above 7200. The ASR gate reading the
+  #      substrate axis on the same days saw 45069s and 83123s;
+  #   3. the series stays a MIXTURE, because freshly-BUILT entries still stamp now()
+  #      (the diff is explicitly default-preserving: created_at=None -> now()).
+  # FALSIFIABLE PREDICTION: AL-5 alarm duty at threshold 7200 will RISE, not fall,
+  # trending toward sustained ALARM after a worker restart against an aged parquet.
+  # If duty instead collapses toward 0%, THIS ASSUMPTION IS WRONG and the tuning must
+  # be re-opened.
+  #
+  # RE-BASELINE GATE (binding on the threshold, NOT on this change). 7200 is an ORPHAN
+  # -- it was derived from the now-dead ASR alignment and has NO post-C1 justification.
+  # It is deliberately LEFT ALONE here: setting a number before the re-baseline is
+  # guesswork. Re-open at >= 48h of post-rollout data, i.e. from ~2026-08-14T11:04Z,
+  # and confirm three things against the NEW regime: (i) realised transitions/24h,
+  # (ii) alarm duty, (iii) the value distribution relative to 7200. Only then set the
+  # threshold, and only from the SERVE contract (FRESH TTL 180s, STALE onset 900s,
+  # FRESHNESS_CONTRACT_MAX_AGE 16200s) per item (4c) of the RE-POINT block above.
+  #
+  # SUPERSEDED (left standing per amend-in-place convention).
   # F1a PACING RE-SCOPE (2026-08-05, two-sided-teeth-proven): align the window to the
   # ASR 4h tick cadence and the threshold to the 120-min abort line so AL-5 predicts
   # ASR aborts instead of reading always-red against the pre-cure sawtooth. Period
@@ -469,13 +647,19 @@ resource "aws_cloudwatch_metric_alarm" "al5_offer_frame_stale" {
   # window still trips) while bounding the eval span to one ASR tick. Supersedes the
   # 2026-07-20 EXECUTION-RECEIPT-al5-reconfig 3600/12/2 config (which cured the earlier
   # 300s/2-of-2 sparsity blindness but read degenerate against the 10-20x sawtooth).
-  period              = 1800
-  evaluation_periods  = 8
-  datapoints_to_alarm = 2
-  treat_missing_data  = "notBreaching" # missing serve != stale; residual blind spot per header
+  # [The 1800/8/2 sampling above is SUPERSEDED by the FLAP CURE. The "predicts ASR
+  #  aborts" rationale is separately FALSE since 2026-08-11 -- see the description.]
+  period              = 3600
+  evaluation_periods  = 4
+  datapoints_to_alarm = 3
+  treat_missing_data  = "missing" # evaluate observations, not filler; see FLAP CURE above
 
   alarm_actions = local.al5_actions
-  ok_actions    = local.al5_actions
+  # ok_actions DROPPED (operator ruling 2026-08-12, stage-1 apply sitting): halves the
+  # notification volume the residual 2-min flap can generate (see HONEST LIMIT above);
+  # auto-resolve notices forfeited deliberately. Explicit [] so the drop reads as ruled,
+  # not as an accidental omission.
+  ok_actions = []
 
   depends_on = [aws_cloudwatch_log_metric_filter.al5_offer_frame_age]
 
