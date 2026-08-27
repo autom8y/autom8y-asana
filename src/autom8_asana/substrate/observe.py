@@ -592,6 +592,35 @@ class CloudWatchProvabilityEmitter:
                 }
             )
 
+        # EMIT-1 (autom8y monorepo terraform/services/asana/offer_freshness_prov_alarms.tf
+        # §D): per-artifact staleness gauge on the SAME dimension trio as
+        # ArtifactProvable — {environment, project_gid, entity_type}. This is the
+        # series PROV-8 (asana-PROV-8-offer-content-stale) binds to; the run-level
+        # {environment}-only MaxStalenessAgeSeconds above is a DISTINCT CloudWatch
+        # identity and is kept for its existing consumers. Value = that verdict's
+        # age CLAMPED >= 0 (a future-dated proof is disclosed by
+        # FutureDatedProofCount, never smoothed into this gauge as a negative).
+        # A MISSING artifact emits NO datapoint here BY DESIGN: absence is
+        # PROV-9's remit (ArtifactProvable=0 above + treat_missing_data=breaching);
+        # fabricating 0.0 would read PERFECTLY FRESH on PROV-8 — the exact
+        # false-green §C of the alarm file exists to kill.
+        for verdict in run.verdicts:
+            if verdict.age_seconds is None:
+                continue
+            metric_data.append(
+                {
+                    "MetricName": METRIC_MAX_STALENESS_AGE_SECONDS,
+                    "Value": max(0.0, verdict.age_seconds),
+                    "Unit": "Seconds",
+                    "Timestamp": stamp,
+                    "Dimensions": [
+                        {"Name": DIMENSION_ENVIRONMENT, "Value": environment},
+                        {"Name": "project_gid", "Value": verdict.aid.project_gid},
+                        {"Name": "entity_type", "Value": verdict.aid.entity_type.value},
+                    ],
+                }
+            )
+
         return metric_data
 
 

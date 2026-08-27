@@ -8,8 +8,11 @@ dead-man (``EvaluatorHeartbeat``) — and the PROV-1/3/4/5/6 signals — emit on
 query-independent cadence while the window is open. PROV-2 ALARMED-as-predicted since
 2026-07-30 clears on the FIRST such sweep (C10 quiet-side RC-F-2 evidence).
 
-The ONLY outbound this unit performs is CloudWatch ``put_metric_data`` (via the injectable
-``cw_client``); in build/test it is a recording stub — never a live call. The load-bearing
+The ONLY outbound this unit performs directly is CloudWatch ``put_metric_data`` (via the
+injectable ``cw_client``); in build/test it is a recording stub — never a live call.
+(``build_s3_prov_sweep_evaluator`` — the option-b scheduled composition root added
+post-window — additionally CONSTRUCTS the live ``S3ArtifactStore``, whose sweep-time S3
+reads belong to the store/evaluator seam, not to this driver.) The load-bearing
 identity contract (the iteration-1 NO-GO at QA-s6-observe-pr282 :164 was a DEAD
 ``environment`` dimension) is honored HERE: the emitted ``environment`` dimension VALUE is
 wired from the SAME value the terraform PROV-* alarms filter on
@@ -48,6 +51,7 @@ if TYPE_CHECKING:
 __all__ = [
     "PROV_ENVIRONMENT",
     "build_prov_sweep_evaluator",
+    "build_s3_prov_sweep_evaluator",
     "digest_of_canonical_frame_bytes",
     "run_prov_sweep",
 ]
@@ -118,6 +122,35 @@ def build_prov_sweep_evaluator(
         if digest_of_frame is not None
         else digest_of_canonical_frame_bytes,
         emitter=emitter,
+    )
+
+
+def build_s3_prov_sweep_evaluator(
+    *,
+    bucket: str,
+    expected_set: ExpectedSetSource,
+    environment: str = PROV_ENVIRONMENT,
+    cw_client: Any = None,
+) -> ScheduledProvabilityEvaluator:
+    """EMIT-2 composition root: wire the sweep against the LIVE S3 artifact store.
+
+    The ``S3ArtifactStore`` is constructed HERE — inside the substrate composition
+    root the [H17] seam allowlist names for exactly this role ("the WU-3 arming
+    composition root ... ``ArtifactStore`` for the sweep evaluator",
+    test_serve_raw_read_privacy.py) — so the scheduled Lambda handler consumes the
+    sweep WITHOUT importing the store module. Raw ``read_current`` reads remain
+    exclusively observe.py's (the evaluator), never a caller's: the sweep cannot
+    route through ``SubstrateReader`` because provability evaluation needs the raw
+    bytes + proof to re-derive the digest the way the serve gate does ([H19]),
+    while the reader gate returns only ``Provable | Refused``.
+    """
+    from autom8_asana.substrate.store import S3ArtifactStore
+
+    return build_prov_sweep_evaluator(
+        store=S3ArtifactStore(bucket),
+        expected_set=expected_set,
+        environment=environment,
+        cw_client=cw_client,
     )
 
 
