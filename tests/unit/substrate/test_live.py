@@ -244,10 +244,12 @@ def test_served_active_mrr_reports_missing_column() -> None:
 
 
 def test_classifier_active_set_is_sourced_not_hardcoded() -> None:
-    """§6 #1: the active set comes FROM THE CLASSIFIER (22 sections), not a hardcoded list."""
+    """§6 #1: the active set comes FROM THE CLASSIFIER (5 sections post the
+    2026-08-26 board restructure, operator-ratified INTENTIONAL), not a
+    hardcoded list."""
     active = classifier_active_sections()
     assert active == frozenset(CLASSIFIERS["offer"].sections_for(AccountActivity("active")))
-    assert len(active) == 22
+    assert len(active) == 5
 
 
 def test_coverage_assertion_two_sided() -> None:
