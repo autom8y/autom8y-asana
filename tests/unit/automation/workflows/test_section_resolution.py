@@ -161,7 +161,7 @@ async def test_resolve_propagates_exception():
 
 
 def test_offer_active_section_count():
-    """OFFER_CLASSIFIER has exactly 21 ACTIVE sections.
+    """OFFER_CLASSIFIER has exactly 5 ACTIVE sections (post 2026-08-26 board restructure, operator-ratified INTENTIONAL).
 
     Contract test per TDD-SECTION-ENUM-001 Section 7.4: guards against
     accidental classifier changes that would silently alter enumeration
@@ -173,7 +173,7 @@ def test_offer_active_section_count():
     )
 
     active = OFFER_CLASSIFIER.sections_for(AccountActivity.ACTIVE)
-    assert len(active) == 22
+    assert len(active) == 5
 
 
 async def test_resolve_with_frozenset_target():

@@ -132,8 +132,10 @@ class TestOfferAccountActivity:
         assert offer.account_activity == AccountActivity.ACTIVE
 
     def test_launch_error_section(self) -> None:
+        # LAUNCH ERROR deleted in the 2026-08-26 board restructure
+        # (operator-ratified INTENTIONAL) -- an unknown section classifies None.
         offer = _make_offer("LAUNCH ERROR")
-        assert offer.account_activity == AccountActivity.ACTIVATING
+        assert offer.account_activity is None
 
     def test_account_error_section(self) -> None:
         offer = _make_offer("ACCOUNT ERROR")

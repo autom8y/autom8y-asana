@@ -335,25 +335,27 @@ class TestOfferClassifier:
         assert OFFER_CLASSIFIER.project_gid == "1143843662099250"
 
     def test_active_sections(self) -> None:
+        # 2026-08-26 board restructure (operator-ratified INTENTIONAL): 19 sections deleted
         active = OFFER_CLASSIFIER.active_sections()
         assert "active" in active
-        assert "pending approval" in active
+        assert "optimize - human review" in active
         assert "staging" in active
         assert "staged" in active
         assert "manual" in active
-        assert "system error" in active
+        assert "pending approval" not in active  # deleted 2026-08-26
+        assert "system error" not in active  # deleted 2026-08-26
 
     def test_active_section_count(self) -> None:
-        assert len(OFFER_CLASSIFIER.active_sections()) == 22  # +1: ONE-OFF per truth audit
+        assert len(OFFER_CLASSIFIER.active_sections()) == 5  # post-restructure board
 
     def test_activating_sections(self) -> None:
         activating = OFFER_CLASSIFIER.sections_for(AccountActivity.ACTIVATING)
         assert "activating" in activating
-        assert "launch error" in activating
         assert "implementing" in activating
         assert "new launch review" in activating
-        assert "awaiting access" in activating
-        assert len(activating) == 5
+        assert "launch error" not in activating  # deleted 2026-08-26
+        assert "awaiting access" not in activating  # deleted 2026-08-26
+        assert len(activating) == 3
 
     def test_inactive_sections(self) -> None:
         inactive = OFFER_CLASSIFIER.sections_for(AccountActivity.INACTIVE)
@@ -378,27 +380,23 @@ class TestOfferClassifier:
             + len(OFFER_CLASSIFIER.sections_for(AccountActivity.IGNORED))
         )
         assert (
-            total == 34
-        )  # +1 ONE-OFF (active) per truth audit; PLAYS/PERFORMANCE CONCERNS case variants collapse
+            total == 15
+        )  # post-restructure board: 5 active + 3 activating + 3 inactive + 4 ignored (matches the 15 live sections)
 
     def test_classify_optimize_sections(self) -> None:
+        # The consolidated section survives; the deleted OPTIMIZE-* family must
+        # NOT classify (roster follows the board -- a name that classifies here
+        # while absent from the board would re-mint the AXIS-NULL refusal class).
         assert OFFER_CLASSIFIER.classify("OPTIMIZE - Human Review") == AccountActivity.ACTIVE
-        assert (
-            OFFER_CLASSIFIER.classify("OPTIMIZE QUANTITY - Request Asset Edit")
-            == AccountActivity.ACTIVE
-        )
-        assert (
-            OFFER_CLASSIFIER.classify("OPTIMIZE QUALITY - Update Targeting")
-            == AccountActivity.ACTIVE
-        )
-        assert (
-            OFFER_CLASSIFIER.classify("OPTIMIZE QUALITY - Poor Show Rates")
-            == AccountActivity.ACTIVE
-        )
+        assert OFFER_CLASSIFIER.classify("OPTIMIZE QUANTITY - Request Asset Edit") is None
+        assert OFFER_CLASSIFIER.classify("OPTIMIZE QUALITY - Update Targeting") is None
+        assert OFFER_CLASSIFIER.classify("OPTIMIZE QUALITY - Poor Show Rates") is None
 
     def test_classify_restart_sections(self) -> None:
-        assert OFFER_CLASSIFIER.classify("RESTART - Request Testimonial") == AccountActivity.ACTIVE
-        assert OFFER_CLASSIFIER.classify("RESTART - Pending Leads") == AccountActivity.ACTIVE
+        assert (
+            OFFER_CLASSIFIER.classify("RESTART - Request Testimonial") is None
+        )  # deleted 2026-08-26
+        assert OFFER_CLASSIFIER.classify("RESTART - Pending Leads") is None  # deleted 2026-08-26
 
     def test_classify_case_insensitive(self) -> None:
         assert OFFER_CLASSIFIER.classify("active") == AccountActivity.ACTIVE
@@ -409,7 +407,7 @@ class TestOfferClassifier:
         billable = OFFER_CLASSIFIER.billable_sections()
         assert "active" in billable
         assert "activating" in billable
-        assert len(billable) == 27  # 22 active + 5 activating per truth audit
+        assert len(billable) == 8  # 5 active + 3 activating, post-restructure board
 
 
 # ---------------------------------------------------------------------------
