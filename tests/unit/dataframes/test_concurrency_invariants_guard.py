@@ -173,6 +173,17 @@ _SANCTIONED_IO_TO_THREAD: dict[str, str] = {
         "list/delete_object) wrapped for the async store surface; bounded I/O "
         "offload, NOT a CPU merge; moto-tested"
     ),
+    # EMIT-2 scheduled provability sweep: S3PointerExpectedSetSource offloads its
+    # sync boto3 ListObjectsV2 pagination of the dataframes-v2/ pointer keys — the
+    # SAME S3-persistence co-tenant class as storage.py/store.py above, verified
+    # blocking network I/O, NOT a CPU-bound merge (no polars, no concat on this
+    # path); one bounded listing per 900s sweep (prov_sweep.py:142 offloading
+    # _list_keys :134-140); fake-client tested.
+    "autom8_asana/lambda_handlers/prov_sweep.py": (
+        "scheduled prov sweep expected-set enumeration — sync boto3 S3 "
+        "ListObjectsV2 pagination wrapped for the async ExpectedSetSource "
+        "surface; blocking I/O offload, NOT a CPU merge; fake-client tested"
+    ),
 }
 
 

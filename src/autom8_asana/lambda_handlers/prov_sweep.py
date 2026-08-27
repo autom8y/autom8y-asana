@@ -58,14 +58,21 @@ from autom8_asana.substrate.observe import (
     DEFAULT_ENVIRONMENT,
     SUBSTRATE_PROVABILITY_NAMESPACE,
 )
-from autom8_asana.substrate.prov_sweep import build_prov_sweep_evaluator, run_prov_sweep
-from autom8_asana.substrate.store import S3ArtifactStore
+from autom8_asana.substrate.prov_sweep import (
+    build_prov_sweep_evaluator,
+    build_s3_prov_sweep_evaluator,
+    run_prov_sweep,
+)
 
 if TYPE_CHECKING:
     from datetime import datetime
 
+    # [H17]: the ArtifactStore PROTOCOL comes from the package-root contract
+    # re-export, never the store module — this handler is a consumer and holds
+    # no store access; construction lives in the substrate composition root
+    # (build_s3_prov_sweep_evaluator) and raw reads stay observe.py's.
+    from autom8_asana.substrate import ArtifactStore
     from autom8_asana.substrate.observe import ExpectedSetSource
-    from autom8_asana.substrate.store import ArtifactStore
 
 logger = get_logger(__name__)
 
@@ -164,21 +171,32 @@ async def handler_async(
 ) -> dict[str, Any]:
     """Run ONE provability sweep + emit; return the one-screen run summary.
 
-    All seams injectable for tests (fakes/recording stubs — never a live call);
-    production passes nothing and the real S3 store, live enumeration and lazy
-    boto3 CloudWatch client are constructed here.
+    All seams injectable for tests (fakes/recording stubs — never a live call).
+    Production passes nothing: the live enumeration is constructed here, and the
+    live S3 store is constructed by ``build_s3_prov_sweep_evaluator`` — the
+    substrate composition root — so this handler never touches the store module
+    ([H17]; a consumer holds no raw-read access).
     """
     bucket = os.environ.get("SUBSTRATE_V2_S3_BUCKET", _DEFAULT_BUCKET)
     environment = os.environ.get("SUBSTRATE_PROV_ENVIRONMENT", DEFAULT_ENVIRONMENT)
 
-    evaluator = build_prov_sweep_evaluator(
-        store=store if store is not None else S3ArtifactStore(bucket),
-        expected_set=(
-            expected_set if expected_set is not None else S3PointerExpectedSetSource(bucket)
-        ),
-        environment=environment,
-        cw_client=cw_client,
+    wired_expected_set = (
+        expected_set if expected_set is not None else S3PointerExpectedSetSource(bucket)
     )
+    if store is not None:
+        evaluator = build_prov_sweep_evaluator(
+            store=store,
+            expected_set=wired_expected_set,
+            environment=environment,
+            cw_client=cw_client,
+        )
+    else:
+        evaluator = build_s3_prov_sweep_evaluator(
+            bucket=bucket,
+            expected_set=wired_expected_set,
+            environment=environment,
+            cw_client=cw_client,
+        )
     run = await run_prov_sweep(evaluator, now=now)
 
     summary = {
