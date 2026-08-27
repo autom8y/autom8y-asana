@@ -388,21 +388,14 @@ class TestOfferClassifier:
         # NOT classify (roster follows the board -- a name that classifies here
         # while absent from the board would re-mint the AXIS-NULL refusal class).
         assert OFFER_CLASSIFIER.classify("OPTIMIZE - Human Review") == AccountActivity.ACTIVE
-        assert (
-            OFFER_CLASSIFIER.classify("OPTIMIZE QUANTITY - Request Asset Edit")
-            is None
-        )
-        assert (
-            OFFER_CLASSIFIER.classify("OPTIMIZE QUALITY - Update Targeting")
-            is None
-        )
-        assert (
-            OFFER_CLASSIFIER.classify("OPTIMIZE QUALITY - Poor Show Rates")
-            is None
-        )
+        assert OFFER_CLASSIFIER.classify("OPTIMIZE QUANTITY - Request Asset Edit") is None
+        assert OFFER_CLASSIFIER.classify("OPTIMIZE QUALITY - Update Targeting") is None
+        assert OFFER_CLASSIFIER.classify("OPTIMIZE QUALITY - Poor Show Rates") is None
 
     def test_classify_restart_sections(self) -> None:
-        assert OFFER_CLASSIFIER.classify("RESTART - Request Testimonial") is None  # deleted 2026-08-26
+        assert (
+            OFFER_CLASSIFIER.classify("RESTART - Request Testimonial") is None
+        )  # deleted 2026-08-26
         assert OFFER_CLASSIFIER.classify("RESTART - Pending Leads") is None  # deleted 2026-08-26
 
     def test_classify_case_insensitive(self) -> None:
