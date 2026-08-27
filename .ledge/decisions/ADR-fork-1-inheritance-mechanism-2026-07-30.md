@@ -225,7 +225,14 @@ pre-authorized S4-falsification fallback.**
    standing). Cheapest (51 tok / 0.66%, NEGLIGIBLE), AP#3-clean (record is sole SoT),
    regeneration-safe (VERIFIED slot §7). **Charter-coherent by construction** — it
    dogfoods the charter it ships: §1 (simplicity as the route to trust), §2 (a simpler
-   thing needs less proof), §3 (ship the honest version, do not gold-plate).
+   thing needs less proof — hard floor: NEVER CONFIDENTLY WRONG), §3 (ship the honest
+   version, do not gold-plate).
+   <!-- §2 guardrail half restored in place 2026-08-26 by the commissioned quote-guardrail
+        audit (entropy-assessor, read-only): this site was half-fenced — the §6 verification
+        fence was attached (numbered item 2 immediately below), but the
+        never-confidently-wrong half was absent at the quote site itself. Disclosed edit;
+        the ADR is amendable, the charter is not. Cause of record:
+        .ledge/decisions/RULING-decision-space-amendments-2026-08-26.md §3. -->
 
 2. **Independent verification that licenses autonomy (charter §6):** the **S4 PT-04
    discriminating canary** empirically decides whether pointer-drive is sufficient — a
