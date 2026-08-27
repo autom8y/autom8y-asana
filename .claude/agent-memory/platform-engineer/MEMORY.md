@@ -1,1 +1,12 @@
 - [Project Omniscience Sprint 2](project_omniscience_sprint2.md) -- Cascade monitoring impl spec delivered; Sprint 10 implementation target
+- [Asana alarm routing (AWS)](reference_asana_alarm_routing.md) -- which SNS topic actually reaches a human, and the recurring binding-blind alarm class
+- [Offers false-staleness alarm legs](project_offers_false_staleness_alarm_legs.md) -- AL-5 binding APPLIED 2026-08-11 (ruling R-9); branch unmerged = state/config divergence; dir-local tfstate + untracked live IaC
+- [SDK release topology](reference_sdk_release_topology.md) -- 3 propagation paths for an SDK bump + 2 blocking legs: consumer-gate false-block, and version-enforcement TRUE block (deterministic, never re-run it)
+- [Image-baked time-boxed controls](reference_image_baked_timeboxed_controls.md) -- a merged suspension window is NOT a served one; + calendly-intake serves via a CodeDeploy 10%/5min alias, so digest alone never proves what's serving
+- [Asana SDK consumer census](project_asana_sdk_consumer_census.md) -- who really consumes the asana query surface, and the 4 traps that produce a wrong count
+- [Rollback levers](reference_rollback_levers.md) -- the real rollback lever per surface + the 3 traps that make a rollback silently no-op
+- [Gitleaks reusable topology](reference_gitleaks_reusable_topology.md) -- consumers, inert-until-re-pin SHA form, fleet RED/GREEN census (7 of 8 RED; only monorepo re-pin is merge-blocking), + 8 census/canary traps
+- [Calendly webhook subscription API](reference_calendly_webhook_subscription_api.md) -- no re-enable route, callback_url uniqueness forces delete+create, the lying OPTIONS header, + census gotchas
+- [Calendly ingress drift observability](project_calendly_ingress_drift_observability.md) -- drift alarm grades into a void AND is inverted by a stale registry; land the swap before arming, or it fires forever
+- [Calendly classify: unmapped event type](reference_calendly_classify_unmapped_event_type.md) -- an unmapped event-type name 500s at classify, Calendly retries ~12x/7h, log names no type; ~6 req/hr baseline is all synthetic
+- [ECS env lever never rolls](reference_ecs_env_lever_never_rolls.md) -- a green Service Terraform run registers a td the service never adopts (ignore_changes=[task_definition]); read running tasks, not the apply

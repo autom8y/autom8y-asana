@@ -15,7 +15,7 @@ Cross-references `.know/` files to surface actionable codebase opportunities and
 This dromenon runs in the main thread (requires Task tool for theoros dispatch). It reads `.know/` files as input — it does not observe the raw codebase directly. The Argus Pattern requires main-thread execution because agents cannot spawn agents.
 
 Two modes:
-- **Default**: Signal analysis across all 7 radar domains → opportunities ranked by severity and confidence
+- **Default**: Signal analysis across all 11 radar domains → opportunities ranked by severity and confidence
 - **`--challenge <domain>`**: Adversarial challenge of a specific `.know/` file → contradiction report
 
 ## Pre-flight
@@ -25,6 +25,17 @@ Two modes:
 - `--challenge <domain>`: If present, enter Challenge Mode (see below). Must be followed by a domain name (e.g., `--challenge architecture`).
 - `--json`: Emit JSON to stdout instead of (or in addition to) markdown output. Can combine with either mode.
 - `--force`: Skip staleness prompt. Proceed with whatever `.know/` files exist even if stale.
+
+### Pre-flight: Agent Availability
+
+Theoros is a summonable hero, not a base-roster agent — it may be absent from the live registry. BOTH default mode (Phase 2 Argus dispatch) and Challenge Mode dispatch `Task(subagent_type="theoros", ...)`, which fails against an unmaterialized agent. Check availability before branching on mode:
+
+1. Run `ls ~/.claude/agents/theoros.md 2>/dev/null` via Bash <!-- HA-CHAN: checks harness-specific agent installation path -->
+2. If file exists: proceed to mode branching below
+3. If file missing:
+   a. Run `ari agent summon theoros` via Bash
+   b. Tell user: "Theoros summoned. Restart CC to activate, then re-run /radar."
+   c. STOP -- do not attempt Task(subagent_type="theoros") until restart
 
 ### If Challenge Mode
 
@@ -62,7 +73,7 @@ Load the pinakes skill to access the domain registry:
 Skill("pinakes")
 ```
 
-Filter domains with `scope: radar` from the registry. The 7 radar signal domains are:
+Filter domains with `scope: radar` from the registry. The 11 radar signal domains are:
 - `radar-confidence-gaps`
 - `radar-staleness`
 - `radar-unguarded-scars`
@@ -70,6 +81,10 @@ Filter domains with `scope: radar` from the registry. The 7 radar signal domains
 - `radar-convention-drift`
 - `radar-architecture-decay`
 - `radar-recurring-scars`
+- `radar-schema-drift`
+- `knowledge-freshness`
+- `radar-belief-staleness`
+- `radar-template-drift`
 
 For each radar signal domain, read its criteria file:
 ```
@@ -79,22 +94,23 @@ Read(".channel/skills/pinakes/domains/{domain}.md")
 Store all loaded criteria keyed by domain name. This content is injected into each theoros dispatch prompt in Phase 2.
 
 Also read the relevant `.know/` file bodies you will need per signal (to inject into theoros prompts):
-- `architecture`, `conventions`, `scar-tissue`, `design-constraints`, `test-coverage` — read all that exist.
+- `architecture`, `conventions`, `scar-tissue`, `design-constraints`, `test-coverage`, `db` — read all that exist.
+- Also read all `.know/` frontmatter (for `knowledge-freshness` and `radar-belief-staleness`).
 - Track which files were successfully read (for `know_files_read` frontmatter field).
 
 ## Phase 2: Signal Analysis — Argus Pattern
 
-> "One body, a hundred eyes, nothing unseen." — All 7 theoros dispatched in parallel.
+> "One body, a hundred eyes, nothing unseen." — All 11 theoros dispatched in parallel.
 
 **YOU MUST USE THE TASK TOOL TO DISPATCH THEOROS SUBAGENTS.** Do NOT analyze the `.know/` files yourself. Do NOT read them and write opportunities directly. Each signal domain MUST be delegated to a theoros subagent via `Task(subagent_type="theoros", ...)`.
 
-**ALL 7 Task calls MUST appear in a SINGLE response block.** This is the Argus Pattern — parallel dispatch, concurrent analysis. Do NOT dispatch sequentially.
+**ALL 11 Task calls MUST appear in a SINGLE response block.** This is the Argus Pattern — parallel dispatch, concurrent analysis. Do NOT dispatch sequentially.
 
 For each radar signal domain, construct a Task prompt using the template below. Inject the full criteria file content AND the relevant `.know/` file content that the signal requires.
 
 ### Signal-to-Input Mapping
 
-| Signal Domain | .know/ Files Needed |
+| Signal Domain | Input Needed |
 |---|---|
 | `radar-confidence-gaps` | All `.know/` frontmatter (inject all frontmatter you collected in pre-flight) |
 | `radar-staleness` | All `.know/` frontmatter (same) |
@@ -103,6 +119,10 @@ For each radar signal domain, construct a Task prompt using the template below. 
 | `radar-convention-drift` | `.know/conventions.md` body |
 | `radar-architecture-decay` | `.know/architecture.md` body |
 | `radar-recurring-scars` | `.know/scar-tissue.md` body |
+| `radar-schema-drift` | `.know/db.md` frontmatter (snapshot hash, generated_at, entity_count, fk_chains fields) |
+| `knowledge-freshness` | All `.know/` frontmatter + `git rev-parse --short HEAD` for source state reference |
+| `radar-belief-staleness` | Agent prompt files under `rites/*/agents/*.md` containing `## Domain Knowledge` sections + `.know/literature-*.md` frontmatter |
+| `radar-template-drift` | Legomena files under `rites/*/mena/**/*.md` and `rites/shared/mena/**/*.md` |
 
 ### Dispatch Prompt Template
 
@@ -124,7 +144,7 @@ Read(".channel/skills/pinakes/domains/{signal_domain}.md")
 
 ## Phase 3: Synthesis
 
-After ALL 7 theoros agents return (wait for all parallel dispatches):
+After ALL 11 theoros agents return (wait for all parallel dispatches):
 
 ### 3a. Collect and parse findings
 
@@ -209,6 +229,10 @@ signals_evaluated:
   - radar-convention-drift
   - radar-architecture-decay
   - radar-recurring-scars
+  - radar-schema-drift
+  - knowledge-freshness
+  - radar-belief-staleness
+  - radar-template-drift
 know_files_read:
   - {list of domains successfully read}
 opportunity_count: {N}
@@ -249,6 +273,10 @@ If a file already exists at that path (same-day second run): append counter `RAD
 | radar-convention-drift | {N} | {N} |
 | radar-architecture-decay | {N} | {N} |
 | radar-recurring-scars | {N} | {N} |
+| radar-schema-drift | {N} | {N} |
+| knowledge-freshness | {N} | {N} |
+| radar-belief-staleness | {N} | {N} |
+| radar-template-drift | {N} | {N} |
 
 **{total_count} opportunities found** ({high_count} HIGH, {medium_count} MEDIUM, {low_count} LOW)
 
@@ -372,7 +400,7 @@ Full report: `.ledge/reviews/CHALLENGE-{domain}-{YYYY-MM-DD}.md`
 ## Anti-Patterns
 
 - **Analyzing .know/ files yourself instead of dispatching theoros**: You are the ORCHESTRATOR. Load criteria, dispatch theoros via Task tool, then synthesize their outputs. If you find yourself reading `.know/` files and writing opportunity entries directly, STOP — you are violating the dispatch pattern.
-- **Dispatching theoros sequentially**: All 7 radar signal theoros MUST launch in a single response block. Sequential dispatch serializes what should be parallel analysis and produces slower, more context-exhausted results.
+- **Dispatching theoros sequentially**: All 11 radar signal theoros MUST launch in a single response block. Sequential dispatch serializes what should be parallel analysis and produces slower, more context-exhausted results.
 - **Including machine-actionable routing enums**: Routing is consultant-style prose. Do NOT produce `{rite: "hygiene", command: "/task ...", severity: "HIGH"}`. Write it as an advisor would speak it.
 - **Writing to .know/radar.md during --challenge mode**: Challenge output belongs exclusively in `.ledge/reviews/CHALLENGE-{domain}-{date}.md`. Do not update the radar snapshot during a challenge run.
 - **Running /know --force without user confirmation**: Staleness refresh is interactive. Always ask via AskUserQuestion before dispatching `/know --force`. The `--force` flag on `/radar` itself skips the prompt but never auto-refreshes knowledge silently.

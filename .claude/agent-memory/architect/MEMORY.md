@@ -86,3 +86,55 @@
 ## Project Omniscience Sprint 12 (2026-03-27)
 
 - [Sprint 12 Composite Reasoning](project_omniscience_sprint12_composite_reasoning.md) -- Composition over monolith: agents orchestrate existing endpoints via GID-set passing, no new composite endpoints
+
+## Say-able predicate under the refusing verdict axis — S1 (2026-08-12)
+
+- [Say-able Predicate](project_sayable_predicate_refusing_axis.md) -- CLOSED at rev-5: ONE say-able readout (1a via `/rows`); 2 and 5a both withdrawn on imputation defects; G4' branch-enumeration; method-finding = only a second reader catches this class
+
+## Option-4 verification-axis gate — ADR-007 (2026-08-12)
+
+- [ADR-007 Verification Axis Gate](project_option4_verification_axis_gate_adr.md) -- founding ADR draft; P-5's min()-over-all-classified supersedes the annex's rows-present reduction (pass rate is set by stamp eligibility, not warm cadence); two ratification-pending blocks; the autom8y-checkout-is-not-origin/main hazard
+
+## Option-4 verification-recency axis (2026-08-12)
+
+- [Option 4 Verification Axis](project_option4_verification_axis.md) -- design annex for the operator interview: content axis is measurement-dead (0/175); verification recency relocates the gate quantity into the platform's own control loop; `max()` shields / `min()` exposes; five inherited premises corrected on direct read
+
+## Offers freshness-axis contract (2026-08-11)
+
+- [Offers Freshness Axis Contract](project_offers_freshness_axis_contract.md) -- S1-ARCH v2 + S2-0 FROZEN contract: 2.25x is axis conflation; ceiling knob inert; content watermark derivable CONSUMER-side in the SDK (no P6 door); never alias v1/v2 tokens; W2-F1b AXIS-ABSENT double-referent UNRESOLVED (K limbs blocked)
+
+## Floor-locus ENDSTATE adjudication (2026-08-12)
+
+- [Floor Locus Endstate](project_floor_locus_endstate.md) -- three divergent value-column floors ALREADY exist; FM-5 ARM-B is the ratified per-consumer contract with `population_expectation` declared-but-inert; A6 falsified at Seam 4 / true at the query One-Gate; `_VALUE_COLUMNS` narrowing = digest-scheme version event (pre-refused)
+
+## Insight-delivery S2 residue triage (2026-08-12)
+
+- [Insight-Delivery S2 Residues](project_insight_delivery_s2_residues.md) -- seven ASR-brief residues dispositioned; the 100-campaign cap (monorepo/ADS) and the 1000-row cap (asana/offers) must never merge; item-4 residual is the missing LEADING indicator only; FP-1's "unconditionally" is false on direct read
+
+## REC-002(b) arm-the-instrument (2026-08-14)
+
+- [REC-002 ASR Content Hash](project_rec002_asr_content_hash.md) -- the tautology trap (recompute, never thread), three `_safe_slack_post` call sites not one, and H-1: `bool("false")` sinks E2 on any Logs-Insights-projection ingestion
+
+## S-15 Domain-B design — EBI email intake (2026-08-18)
+
+- [S-15 Domain-B Design](project_s15_domainb_design.md) -- OR-4 corroboration can't see a wrong booking (extracted value IS the join key); extractor temperature UNSET at default 1.0; primary fixture 7-of-13 fields on a doc-example boundary; "two real captures swept" is N=1 and both were form-data not `.eml`
+
+## S-09 email-intake-cutover disposition slate (2026-08-23)
+
+- [S-09 Cutover Disposition Slate + RULING](project_s09_cutover_disposition_slate.md) -- PR autom8y#1696; RULED "D-B ⊗ W-2 then W-3"; **`ari agora telos` is armed but READ-ONLY** (measured, never recorded); the effective-at-instant zero-act record construction
+
+## provably-landed S-01 doctrine-law card (2026-08-23)
+
+- [Provably-Landed Doctrine Card](project_provably_landed_doctrine_card.md) -- the five WAVE-1 doctrines (D-1..D-5) with origin/main anchors + BITEs, autom8y PR #1697; frame naming line and the HTTP-200 mint locus are both UNLANDED
+
+## Working conventions
+
+- [Commit Attribution Guard](feedback_commit_attribution_guard.md) -- NO AI co-author trailer in a8 commits; the guard is harness-level so git-hook probes cannot detect it
+
+## S-13 monolith COV-0 charter-prep (2026-08-23)
+
+- [S-13 Monolith COV-0 Charter-Prep](project_s13_monolith_cov0_charter_prep.md) -- autom8y PR #1699; receipt (iii) BLOCKED at OWN-08 (packet is the ceiling); the RETRO is UNTRACKED; BLOCKER-2 = off-disk Heroku writer falsifies "WS-1 Dependencies: none"; the RETRO's analysis held, its decomposition did not
+
+## Substrate-v2 Epoch S1 whole-design (2026-07-27)
+
+- [Substrate-v2 S1 Design](project_substrate_v2_epoch_s1_design.md) -- S1 FINALIZED (all 3 phases): adversary PASS-WITH-CONDITIONS, 5 seams FROZEN, C1-C11 dispositioned, 3 packets staged (DP-2/DP-3 await operator, DP-1F ratified); RC-A..F as constructions
