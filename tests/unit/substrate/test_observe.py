@@ -531,6 +531,126 @@ async def test_per_artifact_gauge_carries_env_gid_and_entity_dimensions() -> Non
     assert gauges["2222222222222222"][1]["environment"] == "production"
 
 
+# The artifact dimension trio PROV-8/9 bind to (autom8y monorepo
+# terraform/services/asana/offer_freshness_prov_alarms.tf `local.
+# offer_artifact_dimensions`). Cross-repo, so pinned HERE as the frozen key-set
+# — a rename on either side is a seam change, reviewed like one.
+_ARTIFACT_DIMENSION_TRIO = frozenset({"environment", "project_gid", "entity_type"})
+
+
+def _verdict(
+    aid: ArtifactId,
+    *,
+    age_seconds: float | None,
+    provable: bool = True,
+    missing: bool = False,
+) -> ArtifactVerdict:
+    return ArtifactVerdict(
+        aid=aid,
+        provability=None if missing else (Provability.PROVABLE if provable else Provability.STALE),
+        provable=provable,
+        age_seconds=age_seconds,
+        missing=missing,
+        in_registry=True,
+        in_store=not missing,
+    )
+
+
+def _run_of(verdicts: tuple[ArtifactVerdict, ...]) -> EvaluationRun:
+    aids = frozenset(v.aid for v in verdicts)
+    return EvaluationRun(
+        run_id="r",
+        scheduled_at=NOW,
+        registry_targets=aids,
+        store_targets=frozenset(v.aid for v in verdicts if v.in_store),
+        verdicts=verdicts,
+        unevaluated=frozenset(),
+    )
+
+
+def _per_artifact_staleness(metric_data: list[dict[str, Any]]) -> dict[str, float]:
+    """project_gid → per-artifact MaxStalenessAgeSeconds value (trio-dimensioned data only)."""
+    out: dict[str, float] = {}
+    for datum in metric_data:
+        if datum["MetricName"] != METRIC_MAX_STALENESS_AGE_SECONDS:
+            continue
+        dims = {d["Name"]: d["Value"] for d in datum["Dimensions"]}
+        if frozenset(dims) != _ARTIFACT_DIMENSION_TRIO:
+            continue
+        out[dims["project_gid"]] = float(datum["Value"])
+    return out
+
+
+def _run_level_staleness(metric_data: list[dict[str, Any]]) -> list[float]:
+    return [
+        float(datum["Value"])
+        for datum in metric_data
+        if datum["MetricName"] == METRIC_MAX_STALENESS_AGE_SECONDS
+        and frozenset(d["Name"] for d in datum["Dimensions"]) == frozenset({DIMENSION_ENVIRONMENT})
+    ]
+
+
+async def test_emit1_per_artifact_staleness_rides_the_artifact_dimension_trio() -> None:
+    """EMIT-1: MaxStalenessAgeSeconds is ALSO emitted per artifact on the exact
+    {environment, project_gid, entity_type} identity PROV-8 queries, value = that
+    verdict's age — while the run-level {environment}-only series (existing
+    consumers) KEEPS emitting the run max. Two distinct CloudWatch identities."""
+    fresh = _verdict(_aid("1143843662099250", EntityType.OFFER), age_seconds=60.0)
+    stale = _verdict(_aid("2222222222222222", EntityType.UNIT), age_seconds=9999.5, provable=False)
+    metric_data = CloudWatchProvabilityEmitter.build_metric_data(_run_of((fresh, stale)))
+
+    per_artifact = _per_artifact_staleness(metric_data)
+    assert per_artifact == {"1143843662099250": 60.0, "2222222222222222": 9999.5}
+    # PROV-8's exact identity: unit + the environment VALUE the alarms filter on.
+    for datum in metric_data:
+        if datum["MetricName"] != METRIC_MAX_STALENESS_AGE_SECONDS:
+            continue
+        dims = {d["Name"]: d["Value"] for d in datum["Dimensions"]}
+        if frozenset(dims) == _ARTIFACT_DIMENSION_TRIO:
+            assert datum["Unit"] == "Seconds"
+            assert dims["environment"] == DEFAULT_ENVIRONMENT
+    # Existing-consumer fence: the run-level series still emits, still the run max.
+    assert _run_level_staleness(metric_data) == [9999.5]
+
+
+async def test_emit1_missing_artifact_emits_no_per_artifact_staleness_datum() -> None:
+    """EMIT-1 negative side: a MISSING artifact gets NO per-artifact staleness
+    datapoint — absence is PROV-9's remit (ArtifactProvable=0 + breaching); a
+    fabricated 0.0 would read PERFECTLY FRESH on PROV-8 (the §C false-green)."""
+    gone = _verdict(
+        _aid("1143843662099250", EntityType.OFFER),
+        age_seconds=None,
+        provable=False,
+        missing=True,
+    )
+    metric_data = CloudWatchProvabilityEmitter.build_metric_data(_run_of((gone,)))
+
+    assert _per_artifact_staleness(metric_data) == {}
+    # The determinate provable=0 verdict IS emitted (PROV-9's food), on the trio.
+    provable_gauges = [
+        datum for datum in metric_data if datum["MetricName"] == METRIC_ARTIFACT_PROVABLE
+    ]
+    assert len(provable_gauges) == 1
+    assert provable_gauges[0]["Value"] == 0.0
+    assert frozenset(d["Name"] for d in provable_gauges[0]["Dimensions"]) == (
+        _ARTIFACT_DIMENSION_TRIO
+    )
+
+
+async def test_emit1_future_dated_age_clamps_to_zero_on_the_per_artifact_gauge() -> None:
+    """EMIT-1 keeps the run-level clamp discipline: a future-dated proof (negative
+    age) NEVER emits a negative on this gauge — it clamps to 0.0 and the anomaly is
+    disclosed separately by FutureDatedProofCount."""
+    skewed = _verdict(_aid("1143843662099250", EntityType.OFFER), age_seconds=-120.0)
+    metric_data = CloudWatchProvabilityEmitter.build_metric_data(_run_of((skewed,)))
+
+    assert _per_artifact_staleness(metric_data) == {"1143843662099250": 0.0}
+    future_dated = [
+        float(d["Value"]) for d in metric_data if d["MetricName"] == METRIC_FUTURE_DATED_PROOF_COUNT
+    ]
+    assert future_dated == [1.0]
+
+
 async def test_cloudwatch_emitter_sends_via_injected_client() -> None:
     """DARK: the CloudWatch emitter batches through an INJECTED fake client — no AWS."""
     aid = _aid("1143843662099250")
@@ -646,12 +766,18 @@ def _parse_tf_alarm_identities(tf_text: str) -> list[tuple[str, str, frozenset[s
     return identities
 
 
-def _emitter_identities(metric_data: list[dict[str, Any]]) -> dict[str, frozenset[str]]:
-    """metric_name → the set of dimension KEYS the emitter stamps on it."""
-    out: dict[str, frozenset[str]] = {}
+def _emitter_identities(metric_data: list[dict[str, Any]]) -> dict[str, set[frozenset[str]]]:
+    """metric_name → EVERY dimension-key-set the emitter stamps it with.
+
+    A metric may be emitted under MORE than one CloudWatch identity (EMIT-1:
+    ``MaxStalenessAgeSeconds`` rides both the run-level ``{environment}`` series
+    and the per-artifact ``{environment, project_gid, entity_type}`` series) —
+    a last-write-wins dict would silently hide one of them from the tripwire.
+    """
+    out: dict[str, set[frozenset[str]]] = {}
     for datum in metric_data:
         keys = frozenset(d["Name"] for d in datum.get("Dimensions", []))
-        out[datum["MetricName"]] = keys
+        out.setdefault(datum["MetricName"], set()).add(keys)
     return out
 
 
@@ -710,9 +836,9 @@ def test_terraform_alarms_bind_to_emitted_metric_identities() -> None:
         )
         assert resolved_ns == SUBSTRATE_PROVABILITY_NAMESPACE, f"{metric_name}: namespace drift"
         assert metric_name in emitted, f"alarm metric {metric_name} is NOT emitted (dead series)"
-        assert dim_keys == emitted[metric_name], (
+        assert dim_keys in emitted[metric_name], (
             f"{metric_name}: alarm queries dims {set(dim_keys)} but emitter emits "
-            f"{set(emitted[metric_name])} — CloudWatch identity mismatch (F-1 class)"
+            f"{[set(k) for k in emitted[metric_name]]} — CloudWatch identity mismatch (F-1 class)"
         )
     # Every alarm queries the environment key — the F-1 defect was its absence emitter-side.
     assert all(DIMENSION_ENVIRONMENT in keys for _, _, keys in alarms)
