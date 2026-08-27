@@ -11,6 +11,8 @@ amendment_channel: "CHARTER-decision-space-of-record-2026-07-30.md §7 (fresh ru
 method: "three-phase adversarial /interview (AskUserQuestion), main-thread session f73c2e72…, 2026-08-26; operator's own selections; closed on a ratification digest"
 self_assessment_cap: MODERATE
 landing_gate: "rite-disjoint dual critique (security-reviewer + change-warden) per the charter's R31 precedent"
+landing_gate_status: "BOTH RENDERED — security-reviewer CONCUR-WITH-FLAGS; change-warden CONCUR-WITH-FLAGS on R-A1..R-A7 + CERTIFICATION-REFUSED scoped to R-A8 (lineage). Landed fenced, per the warden's sanctioned form. Verdicts of record: §7"
+provisional_rulings: "R-A8 — FLAGGED, pending lineage-disjoint re-consent; lapses to the broad reading if not re-consented"
 ---
 
 # RULING — Decision-Space Amendments (2026-08-26)
@@ -23,7 +25,8 @@ now or ever** — its operative core (`:48-65`) stands byte-unchanged. Like the
 charter, this is a **transcription, not authorship**: §2 carries the operator's
 eight rulings and the architect seat's judgment appears **nowhere in §2's
 operative statements**; where the record speaks in its own voice (the
-`Cost accepted` lines, §5, §6) it says so and carries no amending force.
+`Cost accepted` lines, §5, §6) it says so and carries no amending force. §7 records
+the two landing-gate verdicts; §8 is an agenda and binds nothing.
 
 ## 1. Provenance & Ratification
 
@@ -126,9 +129,17 @@ heads-up line per propagated reversible pattern.** This wave's four:
 
 ### R-A8 — T1 RESOLVED: THE R29 NARROWING IS ADOPTED
 
+> **FLAGGED — PENDING LINEAGE-DISJOINT RE-CONSENT:** this ruling widens the producing
+> session's own latitude and its certification was REFUSED by change-warden on lineage
+> grounds (verdict recorded below); it operates provisionally on the operator's
+> in-session word and MUST be re-consented at the next decision-space sitting convened
+> outside session `f73c2e72`, failing which it lapses to the broad reading.
+
 The core §5 gate (b) credential limb — *"anything touching security/credentials"* —
 **specializes to IDENTITY surfaces**: token species, claims models, validator
-contracts, isinstance gates, and audit semantics, per
+contracts, isinstance gates, and audit semantics — i.e. R29's operative test:
+*"anything changing what credentials the perimeter accepts"*; the enumeration is
+illustrative of that test, never a closed list — per
 `.ledge/decisions/RULINGS-operator-interview-fleet-constitution-2026-07-24.md:150-166`
 (R29). **Mechanical auth-adjacent work** — scope-enforcement code, refactors, bumps
 — **flows autonomously under critique discipline.** R-A4's floor is the backstop:
@@ -165,8 +176,10 @@ charter reopening** — the §5 trigger stands armed, unfired.
 - **T3 — the `.a8/knossos` literal.** OPEN per charter §6 (`:134-140`), a queued
   substrate-arc operator item.
 
-Neither was litigated in this interview. T1 is no longer among the open items; it
-is discharged by **R-A8**.
+Neither was litigated in this interview. **T1** is discharged by **R-A8** — but that
+discharge is itself **PROVISIONAL** until R-A8's lineage-disjoint re-consent (queue
+item (i) below); if re-consent does not occur, T1's narrowing lapses and the broad
+reading of the credential limb governs again.
 
 ## 5. Composition Note (this record's own voice — no amending force)
 
@@ -194,6 +207,12 @@ is discharged by **R-A8**.
 - **Commissioned-audit return (§3 outcome)** — transcribed from the
   entropy-assessor's own return of 2026-08-26: a rite-disjoint read, not this
   seat's finding and not an operator ruling.
+- **Critic verdicts (§7)** — verbatim-summarized from the two landing-gate critics'
+  own returns; the warden's lineage ground is rendered in its words. Not operator
+  rulings. R-A8's added operative-test clause is **R29's own binding-terms text**
+  restored per security-F1, not new authorship.
+- **Successor queue (§8)** — an agenda transcribed from the critics' raised items;
+  **binds nothing** until ruled on the §7-inherited channel.
 - **This record's voice** — the `Cost accepted` lines, §3's framing sentences, §4's
   status lines, §5 in full, and this ledger. The cost lines articulate the tradeoff
   each option-set surfaced; **they are not additional operator words** and extend
@@ -202,11 +221,62 @@ is discharged by **R-A8**.
   `origin/main` `54431c18`; R-A6's three monorepo artifacts against **autom8y**
   `origin/main` `aedc289e`, cited by name and section, never copied — a cross-repo
   claim anchors to that repo's own SHA.
-- **Self-assessment cap** — MODERATE: authored by a seat inside the arc it governs,
-  and the rite-disjoint dual critique named in `landing_gate` has **not** run at
-  authorship time.
+- **Self-assessment cap** — MODERATE: authored by a seat inside the arc it governs.
+  Both landing-gate critics have now rendered (§7), but both are **in-session** —
+  which is precisely the lineage defect the warden refused R-A8 on. The cap is not
+  lifted by their concurrence.
 
-## 7. Amendment Channel (inherited)
+## 7. Landing Gate — Critic Verdicts of Record
+
+Both rite-disjoint critics named in `landing_gate` rendered before merge. **This
+record landed over a scoped refusal — fenced, not around it.**
+
+**security-reviewer — CONCUR-WITH-FLAGS.** The charter blob is **hash-identical at
+both refs** (this record edits nothing of it); every anchor re-resolved; provenance
+**PASS**. Three flags: **F1** — R-A8's enumeration had dropped R29's *operative test*,
+leaving a list where the operator gave a predicate (**cured in R-A8 above**); **F2** —
+a coverage gap: **credential residence and read-route** is in neither R-A4's floor nor
+R-A8's in-gate list and therefore flows autonomously today, against the live T21/`_ARN`
+scar, with gitleaks the sole compensating control (**queued, item (iv)**); **F3** —
+"metadata" in R-A3 is bound only by example (**queued, item (v)**).
+
+**change-warden — CONCUR-WITH-FLAGS on R-A1..R-A7; CERTIFICATION-REFUSED scoped to
+R-A8.** Not on substance — on **LINEAGE**. Its ground, as rendered: *every in-session
+critic shares the producing session; R-A8 is the sole ruling that WIDENS the author's
+latitude; charter `:129-130` — "Adoption awaits the operator's explicit word…
+Absorbing the narrowing without that word is a hard stop" — demands a fence that no
+contemporaneous mitigation can supply.* Its sanctioned landing form is the one taken:
+**R-A8 lands FLAGGED with a review-at-next-sitting re-consent clause** (the fence
+under the R-A8 heading). Two coherence clauses raised and queued, items (ii)–(iii).
+
+The refusal is **scoped**: it does not reach R-A1..R-A7, which carry CONCUR-WITH-FLAGS
+from both critics.
+
+## 8. Successor-Ruling Queue (agenda — NOT operative content)
+
+> This section is an **agenda for the next sitting on the charter §7 channel**. It
+> binds nothing. No item here has operative force until it is ruled.
+
+1. **R-A8 lineage-disjoint re-consent** — convene outside session `f73c2e72` and
+   re-consent (or decline) the R29 narrowing. Failing re-consent, R-A8 lapses to the
+   broad reading of the credential limb. *(change-warden, scoped refusal)*
+2. **Coherence clause A — the standing floor between grants.** Bind in words:
+   *between grant-lapse and the next grant, charter core §5 autonomy is the standing
+   floor; grants add above it, never beneath it.* R-A2's per-grant expiry otherwise
+   leaves the between-grants state unstated. *(change-warden)*
+3. **Coherence clause B — tier amendments cannot reach the floor.** Bind in words
+   that a **tier-AMENDMENT under R-A3 can never reach an R-A4 floor class**. Today
+   that is held only by geometry ("the floor sits above both tiers"), not by a rule.
+   *(change-warden)*
+4. **Mint the credential-residence class.** Place *"credential residence and read-route
+   — any change to where a live secret is stored, which surface reads it, or its
+   exposure class"* into **R-A4's floor** or **R-A8's in-gate list**. It is covered by
+   **neither** today. *(security-reviewer F2)*
+5. **Bind "metadata" mechanically.** R-A3's METADATA limb needs a test, not an
+   example: *fields participating in no served computation; the unstamp class is the
+   ceiling, not the floor.* *(security-reviewer F3)*
+
+## 9. Amendment Channel (inherited)
 
 Amendments to §2 are **new operator rulings on a separate channel — never edits to
 this file.** A change to any of R-A1..R-A8 is authored as a fresh ruling that
