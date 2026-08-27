@@ -54,6 +54,8 @@ from pydantic import BaseModel, Field
 from autom8_asana.dataframes.concurrency import run_cpu_bound
 
 if TYPE_CHECKING:
+    from collections.abc import Collection
+
     import polars as pl
 
     from autom8_asana.dataframes.storage import DataFrameStorage
@@ -175,6 +177,77 @@ class SectionManifest(BaseModel):
     def get_complete_section_gids(self) -> list[str]:
         """Get list of section GIDs that are complete."""
         return [gid for gid, info in self.sections.items() if info.status == SectionStatus.COMPLETE]
+
+    def prune_absent_sections(
+        self, live_section_gids: Collection[str]
+    ) -> list[tuple[str, SectionInfo]]:
+        """Drop manifest entries the project no longer contains (tombstones).
+
+        The manifest is otherwise ADDITIVE: an entry survives every warm,
+        because nothing in the read-modify-write cycle ever removes a key.
+        When a section is deleted in Asana its entry therefore persists
+        forever carrying its last stamp, and because a failed probe never
+        stamps (by design, ADR-006 §Decision-5a), that stamp can never
+        advance. ``min(last_verified_at)`` over the manifest is then pinned
+        to the instant of the deletion and grows 1:1 with wall clock --
+        the 2026-08-26 offers stall (19 of 34 sections deleted at ~14:30Z
+        pinned the verification axis at 13:53:11Z for 15+ hours).
+
+        DISCRIMINATOR -- deleted, never merely unhealthy:
+
+            PRUNED    gid is in this manifest AND NOT in ``live_section_gids``,
+                      where ``live_section_gids`` is a fully-collected
+                      ``GET /projects/{gid}/sections`` listing for this same
+                      build cycle. Absence from the project's own membership
+                      list is what "deleted" means.
+
+            RETAINED  gid is in ``live_section_gids``. Health is NOT consulted:
+                      a FAILED status, a null ``last_verified_at``, a
+                      ``PROBE_FAILED`` verdict from a 429/500/timeout, and a
+                      never-warmed PENDING entry all stay. They are unhealthy,
+                      not gone, and the AXIS-NULL honesty they force
+                      (``metrics/freshness.py`` ``compute_serve_verification``)
+                      is load-bearing: a section that cannot be proven verified
+                      must null the axis, never be dropped from its denominator.
+
+        A probe 404 is deliberately NOT the discriminator. It is a weaker
+        signal (a task-scoped 404, a permissions change, or a transient edge
+        can all produce one) and it arrives per-section rather than as a
+        membership set. The project listing is authoritative and atomic: the
+        paginator raises rather than truncating, so a partial listing aborts
+        the build before this method is ever reached.
+
+        FENCE: an EMPTY ``live_section_gids`` prunes NOTHING and returns ``[]``.
+        A project that legitimately has zero sections is handled upstream
+        (``progressive.build_progressive_async`` short-circuits on
+        ``not sections``); reaching this method with an empty set means the
+        listing is not trustworthy, and "the project has no sections" must
+        never be allowed to mean "delete the whole manifest".
+
+        Recomputes ``total_sections`` and ``completed_sections`` so
+        ``is_complete()`` -- the gate on the whole stamp pass -- stays true
+        after a prune instead of silently disabling verification.
+
+        Args:
+            live_section_gids: Section GIDs from the live project listing.
+
+        Returns:
+            The pruned ``(gid, info)`` pairs, in manifest order (empty when
+            nothing was pruned). The ``SectionInfo`` is returned rather than
+            discarded so the caller can log the stamp each tombstone was
+            holding -- the number that was pinning the axis.
+        """
+        if not live_section_gids:
+            return []
+        live = set(live_section_gids)
+        pruned = [(gid, info) for gid, info in self.sections.items() if gid not in live]
+        if not pruned:
+            return []
+        for gid, _info in pruned:
+            del self.sections[gid]
+        self.total_sections = len(self.sections)
+        self.completed_sections = len(self.get_complete_section_gids())
+        return pruned
 
     def mark_section_complete(
         self,
@@ -560,6 +633,89 @@ class SectionPersistence:
         )
 
         return manifest
+
+    async def reconcile_manifest_sections_async(
+        self,
+        manifest: SectionManifest,
+        live_section_gids: Collection[str],
+    ) -> list[tuple[str, SectionInfo]]:
+        """Reconcile ``manifest`` against the live section listing.
+
+        Prunes tombstones -- entries for sections the project no longer
+        contains -- per ``SectionManifest.prune_absent_sections``, which owns
+        the deleted-vs-unhealthy discriminator and the empty-listing fence.
+        Pruning is what makes the additive-manifest failure class
+        unrepresentable: a section deleted in Asana leaves the manifest on the
+        next build cycle instead of pinning ``min(last_verified_at)`` forever.
+
+        Never silent: every pruned entry emits its own
+        ``manifest_section_pruned`` record carrying the stamp it was holding,
+        and the pass emits one ``manifest_sections_reconciled`` summary. A
+        no-op reconciliation (the steady state) writes nothing and logs
+        nothing.
+
+        Takes the same per-project lock as ``update_manifest_section_async``
+        so the mutate-and-save cycle cannot interleave with a section
+        completion.
+
+        The manifest is passed IN rather than re-read: the caller already
+        holds the authoritative object (``get_manifest_async`` returns the
+        cached instance), so re-reading would only introduce a second
+        candidate for "the" manifest. Mutation is in place and the caller's
+        reference stays correct, mirroring the stamp pass in
+        ``progressive._probe_freshness``.
+
+        Args:
+            manifest: The manifest to reconcile. Mutated in place when
+                anything is pruned.
+            live_section_gids: Section GIDs from the live project listing for
+                THIS build cycle. Empty prunes nothing (see the model fence).
+
+        Returns:
+            The pruned ``(gid, info)`` pairs; empty when nothing was pruned.
+        """
+        project_gid = manifest.project_gid
+        lock = self._get_manifest_lock(project_gid)
+
+        async with lock:
+            pruned = manifest.prune_absent_sections(live_section_gids)
+            if not pruned:
+                return []
+
+            for gid, info in pruned:
+                logger.warning(
+                    "manifest_section_pruned",
+                    extra={
+                        "project_gid": project_gid,
+                        "entity_type": manifest.entity_type,
+                        "section_gid": gid,
+                        "name": info.name,
+                        "status": info.status,
+                        "rows": info.rows,
+                        "last_verified_at": (
+                            info.last_verified_at.isoformat()
+                            if info.last_verified_at is not None
+                            else None
+                        ),
+                        "reason": "absent_from_live_project_section_listing",
+                    },
+                )
+
+            self._manifest_cache[self._cache_key(project_gid, manifest.entity_type)] = manifest
+            await self._save_manifest_async(manifest)
+
+        logger.info(
+            "manifest_sections_reconciled",
+            extra={
+                "project_gid": project_gid,
+                "entity_type": manifest.entity_type,
+                "pruned_count": len(pruned),
+                "live_count": len(set(live_section_gids)),
+                "retained_count": len(manifest.sections),
+            },
+        )
+
+        return pruned
 
     async def get_incomplete_sections(
         self, project_gid: str, entity_type: str | None = None
