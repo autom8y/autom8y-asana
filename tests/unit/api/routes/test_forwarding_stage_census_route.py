@@ -489,3 +489,34 @@ def test_r6_openapi_publishes_the_refusal_taxonomy(app) -> None:
     assert "503" in operation["responses"]
     for code in ("502", "503"):
         assert "NEVER interpret as zero" in operation["responses"][code]["description"]
+
+
+def test_r7_every_raised_error_code_is_named_in_the_published_responses(app) -> None:
+    """The published 502/503 descriptions must name EVERY code the route raises.
+
+    ★ Caught live: the GID_DRIFT code shipped in the route's raise-path and in
+    its docstring, but a string patch silently missed the PUBLISHED `responses`
+    description -- so a client generated from the spec would not have known the
+    code existed. A refusal a consumer cannot anticipate is only marginally
+    better than no refusal at all, because the natural handling of an
+    unrecognised error in a counting client is a fallback default, which
+    reinstates the ambiguous zero the whole surface refuses to emit.
+
+    Derived from the SOURCE (every `raise_api_error(..., "CODE", ...)` on this
+    route) rather than a hand-kept list, so a NEW refusal added tomorrow without
+    a matching description entry fails here instead of shipping undocumented.
+    """
+    import re
+
+    source = _ROUTE_SRC.read_text()
+    raised = set(re.findall(r'raise_api_error\(\s*request_id,\s*(\d{3}),\s*"([A-Z_]+)"', source))
+    assert raised, "no raise_api_error call sites parsed -- the regex or route drifted"
+
+    operation = app.openapi()["paths"][CENSUS_PATH]["get"]
+    for status, code in sorted(raised):
+        assert status in operation["responses"], f"{status} raised but not published"
+        assert code in operation["responses"][status]["description"], (
+            f"{code} is raised with HTTP {status} but is not named in the "
+            f"published {status} description -- a client generated from this "
+            f"spec cannot anticipate it"
+        )

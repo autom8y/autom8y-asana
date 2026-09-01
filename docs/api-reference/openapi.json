@@ -949,6 +949,58 @@
         "title": "ExportsSuccessResponse",
         "type": "object"
       },
+      "ForwardingStageCensusResponse": {
+        "description": "A vouched-for census of the Forwarding Stage field.\n\nEvery field present here is a TOTAL over the whole Calendar Integrations\nproject. There is no partial-result shape: a census that could not be\ncompleted is an error response, never a smaller number (see the route's\nerror table).",
+        "properties": {
+          "field_present_count": {
+            "description": "Tasks carrying the Forwarding Stage field definition, set or unset. Distinct from tasks_scanned on purpose: a task without the field is out of the census's universe, not a clinic at stage zero.",
+            "minimum": 1.0,
+            "title": "Field Present Count",
+            "type": "integer"
+          },
+          "pages_drained": {
+            "description": "Pages fetched to produce this census. Present so a consumer can SEE that a multi-page drain happened, rather than trusting that it did -- the single most useful signal for detecting a regression back to first-page semantics.",
+            "minimum": 1.0,
+            "title": "Pages Drained",
+            "type": "integer"
+          },
+          "stage_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "Per-stage counts over the canonical vocabulary plus '__unset__' (field present, no value) and '__unknown__' (an option gid absent from the configured map). These values SUM to field_present_count -- the partition invariant, asserted service-side before this response is built. It is what makes verified_count auditable by the consumer rather than an unaccountable scalar.",
+            "title": "Stage Counts",
+            "type": "object"
+          },
+          "tasks_scanned": {
+            "description": "Tasks drained from the Calendar Integrations project. The denominator. Never zero -- a zero-task corpus is refused, because an empty project and a wrong project gid are indistinguishable from inside and both would report 0 Verified.",
+            "minimum": 1.0,
+            "title": "Tasks Scanned",
+            "type": "integer"
+          },
+          "terminal_page_full": {
+            "description": "True when the LAST page came back brim-full with no continuation token. Asana's documented end-of-collection shape AND the shape a silent upstream truncation would take; the two are not separable with the fuel Asana provides (no total to difference against, and opaque offsets that cannot be synthesized). The census accepts the page and REPORTS the condition rather than manufacturing a detection it cannot perform -- so a consumer can see every invocation where that trust was load-bearing (CENSUS-F-2).",
+            "title": "Terminal Page Full",
+            "type": "boolean"
+          },
+          "verified_count": {
+            "description": "THE OPERAND. Tasks whose Forwarding Stage is 'Verified' -- the stage-of-record count the EBI F3 cross-source tripwire differences against its DynamoDB keyspace. A TOTAL over the project, never a page.",
+            "minimum": 0.0,
+            "title": "Verified Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "verified_count",
+          "tasks_scanned",
+          "field_present_count",
+          "stage_counts",
+          "terminal_page_full",
+          "pages_drained"
+        ],
+        "title": "ForwardingStageCensusResponse",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -2126,6 +2178,36 @@
           "meta"
         ],
         "title": "SuccessResponse[AsanaResource]",
+        "type": "object"
+      },
+      "SuccessResponse_ForwardingStageCensusResponse_": {
+        "examples": [
+          {
+            "data": {
+              "id": "123",
+              "name": "Example resource"
+            },
+            "meta": {
+              "request_id": "a1b2c3d4e5f67890",
+              "timestamp": "2026-03-15T10:30:00Z"
+            }
+          }
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ForwardingStageCensusResponse",
+            "description": "Response data payload"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMeta",
+            "description": "Response metadata"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "SuccessResponse[ForwardingStageCensusResponse]",
         "type": "object"
       },
       "SuccessResponse_ResolutionResponse_": {
@@ -8737,6 +8819,115 @@
           "idempotent": true
         },
         "x-fleet-side-effects": []
+      }
+    },
+    "/v1/forwarding-stage/census": {
+      "get": {
+        "description": "Return a TOTAL Forwarding-Stage census, or refuse with a typed error.\n\nAuthentication: S2S JWT only, via the same ``require_service_claims``\ndependency ``/v1/receipts`` uses. No new principal (see module docstring).\n\nReturns:\n    200: SuccessResponse[ForwardingStageCensusResponse]. ``verified_count``\n         is a TOTAL over the whole Calendar Integrations project. The\n         ``stage_counts`` values sum to ``field_present_count`` (partition\n         invariant, asserted service-side), so the operand is auditable.\n\nError Responses -- each is a refusal to report a number that cannot be\nvouched for, NEVER a degraded count:\n    - 401 MISSING_AUTH / SERVICE_TOKEN_REQUIRED: auth failures (S2S only)\n    - 503 STAGE_CENSUS_UNCONFIGURED: the Forwarding Stage field gid or the\n      Verified option gid is unset. An unconfigured census would report 0\n      Verified with total confidence.\n    - 502 STAGE_CENSUS_TRUNCATED: completeness could not be PROVEN -- the\n      page ceiling was reached, or the absent-fuel invariant tripped (a\n      brim-full page with no continuation token). This is the S-3 defect\n      class refused at the source.\n    - 502 STAGE_CENSUS_EMPTY_CORPUS: the project returned zero tasks. An\n      empty project and a wrong project gid are indistinguishable here.\n    - 502 STAGE_CENSUS_FIELD_ABSENT: tasks drained but none carries the\n      field -- a configuration defect that reads like \"nobody is Verified\".\n    - 502 STAGE_CENSUS_GID_DRIFT: zero Verified matches alongside a\n      non-empty unknown bucket -- the configured Verified option gid is\n      present but STALE, so every Verified task fell into UNKNOWN. The\n      most dangerous zero this route can produce, and the one the\n      partition invariant cannot see (CENSUS-F-1).\n    - 503 ASANA_UNAVAILABLE: any other degraded read.",
+        "operationId": "get_forwarding_stage_census_v1_forwarding_stage_census_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse_ForwardingStageCensusResponse_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 401 Get Forwarding Stage Census V1 Forwarding Stage Census Get"
+                }
+              }
+            },
+            "description": "Unauthorized -- AUTH-TEB (JWTAuthMiddleware) or application-layer error"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 403 Get Forwarding Stage Census V1 Forwarding Stage Census Get"
+                }
+              }
+            },
+            "description": "Forbidden -- AUTH-TEB-004 (JWTAuthMiddleware) or application-layer error"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found (Resource or Schema not found)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "502": {
+            "description": "REFUSED -- the census could not be vouched for. STAGE_CENSUS_TRUNCATED (completeness unproven: the page ceiling was reached with a continuation token pending), STAGE_CENSUS_EMPTY_CORPUS (zero tasks -- an empty project and a wrong project gid are one shape), STAGE_CENSUS_FIELD_ABSENT (no drained task carries the field), or STAGE_CENSUS_GID_DRIFT (the configured Verified option gid is stale, so Verified tasks fell into the unknown bucket -- the most dangerous zero this route can produce). NOT retryable without investigation; NEVER interpret as zero."
+          },
+          "503": {
+            "description": "REFUSED -- STAGE_CENSUS_UNCONFIGURED (field gid or Verified option gid unset) or ASANA_UNAVAILABLE (degraded upstream read). Retryable. NEVER interpret as zero Verified clinics."
+          }
+        },
+        "security": [
+          {
+            "ServiceJWT": []
+          },
+          {
+            "OAuth2Asana": [
+              "query:read"
+            ]
+          }
+        ],
+        "summary": "Get Forwarding Stage Census",
+        "tags": [
+          "forwarding-stage"
+        ],
+        "x-fleet-cross-service-refs": {
+          "entity": "forwarding_stage_census",
+          "service": "autom8y"
+        },
+        "x-fleet-read-only": true
       }
     },
     "/v1/query/data-sources": {

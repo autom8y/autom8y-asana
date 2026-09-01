@@ -115,9 +115,13 @@ router = s2s_router(prefix="/v1/forwarding-stage", tags=["forwarding-stage"])
             "description": (
                 "REFUSED -- the census could not be vouched for. "
                 "STAGE_CENSUS_TRUNCATED (completeness unproven: the page "
-                "ceiling was reached with a continuation token pending), STAGE_CENSUS_EMPTY_CORPUS (zero tasks -- an empty "
-                "project and a wrong project gid are one shape), or "
-                "STAGE_CENSUS_FIELD_ABSENT (no drained task carries the field). "
+                "ceiling was reached with a continuation token pending), "
+                "STAGE_CENSUS_EMPTY_CORPUS (zero tasks -- an empty project "
+                "and a wrong project gid are one shape), "
+                "STAGE_CENSUS_FIELD_ABSENT (no drained task carries the "
+                "field), or STAGE_CENSUS_GID_DRIFT (the configured Verified "
+                "option gid is stale, so Verified tasks fell into the unknown "
+                "bucket -- the most dangerous zero this route can produce). "
                 "NOT retryable without investigation; NEVER interpret as zero."
             )
         },
