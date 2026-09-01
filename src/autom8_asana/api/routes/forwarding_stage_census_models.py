@@ -60,6 +60,19 @@ class ForwardingStageCensusResponse(BaseModel):
             "the consumer rather than an unaccountable scalar."
         ),
     )
+    terminal_page_full: bool = Field(
+        ...,
+        description=(
+            "True when the LAST page came back brim-full with no continuation "
+            "token. Asana's documented end-of-collection shape AND the shape a "
+            "silent upstream truncation would take; the two are not separable "
+            "with the fuel Asana provides (no total to difference against, and "
+            "opaque offsets that cannot be synthesized). The census accepts the "
+            "page and REPORTS the condition rather than manufacturing a "
+            "detection it cannot perform -- so a consumer can see every "
+            "invocation where that trust was load-bearing (CENSUS-F-2)."
+        ),
+    )
     pages_drained: int = Field(
         ...,
         ge=1,
