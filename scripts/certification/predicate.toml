@@ -1,0 +1,213 @@
+# GATE-1 landing-receipt predicate — the PARAMETER SURFACE (shape.md CE-4).
+#
+# Everything in this file is a knob. A differently-worded ratification of G-3 is a
+# CHANGE TO THIS FILE, never a change to landing_receipt.py. If you find yourself
+# editing the Python to accommodate a re-worded predicate, the CE-4 contract has
+# been broken — stop and fix it here instead.
+#
+# Every receipt the harness emits stamps `predicate_fingerprint` = sha256 over the
+# canonicalised contents of this file. A receipt is therefore never readable
+# against a predicate other than the one it was computed under.
+
+[predicate]
+id = "GATE-1"
+
+# The wording of record, VERBATIM. Reproduced on every receipt.
+wording_of_record = "three ATTRIBUTED routed bookings observed clean"
+
+# UNRATIFIED-VERIFIED-IN-SUBSTANCE | RATIFIED | SUPERSEDED
+#
+# G-3 (the operator's predicate re-ratification word) is UNSPOKEN as of
+# 2026-09-01. Per shape.md CE-4 (SOFT edge) the harness is built against
+# ATTRIBUTED — the verified-in-substance reading (CONSULT ADDENDUM A Collision 2,
+# .sos/wip/CONSULT-silence-is-a-defect-north-2026-09-01.md:167-177).
+#
+# When G-3 is spoken:
+#   - set wording_of_record to the ratified words VERBATIM
+#   - set wording_status = "RATIFIED"
+#   - set ratification_anchor to the artifact path:line of the ratification
+#   - if the ratified words drop "ATTRIBUTED", set legs.attributed.enabled = false
+# No code change is required for any of the above.
+wording_status = "UNRATIFIED-VERIFIED-IN-SUBSTANCE"
+ratification_anchor = ""
+
+# How many CLEAN ATTRIBUTED ROUTED bookings a clinic needs to be LANDED.
+required_count = 3
+
+
+# ---------------------------------------------------------------------------
+# LEGS. Each leg is a conjunction of checks. Disabling a leg disables all of its
+# checks and is recorded LOUDLY on every receipt produced under that config.
+# ---------------------------------------------------------------------------
+
+[legs.routed]
+enabled = true
+description = "The row is a real booking whose contact resolves to a lead in our funnel."
+
+[legs.attributed]
+enabled = true
+description = "The lead came from a specific ad, and that ad's campaign belongs to this clinic — walked on PATH-A ONLY."
+
+[legs.clean]
+enabled = true
+description = "The row is not a duplicate, not cancelled, not incoherent, and not internal."
+
+
+# ---------------------------------------------------------------------------
+# ATTRIBUTION PATH. This is NOT a knob. `path-a` is the only legal value.
+#
+# Path-b (`ad_accounts`) is RETIRED substrate (shape.md R-2): ad_account_id is
+# non-unique — one agency master account carries 857 office phones including the
+# internal +12488025832; there is a malformed `act_act_890095768862663` row and
+# 91 empty-string office phones. A receipt that walks it is vacuous.
+#
+# Setting this to anything other than "path-a" aborts the harness. The retired
+# tables are additionally blocked at the SQL execution gate, and the guard is
+# fired once on purpose at every preflight/selftest before it counts as armed.
+# ---------------------------------------------------------------------------
+[attribution]
+path = "path-a"
+chain = "leads.source_id -> ads.ad_id -> adsets.adset_id -> campaigns.campaign_id -> campaigns.chiropractor_id -> chiropractors.guid -> chiropractors.office_phone"
+retired_substrate = ["ad_accounts"]
+
+# Exact string equality between the campaign-side office phone and
+# leads.office_phone. Empirically safe: 1066/1066 attributed rows in the
+# 2026-08-02..2026-09-01 window match EXACTLY, with zero rows matching only
+# after digit normalisation (harness recon 2026-09-01; corroborates the ad-lead
+# gate sitting §3 "path-a equality exact 1,060/1,060, zero format drift").
+# Loosening this to normalised comparison would widen the gate with no observed
+# population to justify it.
+office_phone_match = "exact"
+
+
+# ---------------------------------------------------------------------------
+# WINDOW. `since` is an OPERATOR-SUPPLIED PARAMETER, not a derived activation
+# date. The DB carries no per-clinic forwarding-integration activation date, so
+# the harness cannot compute one. A receipt is only as tight as the window it was
+# given, and every receipt says so in its boundary block.
+# ---------------------------------------------------------------------------
+[window]
+default_since = "2026-08-02 00:00:00"   # the ratified ad-lead-gate audit window start
+
+# Per-clinic overrides, keyed by clinic office_phone. Provenance required.
+[window.overrides]
+# Nation of Wellness — machine-driven full-stack E2E validation run 2026-08-27
+# 16:30-16:46Z (.sos/wip/CONSULT-silence-is-a-defect-north-2026-09-01.md:56).
+"+14079068111" = "2026-08-27 00:00:00"
+
+
+# ---------------------------------------------------------------------------
+# SCOPE — WHICH BOOKING PATH COUNTS.  *** READ THIS BEFORE YOU CERTIFY. ***
+#
+# The predicate of record ("three ATTRIBUTED routed bookings observed clean")
+# has NO booking-source leg, so the default here is `all`: a booking counts no
+# matter which stack produced it. That default is faithful to the wording and it
+# is ALSO the single easiest way to over-certify with this harness.
+#
+# `appointments.source` is the only field distinguishing the paths:
+#     email-booking-intake -> the EBI email-forwarding integration
+#     reviewwave           -> the legacy monolith POST path
+#     ghl / dashboard / calendar / (null) -> other writers entirely
+#
+# Under mode = "all", a clinic that has never once had its forwarding
+# integration work can still read LANDED on the strength of legacy-path
+# bookings. In the 2026-08-02.. window, 41 clinics reach 3+ eligible bookings
+# under mode="all" (harness survey 2026-09-01) — that number is a reading of the
+# AD FUNNEL, not of the forwarding integrations.
+#
+# If the claim you intend to make is "this clinic's FORWARDING INTEGRATION has
+# landed", set:
+#     mode = "include"
+#     include = ["email-booking-intake"]
+# and re-run. The count will be smaller and the claim will be true.
+#
+# Matching is against the booking's whole dedup CLUSTER, so a booking recorded by
+# both stacks still counts under an `email-booking-intake` filter.
+[scope.booking_source]
+mode = "all"          # "all" | "include"
+include = []
+
+
+# ---------------------------------------------------------------------------
+# CLEAN — what "observed clean" EXCLUDES. Each exclusion is individually
+# toggleable and carries its own reason. Disabling one is recorded on the
+# receipt; it does not silently widen the predicate.
+# ---------------------------------------------------------------------------
+
+[clean.status_real]
+enabled = true
+# Statuses are compared after lowercasing and folding '-' to '_' — the live
+# vocabulary contains BOTH `no-show` and `no_show` (harness recon 2026-09-01:
+# no-show=130, no_show=26 in the window). Comparing verbatim would leak 26 rows.
+excluded_statuses = ["cancelled", "no_show", "system"]
+reason = "A cancelled or no-show booking is not an observed-clean landing event."
+
+[clean.not_duplicate]
+enabled = true
+# The dual-write path records ONE booking as TWO appointment rows: the
+# email-booking-intake row (naive local start) and the reviewwave row (the same
+# instant rendered as ...Z). 367 near-simultaneous same-(clinic,contact) pairs
+# exist in the window (harness recon 2026-09-01). Counting raw rows inflates a
+# clinic's soak toward 3 by roughly 2x on this path alone.
+#
+# Two rows collapse when they share (clinic, contact) AND their `created` are
+# within created_tolerance_seconds AND their resolved start instants are within
+# start_tolerance_hours. BOTH tolerances are required: the created-proximity
+# alone would wrongly merge two genuinely different appointments booked in the
+# same minute (observed: appts 18194750 -> 2026-08-04 and 18194751 -> 2026-08-19,
+# created 56s apart); the start-proximity alone would wrongly merge a patient's
+# repeat visit.
+created_tolerance_seconds = 300
+start_tolerance_hours = 24
+reason = "One booking must count once. The dual-write path emits it twice, in two timestamp dialects."
+
+[clean.clinic_identity_coherent]
+enabled = true
+# appointments.office_phone must equal leads.office_phone. 5 attributed rows in
+# the window violate this (harness recon 2026-09-01) — the booking is filed at
+# one clinic while its lead is owned by another. A landing receipt for clinic X
+# cannot rest on a row whose own two identity fields disagree about X.
+reason = "The booking and its lead must agree about which clinic this is."
+
+[clean.clinic_not_internal]
+enabled = true
+# The internal/agency office phone. Not a pilot clinic; never a landing subject.
+internal_office_phones = ["+12488025832"]
+reason = "Internal traffic is not a client integration."
+
+[clean.clinic_resolves]
+enabled = true
+reason = "The clinic office phone must resolve to exactly one chiropractors row."
+
+
+# ---------------------------------------------------------------------------
+# DECLARED NON-EXCLUSIONS. These are as load-bearing as the exclusions: they are
+# the things a reader might ASSUME the harness filters and it deliberately does
+# not. Each is surfaced as a provenance FLAG on the booking, never as a refusal.
+# Flipping one of these to a refusal is a predicate change and requires an
+# operator word, not an edit here.
+# ---------------------------------------------------------------------------
+
+[non_exclusions.far_future_start]
+refuses = false
+reason = """R-3, ratified: NO horizon cap. The client's own calendar settings govern how far out booking is allowed; our duty is to READ ACCURATELY. The 2027 date defect is a parser bug to be cured at the parser, NEVER masked by a filter. The Mansour 2027 rows are refused here on attribution (their leads carry no source_id), not on their date — and that is the correct reason."""
+
+[non_exclusions.inactive_campaign]
+refuses = false
+reason = """The ratified gate (ad-lead-gate sitting R-2) has no campaign-status leg. The activation apparatus's own test campaign is status=0 with an adset named TESTING and is congruent under the ratified predicates. Watch-flag carried from CONSULT:177: if the gate ever grows an active-campaign predicate, soak booking #1 stops passing."""
+
+[non_exclusions.synthetic_lead]
+refuses = false
+flag = "F-SYNTHETIC-LEAD"
+# leads.platform values observed in the window: facebook, ig, test.
+synthetic_platforms = ["test"]
+reason = """The ratified gate has no lead-platform leg, and the activation apparatus mints ATTRIBUTED TEST LEADS BY DESIGN (CONSULT:177 — "the test lead was selected for its ads-mapped source_id"). Soak booking #1 (lead 329753) is one such lead. Refusing it would refuse the very booking the predicate names as good. It is therefore counted AND flagged, and every receipt reports how many of its members are synthetic in the boundary block. A certifier who wants a synthetic-free claim reads that number and narrows the claim; the harness does not narrow it silently."""
+
+[non_exclusions.booking_source]
+refuses = false
+reason = """appointments.source (reviewwave / email-booking-intake / ghl / dashboard / calendar) is reported per booking and rolled up per receipt, but it is a PROXY for provider dialect and NOT the dialect itself. The true provider dialect lives in the source email's format, which is not represented in the database — the same structural limit the ad-lead-gate sitting recorded for EDD typing (§3: "EDD typing is NOT representable in the DB"). S-10's ">=3 distinct provider dialects" criterion CANNOT be discharged from this harness's output alone."""
+
+[non_exclusions.timezone_representation]
+refuses = false
+flag = "F-TZ-AMBIGUOUS-START"
+reason = """start_datetime is stored in three dialects: naive local (`2026-08-31T10:00:00`, 1018 rows), UTC-Z (`...Z`, 1672 rows) and explicit offset (`...+00:00`, 41 rows) in the window. The ratified P1 leg compares the parsed start against `created` (a UTC timestamp) regardless of dialect, so for naive rows the comparison conflates local and UTC. The harness implements the RATIFIED semantics exactly and FLAGS the conflation rather than silently correcting it. No clinic timezone table exists to correct it with."""
