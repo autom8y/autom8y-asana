@@ -156,7 +156,7 @@ justify it. (Corroborates the ad-lead-gate sitting §3: "path-a equality exact
 
 | code | excludes | why, with its evidence |
 |---|---|---|
-| `C1-status-real` | status ∈ {`cancelled`, `no_show`, `system`} | A cancelled or no-show booking is not an observed-clean landing event. **Statuses are normalised** (lowercase, `-`→`_`): the live vocabulary carries BOTH `no-show` (130) and `no_show` (26); a verbatim comparison leaks 26 rows. |
+| `C1-status-real` | status ∈ {`cancelled`, `no_show`, `system`} | A cancelled or no-show booking is not an observed-clean landing event. **Statuses are normalised** (lowercase, `-`→`_`): the live vocabulary carries BOTH `no-show` and `no_show`. Scoped to `type='appt' AND created >= '2026-08-02'` (2026-09-01): 132 and 26 respectively — a verbatim comparison leaks the 26. See SVR-6 for why the scope qualifier is load-bearing. |
 | `C2-not-duplicate` | rows absorbed by an earlier cluster member | §2. 367 near-simultaneous pairs in the window. |
 | `C3-clinic-identity-coherent` | `appointments.office_phone ≠ leads.office_phone` | **5** attributed window rows violate this — the booking is filed at one clinic while its lead is owned by another. A receipt for clinic X cannot rest on a row whose own two identity fields disagree about X. |
 | `C4-clinic-not-internal` | clinic office phone ∈ {`+12488025832`} | The internal/agency phone is not a client integration. |
@@ -186,7 +186,7 @@ word — not an edit.
 |---|---|---|
 | far-future start (the 2027 rows) | **no** | **R-3, ratified**: no horizon cap. The client's own calendar settings govern how far out booking is allowed; our duty is to READ ACCURATELY. The 2027 dates are a parser defect to be cured at the parser, never masked by a filter. The Mansour 2027 rows refuse here on **attribution** — and that is the correct reason. Tooth T3 asserts it: if that row ever refuses on a date leg, the harness has grown the filter R-3 prohibits. |
 | inactive campaign (`status=0`, adset `TESTING`) | **no** | The ratified gate (R-2) has no campaign-status leg. Watch-flag carried from CONSULT:177 — if the gate ever grows one, soak booking #1 stops passing. |
-| synthetic lead (`leads.platform='test'`) | **no**, flag `F-SYNTHETIC-LEAD` | The activation apparatus mints attributed test leads **by design**. Soak booking #1 (lead 329753) is one. Refusing it would refuse the very booking the predicate names as good. Counted **and** flagged; the count appears in every receipt's boundary block, and the renderer shouts when *all* members are synthetic. A synthetic-free claim is a NARROWER claim — the certifier subtracts and narrows explicitly; the harness never narrows silently. |
+| synthetic lead (`leads.platform='test'`) | **no**, flag `F-SYNTHETIC-LEAD` | The activation apparatus mints attributed test leads **by design**. Soak booking #1 (lead 329753) is one. Refusing it would refuse the very booking the predicate names as good. Counted **and** flagged; the renderer shouts when *all* members are synthetic, and `counts.eligible_excluding_synthetic` carries the synthetic-free number as a first-class counter on every receipt — so **G-3 can rule on the synthetic-lead boundary with a number in front of it** rather than in the abstract. Surfaced, not decided: it is not a third verdict, and the harness never narrows silently. |
 | booking `source` | **no** | See §6 — it is a proxy for provider dialect, not the dialect. |
 | naive timestamp representation | **no**, flag `F-TZ-AMBIGUOUS-START` | See §5. |
 
@@ -262,8 +262,9 @@ window              { since, since_provenance }
 scope               { booking_source_mode, booking_source_include[], note }
 verdict             LANDED | NOT-LANDED
 counts              { rows_scanned, eligible, required, shortfall, refused,
-                      refused_by_first_failing_leg{}, 
-                      eligible_via_email_booking_intake, ..._appt_ids[] }
+                      refused_by_first_failing_leg{},
+                      eligible_via_email_booking_intake, ..._appt_ids[],
+                      eligible_excluding_synthetic }
 members[]           per booking: appt_id, created, start_verbatim, start_dialect,
                     status, booking_source, cluster_booking_sources[],
                     clinic_office_phone, contact(masked), lead_id, lead_initials,
@@ -371,7 +372,7 @@ assertion time or labelled UV-P.
 | SVR-3 | path-a office equality is EXACT for the whole attributed window | bash-probe | staged walk: `exact=1066 norm-only=0 diverge=0 dangling-chiro=0` |
 | SVR-4 | the dual-write path doubles rows per booking | bash-probe | 367 near-simultaneous same-`(clinic,contact)` pairs; Nation's single booking present as 18229605 + 18229606 |
 | SVR-5 | 5 attributed rows have `appointments.office_phone ≠ leads.office_phone` | bash-probe | same staged walk, `office_mismatch=5` |
-| SVR-6 | both `no-show` and `no_show` exist as statuses | bash-probe | `GROUP BY status`: `no-show`=130, `no_show`=26 |
+| SVR-6 | both `no-show` and `no_show` exist as statuses | bash-probe | `SELECT status, COUNT(*) FROM appointments WHERE status IN ('no-show','no_show') AND type='appt' AND created >= '2026-08-02' GROUP BY status` → `('no-show',132)`, `('no_show',26)`, re-derived 2026-09-01. **The scope qualifiers are load-bearing**: without `type='appt' AND created >= '2026-08-02'` the same probe returns `('no_show',12870)`, `('no-show',9459)`. Row counts drift on a live table; the two-spelling fact, not the integer, is the claim. |
 | SVR-7 | lead 329753 is `platform='test'` | bash-probe | `SELECT … FROM leads WHERE id=329753` → `(…, 'scheduled', …, 'chat', 'test')` |
 | SVR-8 | leads 336056 and 332849 carry `source_id IS NULL` | bash-probe | `SELECT id, source_id … WHERE id=336056` → `source_id=None`; `… WHERE phone='+16194468090'` → `(332849, None, …)` |
 | SVR-9 | the retired-substrate guard raises on an `ad_accounts` query, live | bash-probe | `selftest` → `[PASS] live reader refuses path-b: RetiredSubstrateError raised` |
@@ -400,6 +401,8 @@ Queried 2026-09-01 (unqueried since 08-27, per `CONSULT:140`):
 verdict   NOT-LANDED
 ELIGIBLE  1 of 3 required   (shortfall 2)
 !! ALL of them rest on a SYNTHETIC (platform='test') lead
+of which via email-booking-intake (the forwarding integration): 1
+eligible excluding synthetic leads                             : 0
 scanned   2 rows; refused 1  (C2-not-duplicate)
 member    appt 18229605  created 2026-08-27 16:45:15  start 2026-08-31T10:00:00
           status=rescheduled  src=email-booking-intake  lead 329753 (M.D.)
@@ -408,8 +411,10 @@ member    appt 18229605  created 2026-08-27 16:45:15  start 2026-08-31T10:00:00
 ```
 
 **Five days, zero new bookings.** The one member is the 08-27 machine-driven E2E
-validation booking itself, on a synthetic lead. Nation's *real-customer* count is
-**zero**. This is R-5's finding, reported not buried; F3's tripwire is the cure.
+validation booking itself, on a synthetic lead — so
+`eligible_excluding_synthetic = 0`. Nation's *real-customer* count is **zero**,
+now stated as a counter rather than left as prose. This is R-5's finding,
+reported not buried; F3's tripwire is the cure.
 
 ### New — the ad-funnel / forwarding-integration divergence
 
@@ -429,6 +434,28 @@ Active 4 Life, Ashburn (2 each). If any of the three is disqualified for a reaso
 outside this harness, the `>=3 pilot clinics` criterion fails on population, not
 on machine quality — which is R-7 firing, and the honest move is to narrow the
 certified claim, never to loosen the predicate.
+
+---
+
+## §11a Disjoint-critic fix iteration (verification-auditor, eunomia — PARTIAL PASS)
+
+Round 1 returned PARTIAL PASS, blocking by contract. Dispositions:
+
+| # | finding | disposition |
+|---|---|---|
+| F-1 | **BLOCKING.** Pre-subcommand `--predicate` / `--env` / `--json` / `--timeout` were silently ignored: the subparser's non-`None` default overwrote the user's value in the shared namespace. Demonstrated on clinic `+13036277995` — flag *before* the subcommand gave **LANDED 6 of 3 under fingerprint `c8305c4c992b21f3`, the DEFAULT'S**, while the same flag *after* gave NOT-LANDED 0 of 3 under `bd436c33b0d06c00`. A receipt asserted the wrong predicate as authoritative, silently. It also defeated CE-4's post-G-3 workflow: a ratified predicate copy passed pre-subcommand would certify under the unratified default. | **FIXED.** `default=argparse.SUPPRESS` on the `common` parent's four arguments only; real defaults retained on the top-level parser. Both positions now resolve to the same fingerprint and the no-flag default still applies. |
+| F-2 | **BLOCKING.** RUNBOOK asserted "either before or after the subcommand — both work" — false, and it actively taught the broken position. | **FIXED.** Corrected, and the former defect is named so a reader who saw the old behaviour understands what changed. |
+| F-3 | `non_exclusions.*.refuses` was an **inert knob** — never read (only `synthetic_platforms` and `flag` are consumed), and `disabled_switches` scans only `legs.*`/`clean.*`, so flipping it would not even have surfaced in the `!! DISABLED SWITCHES` header. | **DELETED, not wired.** Wiring it would have created a silent path from declared-non-exclusion to refusal — precisely what §4 forbids without an operator word. `predicate.toml` now says so at the section head so it is not re-added. |
+| F-3 (paired) | Add `eligible_excluding_synthetic` beside `eligible_via_email_booking_intake`. | **ADOPTED.** First-class counter in `counts` and in the boundary block, rendered on every receipt. Surfaces, does not decide — no third verdict. |
+| F-5 | `Reader.cur` / `Reader.conn` were public, so a caller could bypass the statement gate. | **HARDENED** — trivial: six and three usages respectively, all inside the class, zero external callers. Renamed `_cur` / `_conn`. |
+| F-9 | RUNBOOK §4 taught editing `predicate.toml` in place and never mentioned `--predicate <path>`. | **FIXED.** Non-destructive copy workflow added, with the reason: editing in place silently re-points a fingerprint that previously issued receipts already cite. |
+| F-10 | §2's `cd` path does not exist on `main`; the harmless `uv` `VIRTUAL_ENV` warning was undocumented. | **FIXED.** Branch/PR requirement stated up front; the warning and the wrong-branch symptom are both in §7. |
+| CORRECTION-1 | SVR-6's anchor cited `no-show`=130 / `no_show`=26 under a bare `GROUP BY status`, which returns 9459/12870. | **FOLDED IN.** SVR-6 now carries the full scoped query; re-derived 2026-09-01 as 132/26, with the unscoped figures shown to make the qualifier's load-bearing role explicit. The integer drifts on a live table; the two-spelling fact is the claim. |
+
+**Riding to S-10 as named watches, deliberately not fixed in this push**: F-4
+(teeth breadth), F-6 (no scheduled regression run — the CLI-parity property
+proven above is confirmed by hand, not guarded by a test), F-8 (dedup collapse
+behaviour on empty-phone rows).
 
 ---
 

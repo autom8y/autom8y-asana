@@ -34,16 +34,29 @@ reading of the **forwarding integration**. As of 2026-09-01 those were **41** an
 | Credentials | a `.env` defining `DB_HOST`, `DB_USERNAME`, `DB_PASSWORD`, `DB_DATABASE` — default location `/Users/tomtenuta/Code/a8/autom8/.env`, override with `--env` |
 | Network | reachability to the production MySQL host (read-only) |
 
+**Where the files are.** This harness is not on `main` yet — it lands with PR #400
+(branch `feat/certification-harness`). Check that branch out before anything below
+will resolve:
+
+```bash
+git -C /path/to/autom8y-asana fetch origin
+git -C /path/to/autom8y-asana switch feat/certification-harness   # or use a worktree
+cd /path/to/autom8y-asana
+```
+
 You do **not** need the repo's virtualenv, and you do not need to install
 anything permanently:
 
 ```bash
-cd /path/to/autom8y-asana
 uv run --with mysql-connector-python python scripts/certification/landing_receipt.py preflight
 ```
 
 `pip install mysql-connector-python` then plain `python3` works equally well. Every
 example below is written with the `uv` prefix; drop it if you have the driver.
+
+If you have the repo's venv active, `uv run` prints a
+`warning: VIRTUAL_ENV=… does not match the project environment path` line and
+then proceeds. It is harmless — see §7.
 
 ---
 
@@ -106,9 +119,16 @@ a certificate.
 uv run --with mysql-connector-python python scripts/certification/landing_receipt.py clinic --office-phone +14079068111
 ```
 
-Add `--json` for the machine-readable form (either before or after the
-subcommand — both work). Exit code is `0` when LANDED and `3` when NOT-LANDED, so
-this is scriptable.
+Add `--json` for the machine-readable form. Exit code is `0` when LANDED and `3`
+when NOT-LANDED, so this is scriptable.
+
+`--json`, `--env`, `--predicate` and `--timeout` may be placed either before or
+after the subcommand and resolve identically. (In the first cut of this harness
+they did not: a pre-subcommand flag was silently discarded and the receipt
+printed the *default* predicate's fingerprint as authoritative. That is fixed —
+see §4 — but if you are ever unsure which predicate a receipt was computed
+under, the `predicate fingerpr.` line on the receipt is the answer, not the
+command you think you typed.)
 
 Every receipt carries, on its face: the predicate wording and its ratification
 status, the predicate fingerprint, the attribution path and guard state, the
@@ -132,7 +152,30 @@ absorbed duplicates. This is the tool for "why did that one refuse?".
 **Never edit the Python to change what the predicate means.** Everything is in
 [`predicate.toml`](predicate.toml), and every receipt fingerprints that file.
 
-Common edits:
+### Prefer a copy over an in-place edit
+
+You usually do **not** want to edit the shipped file. Copy it, edit the copy, and
+point the harness at it with `--predicate`:
+
+```bash
+cp scripts/certification/predicate.toml /tmp/predicate.ebi.toml
+$EDITOR /tmp/predicate.ebi.toml
+uv run --with mysql-connector-python python scripts/certification/landing_receipt.py \
+    --predicate /tmp/predicate.ebi.toml clinic --office-phone +14079068111
+```
+
+Why this matters: the shipped file's fingerprint is the one every previously
+issued receipt cites. Editing in place silently re-points that fingerprint at
+different content, so an old receipt and a new one can claim the same predicate
+while meaning different things. A copy keeps both readings citable side by side —
+each receipt names its own file path *and* its own fingerprint, so two receipts
+under two predicates are trivially told apart.
+
+Verify you got the file you meant: the `predicate fingerpr.` line on the receipt
+prints the hash and the resolved path. If it shows the shipped path when you
+passed `--predicate`, stop and re-read the command.
+
+### Common edits
 
 | you want | edit |
 |---|---|
@@ -185,7 +228,9 @@ appointment".
 
 | symptom | do this |
 |---|---|
+| `warning: VIRTUAL_ENV=… does not match the project environment path` | Harmless. `uv` is telling you it is ignoring your active venv and using its own ephemeral one, which is what you want here. Output after the warning is valid. Silence it with `--active` if it bothers you |
 | `No module named 'mysql'` | prefix with `uv run --with mysql-connector-python`, or `pip install mysql-connector-python` |
+| a path in this runbook does not exist | you are probably on `main`. This harness lands with PR #400 — see §2 |
 | `FATAL: credentials file not found` | pass `--env /path/to/.env` |
 | `FATAL: <KEY> missing` | the `.env` lacks one of the four `DB_*` keys |
 | `FATAL: could not connect` | network/VPN. The message is redacted — it will never contain a credential |
