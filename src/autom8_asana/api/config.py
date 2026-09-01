@@ -130,6 +130,21 @@ class ApiSettings(Autom8yBaseSettings):
         ),
     )
 
+    forwarding_stage_census_max_pages: int = Field(
+        default=40,
+        ge=1,
+        description=(
+            "Page ceiling for ONE Forwarding-Stage census drain (GET "
+            "/v1/forwarding-stage/census). Breach RAISES a typed refusal; it "
+            "NEVER truncates. 40 pages x the Asana 100-row maximum = 4000 CI "
+            "tasks, comfortably above the live project, so this is a runaway "
+            "guard rather than an expected boundary. Mirrors the S-3 activation "
+            "read surface's `activation_read_max_pages` posture -- a partial "
+            "count is the wrong number, not a smaller one. "
+            "Env: ASANA_API_FORWARDING_STAGE_CENSUS_MAX_PAGES."
+        ),
+    )
+
     forwarding_stage_disposition: dict[str, str] = Field(
         default_factory=dict,
         description=(

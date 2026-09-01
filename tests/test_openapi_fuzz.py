@@ -109,6 +109,19 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "GET /v1/query/{entity_type}/relations": "schemathesis-contract-cleanup-WIP: violation",
     "GET /v1/query/{entity_type}/sections": "schemathesis-contract-cleanup-WIP: violation",
     "POST /v1/exports": "schemathesis-contract-cleanup-WIP: violation",
+    # S-5c. Same UnsupportedMethodResponse class as every sibling /v1/* route
+    # above, and for the same platform reason: the fleet auth middleware runs
+    # BEFORE routing, so an unsupported method (TRACE) returns 401 rather than
+    # the 405 the spec implies. Not a property of this endpoint -- reproducible
+    # against any S2S path, which is why all of them are listed here.
+    # Registered rather than "fixed": curing it means changing auth-before-
+    # routing fleet-wide, which is out of this leg's scope and would be a far
+    # larger blast radius than the read route it would be justified by.
+    # strict=False, so if the platform is ever corrected this reports XPASS.
+    "GET /v1/forwarding-stage/census": (
+        "S-5c: UnsupportedMethodResponse -- TRACE returns 401 (auth precedes "
+        "routing), identical to every sibling /v1/* S2S route"
+    ),
     "POST /api/v1/exports": "schemathesis-contract-cleanup-WIP: violation",
     "POST /api/v1/webhooks/inbound": "schemathesis-contract-cleanup-WIP: violation",
     "GET /api/v1/workflows/": "schemathesis-contract-cleanup-WIP: violation",
