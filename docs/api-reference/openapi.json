@@ -954,12 +954,18 @@
         "properties": {
           "field_present_count": {
             "description": "Tasks carrying the Forwarding Stage field definition, set or unset. Distinct from tasks_scanned on purpose: a task without the field is out of the census's universe, not a clinic at stage zero.",
+            "examples": [
+              203
+            ],
             "minimum": 1.0,
             "title": "Field Present Count",
             "type": "integer"
           },
           "pages_drained": {
             "description": "Pages fetched to produce this census. Present so a consumer can SEE that a multi-page drain happened, rather than trusting that it did -- the single most useful signal for detecting a regression back to first-page semantics.",
+            "examples": [
+              3
+            ],
             "minimum": 1.0,
             "title": "Pages Drained",
             "type": "integer"
@@ -969,22 +975,44 @@
               "type": "integer"
             },
             "description": "Per-stage counts over the canonical vocabulary plus '__unset__' (field present, no value) and '__unknown__' (an option gid absent from the configured map). These values SUM to field_present_count -- the partition invariant, asserted service-side before this response is built. It is what makes verified_count auditable by the consumer rather than an unaccountable scalar.",
+            "examples": [
+              {
+                "Approved": 9,
+                "Flowing": 40,
+                "Inactive": 3,
+                "Live": 128,
+                "Sent": 12,
+                "Stalled": 2,
+                "Verified": 7,
+                "__unknown__": 0,
+                "__unset__": 2
+              }
+            ],
             "title": "Stage Counts",
             "type": "object"
           },
           "tasks_scanned": {
             "description": "Tasks drained from the Calendar Integrations project. The denominator. Never zero -- a zero-task corpus is refused, because an empty project and a wrong project gid are indistinguishable from inside and both would report 0 Verified.",
+            "examples": [
+              214
+            ],
             "minimum": 1.0,
             "title": "Tasks Scanned",
             "type": "integer"
           },
           "terminal_page_full": {
             "description": "True when the LAST page came back brim-full with no continuation token. Asana's documented end-of-collection shape AND the shape a silent upstream truncation would take; the two are not separable with the fuel Asana provides (no total to difference against, and opaque offsets that cannot be synthesized). The census accepts the page and REPORTS the condition rather than manufacturing a detection it cannot perform -- so a consumer can see every invocation where that trust was load-bearing (CENSUS-F-2).",
+            "examples": [
+              false
+            ],
             "title": "Terminal Page Full",
             "type": "boolean"
           },
           "verified_count": {
             "description": "THE OPERAND. Tasks whose Forwarding Stage is 'Verified' -- the stage-of-record count the EBI F3 cross-source tripwire differences against its DynamoDB keyspace. A TOTAL over the project, never a page.",
+            "examples": [
+              7
+            ],
             "minimum": 0.0,
             "title": "Verified Count",
             "type": "integer"

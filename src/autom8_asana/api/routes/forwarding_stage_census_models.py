@@ -24,6 +24,7 @@ class ForwardingStageCensusResponse(BaseModel):
     verified_count: int = Field(
         ...,
         ge=0,
+        examples=[7],
         description=(
             "THE OPERAND. Tasks whose Forwarding Stage is 'Verified' -- the "
             "stage-of-record count the EBI F3 cross-source tripwire differences "
@@ -33,6 +34,7 @@ class ForwardingStageCensusResponse(BaseModel):
     tasks_scanned: int = Field(
         ...,
         ge=1,
+        examples=[214],
         description=(
             "Tasks drained from the Calendar Integrations project. The "
             "denominator. Never zero -- a zero-task corpus is refused, because "
@@ -43,6 +45,7 @@ class ForwardingStageCensusResponse(BaseModel):
     field_present_count: int = Field(
         ...,
         ge=1,
+        examples=[203],
         description=(
             "Tasks carrying the Forwarding Stage field definition, set or "
             "unset. Distinct from tasks_scanned on purpose: a task without the "
@@ -51,6 +54,19 @@ class ForwardingStageCensusResponse(BaseModel):
     )
     stage_counts: dict[str, int] = Field(
         ...,
+        examples=[
+            {
+                "Sent": 12,
+                "Approved": 9,
+                "Verified": 7,
+                "Stalled": 2,
+                "Flowing": 40,
+                "Live": 128,
+                "Inactive": 3,
+                "__unset__": 2,
+                "__unknown__": 0,
+            }
+        ],
         description=(
             "Per-stage counts over the canonical vocabulary plus '__unset__' "
             "(field present, no value) and '__unknown__' (an option gid absent "
@@ -62,6 +78,7 @@ class ForwardingStageCensusResponse(BaseModel):
     )
     terminal_page_full: bool = Field(
         ...,
+        examples=[False],
         description=(
             "True when the LAST page came back brim-full with no continuation "
             "token. Asana's documented end-of-collection shape AND the shape a "
@@ -76,6 +93,7 @@ class ForwardingStageCensusResponse(BaseModel):
     pages_drained: int = Field(
         ...,
         ge=1,
+        examples=[3],
         description=(
             "Pages fetched to produce this census. Present so a consumer can "
             "SEE that a multi-page drain happened, rather than trusting that it "
