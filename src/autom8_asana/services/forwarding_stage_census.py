@@ -39,7 +39,7 @@ So: **this module returns a TOTAL, or it REFUSES.** There is deliberately no
 branch anywhere below that returns a number derived from a partial drain, and no
 branch that returns a count it cannot vouch for.
 
-★ THE FOUR REFUSALS, AND WHY EACH IS A REFUSAL RATHER THAN A ZERO
+★ THE FIVE REFUSALS, AND WHY EACH IS A REFUSAL RATHER THAN A ZERO
 ------------------------------------------------------------------
 Every one of these would otherwise surface as a perfectly plausible ``0``:
 
@@ -51,9 +51,18 @@ Every one of these would otherwise surface as a perfectly plausible ``0``:
 3. ``StageCensusFieldAbsent`` — tasks were drained but NOT ONE carried the
    Forwarding Stage field definition. Either the field is not applied to this
    project or ``opt_fields`` failed to deliver it; both yield 0.
-4. ``StageCensusTruncated`` — the drain could not be proven complete (page
-   ceiling hit, or the absent-fuel invariant tripped). A partial count is a
-   number, and it is the wrong one.
+4. ``StageCensusGidDrift`` — zero Verified matches alongside a non-empty
+   unknown bucket: the configured Verified option gid is present but STALE, so
+   every genuinely-Verified task fell into UNKNOWN. Yields 0, and it is the
+   most dangerous 0 of the five (CENSUS-F-1).
+5. ``StageCensusTruncated`` — the drain could not be proven complete (the page
+   ceiling was hit). A partial count is a number, and it is the wrong one.
+
+The drain does NOT claim to detect an upstream continuation signal that lies.
+Asana emits no total to difference against and its offsets are opaque tokens
+that cannot be synthesized, so that detection is not available with the fuel
+this API provides; the condition under which it would matter is REPORTED
+instead, as ``StageCensus.terminal_page_full`` (CENSUS-F-2).
 
 Doctrine inherited verbatim from the S-3 contract: *"an empty list returned for
 a degraded read is indistinguishable from a business that genuinely has no
@@ -147,6 +156,23 @@ class StageCensusFieldAbsent(StageCensusError):
     code = "STAGE_CENSUS_FIELD_ABSENT"
 
 
+class StageCensusGidDrift(StageCensusError):
+    """The configured Verified option gid appears STALE (CENSUS-F-1).
+
+    NOT a zero. Zero Verified matches alongside a non-empty unknown bucket is
+    the signature of a gid that no longer resolves -- every genuinely-Verified
+    task landed in UNKNOWN. The partition invariant cannot see it (UNKNOWN
+    absorbs the loss and the buckets still sum), and the unconfigured refusal
+    cannot see it (the gid is present, merely wrong).
+
+    Left unrefused this is the WORST output this module can produce: not a
+    refusal, not a small error, but a confident ``verified_count=0`` that
+    drives a maximal false DISAGREE against a healthy keyspace.
+    """
+
+    code = "STAGE_CENSUS_GID_DRIFT"
+
+
 class StageCensusTruncated(StageCensusError):
     """The drain could not be PROVEN complete. A partial count is refused.
 
@@ -179,6 +205,26 @@ class StageCensus:
             (an option GID absent from the configured map).
         pages_drained: pages fetched. Present so a consumer can see the drain
             actually happened rather than trusting that it did.
+        terminal_page_full: True when the LAST page came back brim-full (at the
+            Asana maximum) with no continuation token. That is Asana's
+            documented end-of-collection shape AND the shape a silent upstream
+            truncation would take, and the two are not separable with the fuel
+            Asana provides -- it emits no total to difference against, and a
+            synthesized continuation token is unsendable (offsets are opaque
+            and must round-trip). So the census ACCEPTS the page and REPORTS
+            the condition, rather than manufacturing a detection it cannot
+            perform. Steady state is False for all but boundary-aligned
+            corpora.
+
+            [UV-P: Asana returns next_page=null (not a token followed by an
+            empty page) on a terminal page whose size equals the requested
+            limit | METHOD: live GET /tasks against a project whose task count
+            is an exact multiple of 100, reading next_page | REASON: not probed
+            from this seat; the census fails SAFE either way -- if the
+            assumption is wrong the drain under-counts and the tripwire
+            DISAGREES loudly rather than silently agreeing, and
+            terminal_page_full names every invocation where the assumption was
+            load-bearing]
 
     INVARIANT, asserted before construction: the ``stage_counts`` values sum to
     ``field_present_count``. This makes ``verified_count`` AUDITABLE rather than
@@ -192,6 +238,7 @@ class StageCensus:
     field_present_count: int
     stage_counts: dict[str, int]
     pages_drained: int
+    terminal_page_full: bool = False
 
 
 UNSET_KEY = "__unset__"
@@ -269,6 +316,7 @@ async def census(
     field_present_count = 0
     pages_drained = 0
     offset: str | None = None
+    terminal_page_full = False
 
     while True:
         if pages_drained >= max_pages:
@@ -285,40 +333,47 @@ async def census(
         rows, next_offset = await _fetch_page(client, project_gid, offset)
         pages_drained += 1
 
-        # ★ THE ABSENT-FUEL INVARIANT (S-3 contract, layer 2), transplanted.
+        # ★ CENSUS-F-2 (integrity-architect, BLOCKING) — WHAT USED TO BE HERE,
+        # WHY IT WAS WRONG, AND WHAT REPLACES IT.
         #
-        # A page returning exactly the maximum page size while the continuation
-        # signal says "nothing follows" cannot be taken at face value. Asana's
-        # `next_page` is normally trustworthy -- but S-3's whole lesson is that
-        # the upstream continuation signal WAS trusted, WAS silently wrong, and
-        # cost 137 leads. This guard must hold even if that signal regresses,
-        # which is why it is an invariant rather than trust.
+        # This block previously ran a "confirmation read" whenever a brim-full
+        # page arrived with no continuation token, sending a SYNTHESIZED offset
+        # (`str(tasks_scanned + len(rows))`) to decide whether the signal lied.
+        # That was unsound at the mechanism level: Asana paginates by OPAQUE
+        # TOKENS that must round-trip from the API (`models/common.py:102`
+        # "next_page.offset"; the transport's own fixture emits `"abc123"` at
+        # `tests/unit/transport/test_asana_http.py:199`). An integer index is
+        # not a token Asana ever issued, so the confirmation read could not do
+        # what it claimed: its accept-branch was unreachable in production and
+        # both outcomes collapsed to a generic transport error.
         #
-        # It does NOT simply refuse, because a brim-full terminal page is also
-        # the LEGITIMATE shape of a corpus whose size is an exact multiple of
-        # the page size (200 tasks at 100/page). Refusing that would make the
-        # census unusable on a boundary-aligned project -- a guard that fires on
-        # healthy data gets disabled, and then it guards nothing.
+        # Worse, the unit fixture modelled integer indices and called itself
+        # "faithful Asana pagination", so the GREEN control certified semantics
+        # the live API does not have -- the fixture-encodes-the-premise class,
+        # transplanted intact from S-3 iter-1 into the very cure for S-3.
         #
-        # So the ambiguity is DETERMINED, never guessed: issue ONE confirmation
-        # read at the next offset. Rows there prove the signal lied (real
-        # truncation -> refuse). An empty page proves the corpus genuinely ended
-        # on the boundary (-> accept). Cost is one extra request in the rare
-        # exact-multiple case; the alternative is choosing between a false
-        # refusal and a false count, and neither is acceptable for an operand
-        # the tripwire alarms on.
-        if len(rows) >= ASANA_MAX_PAGE_SIZE and next_offset is None:
-            probe_rows, _ = await _fetch_page(client, project_gid, str(tasks_scanned + len(rows)))
-            pages_drained += 1
-            if probe_rows:
-                raise StageCensusTruncated(
-                    "forwarding-stage census refuses: a brim-full page "
-                    f"({len(rows)} rows, the Asana maximum) arrived with NO "
-                    "continuation token, but a confirmation read at the next "
-                    f"offset returned {len(probe_rows)} more tasks. The "
-                    "continuation signal is lying and the drain was silently "
-                    "truncated."
-                )
+        # THE HONEST POSITION. The S-3 absent-fuel invariant does not transfer
+        # here. It was sound against a route whose `has_more` was DEMONSTRABLY
+        # miscomputed from `order_by`/`include_total` presence. Asana's
+        # `next_page: null` is a different mechanism, and Asana supplies no
+        # independent total to difference against -- so "the continuation signal
+        # lied" is NOT detectable from inside with the fuel this API provides.
+        # Manufacturing a detection for it produced theatre: a guard that looked
+        # protective, could not fire, and made an exact-multiple corpus go dark.
+        #
+        # WHAT IS ENFORCED INSTEAD (both real, both testable):
+        #   1. NO FABRICATED FUEL. Every offset sent is one the API itself
+        #      emitted; `offset` is only ever `None` or a prior `next_offset`.
+        #      The fabrication class is now structurally absent rather than
+        #      warned against, and a test asserts every issued offset was
+        #      API-issued.
+        #   2. THE TRUST IS RECORDED, NOT ASSUMED. A brim-full terminal page is
+        #      Asana's documented end-of-collection shape AND the shape a silent
+        #      truncation would take. We accept it -- and surface
+        #      `terminal_page_full` on the census so the one place the drain
+        #      trusts an upstream signal is visible to its consumer instead of
+        #      buried. See the UV-P on `StageCensus.terminal_page_full`.
+        terminal_page_full = len(rows) >= ASANA_MAX_PAGE_SIZE and next_offset is None
 
         for row in rows:
             tasks_scanned += 1
@@ -361,6 +416,39 @@ async def census(
         )
 
     verified_count = stage_counts[ForwardingStage.VERIFIED.value]
+    unknown_count = stage_counts[UNKNOWN_KEY]
+
+    # ★ CENSUS-F-1 (integrity-architect, BLOCKING) — THE GID-DRIFT REFUSAL.
+    #
+    # The refusals above catch an EMPTY Verified option gid. They do not catch a
+    # WRONG one. If the configured Verified gid drifts stale -- an operator
+    # re-creates the field, or the option is rebuilt and re-issued -- then every
+    # genuinely-Verified task carries an option gid absent from the map, falls
+    # into UNKNOWN, and the census returns `verified_count=0` with total
+    # confidence. The partition invariant does NOT catch it, because UNKNOWN
+    # absorbs the loss and the buckets still sum correctly.
+    #
+    # The critic's probe: 7 Verified + 13 other, Verified gid drifted ->
+    # returned verified_count=0 (truth 7), unknown=7, no refusal. Downstream
+    # that is a MAXIMAL keyspace_overcount -- a false DISAGREE against a
+    # perfectly healthy keyspace, which is precisely the harm this module's own
+    # keystone test names as disqualifying.
+    #
+    # THE DRIFT SIGNATURE: zero Verified AND a non-empty unknown bucket. A
+    # genuinely-zero-Verified project has nothing to misclassify, so unknown
+    # would be zero too; the conjunction is what makes this specific rather than
+    # a blanket "unknown is bad" rule.
+    if verified_count == 0 and unknown_count > 0:
+        raise StageCensusGidDrift(
+            "forwarding-stage census refuses: ZERO tasks matched the configured "
+            f"Verified option gid, but {unknown_count} task(s) carry an option "
+            "gid absent from the configured map. That is the signature of a "
+            "STALE Verified gid, not of an empty funnel -- returning 0 here "
+            "would hand the tripwire a false DISAGREE against a healthy "
+            "keyspace. Re-read the workspace's Forwarding Stage option gids "
+            "into ASANA_API_FORWARDING_STAGE_OPTION_GIDS."
+        )
+
     logger.info(
         "forwarding_stage_census",
         extra={
@@ -368,15 +456,43 @@ async def census(
             "tasks_scanned": tasks_scanned,
             "field_present_count": field_present_count,
             "pages_drained": pages_drained,
-            "unknown_option_count": stage_counts[UNKNOWN_KEY],
+            "unknown_option_count": unknown_count,
+            "terminal_page_full": terminal_page_full,
         },
     )
+    if unknown_count:
+        # NON-ZERO Verified with a non-empty unknown bucket is NOT refused: it is
+        # the legitimate shape of a workspace that gained a stage option the
+        # config has not learned yet, and refusing it would take the tripwire
+        # down for an additive, harmless workspace edit. It is still a partial
+        # blind spot in the operand, so it is reported LOUDLY rather than
+        # silently tolerated.
+        #
+        # DELIBERATELY NOT DECIDED HERE: whether a RATIO (say unknown >
+        # verified) should escalate to a refusal. That threshold is judgment
+        # about how much unmapped population makes the Verified count
+        # untrustworthy, and inventing a number here would be exactly the
+        # unvalidated-heuristic move this surface refuses elsewhere. Surfaced
+        # for the operator rather than guessed.
+        logger.warning(
+            "forwarding_stage_census_unmapped_options",
+            extra={
+                "unknown_option_count": unknown_count,
+                "verified_count": verified_count,
+                "detail": (
+                    "tasks carry Forwarding Stage option gids absent from the "
+                    "configured map; the Verified count is a partial view of "
+                    "the field until the map is refreshed"
+                ),
+            },
+        )
     return StageCensus(
         verified_count=verified_count,
         tasks_scanned=tasks_scanned,
         field_present_count=field_present_count,
         stage_counts=dict(stage_counts),
         pages_drained=pages_drained,
+        terminal_page_full=terminal_page_full,
     )
 
 
@@ -465,6 +581,7 @@ __all__ = [
     "StageCensusEmptyCorpus",
     "StageCensusError",
     "StageCensusFieldAbsent",
+    "StageCensusGidDrift",
     "StageCensusTruncated",
     "StageCensusUnconfigured",
     "census",

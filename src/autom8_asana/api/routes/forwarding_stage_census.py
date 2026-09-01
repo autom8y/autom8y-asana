@@ -78,6 +78,7 @@ from autom8_asana.services.forwarding_stage_census import (
     StageCensusEmptyCorpus,
     StageCensusError,
     StageCensusFieldAbsent,
+    StageCensusGidDrift,
     StageCensusTruncated,
     StageCensusUnconfigured,
     census,
@@ -113,9 +114,8 @@ router = s2s_router(prefix="/v1/forwarding-stage", tags=["forwarding-stage"])
         502: {
             "description": (
                 "REFUSED -- the census could not be vouched for. "
-                "STAGE_CENSUS_TRUNCATED (completeness unproven: page ceiling, or "
-                "a brim-full page whose continuation token a confirmation read "
-                "falsified), STAGE_CENSUS_EMPTY_CORPUS (zero tasks -- an empty "
+                "STAGE_CENSUS_TRUNCATED (completeness unproven: the page "
+                "ceiling was reached with a continuation token pending), STAGE_CENSUS_EMPTY_CORPUS (zero tasks -- an empty "
                 "project and a wrong project gid are one shape), or "
                 "STAGE_CENSUS_FIELD_ABSENT (no drained task carries the field). "
                 "NOT retryable without investigation; NEVER interpret as zero."
@@ -170,6 +170,11 @@ async def get_forwarding_stage_census(
           empty project and a wrong project gid are indistinguishable here.
         - 502 STAGE_CENSUS_FIELD_ABSENT: tasks drained but none carries the
           field -- a configuration defect that reads like "nobody is Verified".
+        - 502 STAGE_CENSUS_GID_DRIFT: zero Verified matches alongside a
+          non-empty unknown bucket -- the configured Verified option gid is
+          present but STALE, so every Verified task fell into UNKNOWN. The
+          most dangerous zero this route can produce, and the one the
+          partition invariant cannot see (CENSUS-F-1).
         - 503 ASANA_UNAVAILABLE: any other degraded read.
     """
     start_time = time.monotonic()
@@ -196,6 +201,8 @@ async def get_forwarding_stage_census(
         raise_api_error(request_id, 502, "STAGE_CENSUS_EMPTY_CORPUS", str(exc))
     except StageCensusFieldAbsent as exc:
         raise_api_error(request_id, 502, "STAGE_CENSUS_FIELD_ABSENT", str(exc))
+    except StageCensusGidDrift as exc:
+        raise_api_error(request_id, 502, "STAGE_CENSUS_GID_DRIFT", str(exc))
     except StageCensusError as exc:
         # The taxonomy's catch-all. Still a REFUSAL -- never an empty census.
         raise_api_error(request_id, 503, "ASANA_UNAVAILABLE", str(exc))
@@ -234,6 +241,7 @@ async def get_forwarding_stage_census(
             field_present_count=result.field_present_count,
             stage_counts=result.stage_counts,
             pages_drained=result.pages_drained,
+            terminal_page_full=result.terminal_page_full,
         ),
         request_id=request_id,
     )

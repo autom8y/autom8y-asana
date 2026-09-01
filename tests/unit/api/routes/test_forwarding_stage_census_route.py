@@ -172,6 +172,8 @@ class TestCensusHappyPath:
         assert data["verified_count"] == 5
         assert data["tasks_scanned"] == 122
         assert data["pages_drained"] == 2
+        # CENSUS-F-2: the trust condition is on the wire, and discriminates.
+        assert data["terminal_page_full"] is False
 
     def test_r1b_response_carries_the_partition_so_the_operand_is_auditable(
         self, client: TestClient
@@ -198,30 +200,56 @@ class TestCensusHappyPath:
 
 
 class TestCensusRefusals:
-    def test_r2a_red_truncation_is_502_not_a_first_page_count(self, client: TestClient) -> None:
-        """★ RED: silent truncation -> 502 STAGE_CENSUS_TRUNCATED, never a 200.
+    def test_r2a_page_ceiling_truncation_is_502(self, client: TestClient, monkeypatch) -> None:
+        """RED: the REACHABLE truncation guard -> 502 STAGE_CENSUS_TRUNCATED.
 
-        Broken INPUT: a transport whose continuation token lies (a brim-full
-        page claiming completeness), with real rows beyond it. Returning 200
-        with the page-1 count would hand the tripwire an under-report and
-        manufacture a FALSE DISAGREE against a healthy keyspace.
+        ★ RE-AUTHORED FOR CENSUS-F-2. This case previously asserted that a
+        lying continuation signal produced a 502. It does not, and cannot: the
+        old detection ran a confirmation read at a SYNTHESIZED offset, and
+        Asana offsets are opaque tokens that must round-trip. That branch was
+        unreachable in production, so asserting it here certified a behaviour
+        the live API could never exhibit.
+
+        What IS reachable is the page ceiling, which this now exercises: a
+        corpus deeper than `max_pages` refuses rather than returning a prefix.
         """
+        monkeypatch.setenv("ASANA_API_FORWARDING_STAGE_CENSUS_MAX_PAGES", "1")
+        get_settings.cache_clear()
         rows = [_task(VERIFIED_OPTION_GID) for _ in range(3)]
         rows += [_task("opt-live") for _ in range(97)]
         rows += [_task(VERIFIED_OPTION_GID) for _ in range(50)]
 
-        client_mock = _mock_client(rows)
-
-        async def _lying(path: str, *, params: dict[str, Any] | None = None):
-            start = int((params or {}).get("offset") or 0)
-            return rows[start : start + ASANA_MAX_PAGE_SIZE], None
-
-        client_mock._http.get_paginated = AsyncMock(side_effect=_lying)
-
-        response = _get(client, client_mock)
+        response = _get(client, _mock_client(rows))
 
         assert response.status_code == 502
         assert response.json()["error"]["code"] == "STAGE_CENSUS_TRUNCATED"
+
+    def test_r2a2_a_lying_server_returns_the_flag_not_a_false_refusal(
+        self, client: TestClient
+    ) -> None:
+        """HONEST NEGATIVE at the route: an undetectable lie is REPORTED.
+
+        A server that truncates and claims completeness is not detectable with
+        the fuel Asana provides. The route therefore returns 200 with the short
+        count AND `terminal_page_full=True` -- the operator's hook. Asserting
+        this keeps the limitation visible on the wire contract rather than
+        letting a future reader assume the route catches it.
+        """
+        rows = [_task(VERIFIED_OPTION_GID) for _ in range(3)]
+        rows += [_task("opt-live") for _ in range(97)]
+        rows += [_task(VERIFIED_OPTION_GID) for _ in range(50)]
+        mock = _mock_client(rows)
+
+        async def _lying(path: str, *, params: dict[str, Any] | None = None):
+            return rows[:ASANA_MAX_PAGE_SIZE], None
+
+        mock._http.get_paginated = AsyncMock(side_effect=_lying)
+        response = _get(client, mock)
+
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert data["verified_count"] == 3, "true count is 53; the lie is undetected"
+        assert data["terminal_page_full"] is True, "but the condition IS reported"
 
     def test_r2b_red_empty_corpus_is_502_not_a_zero(self, client: TestClient) -> None:
         """RED: zero tasks -> 502, never 200 with verified_count 0.
@@ -242,6 +270,29 @@ class TestCensusRefusals:
 
         assert response.status_code == 502
         assert response.json()["error"]["code"] == "STAGE_CENSUS_FIELD_ABSENT"
+
+    def test_r2f_red_gid_drift_is_502_not_a_confident_zero(
+        self, client: TestClient, monkeypatch
+    ) -> None:
+        """RED (CENSUS-F-1): a stale Verified gid -> 502, never 200 with 0.
+
+        Broken INPUT: the configured option map carries a Verified gid the
+        workspace no longer issues, so every Verified task lands in UNKNOWN.
+        A 200/0 here is the most dangerous output this route can produce -- the
+        tripwire would read it as a maximal keyspace_overcount against a
+        perfectly healthy keyspace.
+        """
+        monkeypatch.setenv(
+            "ASANA_API_FORWARDING_STAGE_OPTION_GIDS",
+            OPTION_GIDS_JSON.replace('"Verified":"opt-verified"', '"Verified":"opt-STALE"'),
+        )
+        get_settings.cache_clear()
+        rows = [_task(VERIFIED_OPTION_GID) for _ in range(7)]
+
+        response = _get(client, _mock_client(rows))
+
+        assert response.status_code == 502
+        assert response.json()["error"]["code"] == "STAGE_CENSUS_GID_DRIFT"
 
     def test_r2d_red_unconfigured_is_503(self, client: TestClient, monkeypatch) -> None:
         """RED: the pre-flip dark posture -> 503 STAGE_CENSUS_UNCONFIGURED.
