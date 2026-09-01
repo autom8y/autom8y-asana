@@ -215,7 +215,7 @@ class Reader:
                 "or:      pip install mysql-connector-python"
             ) from None
         try:
-            self.conn = mysql.connector.connect(
+            self._conn = mysql.connector.connect(
                 host=env["DB_HOST"], user=env["DB_USERNAME"],
                 password=env["DB_PASSWORD"], database=env["DB_DATABASE"],
                 connection_timeout=timeout,
@@ -226,16 +226,16 @@ class Reader:
                 f"({type(exc).__name__}: {_redact(str(exc), env)})\n"
                 "Check network reachability and that the credentials file is current."
             ) from None
-        self.cur = self.conn.cursor()
-        self.cur.execute("SET SESSION TRANSACTION READ ONLY")
-        self.cur.execute("START TRANSACTION READ ONLY")
+        self._cur = self._conn.cursor()
+        self._cur.execute("SET SESSION TRANSACTION READ ONLY")
+        self._cur.execute("START TRANSACTION READ ONLY")
         self.statements = 0
 
     def q(self, sql: str, params: Sequence[Any] = ()) -> list[tuple]:
         assert_query_is_legal(sql)
         self.statements += 1
-        self.cur.execute(sql, tuple(params))
-        return self.cur.fetchall()
+        self._cur.execute(sql, tuple(params))
+        return self._cur.fetchall()
 
     def staged_in(self, tmpl: str, values: Iterable[Any], chunk: int = CHUNK) -> list[tuple]:
         """The staged-lookup primitive: never join, carry IDs through Python."""
@@ -249,8 +249,8 @@ class Reader:
 
     def close(self) -> None:
         try:
-            self.cur.close()
-            self.conn.close()
+            self._cur.close()
+            self._conn.close()
         except Exception:  # noqa: BLE001, S110
             pass
 
@@ -708,6 +708,12 @@ def build_receipt(pred: Predicate, office_phone: str, since: str,
             "refused_by_first_failing_leg": dict(first_fail.most_common()),
             "eligible_via_email_booking_intake": len(ebi_members),
             "eligible_via_email_booking_intake_appt_ids": ebi_members,
+            # Surfaced, NOT decided. G-3 rules on whether a synthetic-lead
+            # booking counts; this counter means that ruling arrives with a
+            # number attached rather than as an abstraction. Symmetric with how
+            # the booking-source divergence is surfaced above. It is deliberately
+            # not a third verdict.
+            "eligible_excluding_synthetic": n - len(synthetic),
         },
         "members": [b.to_dict() for b in eligible],
         "refusals": [
@@ -721,6 +727,7 @@ def build_receipt(pred: Predicate, office_phone: str, since: str,
             "headline": "What this receipt does NOT certify.",
             "synthetic_lead_members": {
                 "count": len(synthetic), "appt_ids": synthetic,
+                "eligible_excluding_synthetic": n - len(synthetic),
                 "note": ("Leads with platform='test'. The ratified gate has no "
                          "platform leg and the activation apparatus mints attributed "
                          "test leads by design, so these COUNT. A claim that excludes "
@@ -815,6 +822,8 @@ def render_receipt(rc: dict[str, Any]) -> str:
                  "see BOUNDARY below")
     L.append(f"  of which via email-booking-intake (the forwarding integration): "
              f"{k['eligible_via_email_booking_intake']}")
+    L.append(f"  eligible excluding synthetic leads                             : "
+             f"{k['eligible_excluding_synthetic']}")
     if k["eligible"] >= rc["predicate"]["required_count"] > k["eligible_via_email_booking_intake"]:
         L.append("  !! THIS CLINIC IS 'LANDED' ONLY BECAUSE NON-FORWARDING WRITERS "
                  "ARE COUNTED.")
@@ -846,7 +855,9 @@ def render_receipt(rc: dict[str, Any]) -> str:
     b = rc["boundary"]
     L.append("  BOUNDARY -- what this receipt does NOT certify")
     L.append(f"      synthetic-lead members    : {b['synthetic_lead_members']['count']} "
-             f"{b['synthetic_lead_members']['appt_ids'] or ''}")
+             f"{b['synthetic_lead_members']['appt_ids'] or ''}"
+             f"  -> eligible excluding them: "
+             f"{b['synthetic_lead_members']['eligible_excluding_synthetic']}")
     L.append(f"      tz-ambiguous members      : {b['timezone_ambiguous_members']['count']} "
              f"{b['timezone_ambiguous_members']['appt_ids'] or ''}")
     L.append(f"      booking sources (PROXY)   : "
@@ -1217,19 +1228,36 @@ def main(argv: list[str] | None = None) -> int:
             "| 4 no rows\n"),
     )
     # Common flags are attached BOTH to the top-level parser and to every
-    # subcommand, so `--json survey` and `survey --json` both work. A certifier
-    # should never lose a five-minute run to argparse ordering.
+    # subcommand, so `--predicate X survey` and `survey --predicate X` both work.
+    # A certifier should never lose a five-minute run to argparse ordering.
+    #
+    # The subcommand copies MUST carry default=argparse.SUPPRESS. Without it the
+    # subparser writes its own default into the shared namespace AFTER the
+    # top-level parser has already stored the user's value, silently discarding
+    # a pre-subcommand flag: a receipt computed under the default predicate
+    # would print the default's fingerprint as authoritative while the operator
+    # believed a different predicate file was in force. SUPPRESS makes the
+    # subparser set the key only when the user actually supplies it, so
+    # whichever position the flag appears in wins, and neither position is
+    # silently ignored.
     common = argparse.ArgumentParser(add_help=False)
-    for parser in (ap, common):
-        parser.add_argument("--env", default=str(DEFAULT_ENV),
-                            help="path to the .env holding DB_* credentials "
-                                 "(default: %(default)s). Never printed.")
-        parser.add_argument("--predicate", default=str(DEFAULT_PREDICATE),
-                            help="path to predicate.toml (default: %(default)s)")
-        parser.add_argument("--timeout", type=int, default=30,
-                            help="DB connect timeout seconds")
-        parser.add_argument("--json", action="store_true",
-                            help="emit machine-readable JSON")
+    ap.add_argument("--env", default=str(DEFAULT_ENV),
+                    help="path to the .env holding DB_* credentials "
+                         "(default: %(default)s). Never printed.")
+    ap.add_argument("--predicate", default=str(DEFAULT_PREDICATE),
+                    help="path to predicate.toml (default: %(default)s)")
+    ap.add_argument("--timeout", type=int, default=30,
+                    help="DB connect timeout seconds")
+    ap.add_argument("--json", action="store_true",
+                    help="emit machine-readable JSON")
+    common.add_argument("--env", default=argparse.SUPPRESS,
+                        help="path to the .env holding DB_* credentials. Never printed.")
+    common.add_argument("--predicate", default=argparse.SUPPRESS,
+                        help="path to predicate.toml")
+    common.add_argument("--timeout", type=int, default=argparse.SUPPRESS,
+                        help="DB connect timeout seconds")
+    common.add_argument("--json", action="store_true", default=argparse.SUPPRESS,
+                        help="emit machine-readable JSON")
     sub = ap.add_subparsers(dest="command", required=True)
 
     sub.add_parser("preflight", parents=[common],

@@ -137,8 +137,9 @@ include = []
 [clean.status_real]
 enabled = true
 # Statuses are compared after lowercasing and folding '-' to '_' — the live
-# vocabulary contains BOTH `no-show` and `no_show` (harness recon 2026-09-01:
-# no-show=130, no_show=26 in the window). Comparing verbatim would leak 26 rows.
+# vocabulary contains BOTH `no-show` and `no_show`. Scoped to type='appt' AND
+# created >= '2026-08-02' (harness recon 2026-09-01): no-show=132, no_show=26.
+# Comparing verbatim would leak the 26.
 excluded_statuses = ["cancelled", "no_show", "system"]
 reason = "A cancelled or no-show booking is not an observed-clean landing event."
 
@@ -184,30 +185,35 @@ reason = "The clinic office phone must resolve to exactly one chiropractors row.
 # DECLARED NON-EXCLUSIONS. These are as load-bearing as the exclusions: they are
 # the things a reader might ASSUME the harness filters and it deliberately does
 # not. Each is surfaced as a provenance FLAG on the booking, never as a refusal.
-# Flipping one of these to a refusal is a predicate change and requires an
-# operator word, not an edit here.
+#
+# THERE IS DELIBERATELY NO `refuses` / `enabled` SWITCH IN THIS SECTION, and one
+# must not be added. Turning a declared non-exclusion into a refusal is a change
+# to the ratified predicate itself and requires an operator word — it is not an
+# edit anyone should be able to make here and have take effect silently. An
+# earlier revision carried an inert `refuses = false` on each entry; it was read
+# by nothing, would not have appeared in the `!! DISABLED SWITCHES` header if
+# flipped, and so read as a switch while being decoration. It was removed rather
+# than wired, because wiring it would have created exactly the silent-widening
+# path this section exists to forbid.
+#
+# Only `synthetic_platforms` and `flag` below are consumed by the harness.
 # ---------------------------------------------------------------------------
 
 [non_exclusions.far_future_start]
-refuses = false
 reason = """R-3, ratified: NO horizon cap. The client's own calendar settings govern how far out booking is allowed; our duty is to READ ACCURATELY. The 2027 date defect is a parser bug to be cured at the parser, NEVER masked by a filter. The Mansour 2027 rows are refused here on attribution (their leads carry no source_id), not on their date — and that is the correct reason."""
 
 [non_exclusions.inactive_campaign]
-refuses = false
 reason = """The ratified gate (ad-lead-gate sitting R-2) has no campaign-status leg. The activation apparatus's own test campaign is status=0 with an adset named TESTING and is congruent under the ratified predicates. Watch-flag carried from CONSULT:177: if the gate ever grows an active-campaign predicate, soak booking #1 stops passing."""
 
 [non_exclusions.synthetic_lead]
-refuses = false
 flag = "F-SYNTHETIC-LEAD"
 # leads.platform values observed in the window: facebook, ig, test.
 synthetic_platforms = ["test"]
 reason = """The ratified gate has no lead-platform leg, and the activation apparatus mints ATTRIBUTED TEST LEADS BY DESIGN (CONSULT:177 — "the test lead was selected for its ads-mapped source_id"). Soak booking #1 (lead 329753) is one such lead. Refusing it would refuse the very booking the predicate names as good. It is therefore counted AND flagged, and every receipt reports how many of its members are synthetic in the boundary block. A certifier who wants a synthetic-free claim reads that number and narrows the claim; the harness does not narrow it silently."""
 
 [non_exclusions.booking_source]
-refuses = false
 reason = """appointments.source (reviewwave / email-booking-intake / ghl / dashboard / calendar) is reported per booking and rolled up per receipt, but it is a PROXY for provider dialect and NOT the dialect itself. The true provider dialect lives in the source email's format, which is not represented in the database — the same structural limit the ad-lead-gate sitting recorded for EDD typing (§3: "EDD typing is NOT representable in the DB"). S-10's ">=3 distinct provider dialects" criterion CANNOT be discharged from this harness's output alone."""
 
 [non_exclusions.timezone_representation]
-refuses = false
 flag = "F-TZ-AMBIGUOUS-START"
 reason = """start_datetime is stored in three dialects: naive local (`2026-08-31T10:00:00`, 1018 rows), UTC-Z (`...Z`, 1672 rows) and explicit offset (`...+00:00`, 41 rows) in the window. The ratified P1 leg compares the parsed start against `created` (a UTC timestamp) regardless of dialect, so for naive rows the comparison conflates local and UTC. The harness implements the RATIFIED semantics exactly and FLAGS the conflation rather than silently correcting it. No clinic timezone table exists to correct it with."""
