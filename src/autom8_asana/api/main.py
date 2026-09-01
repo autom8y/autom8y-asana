@@ -62,6 +62,7 @@ from .routes import (
     exports_router_v1,
     fleet_query_router_api_v1,
     fleet_query_router_v1,
+    forwarding_stage_census_router,
     health_router,
     intake_create_router,
     intake_custom_fields_router,
@@ -129,6 +130,7 @@ _S2S_TAGS: frozenset[str] = frozenset(
         "intake-create",
         "matching",
         "receipts",
+        "forwarding-stage",
     }
 )
 
@@ -196,6 +198,16 @@ _SCOPE_RULES: list[tuple[str, list[str], list[str]]] = [
     # `WriteClass.RECEIPTS`. Listing it keeps the published contract and the
     # enforced contract naming the same surface.
     ("/v1/receipts", ["receipts:write"], ["receipts:write"]),
+    # The Forwarding-Stage census is a READ. It reuses the existing
+    # ``query:read`` scope rather than minting a ``forwarding-stage:read`` --
+    # deliberately. A new scope is a new authz artifact that would then need
+    # provisioning on the caller, and the caller here is the SAME EBI service
+    # account that already reaches /v1/receipts. Inventing an identity or
+    # entitlement the consumer does not hold is the exact class U-4 found
+    # (FINDING-u4-nudge-lambda-client-id-2026-09-01.md): a caller that cannot
+    # present what a gate expects goes dark at a layer nobody is watching.
+    # As with the rest of this table, it is documentation-only.
+    ("/v1/forwarding-stage", ["query:read"], ["query:read"]),
     ("/v1/matching", ["query:read"], ["query:read"]),
     ("/v1/admin", ["admin:manage"], ["admin:manage"]),
     ("/v1/internal", ["admin:manage"], ["admin:manage"]),
@@ -500,6 +512,7 @@ def create_app() -> FastAPI:
             RouterMount(router=intake_custom_fields_router),
             RouterMount(router=intake_create_router),
             RouterMount(router=receipts_router),
+            RouterMount(router=forwarding_stage_census_router),
             RouterMount(router=matching_router),
         ],
         lifespan=lifespan,

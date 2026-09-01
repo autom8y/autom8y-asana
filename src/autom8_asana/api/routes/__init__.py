@@ -36,6 +36,7 @@ from .fleet_query import (
     fleet_query_router_api_v1,
     fleet_query_router_v1,
 )
+from .forwarding_stage_census import router as forwarding_stage_census_router
 from .health import router as health_router
 from .intake_create import router as intake_create_router
 from .intake_custom_fields import router as intake_custom_fields_router
@@ -73,6 +74,7 @@ __all__ = [
     "projects_router",
     "query_introspection_router",
     "query_router",
+    "forwarding_stage_census_router",
     "receipts_router",
     "resolver_router",
     "section_timelines_router",
