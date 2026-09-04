@@ -47,7 +47,17 @@ def extract_cf_value(cf_data: dict[str, Any]) -> Any:
         case "text":
             return cf_data.get("text_value")
         case "number":
-            return cf_data.get("number_value")
+            # Defense parity with text/enum (mirrors DefaultCustomFieldResolver
+            # ._extract_raw_value): fall back to display_value when number_value
+            # is null/absent. Asana's list endpoint can return a populated
+            # display_value while number_value is null even when requested; the
+            # cascade path otherwise dropped a recoverable magnitude here. The
+            # value flows on to coercion which normalizes decorated display
+            # strings -- this never fabricates a value.
+            number_value = cf_data.get("number_value")
+            if number_value is not None:
+                return number_value
+            return cf_data.get("display_value")
         case "enum":
             return _extract_enum(cf_data.get("enum_value"))
         case "multi_enum":
