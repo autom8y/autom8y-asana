@@ -93,3 +93,26 @@ P8 (doors = operator packets w/ dissent) · P10 (paced primitives only; per-day 
 now EXISTS and is enforced; ad-hoc pulls banned) · T2/dormancy (no eunomia agent
 pre-S12) · seams FROZEN (a seam-change is an architect finding) · self-assessment caps
 MODERATE (S12 re-derives).
+
+## 7. Post-park amendment — 2026-07-30: BOTH LEVERS DISCHARGED (S8-2 gates OPEN)
+
+Operator grant received in-channel ("Apply it on my behalf with user-grade authority
+grant here through the ruling seam") and executed through the ruling seams:
+
+- **DP-4a APPLIED**: PROV-1..6 live (targeted plan 6-add/0-change/0-destroy, saved-plan
+  apply, ticket-mode defaults). **PROV-2 dead-man FIRED on heartbeat absence exactly as
+  §3 predicted** — C10 fires-side evidence banked; clears at the first parity-window
+  evaluator sweep. Dir-local tfstate flagged in the packet's ratification record.
+- **C8 RULED** (option-c · table-as-recommended · ack; one-word-precedent extension of
+  the grant, disclosed + amendable in the packet) → **architect C17 DELTA** (TDD §11)
+  → **PR #295 MERGED `86aeb0d3`**: governed `freshness_sla_seconds` (six entities
+  3600s), cache-TTL values untouched (P6 witness now a test), exemplar #2 proof-metadata
+  180→3600 (value/composition/digest byte-unchanged, receipt-amended), qa-adversary GO
+  (F1 return-3600-mutant killer folded pre-merge).
+
+**§4 ignite sequence amendments:** step 1 is DONE (both levers). Step 3 addendum —
+budget-hardening PR should also note `tests/unit/persistence/test_session_concurrency.py::
+test_lock_overhead_under_contention` as a flaky-budget-class candidate (2ms wall-clock
+assertion measured 5.1ms under CI contention; flaked PR #295's shard 4/4 once, passed on
+re-run; NOT substrate-related — route to hygiene, do not fix in S8). **S8-2 may arm at
+step 2 (window-open re-snapshot + UV-P-6 discharge) immediately.**
