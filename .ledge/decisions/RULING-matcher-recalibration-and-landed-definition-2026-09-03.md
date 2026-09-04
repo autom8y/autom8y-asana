@@ -136,3 +136,24 @@ matcher observability presentation (→ agency view).
   (mechanics changed under certified code). Lands after R-M8 + the sibling
   soak close; it is an EBI image event under the standing cross-lane hold
   (ping-before-merge carve-out applies as an operator-worded deploy).
+
+## §8 ERRATA (2026-09-04) — premises corrected by receipt; decisions stand verbatim except where RS-12 amends the wording
+
+Ratified at the 2026-09-04 sitting (`RATIFICATION-matcher-recalibration-sitting-2026-09-04.md`, RS-12) and
+sourced from the eunomia escalation advisory F-4 (both premises were live verbatim on main @ 29bc55ed).
+
+- **E-1 (§0 :20, R-M4 :48) — "the initials-only shape is unreachable (routing defect)" is FALSE.** INITIALS
+  has been routed to the matcher since S-4 shipped (Gate B in `match_lead.py`; 4/4 live initials mails
+  reached it; MEASURE 2026-09-03: 4/4 matcher-reaching mails were initials). **R-M4's decision stands**;
+  the work it commissions is its POLICY half (a tighter window — ratified at 14 days, RS-6), not routing.
+- **E-2 (R-M6 :56-59) — "Ops can re-point from the queue" presumes an affordance that does not exist.** No
+  re-point route; `appointments` carries no `lead_id` (the phone is the FK and the clinic-visible field);
+  ops receives a Slack post, not a queue. **R-M6's automatic half (contradiction flag, never auto-undo)
+  stands and is built (S-06).** Its manual half is superseded by RATIFICATION-shared-front §2 **R-23**: one
+  record-correction primitive, R3 restate-with-provenance, built on the dre lane (DF-5); no undo artifact.
+- **E-3 — the sentence.** Wherever this ruling, the telos, the contract or a PR body says the weak tier is
+  *"reversible when wrong"*, read: **"flagged when wrong; restated with provenance once the record-correction
+  primitive lands."** (RS-12; true on the day event one ships and true after R3 lands.)
+- **E-4 (§4) — figures.** "~55 match an AD lead" is the within-feed ring (55/1,309 ≈ 4.2%, 90d); forwarding's
+  share of company-wide attributed volume is a DIFFERENT ring: 36/1,060 = 3.40% (2026-08-02→09-01,
+  RECEIPT-R30-denominators-2026-09-04, MODERATE). Quote as two rings, never one number.
