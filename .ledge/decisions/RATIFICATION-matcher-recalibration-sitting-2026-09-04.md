@@ -111,3 +111,18 @@ gate-neutral). Recorded as deliberate new attribution surface in S-11's landing 
 **Corrected statement of event one**: INITIALS labelled as it binds today; FNLI reproduces today's park;
 the INITIALS window tightens 90→14; full-name attribution goes live; the tier is emitted and counted
 on every outcome including read_failed; the P-3 sender-auth line emits. Nothing else changes.
+
+# §7 ADDENDUM — 2026-09-04T23:00Z, after qa DELTA #2 at b7660a80 (one further word)
+
+**RS-19 (amends RS-8) — the plurality-suppressed `refuse` disposition is SCOPED TO THE COLLIDING
+CANDIDATES.** The qa seat constructed at the real stage (VERDICT §12 N2-4) that `refuse` as built is
+OFFICE-WIDE for the window: `plurality_suppressed` is a pool-level flag, so one duplicate-phone lead pair
+anywhere in an office's 90-day pool parked every name-evidence bind at that office — including
+exact-FNLI HIGH and the FULL_NAME attribution ratified at RS-18 — as `below_bar`/`plurality_refused_*`.
+Presented with that blast radius (one office today; 1/12,660 cells), the operator ruled: **only the
+candidates sharing the duplicated phone are refused; unrelated candidates at the same office bind as
+scored.** A mechanism change on the S-04/S-05 seam → architect seam ruling (SEAM-RULING-plurality-
+scope-2026-09-04) + contract rev 6 if a clause moves + limb (b) iteration 5, BEFORE the certifier is
+briefed. Companion finding recorded: the S-05 test fixture armed this seam at `bind_as_scored`, not the
+ratified value, so the suite could not see the office-wide effect — the arming rule is amended to arm
+the RATIFIED scoped form.
