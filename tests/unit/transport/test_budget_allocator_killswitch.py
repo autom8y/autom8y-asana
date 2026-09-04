@@ -76,25 +76,69 @@ def test_enabled_interposes_only_advisory_registration() -> None:
     assert spy.observe_calls == 0  # nothing in the request path
 
 
-def test_no_allocator_reference_in_request_path_modules() -> None:
-    """Structural byte-identity: the allocator is absent from the request path.
+def test_request_path_allocator_reference_is_the_guarded_fair_share_cap_only() -> None:
+    """Byte-identity at the request path: the ONLY allocator reference is the guarded ECS
+    fair-share cap in ``asana_http.py``; the per-resource ``clients/`` stay allocator-free.
 
-    If the allocator does not appear in ``asana_http.py`` or any ``clients/``
-    module, there is NO per-request interposition to differ between enabled and
-    disabled -- the request path is byte-identical by construction, both ways.
+    SUPERSEDES the pre-cap structural-absence contract (the allocator used to be absent
+    from ``asana_http.py`` entirely). The ECS 1390/60s fair-share self-cap wires an in-path
+    ``gate.admit`` on the GET path -- mirroring the warmer floor gate, whose byte-identity
+    is ALSO runtime-guard-based (``_floor_paced`` returns the SAME closure when inert), not
+    structural absence. So ``asana_http.py`` now references the allocator, but ONLY inside
+    the fair-share seam, which is byte-identical-INERT when disabled (proven by
+    ``test_ast_fair_share_resolve_is_enabled_guarded``). Two guarantees survive verbatim:
+
+    * the per-resource ``clients/`` modules remain STRUCTURALLY allocator-free; and
+    * the ``asana_http.py`` reference is FUNCTION-LOCAL (no module-level import), so an
+      INERT process pays nothing at import/construction (the ITEM-D dead-knob discipline).
     """
-    request_path_files = [_PKG_ROOT / "transport" / "asana_http.py"]
-    request_path_files += list((_PKG_ROOT / "clients").rglob("*.py"))
-    offenders: list[str] = []
-    for path in request_path_files:
-        if "__pycache__" in path.parts:
-            continue
-        if "budget_allocator" in path.read_text():
-            offenders.append(str(path.relative_to(_PKG_ROOT)))
-    assert offenders == [], (
-        f"budget_allocator must NOT appear in the request path (found: {offenders}). "
-        "Any hot-path reference risks a runtime branch that drifts from byte-identity."
+    # (1) clients/ MUST stay allocator-free -- unchanged structural-absence guarantee.
+    client_modules = [
+        p for p in (_PKG_ROOT / "clients").rglob("*.py") if "__pycache__" not in p.parts
+    ]
+    client_offenders = [
+        str(p.relative_to(_PKG_ROOT)) for p in client_modules if "budget_allocator" in p.read_text()
+    ]
+    assert client_offenders == [], (
+        f"budget_allocator must NOT appear in the per-resource clients/ (found: "
+        f"{client_offenders}) -- those carry no per-request interposition."
     )
+
+    # (2) asana_http.py carries the in-path fair-share cap now -- but only function-local.
+    http_src = (_PKG_ROOT / "transport" / "asana_http.py").read_text()
+    assert "budget_allocator" in http_src  # the in-path fair-share cap lives here
+    tree = ast.parse(http_src)
+    module_level_ba_imports: list[str] = []
+    for node in tree.body:  # top-level statements ONLY (TYPE_CHECKING block is nested)
+        if isinstance(node, ast.ImportFrom) and node.module and "budget_allocator" in node.module:
+            module_level_ba_imports.append(node.module)
+        elif isinstance(node, ast.Import):
+            module_level_ba_imports += [a.name for a in node.names if "budget_allocator" in a.name]
+    assert module_level_ba_imports == [], (
+        "budget_allocator must be imported function-locally in asana_http.py, never at "
+        f"module level (found: {module_level_ba_imports}) -- a runtime module-level import "
+        "risks import-time interposition drift from byte-identity."
+    )
+
+
+def test_ast_fair_share_resolve_is_enabled_guarded() -> None:
+    """The fair-share seam early-returns when disabled (byte-identical-INERT).
+
+    AST proof that ``_resolve_fair_share_gate`` contains an ``if not allocator.enabled:
+    return None`` guard -- the byte-identical-seam invariant for the in-path ECS cap,
+    symmetric with ``test_ast_client_init_attach_is_guarded_early_return``.
+    """
+    src = (_PKG_ROOT / "transport" / "asana_http.py").read_text()
+    tree = ast.parse(src)
+    guarded = False
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == "_resolve_fair_share_gate":
+            for sub in ast.walk(node):
+                if isinstance(sub, ast.If):
+                    # a bare `return` inside an `if ...` guard (disabled / off-lane / non-GET)
+                    if any(isinstance(s, ast.Return) for s in sub.body):
+                        guarded = True
+    assert guarded, "_resolve_fair_share_gate must early-return when disabled"
 
 
 # --------------------------------------------------------------------------
