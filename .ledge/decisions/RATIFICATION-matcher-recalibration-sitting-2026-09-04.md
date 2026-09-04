@@ -91,3 +91,23 @@ corroboration R1-R5 (their lane) · RESIDUAL-5 + RETRO (→ first successor) · 
 | 4 | PT-04 delta on the ratified head → S-10 integrity-architect COLD | potnia → dre | first contact |
 | 5 | Peer heads-up → merge under RS-2 → read-back ×3 → S-12 on G-6 | dispatcher / pipeline-steward | RS-2 |
 | 6 | RESIDUAL-5 + RETRO framing | myron (/frame) | after 5 |
+
+# §6 ADDENDUM — 2026-09-04T20:30Z, after S-09 limb (b)'s first return (two further words)
+
+**A8 falsified by receipt** (14 constructions replayed against the shipped matcher; corroborated by
+CONTRACT V-8.1's own note and RULING §0): a lone INITIALS match binds silently today (A8 TRUE on that
+limb); **a lone first-name-plus-initial candidate PARKS today** (A8 FALSE on that limb). RS-5's
+headline "label what already binds" therefore described only the INITIALS limb. PT-03 §I(2) carried
+the wrong claim; erratum appended there. Two words spoken on the corrected premise:
+
+**RS-17 (amends RS-9) — FNLI lone prefix-first PARKS in event one, as today.** `WEAK_FORGIVENESS_MIN_
+SCORE` is SET (not struck) at the lowest achievable base score strictly above the lone prefix-first
+score, derived by receipt from the head's enumeration. Comparand α/β stays DEFERRED and is MOOT this
+event (recency NOT SET → bonus 0). `below_bar` becomes REACHABLE. R-M3's bind is realised at the
+loosening sitting, not before (R-25).
+**RS-18 — FULL_NAME exact attribution SHIPS in event one** (attribute to the existing lead at HIGH
+instead of minting a new lead; R-M2; cell RM2/C wrong-bind 0/39..0/40 MEASURED at every window;
+gate-neutral). Recorded as deliberate new attribution surface in S-11's landing note.
+**Corrected statement of event one**: INITIALS labelled as it binds today; FNLI reproduces today's park;
+the INITIALS window tightens 90→14; full-name attribution goes live; the tier is emitted and counted
+on every outcome including read_failed; the P-3 sender-auth line emits. Nothing else changes.
