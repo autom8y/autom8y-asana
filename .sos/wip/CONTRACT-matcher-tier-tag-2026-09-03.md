@@ -1158,6 +1158,14 @@ Reads taken at autom8y `origin/main` `52995b26`.
 contract act either way and the contract says which and why"*) +
 `.sos/wip/CONTRACT-name-the-zero-kind-vocabulary-2026-09-05.md` §4 K-8.
 
+**★ COUNT NOTE (QA D-9, LOW).** The DELTA's Clause 4 headline read *"V-8 gains
+five invariants"* while its body appends items **8–13 — six**. The body applied
+here carries all six and always did; only the delta's headline miscounted, by
+treating item 13 (the two-sidedness leg) as an addendum rather than an invariant.
+It is an invariant: the realization predicate requires the three-cell
+discrimination **two-sided**, so 13 is load-bearing and not commentary. The delta
+file is corrected in the same PR so the two documents cannot disagree.
+
 **★ NAMESPACE NOTE (PT-01 C-5), because two contracts now carry a `CT-16`.**
 Unprefixed identifiers in THIS document — `V-1`…`V-8`, `CT-1`…`CT-16`, `F-M1`…`F-M6`,
 `S-04`…`S-11` — are the **matcher-recalibration** lane's. Identifiers belonging to

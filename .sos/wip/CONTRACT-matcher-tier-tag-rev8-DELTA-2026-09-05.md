@@ -181,7 +181,15 @@ be readable **alone**.
 extends to the new attributes by construction (they carry an enum and an error
 code).
 
-### Clause 4 — **V-8 gains five invariants.** *(class: MECHANISM — they are the qa-adversary's pins)*
+### Clause 4 — **V-8 gains SIX invariants.** *(class: MECHANISM — they are the qa-adversary's pins)*
+
+> **Count corrected at application (QA D-9, LOW).** This clause's headline read
+> *"five invariants"* while its body appends items **8–13 — six**. The applied
+> rev-8 body carries all six and always did; only the headline miscounted, by
+> treating item 13 (the two-sidedness leg) as an addendum rather than an
+> invariant. It is an invariant: the predicate requires the discrimination
+> two-sided, so 13 is load-bearing, not commentary. Corrected in BOTH the delta
+> and the applied contract so the two cannot disagree.
 
 **Append as items 8–12. Items 1–7 are UNCHANGED.**
 
