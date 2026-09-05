@@ -8,8 +8,9 @@ S-W2-5 (BUILD-wave 2) CLOSED the W-7 delegation NA-B5-3 named. The guard is now
 an ALLOW-LIST on ``TIER_DETERMINISTIC_MEMBERSHIP`` rather than a deny-list of the
 tiers known to be bad today, so a tier-2 name-pattern identity -- an identity
 concluded from a DISPLAY STRING -- is refused HERE and no longer depends on
-``detection/tier2.py:165`` setting a flag. :class:`TestGuardHasTeeth` now
-REJECTS the pre-closure deny-list itself, so a revert cannot pass unnoticed.
+``detection/tier2.py:165`` setting a flag. Two batteries hold it:
+:class:`TestGuardHasTeeth` (which now REJECTS the pre-closure deny-list itself)
+and :class:`TestNonDeterministicTiersSelfFlag` (the cross-file pin).
 
 Every gid and every name in this file is synthetic (W-3): no real client name, no
 real Asana gid other than the Businesses PROJECT gid, which is a registry constant
@@ -30,6 +31,10 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from autom8_asana.errors import HydrationError
+from autom8_asana.models.business.detection import tier1, tier2, tier3
+from autom8_asana.models.business.detection.facade import _make_unknown_result
+from autom8_asana.models.business.detection.tier2 import detect_by_name_pattern
+from autom8_asana.models.business.detection.tier3 import detect_by_parent_inference
 from autom8_asana.models.business.detection.tier4 import (
     detect_by_structure_inspection,
 )
@@ -39,6 +44,7 @@ from autom8_asana.models.business.detection.types import (
     CONFIDENCE_TIER_3,
     CONFIDENCE_TIER_4,
     CONFIDENCE_TIER_5,
+    EntityType,
 )
 from autom8_asana.models.business.hydration import (
     _traverse_upward_async,
@@ -243,8 +249,8 @@ class TestTierFourIsNotWavedThrough:
         from EXACTLY ONE tier -- ``TIER_DETERMINISTIC_MEMBERSHIP`` (project
         membership, a structural fact) -- so tier 2 is refused HERE, by this
         module, whatever ``tier2.py:165`` says. The upstream flag is still pinned
-        as defence in depth by a cross-file pin, but the supply no longer DEPENDS
-        on it.
+        (:class:`TestNonDeterministicTiersSelfFlag`) as defence in depth, but the
+        supply no longer DEPENDS on it.
         """
         # POSITIVE control: the one admissible tier still publishes.
         clean = build_identity_supply(
@@ -500,6 +506,64 @@ class TestDetectorSelfFlagging:
 # =============================================================================
 # E2 -- the hydration DISCARD is cured
 # =============================================================================
+
+
+class TestNonDeterministicTiersSelfFlag:
+    """OPTION (B), landed as DEFENCE IN DEPTH beside the allow-list closure.
+
+    The allow-list (:func:`classify_identification`) is THE closure: it removed
+    this module's DEPENDENCE on the upstream flag, so deleting
+    ``detection/tier2.py:165`` can no longer change what the supply publishes.
+    That is exactly why the invariant still needs a pin -- once a fact stops
+    being load-bearing, its erosion stops being visible.
+
+    These are CROSS-FILE pins over the REAL detector entrypoints. They assert the
+    two things the supply's refusal arm CARRIES and the fold reads:
+    ``needs_healing is True`` and ``tier_used != 1``. Drop the flag anywhere
+    upstream and this class goes RED here, in the module that consumes it.
+    """
+
+    def test_tier2_name_pattern_always_self_flags(self) -> None:
+        """``detection/tier2.py:165`` -- the single line NA-B5-3 named."""
+        result = detect_by_name_pattern(Task(gid="b1", name="Fixture Units"))
+        assert result is not None, "the tier-2 fixture no longer matches a pattern"
+        assert result.tier_used == 2
+        assert result.needs_healing is True
+        assert result.tier_used != TIER_DETERMINISTIC_MEMBERSHIP
+
+    def test_tier3_parent_inference_always_self_flags(self) -> None:
+        result = detect_by_parent_inference(
+            Task(gid="b1", name="Fixture Node"), EntityType.CONTACT_HOLDER
+        )
+        assert result is not None, "the tier-3 inference rule was removed"
+        assert result.tier_used == 3
+        assert result.needs_healing is True
+        assert result.tier_used != TIER_DETERMINISTIC_MEMBERSHIP
+
+    def test_tier5_unknown_fallback_always_self_flags(self) -> None:
+        result = _make_unknown_result(Task(gid="b1", name="Fixture Node"))
+        assert result.tier_used == 5
+        assert result.needs_healing is True
+        assert result.tier_used != TIER_DETERMINISTIC_MEMBERSHIP
+
+    def test_tier1_is_the_ONLY_tier_that_does_not_self_flag(self) -> None:
+        """The other side of the pin: the allow-listed tier is allow-listed for a
+        REASON the detector itself states -- it is the one tier that reports no
+        healing need. Read off the tier-1 module's own emissions rather than
+        asserted, so a change there is visible here.
+        """
+        source = pathlib.Path(tier1.__file__).read_text(encoding="utf-8")
+        flags = re.findall(r"needs_healing=(True|False)", source)
+        assert flags, "tier1 no longer states a healing flag at all"
+        assert set(flags) == {"False"}, f"tier 1 now self-flags somewhere: {flags}"
+
+        for module in (tier2, tier3):
+            other = pathlib.Path(module.__file__).read_text(encoding="utf-8")
+            other_flags = re.findall(r"needs_healing=(True|False)", other)
+            assert other_flags, f"{module.__name__} states no healing flag"
+            assert set(other_flags) == {"True"}, (
+                f"{module.__name__} stopped self-flagging: {other_flags}"
+            )
 
 
 class TestDiscardIsCured:
