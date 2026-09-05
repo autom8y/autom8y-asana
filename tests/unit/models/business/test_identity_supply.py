@@ -514,7 +514,10 @@ class TestDisplayNameDiscipline:
             "  Fixture Business A  ",
             "FIXTURE BUSINESS A",
             "fixture business a",
-            "Fixture Business A",
+            # U+00A0 written as an escape so the next reader can SEE it: a
+            # display string that NFKC would fold to plain spaces must not be
+            # folded here.
+            "Fixture\u00a0Business\u00a0A",
             "Fixture  Business   A",
             "Fixture Business A — Offers",
         ],
