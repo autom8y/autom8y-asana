@@ -25,6 +25,16 @@ THE FOUR RULES THIS MODULE IS BUILT AROUND
    :func:`classify_identification` does not read ``confidence`` at all, and a
    self-flagged identification is published as a TYPED ABSENCE, never as a value.
 
+   **S-W2-5 widened this from a deny-list to an ALLOW-LIST.** Guarding on the
+   flag alone left the module's W-7 enforcement DELEGATED to the detector:
+   Tier 2 (``detect_by_name_pattern``) concludes identity FROM A DISPLAY STRING
+   and was refused only because ``detection/tier2.py:165`` happens to set the
+   flag. Identity is now published from EXACTLY ONE tier -- Tier 1, project
+   membership -- and every other tier is CARRIED with the tier and flag stamped.
+   A deny-list inherits the upstream detector's judgement about which of its own
+   tiers to trust; an allow-list re-derives the rule here, so a new tier or a
+   dropped flag is refused by DEFAULT rather than admitted by default.
+
 2. **SET, never PICK.** If the walk yields more than one candidate Business
    ancestor the supply returns the SET with ``match_count`` and publishes NO value.
    It does not choose. The candidates stay reachable on
@@ -80,7 +90,9 @@ __all__ = [
     "SystemOfRecord",
     "Supplier",
     "TIER4_ABSENT_REASON",
+    "TIER_DETERMINISTIC_MEMBERSHIP",
     "TIER_STRUCTURE_INSPECTION",
+    "UNPUBLISHABLE_TIER_ABSENT_REASON",
     "WalkOutcome",
     "build_identity_supply",
     "classify_identification",
@@ -89,6 +101,15 @@ __all__ = [
 ]
 
 logger = get_logger(__name__)
+
+#: The ONLY tier from which this supply publishes an IDENTITY: Tier 1, project
+#: membership -- a DETERMINISTIC structural fact read off the card's memberships.
+#: Every other tier concludes identity by INFERENCE (tier 3 parent-inference,
+#: tier 4 subtask-structure inspection, tier 5 unknown-fallback) or, worst,
+#: FROM A DISPLAY STRING (tier 2 name-pattern), which is the W-7 STRICT hazard
+#: itself. The guard is an ALLOW-LIST on this constant, not a deny-list of the
+#: tiers known to be bad today -- see :func:`classify_identification`.
+TIER_DETERMINISTIC_MEMBERSHIP = 1
 
 #: The detection tier whose conclusion the detector itself flags as needing
 #: healing (subtask-name structure inspection). Named as a constant so the guard
@@ -172,6 +193,18 @@ RATIFIED_ABSENT_REASONS: frozenset[str] = frozenset(
 #: could not be decided"; the two carried fields say WHY. Nothing is lost by using
 #: an in-set token, and a closed-set contract is not widened from a build seat.
 TIER4_ABSENT_REASON = AbsentReason.UNDECIDABLE
+
+#: The reason emitted for ANY identification the supply may not publish as an
+#: IDENTITY -- every tier other than the deterministic one, and an undisclosed
+#: tier. Same ratified token as above (the set stays TEN, an equality the schema
+#: pins assert); the two names exist because the two facts are different, and a
+#: reader should not have to infer that a tier-2 refusal is "the tier-4 reason".
+#: WHY ONE TOKEN AND NOT SIX: the distinguishing fact is NOT carried by the
+#: token, it is carried by the ratified REQUIRED fields on the same refusal arm
+#: -- ``detection_tier`` says WHICH tier concluded it and ``needs_healing`` says
+#: what the detector thought of its own conclusion. Widening a closed set from a
+#: build seat is the thing S-B5 already had to withdraw once.
+UNPUBLISHABLE_TIER_ABSENT_REASON = AbsentReason.UNDECIDABLE
 
 
 class Grain(enum.StrEnum):
@@ -311,7 +344,24 @@ def classify_identification(
 ) -> AbsentReason | None:
     """Return a typed absence when an identification must NOT be published as a value.
 
-    **THE GUARD IS ON THE FLAG AND THE TIER, NEVER ON THE CONFIDENCE NUMBER.**
+    **AN ALLOW-LIST, NOT A DENY-LIST.** Identity is published from EXACTLY ONE
+    tier -- :data:`TIER_DETERMINISTIC_MEMBERSHIP`, project membership -- and only
+    when the detector positively says the node needs no healing. Every other
+    input is refused with the tier and the flag CARRIED onto the refusal arm.
+
+    WHY THE INVERSION (NA-B5-3, closed here). The previous shape was a deny-list:
+    ``needs_healing or detection_tier == 4``. Under it, Tier 2 --
+    ``detect_by_name_pattern``, an identity concluded FROM A DISPLAY STRING, the
+    exact W-7 STRICT hazard -- was refused in production ONLY because
+    ``detection/tier2.py:165`` happens to set ``needs_healing=True``. This
+    module's W-7 enforcement was therefore DELEGATED to one line in a file it
+    does not own, and a drop of that line would have re-opened the hole silently.
+    A deny-list is a list of the failures known TODAY; it inherits the upstream
+    detector's judgement about which of its own tiers are trustworthy. An
+    allow-list re-derives the rule locally: a NEW tier 6, or a tier whose flag is
+    dropped, is refused by DEFAULT rather than admitted by default.
+
+    **THE GUARD IS ON THE TIER AND THE FLAG, NEVER ON THE CONFIDENCE NUMBER.**
     ``confidence`` is not a parameter of this function and cannot be one. Tier 4
     carries ``CONFIDENCE_TIER_4 = 0.9`` -- the second-highest value in the set, above
     Tier 3's ``0.8`` and far above Tier 2's ``0.6`` -- so a consumer screening on
@@ -320,17 +370,28 @@ def classify_identification(
     says. Because this function never reads the number, moving ``CONFIDENCE_TIER_4``
     to any value cannot change any disposition here.
 
+    ``needs_healing is False`` is an IDENTITY test, not a truthiness test: an
+    UNKNOWN healing state (``None``) withholds rather than publishes, which is
+    the ADR's discipline that absence is typed and unknown-ness never resolves in
+    the permissive direction (NA-B5-4, closed as a consequence of the inversion).
+
+    NOTHING IS DROPPED. A refusal is not a discard: the caller stamps the
+    observed ``detection_tier`` and ``needs_healing`` onto the absent arm, so a
+    tier-4 row lands in the ledger as ``detection_tier=4, needs_healing=True,
+    value=None`` and a tier-2 row as ``detection_tier=2``. The fold can still see
+    every candidate; it simply may not read any of them as an identity.
+
     Returns:
         ``None`` when the identification may be published as a value, or the typed
         absence that must be published instead.
     """
+    if detection_tier == TIER_DETERMINISTIC_MEMBERSHIP and needs_healing is False:
+        return None
     if detection_tier is None:
         # The supplier could not say how it identified the node. An undisclosed
         # basis is not a clean identification.
         return AbsentReason.UNDECIDABLE
-    if needs_healing or detection_tier == TIER_STRUCTURE_INSPECTION:
-        return TIER4_ABSENT_REASON
-    return None
+    return UNPUBLISHABLE_TIER_ABSENT_REASON
 
 
 def _absent(
@@ -414,8 +475,11 @@ def build_identity_supply(
     2. typed walk failure          -> the id-walk families carry THAT reason
     3. zero candidates             -> ``undecidable``
     4. more than one candidate     -> **SET, never PICK**: no value, ``match_count=N``
-    5. exactly one, self-flagged   -> the typed Tier-4 absence (CW-S09-3)
-    6. exactly one, clean          -> the gid is published; the name is published if
+    5. exactly one, NOT deterministically identified -> the typed absence, with the
+       observed ``detection_tier`` and ``needs_healing`` CARRIED onto both arms.
+       This is the ALLOW-LIST: only Tier 1 (project membership) reaches step 6;
+       tiers 2/3/4/5 all land here (CW-S09-3, and NA-B5-3's W-7 closure)
+    6. exactly one, deterministic  -> the gid is published; the name is published if
        the card carries one, else ``ancestor_field_absent`` -- which must never
        collapse into ``parent_absent`` (ADR §3.7 Ground 1)
     """

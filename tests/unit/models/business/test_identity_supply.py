@@ -4,6 +4,13 @@ The keystone here is the TWO-SIDED proof that ``CONFIDENCE_TIER_4 = 0.9`` cannot
 wave a self-flagged identification through. Both arms drive the REAL five-tier
 detector through the REAL upward walk -- neither side is a stubbed disposition.
 
+S-W2-5 (BUILD-wave 2) CLOSED the W-7 delegation NA-B5-3 named. The guard is now
+an ALLOW-LIST on ``TIER_DETERMINISTIC_MEMBERSHIP`` rather than a deny-list of the
+tiers known to be bad today, so a tier-2 name-pattern identity -- an identity
+concluded from a DISPLAY STRING -- is refused HERE and no longer depends on
+``detection/tier2.py:165`` setting a flag. :class:`TestGuardHasTeeth` now
+REJECTS the pre-closure deny-list itself, so a revert cannot pass unnoticed.
+
 Every gid and every name in this file is synthetic (W-3): no real client name, no
 real Asana gid other than the Businesses PROJECT gid, which is a registry constant
 already present in the source tree and is not a client identifier.
@@ -12,8 +19,12 @@ already present in the source tree and is not a client identifier.
 from __future__ import annotations
 
 import ast
+import dataclasses
 import inspect
+import pathlib
+import re
 from datetime import UTC, datetime, timedelta
+from typing import ClassVar
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -36,7 +47,9 @@ from autom8_asana.models.business.hydration import (
 from autom8_asana.models.business.identity_supply import (
     RATIFIED_ABSENT_REASONS,
     TIER4_ABSENT_REASON,
+    TIER_DETERMINISTIC_MEMBERSHIP,
     TIER_STRUCTURE_INSPECTION,
+    UNPUBLISHABLE_TIER_ABSENT_REASON,
     AbsentReason,
     BusinessCandidate,
     Evidence,
@@ -213,33 +226,43 @@ class TestTierFourIsNotWavedThrough:
         assert supply.business_display_name.value == "Fixture Business A"
         assert supply.business_display_name.absent_reason is None
 
-    def test_tier2_name_pattern_publishes_documented_residual(self) -> None:
-        """SIDE (ii-b) -- and a KNOWN W-7 RESIDUAL this test DOCUMENTS, not blesses.
+    def test_tier2_name_pattern_is_refused_the_delegation_is_CLOSED(self) -> None:
+        """SIDE (ii-b) -- NA-B5-3 CLOSED by the ALLOW-LIST INVERSION.
 
-        The clean arm: the detector cannot currently emit an unflagged node AT
-        confidence 0.9 (see
-        :meth:`TestDetectorSelfFlagging.test_tier4_always_self_flags`), so the
-        nearest reachable positive arm is an unflagged non-Tier-4 identification.
-        Tier 1 (project membership, deterministic) and Tier 3 (parent inference)
-        publish, which is correct.
+        **What this test used to say, and why it changed.** Until this PR the
+        guard was a DENY-LIST (``needs_healing or detection_tier == 4``) and this
+        test pinned "tiers 1, 2 and 3 publish" as correct. Tier 2 is
+        ``detect_by_name_pattern`` -- an identity concluded from a DISPLAY
+        STRING, the exact W-7 STRICT hazard -- and it was refused in production
+        ONLY because ``detection/tier2.py:165`` sets ``needs_healing=True``. The
+        guard delegated its W-7 enforcement to one line in a file this module
+        does not own, and a drop of that line would have turned this assertion
+        GREEN on a genuine regression.
 
-        **THE RESIDUAL, stated so it is not mistaken for an endorsement.** Tier 2 is
-        ``detect_by_name_pattern`` -- an identity concluded from a DISPLAY STRING,
-        which is the exact W-7 STRICT hazard this module exists to hold. It is
-        refused in production TODAY only because ``tier2.py:165`` sets
-        ``needs_healing=True``; the guard here therefore DELEGATES its W-7
-        enforcement to a single line in a file this PR does not touch and does not
-        pin. If that line were ever dropped, this assertion would go green on a
-        genuine regression.
-
-        This test asserts what the assembler DOES, and records that the tier-2 row
-        is protected upstream rather than here. Closing the delegation -- either an
-        allow-list inversion (publish only ``detection_tier == 1``) or a cross-file
-        pin that ``tier2``/``tier3``/``tier5`` always self-flag -- is CARDED for
-        wave 2's charter and is deliberately out of scope for this lane
-        (see RECEIPT-WALK-B5 §REVISION-1, NA-B5-3).
+        **The closure is the guard, not this test.** Identity is now published
+        from EXACTLY ONE tier -- ``TIER_DETERMINISTIC_MEMBERSHIP`` (project
+        membership, a structural fact) -- so tier 2 is refused HERE, by this
+        module, whatever ``tier2.py:165`` says. The upstream flag is still pinned
+        as defence in depth by a cross-file pin, but the supply no longer DEPENDS
+        on it.
         """
-        for tier in (1, 2, 3):
+        # POSITIVE control: the one admissible tier still publishes.
+        clean = build_identity_supply(
+            WalkOutcome(
+                offer_gid="o1",
+                candidates=(
+                    _candidate(detection_tier=TIER_DETERMINISTIC_MEMBERSHIP, needs_healing=False),
+                ),
+                failure=None,
+            ),
+            observed_at=OBSERVED_AT,
+        )
+        assert clean.asana_business.value == "b1"
+        assert clean.asana_business.absent_reason is None
+
+        # NEGATIVE controls: EVERY other tier is refused, with the tier STAMPED
+        # and the flag CARRIED -- never dropped, never waved through.
+        for tier in (2, 3, 4, 5):
             supply = build_identity_supply(
                 WalkOutcome(
                     offer_gid="o1",
@@ -248,7 +271,64 @@ class TestTierFourIsNotWavedThrough:
                 ),
                 observed_at=OBSERVED_AT,
             )
-            assert supply.asana_business.value == "b1", f"tier {tier} was refused"
+            for family in ("asana_business", "business_display_name"):
+                ev = supply.families()[family]
+                assert ev.value is None, f"tier {tier} published an identity"
+                assert ev.absent_reason is UNPUBLISHABLE_TIER_ABSENT_REASON
+                assert ev.absent_reason is not None
+                assert ev.absent_reason.value == "undecidable"
+                assert ev.absent_reason.value in RATIFIED_ABSENT_REASONS
+                # CARRIED, not dropped: the row discloses WHICH tier concluded it.
+                assert ev.detection_tier == tier
+                assert ev.needs_healing is False
+                assert ev.supplier is Supplier.ID_WALK
+            # The candidate itself stays reachable for the fold.
+            assert supply.candidates[0].detection_tier == tier
+
+    def test_tier4_is_CARRIED_with_needs_healing_not_refused_into_silence(self) -> None:
+        """The discriminating control (PT-W2-4 reads tier-4 rows "carried").
+
+        A refusal is not a discard. The tier-4 residual CW-S09-3 already proved
+        keeps its exact shape under the inversion: ``value`` is null, the token is
+        the ratified one, and BOTH discriminators ride on the refusal arm so a
+        reader can tell a tier-4 refusal from a tier-2 one and from a walk that
+        never reached an ancestor at all.
+        """
+        supply = build_identity_supply(
+            WalkOutcome(
+                offer_gid="o1",
+                candidates=(
+                    _candidate(detection_tier=TIER_STRUCTURE_INSPECTION, needs_healing=True),
+                ),
+                failure=None,
+            ),
+            observed_at=OBSERVED_AT,
+        )
+        for family in ("asana_business", "business_display_name"):
+            ev = supply.families()[family]
+            assert ev.value is None
+            assert ev.detection_tier == 4
+            assert ev.needs_healing is True
+            assert ev.absent_reason is not None
+            assert ev.absent_reason.value == "undecidable"
+        # NOT a refusal of the whole supply: the offer family is untouched and
+        # the candidate set is still published for the fold to grade.
+        assert supply.offer.value == "o1"
+        assert supply.offer.supplier is Supplier.PRODUCER_HELD
+        assert len(supply.candidates) == 1
+
+    def test_an_unknown_healing_state_withholds_even_at_tier_one(self) -> None:
+        """NA-B5-4, closed as a consequence: ``None`` fails CLOSED, not OPEN.
+
+        Under the deny-list ``needs_healing or ...``, a ``None`` healing state was
+        FALSY and published. The allow-list tests ``is False``, so an unknown
+        set-ness withholds -- the same direction every other absence in this
+        module resolves. Unreachable today (``DetectionResult.needs_healing`` is
+        non-Optional); pinned so it cannot become reachable silently.
+        """
+        assert classify_identification(TIER_DETERMINISTIC_MEMBERSHIP, None) is not None
+        assert classify_identification(TIER_DETERMINISTIC_MEMBERSHIP, False) is None
+        assert classify_identification(TIER_DETERMINISTIC_MEMBERSHIP, True) is not None
 
     def test_the_disposition_is_CONFIDENCE_INVARIANT(self) -> None:
         """Moving CONFIDENCE_TIER_4 cannot change any disposition.
@@ -309,18 +389,34 @@ class TestGuardHasTeeth:
             failures.append("admits_flagged_tier1")
         if guard(None, None) is None:
             failures.append("admits_undisclosed_tier")
+        # NA-B5-3: the W-7 arm. A guard that admits a name-pattern (tier 2)
+        # identification is admitting an identity concluded from a DISPLAY
+        # STRING, whatever the upstream flag happens to say today.
+        if guard(2, False) is None:
+            failures.append("admits_unflagged_tier2_name_pattern")
+        if guard(3, False) is None:
+            failures.append("admits_unflagged_tier3_inference")
+        if guard(5, False) is None:
+            failures.append("admits_unflagged_tier5_fallback")
+        # NA-B5-4: an UNKNOWN healing state must withhold, not publish.
+        if guard(1, None) is None:
+            failures.append("admits_unknown_healing_state")
         return failures
 
     def test_the_real_guard_passes_the_battery(self) -> None:
         assert self._battery(classify_identification) == []
 
     def test_a_noop_guard_is_rejected(self) -> None:
-        """A guard that admits everything fails 3 of 4 -- the battery is not vacuous."""
+        """A guard that admits everything fails 7 of 8 -- the battery is not vacuous."""
         failures = self._battery(lambda _tier, _flag: None)
         assert set(failures) == {
             "admits_selfflagged_tier4",
             "admits_flagged_tier1",
             "admits_undisclosed_tier",
+            "admits_unflagged_tier2_name_pattern",
+            "admits_unflagged_tier3_inference",
+            "admits_unflagged_tier5_fallback",
+            "admits_unknown_healing_state",
         }
 
     def test_a_conflating_guard_is_rejected(self) -> None:
@@ -328,6 +424,43 @@ class TestGuardHasTeeth:
         two-sided and cannot be satisfied by blanket refusal."""
         failures = self._battery(lambda _tier, _flag: AbsentReason.UNDECIDABLE)
         assert failures == ["refuses_clean_tier1"]
+
+    def test_the_PRE_CLOSURE_deny_list_guard_is_now_REJECTED(self) -> None:
+        """THE TEETH OF THE CLOSURE ITSELF.
+
+        This is the guard exactly as it stood at ``05df2f32`` -- the deny-list
+        ``needs_healing or detection_tier == 4``, transcribed verbatim. It passed
+        the OLD battery 0/4. It must now FAIL, and it must fail on precisely the
+        arms NA-B5-3 named and nowhere else: it admits an unflagged tier-2
+        name-pattern identity, an unflagged tier-3 inference, an unflagged tier-5
+        fallback, and an unknown healing state at tier 1.
+
+        If this test ever went green, the inversion would have been reverted
+        without the battery noticing -- which is the exact failure mode the old
+        battery had and this one closes.
+        """
+
+        def _deny_list(
+            detection_tier: int | None, needs_healing: bool | None
+        ) -> AbsentReason | None:
+            if detection_tier is None:
+                return AbsentReason.UNDECIDABLE
+            if needs_healing or detection_tier == TIER_STRUCTURE_INSPECTION:
+                return TIER4_ABSENT_REASON
+            return None
+
+        assert set(self._battery(_deny_list)) == {
+            "admits_unflagged_tier2_name_pattern",
+            "admits_unflagged_tier3_inference",
+            "admits_unflagged_tier5_fallback",
+            "admits_unknown_healing_state",
+        }
+        # ...and it still passes every arm the OLD battery had, so the delta is
+        # attributable to the closure and to nothing else.
+        assert _deny_list(4, True) is not None
+        assert _deny_list(1, False) is None
+        assert _deny_list(1, True) is not None
+        assert _deny_list(None, None) is not None
 
 
 class TestDetectorSelfFlagging:
