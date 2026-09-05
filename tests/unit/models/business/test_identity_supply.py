@@ -8,9 +8,10 @@ S-W2-5 (BUILD-wave 2) CLOSED the W-7 delegation NA-B5-3 named. The guard is now
 an ALLOW-LIST on ``TIER_DETERMINISTIC_MEMBERSHIP`` rather than a deny-list of the
 tiers known to be bad today, so a tier-2 name-pattern identity -- an identity
 concluded from a DISPLAY STRING -- is refused HERE and no longer depends on
-``detection/tier2.py:165`` setting a flag. Two batteries hold it:
-:class:`TestGuardHasTeeth` (which now REJECTS the pre-closure deny-list itself)
-and :class:`TestNonDeterministicTiersSelfFlag` (the cross-file pin).
+``detection/tier2.py:165`` setting a flag. Three batteries hold it:
+:class:`TestGuardHasTeeth` (which now REJECTS the pre-closure deny-list itself),
+:class:`TestNonDeterministicTiersSelfFlag` (the cross-file pin, defence in depth)
+and :class:`TestLandedFoldContract` (the walk against [data] at ``e424905b``).
 
 Every gid and every name in this file is synthetic (W-3): no real client name, no
 real Asana gid other than the Businesses PROJECT gid, which is a registry constant
@@ -964,6 +965,245 @@ class TestSchemaPins:
 # =============================================================================
 # E4 -- the cascade is never consulted
 # =============================================================================
+
+
+class TestLandedFoldContract:
+    """The walk's ``Evidence`` against the LANDED [data] consumer, field by field.
+
+    THE SUBSTRATE OF RECORD. Every literal in this class is TRANSCRIBED from
+    ``autom8y-data`` at ``e424905b`` -- ``src/autom8_data/services/
+    identity_observation_appender.py`` (the ``SuppliedEvidence`` Protocol and
+    ``validate_supplied_evidence``), ``src/autom8_data/core/models/
+    _identity_observations.py`` (the closed vocabularies) and
+    ``alembic/versions/033_create_identity_observation_ledger.py`` (the DDL
+    CHECKs). [asana] deliberately imports NOTHING from [data]: the consuming PR is
+    unmerged, and [data] itself refuses to import this package for the mirror-image
+    reason. A transcription with its ref named is a pin; an import would be a
+    dependency on an unmerged head.
+
+    WHAT IS NOT PINNED HERE. ``shared`` / ``shared_absent_reason`` are NOT the
+    walk's: seat A types them itself (``shared=None``,
+    ``shared_absent_reason='fleet_denominator_not_computed'``) because a
+    roster-scoped seat cannot compute a FLEET denominator. ``Evidence`` has no
+    such field and must not grow one -- ``TestSchemaPins`` already pins that.
+    """
+
+    #: The 16 fields of ``SuppliedEvidence`` at ``e424905b``, in declaration order.
+    LANDED_PROTOCOL_FIELDS: ClassVar[tuple[str, ...]] = (
+        "family",
+        "value",
+        "absent_reason",
+        "supplier",
+        "supplier_path",
+        "detection_tier",
+        "needs_healing",
+        "grain",
+        "population",
+        "system_of_record",
+        "match_count",
+        "total_match_count",
+        "set_disclosed",
+        "refuted",
+        "observed_at",
+        "basis_version",
+    )
+
+    #: ``_identity_observations.ADMISSIBLE_SUPPLIERS`` -- FIVE. ``cascade``'s
+    #: absence is the root-substitution forbiddance made mechanical.
+    LANDED_ADMISSIBLE_SUPPLIERS: ClassVar[frozenset[str]] = frozenset(
+        {"producer_held", "id_walk", "resolution_context", "resolve_on_phone", "parent_ref"}
+    )
+
+    #: ``_identity_observations.RULED_SUPPLIER_BY_FAMILY``, restricted to the three
+    #: families this walk supplies. ``offer -> producer_held`` is the S-W2-2
+    #: ruling (PTB2-2) and is PINNED here, not re-litigated: the offer gid is the
+    #: walk's INPUT, handed in by the producer that already holds it.
+    LANDED_RULED_SUPPLIER: ClassVar[dict[str, str]] = {
+        "asana_business": "id_walk",
+        "business_display_name": "id_walk",
+        "offer": "producer_held",
+    }
+
+    #: The BASE + ID-WALK members of ``_ABSENT_REASON_VALUES`` (033). The full DDL
+    #: vocabulary is wider -- it also carries the RESOLVE-ON-PHONE, PARENT-REF,
+    #: CROSS-CHECK and ACTIVITY classes -- and this walk may emit only these ten.
+    LANDED_ABSENT_REASONS_BASE_AND_ID_WALK: ClassVar[frozenset[str]] = frozenset(
+        {
+            "not_this_surface",
+            "producer_input_absent",
+            "resolver_unavailable",
+            "system_of_record_retired",
+            "undecidable",
+            "parent_absent",
+            "ancestor_field_absent",
+            "walk_root_without_business",
+            "walk_cycle",
+            "walk_depth_exceeded",
+        }
+    )
+
+    LANDED_SYSTEMS_OF_RECORD: ClassVar[frozenset[str]] = frozenset(
+        {"stripe", "meta", "asana", "data", "none"}
+    )
+    LANDED_POPULATIONS: ClassVar[frozenset[str]] = frozenset({"fleet", "roster"})
+    LANDED_SEAT_A_FAMILIES: ClassVar[frozenset[str]] = frozenset(
+        {"asana_business", "business_display_name", "stripe_customer", "offer", "activity"}
+    )
+    #: ``SUPPLIER_ID_WALK`` -- the label whose evidence REQUIRES a tier.
+    LANDED_SUPPLIER_ID_WALK: ClassVar[str] = "id_walk"
+
+    @staticmethod
+    def _every_disposition() -> dict[str, IdentitySupply]:
+        """All six assembler dispositions, keyed by the branch they exercise."""
+        one = _candidate(detection_tier=TIER_DETERMINISTIC_MEMBERSHIP, needs_healing=False)
+        flagged = _candidate(detection_tier=TIER_STRUCTURE_INSPECTION, needs_healing=True)
+        outcomes = {
+            "no_offer_gid": WalkOutcome(offer_gid=None, candidates=(), failure=None),
+            "typed_walk_failure": WalkOutcome(
+                offer_gid="o1", candidates=(), failure=AbsentReason.PARENT_ABSENT
+            ),
+            "zero_candidates": WalkOutcome(offer_gid="o1", candidates=(), failure=None),
+            "multi_candidates": WalkOutcome(offer_gid="o1", candidates=(one, one), failure=None),
+            "refused_tier": WalkOutcome(offer_gid="o1", candidates=(flagged,), failure=None),
+            "clean_tier1": WalkOutcome(offer_gid="o1", candidates=(one,), failure=None),
+        }
+        return {
+            name: build_identity_supply(outcome, observed_at=OBSERVED_AT)
+            for name, outcome in outcomes.items()
+        }
+
+    def test_the_16_fields_MATCH_the_landed_protocol_exactly(self) -> None:
+        """Equality both ways: zero unknown fields AND zero missing ones.
+
+        A superset would hand the appender a field it silently drops; a subset
+        would fail the Protocol structurally at the wave-3 adapter. Declaration
+        ORDER is pinned too, so a reader diffing the two files sees one list.
+        """
+        emitted = tuple(f.name for f in dataclasses.fields(Evidence))
+        assert emitted == self.LANDED_PROTOCOL_FIELDS
+        assert set(emitted) == set(self.LANDED_PROTOCOL_FIELDS)
+        assert len(emitted) == 16
+
+    def test_every_enum_typed_field_reads_as_its_string_label(self) -> None:
+        """[data] reads these via ``_as_str`` (``getattr(v, "value", v)``).
+
+        This seat types five of the sixteen as enums where the ledger's closed
+        sets are strings. That mismatch is DECLARED and HANDLED on the [data]
+        side, not broken -- but only because every one of them is a ``StrEnum``.
+        A plain ``Enum`` would still satisfy ``_as_str`` and then fail the DDL
+        CHECK at insert time, so the ``StrEnum`` base is the load-bearing fact.
+        """
+        for enum_cls in (AbsentReason, Supplier, Grain, Population, SystemOfRecord):
+            assert issubclass(enum_cls, str), f"{enum_cls.__name__} is not a StrEnum"
+            for member in enum_cls:
+                assert str(getattr(member, "value", member)) == member.value
+
+    def test_every_disposition_emits_only_landed_vocabulary(self) -> None:
+        """Every field bound to a closed set, over all six dispositions."""
+        for name, supply in self._every_disposition().items():
+            for family, ev in supply.families().items():
+                where = f"{name}/{family}"
+                assert ev.family in self.LANDED_SEAT_A_FAMILIES, where
+                assert ev.supplier.value in self.LANDED_ADMISSIBLE_SUPPLIERS, where
+                assert ev.system_of_record.value in self.LANDED_SYSTEMS_OF_RECORD, where
+                assert ev.population.value in self.LANDED_POPULATIONS, where
+                if ev.absent_reason is not None:
+                    assert ev.absent_reason.value in self.LANDED_ABSENT_REASONS_BASE_AND_ID_WALK, (
+                        where
+                    )
+
+    def test_the_supplier_per_family_EQUALS_the_landed_ruled_map(self) -> None:
+        """PT-W2-3's contract FAIL-IF, at the field the appender cross-checks.
+
+        [data] refuses any Evidence whose ``supplier`` disagrees with the
+        family's RULED supplier -- and it refuses rather than overwriting,
+        because the map is a CROSS-CHECK and the Evidence is the SOURCE. A
+        disagreement here would refuse the WHOLE batch, so this is pinned on
+        BOTH arms of every family, present and absent alike.
+        """
+        for name, supply in self._every_disposition().items():
+            for family, ev in supply.families().items():
+                assert ev.supplier.value == self.LANDED_RULED_SUPPLIER[family], (
+                    f"{name}/{family}: supplied {ev.supplier.value!r} but [data] rules "
+                    f"{self.LANDED_RULED_SUPPLIER[family]!r}"
+                )
+
+    def test_the_landed_id_walk_tier_rule_partitions_the_dispositions(self) -> None:
+        """THE ONE OPEN SEAM, measured rather than claimed -- carried to wave 3.
+
+        [data]'s fourth refusal: ``supplier == 'id_walk' and detection_tier is
+        None`` -> the WHOLE batch is refused, nothing staged. Measured against
+        the six dispositions, that rule partitions them exactly:
+
+        * the two dispositions that REACHED a candidate (``refused_tier``,
+          ``clean_tier1``) carry a tier and are ACCEPTED;
+        * the four that reached NO candidate (``no_offer_gid``,
+          ``typed_walk_failure``, ``zero_candidates``, ``multi_candidates``)
+          carry ``detection_tier=None`` and are REFUSED.
+
+        **This is NOT a walk-side defect and is deliberately not "fixed" here.**
+        The two LANDED rules are jointly unsatisfiable for an id-walk typed
+        absence: ``supplier`` is a STATIC property of the family with NO absence
+        form (so ``id_walk`` must be stamped, and [data] refuses anything else),
+        while ``detection_tier`` is REQUIRED for ``id_walk`` -- but when the walk
+        reached no Business there IS no detection to disclose. Stamping some
+        other node's tier would be the ``cascade`` failure mode verbatim: a
+        well-formed value no caller can detect. The honest emission is null.
+
+        The seam therefore belongs to BUILD-wave 3's SDK adapter, and the fix is
+        [data]-side: condition the tier requirement on ``value is not None``.
+        Pinned as a MEASURED PARTITION so wave 3 inherits a fact rather than a
+        claim -- and so this goes RED the moment either side moves.
+        """
+
+        def _landed_refusals(ev: Evidence) -> list[str]:
+            """``validate_supplied_evidence`` at ``e424905b``, transcribed."""
+            out: list[str] = []
+            if ev.family not in self.LANDED_SEAT_A_FAMILIES:
+                out.append("family_outside_seat_a")
+            if ev.supplier.value not in self.LANDED_ADMISSIBLE_SUPPLIERS:
+                out.append("supplier_outside_closed_set")
+            if ev.supplier.value != self.LANDED_RULED_SUPPLIER[ev.family]:
+                out.append("supplier_disagrees_with_ruled")
+            if ev.supplier.value == self.LANDED_SUPPLIER_ID_WALK and ev.detection_tier is None:
+                out.append("id_walk_without_a_tier")
+            return out
+
+        measured = {
+            name: sorted(
+                {rule for ev in supply.families().values() for rule in _landed_refusals(ev)}
+            )
+            for name, supply in self._every_disposition().items()
+        }
+        assert measured == {
+            "no_offer_gid": ["id_walk_without_a_tier"],
+            "typed_walk_failure": ["id_walk_without_a_tier"],
+            "zero_candidates": ["id_walk_without_a_tier"],
+            "multi_candidates": ["id_walk_without_a_tier"],
+            "refused_tier": [],
+            "clean_tier1": [],
+        }, measured
+
+    def test_the_landed_row_has_no_slot_for_the_evidence_grain(self) -> None:
+        """A second wave-3 carry, pinned so it is not rediscovered as a surprise.
+
+        ``grain`` is on the Protocol, but ``build_observation`` does NOT carry it
+        onto the row: ``subject_grain`` comes from the ``SubjectKey`` the CALLER
+        passes, and ``append_supplied_evidence`` takes ONE subject for the WHOLE
+        batch. One ``IdentitySupply`` spans TWO grains -- G-1 for the two identity
+        families, G-3 for ``offer`` -- so a single-subject append cannot attribute
+        both honestly. The adapter must split the batch by grain (or the ledger
+        must carry the evidence grain); either way it is a wave-3 decision and
+        the fact is measured here rather than assumed away.
+        """
+        supply = self._every_disposition()["clean_tier1"]
+        grains = {family: ev.grain for family, ev in supply.families().items()}
+        assert grains == {
+            "asana_business": Grain.G_1,
+            "business_display_name": Grain.G_1,
+            "offer": Grain.G_3,
+        }
+        assert len({g.value for g in grains.values()}) == 2
 
 
 class TestCascadeIsNeverConsulted:
