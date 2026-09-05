@@ -121,11 +121,11 @@ class Supplier(enum.StrEnum):
 
 
 class AbsentReason(enum.StrEnum):
-    """ADR §3.5 -- the typed-absence set, BASE + ID-WALK, plus one PROPOSED member.
+    """ADR §3.5 -- the typed-absence set: BASE + ID-WALK, and nothing else.
 
     A closed set that may drift from its emitter is not a contract, it is a comment
     (E-2), so :data:`RATIFIED_ABSENT_REASONS` pins the ratified members and the
-    module's tests assert this enum against it.
+    module's tests assert this enum equals it exactly.
     """
 
     # --- BASE (every family, every supplier) ---
@@ -142,19 +142,10 @@ class AbsentReason(enum.StrEnum):
     WALK_CYCLE = "walk_cycle"
     WALK_DEPTH_EXCEEDED = "walk_depth_exceeded"
 
-    # --- PROPOSED, NOT YET RATIFIED ---
-    # `tier4_needs_healing` is NOT one of the five ID-WALK members ratified at ADR
-    # rev 2 §3.5. It is proposed here because the ratified set has no member that
-    # says "the walk reached a node, the detector typed it BUSINESS, and the
-    # detector flagged its own conclusion as needing healing" -- which is a
-    # different fact from every ratified member. The in-set fallback if the
-    # landing seat declines the extension is `UNDECIDABLE`: flip
-    # :data:`TIER4_ABSENT_REASON` and nothing else changes.
-    TIER4_NEEDS_HEALING = "tier4_needs_healing"
 
-
-#: The ADR rev-2 §3.5 ratified members (BASE + ID-WALK), pinned so that any drift
-#: between this emitter and the ADR is a test failure rather than a silent widening.
+#: The ADR rev-2 §3.5 ratified members (BASE + ID-WALK). This emitter emits EXACTLY
+#: these ten and no others: the pin is an equality, not a subset, so widening the
+#: closed set from a build seat is a test failure rather than a silent extension.
 RATIFIED_ABSENT_REASONS: frozenset[str] = frozenset(
     {
         "not_this_surface",
@@ -170,10 +161,17 @@ RATIFIED_ABSENT_REASONS: frozenset[str] = frozenset(
     }
 )
 
-#: The reason emitted for a self-flagged Tier-4 identification. ONE line to flip to
-#: :attr:`AbsentReason.UNDECIDABLE` if the wave-2 landing seat declines the
-#: proposed sixth ID-WALK member.
-TIER4_ABSENT_REASON = AbsentReason.TIER4_NEEDS_HEALING
+#: The reason emitted for a self-flagged Tier-4 identification.
+#:
+#: This is `undecidable` -- a member of the ADR rev-2 §3.5 RATIFIED set. An earlier
+#: draft emitted a proposed sixth ID-WALK member (`tier4_needs_healing`); it was
+#: dropped because a wave-2 consumer validating `absent_reason` against the closed
+#: set would reject the object, and because the distinguishing fact is ALREADY
+#: carried by the ratified REQUIRED fields on the same refusal arm:
+#: `detection_tier=4` and `needs_healing=True`. The token says "this identification
+#: could not be decided"; the two carried fields say WHY. Nothing is lost by using
+#: an in-set token, and a closed-set contract is not widened from a build seat.
+TIER4_ABSENT_REASON = AbsentReason.UNDECIDABLE
 
 
 class Grain(enum.StrEnum):

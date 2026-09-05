@@ -180,6 +180,13 @@ class TestTierFourIsNotWavedThrough:
             ev = supply.families()[family]
             assert ev.value is None, f"{family} published a self-flagged value"
             assert ev.absent_reason is TIER4_ABSENT_REASON
+            # NA-B5-2: pin the token LITERAL, not just the symbol. A symbolic
+            # assertion follows the constant wherever it points, so the battery
+            # would stay green if the emitted token silently changed. On a
+            # closed-set contract the literal IS the contract.
+            assert ev.absent_reason is not None
+            assert ev.absent_reason.value == "undecidable"
+            assert ev.absent_reason.value in RATIFIED_ABSENT_REASONS
             # The discarded discriminators are CARRIED, not dropped (E1/CW-S09-3).
             assert ev.detection_tier == 4
             assert ev.needs_healing is True
@@ -206,12 +213,31 @@ class TestTierFourIsNotWavedThrough:
         assert supply.business_display_name.value == "Fixture Business A"
         assert supply.business_display_name.absent_reason is None
 
-    def test_side_ii_b_a_clean_node_without_the_flag_passes(self) -> None:
-        """SIDE (ii-b): unflagged identifications pass at every tier the walk can reach.
+    def test_tier2_name_pattern_publishes_documented_residual(self) -> None:
+        """SIDE (ii-b) -- and a KNOWN W-7 RESIDUAL this test DOCUMENTS, not blesses.
 
-        The detector cannot currently emit a clean node AT confidence 0.9 (see
+        The clean arm: the detector cannot currently emit an unflagged node AT
+        confidence 0.9 (see
         :meth:`TestDetectorSelfFlagging.test_tier4_always_self_flags`), so the
-        nearest reachable arm is an unflagged non-Tier-4 identification. It passes.
+        nearest reachable positive arm is an unflagged non-Tier-4 identification.
+        Tier 1 (project membership, deterministic) and Tier 3 (parent inference)
+        publish, which is correct.
+
+        **THE RESIDUAL, stated so it is not mistaken for an endorsement.** Tier 2 is
+        ``detect_by_name_pattern`` -- an identity concluded from a DISPLAY STRING,
+        which is the exact W-7 STRICT hazard this module exists to hold. It is
+        refused in production TODAY only because ``tier2.py:165`` sets
+        ``needs_healing=True``; the guard here therefore DELEGATES its W-7
+        enforcement to a single line in a file this PR does not touch and does not
+        pin. If that line were ever dropped, this assertion would go green on a
+        genuine regression.
+
+        This test asserts what the assembler DOES, and records that the tier-2 row
+        is protected upstream rather than here. Closing the delegation -- either an
+        allow-list inversion (publish only ``detection_tier == 1``) or a cross-file
+        pin that ``tier2``/``tier3``/``tier5`` always self-flag -- is CARDED for
+        wave 2's charter and is deliberately out of scope for this lane
+        (see RECEIPT-WALK-B5 §REVISION-1, NA-B5-3).
         """
         for tier in (1, 2, 3):
             supply = build_identity_supply(
@@ -573,17 +599,37 @@ class TestSchemaPins:
     def test_no_supplier_member_is_name_keyed(self) -> None:
         assert not any("name" in s.value for s in Supplier)
 
-    def test_absent_reasons_pin_the_ratified_set_plus_exactly_one_proposal(self) -> None:
-        emitted = {r.value for r in AbsentReason}
-        assert emitted >= RATIFIED_ABSENT_REASONS, "a ratified member went missing"
-        proposed = emitted - RATIFIED_ABSENT_REASONS
-        assert proposed == {"tier4_needs_healing"}, (
-            "the ID-WALK absence set widened beyond the single declared proposal"
-        )
+    def test_the_absence_set_EQUALS_the_ratified_set(self) -> None:
+        """Equality, not containment: the closed set is not widened from here.
 
-    def test_the_tier4_reason_has_an_in_set_fallback(self) -> None:
-        """One line flips it back inside the ratified set if wave 2 declines it."""
-        assert AbsentReason.UNDECIDABLE.value in RATIFIED_ABSENT_REASONS
+        A subset assertion would let a build seat add a token the wave-2 consumer
+        would reject when it validates `absent_reason` against the ADR's closed set.
+        """
+        assert {r.value for r in AbsentReason} == RATIFIED_ABSENT_REASONS
+
+    def test_every_emitted_reason_is_a_ratified_token(self) -> None:
+        """Swept across every disposition the assembler can take, not just one arm."""
+        outcomes = [
+            WalkOutcome(offer_gid=None, candidates=(), failure=None),
+            WalkOutcome(offer_gid="o1", candidates=(), failure=None),
+            WalkOutcome(offer_gid="o1", candidates=(), failure=AbsentReason.WALK_CYCLE),
+            WalkOutcome(
+                offer_gid="o1",
+                candidates=(_candidate(detection_tier=4, needs_healing=True),),
+                failure=None,
+            ),
+            WalkOutcome(offer_gid="o1", candidates=(_candidate(name=None),), failure=None),
+            WalkOutcome(
+                offer_gid="o1",
+                candidates=(_candidate(gid="b1"), _candidate(gid="b2")),
+                failure=None,
+            ),
+        ]
+        for outcome in outcomes:
+            supply = build_identity_supply(outcome, observed_at=OBSERVED_AT)
+            for ev in supply.families().values():
+                if ev.absent_reason is not None:
+                    assert ev.absent_reason.value in RATIFIED_ABSENT_REASONS
 
     def test_cascade_is_forbidden_as_a_supplier(self) -> None:
         with pytest.raises(ValueError, match="FORBIDDEN as a supplier"):
