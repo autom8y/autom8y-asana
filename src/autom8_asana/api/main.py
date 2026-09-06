@@ -64,6 +64,7 @@ from .routes import (
     fleet_query_router_v1,
     forwarding_stage_census_router,
     health_router,
+    identity_supply_router,
     intake_create_router,
     intake_custom_fields_router,
     intake_resolve_router,
@@ -131,6 +132,7 @@ _S2S_TAGS: frozenset[str] = frozenset(
         "matching",
         "receipts",
         "forwarding-stage",
+        "identity-supply",
     }
 )
 
@@ -209,6 +211,14 @@ _SCOPE_RULES: list[tuple[str, list[str], list[str]]] = [
     # As with the rest of this table, it is documentation-only.
     ("/v1/forwarding-stage", ["query:read"], ["query:read"]),
     ("/v1/matching", ["query:read"], ["query:read"]),
+    # The id-walk identity-evidence exposure is a READ, and it reuses
+    # ``query:read`` for the same reason /v1/forwarding-stage does: a new
+    # scope is a new authz artifact that would then need provisioning on the
+    # caller, and the caller here is a service the fleet has already
+    # provisioned. Inventing an entitlement the consumer does not hold is
+    # the U-4 class. As with the rest of this table, it is
+    # documentation-only; runtime enforcement is require_service_claims.
+    ("/v1/identity-supply", ["query:read"], ["query:read"]),
     ("/v1/admin", ["admin:manage"], ["admin:manage"]),
     ("/v1/internal", ["admin:manage"], ["admin:manage"]),
     ("/v1/entity-write", ["admin:manage"], ["intake:write"]),
@@ -514,6 +524,10 @@ def create_app() -> FastAPI:
             RouterMount(router=receipts_router),
             RouterMount(router=forwarding_stage_census_router),
             RouterMount(router=matching_router),
+            # S-W3-2 (identity-activity-substrate): the id-walk supply
+            # exposure. Prefix /v1/identity-supply overlaps no sibling tree,
+            # so mount order is not load-bearing here.
+            RouterMount(router=identity_supply_router),
         ],
         lifespan=lifespan,
         cors=cors_config,
