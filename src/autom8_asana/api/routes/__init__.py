@@ -23,6 +23,7 @@ Current routes:
 - Intake custom fields router (/v1/tasks/{gid}/custom-fields) - S2S only (custom field writes)
 - Intake create router (/v1/intake/business, /v1/intake/route) - S2S only (business creation + routing)
 - Matching router (/v1/matching/query) - S2S only (business matching, hidden from schema)
+- Identity supply router (/v1/identity-supply/{offer_gid}) - S2S only (id-walk evidence read)
 """
 
 from .admin import router as admin_router
@@ -38,6 +39,7 @@ from .fleet_query import (
 )
 from .forwarding_stage_census import router as forwarding_stage_census_router
 from .health import router as health_router
+from .identity_supply import router as identity_supply_router
 from .intake_create import router as intake_create_router
 from .intake_custom_fields import router as intake_custom_fields_router
 from .intake_resolve import router as intake_resolve_router
@@ -66,6 +68,7 @@ __all__ = [
     "fleet_query_router_api_v1",
     "fleet_query_router_v1",
     "health_router",
+    "identity_supply_router",
     "intake_create_router",
     "intake_custom_fields_router",
     "intake_resolve_router",

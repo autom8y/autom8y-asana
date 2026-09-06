@@ -1,6 +1,23 @@
 {
   "components": {
     "schemas": {
+      "AbsentReason": {
+        "description": "ADR §3.5 -- the typed-absence set: BASE + ID-WALK, and nothing else.\n\nA closed set that may drift from its emitter is not a contract, it is a comment\n(E-2), so :data:`RATIFIED_ABSENT_REASONS` pins the ratified members and the\nmodule's tests assert this enum equals it exactly.",
+        "enum": [
+          "not_this_surface",
+          "producer_input_absent",
+          "resolver_unavailable",
+          "system_of_record_retired",
+          "undecidable",
+          "parent_absent",
+          "ancestor_field_absent",
+          "walk_root_without_business",
+          "walk_cycle",
+          "walk_depth_exceeded"
+        ],
+        "title": "AbsentReason",
+        "type": "string"
+      },
       "AddTagRequest": {
         "additionalProperties": false,
         "description": "Request body for adding a tag to a task.\n\nPer FR-API-TASK-012: Add tag to task endpoint.\n\nAttributes:\n    tag_gid: GID of the tag to add.",
@@ -228,6 +245,69 @@
           "request_id"
         ],
         "title": "AuthTebErrorDetail",
+        "type": "object"
+      },
+      "BusinessCandidateModel": {
+        "description": "One candidate Business ancestor, WITH the detection that produced it.\n\n``name`` is carried byte-verbatim off the Asana card. It is a display\nstring: it decides STATE, never IDENTITY (W-7 STRICT), and it is never a\nkey member and never used to reach ``gid``.",
+        "properties": {
+          "detection_tier": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The tier that identified this candidate as a Business.",
+            "examples": [
+              1
+            ],
+            "title": "Detection Tier"
+          },
+          "gid": {
+            "description": "The candidate Business card gid.",
+            "examples": [
+              "3000000000000003"
+            ],
+            "title": "Gid",
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The candidate's display name, byte-verbatim.",
+            "examples": [
+              "Fixture Business A"
+            ],
+            "title": "Name"
+          },
+          "needs_healing": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The detector's self-flag for this candidate.",
+            "examples": [
+              false
+            ],
+            "title": "Needs Healing"
+          }
+        },
+        "required": [
+          "gid"
+        ],
+        "title": "BusinessCandidateModel",
         "type": "object"
       },
       "Comparison": {
@@ -817,6 +897,204 @@
         "title": "ErrorResponse",
         "type": "object"
       },
+      "EvidenceModel": {
+        "description": "One evidence object, one family, as SUPPLIED.\n\nField-for-field the supply's :class:`Evidence` dataclass. ``value`` and\n``absent_reason`` are XOR (E-0) -- that invariant is enforced in the\ndataclass's ``__post_init__``, upstream of this model, so it is stated here\nrather than re-implemented.",
+        "properties": {
+          "absent_reason": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AbsentReason"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The ratified typed-absence token, or null when a value was published. The enum members are the supply's ratified set.",
+            "examples": [
+              "undecidable"
+            ]
+          },
+          "basis_version": {
+            "description": "The version of the supplier's disposition rules that produced this fact, so an appended observation can be re-graded against the rule that made it.",
+            "examples": [
+              2
+            ],
+            "minimum": 1.0,
+            "title": "Basis Version",
+            "type": "integer"
+          },
+          "detection_tier": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "WHICH detector tier concluded the identification. CARRIED onto the refusal arm too: a refused tier-4 row lands here as 4, not as null. Never a confidence number.",
+            "examples": [
+              1
+            ],
+            "title": "Detection Tier"
+          },
+          "family": {
+            "description": "The evidence family: asana_business, business_display_name, or offer.",
+            "examples": [
+              "asana_business"
+            ],
+            "title": "Family",
+            "type": "string"
+          },
+          "grain": {
+            "$ref": "#/components/schemas/Grain",
+            "description": "The grain the fact is stated at.",
+            "examples": [
+              "G-1"
+            ]
+          },
+          "match_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Candidate Business ancestors confirmed by the walk.",
+            "examples": [
+              1
+            ],
+            "title": "Match Count"
+          },
+          "needs_healing": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What the detector thought of its OWN conclusion. True means the detector self-flagged; the supply publishes such an identification as a typed absence, never as a value.",
+            "examples": [
+              false
+            ],
+            "title": "Needs Healing"
+          },
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The WALK's own observation instant, offset-aware UTC. Never a landing instant.",
+            "examples": [
+              "2026-09-06T12:00:00Z"
+            ],
+            "title": "Observed At"
+          },
+          "population": {
+            "$ref": "#/components/schemas/Population",
+            "description": "The denominator the fact was computed over.",
+            "examples": [
+              "fleet"
+            ]
+          },
+          "refuted": {
+            "description": "Always False from this seat. Refutation is published by the fold; an observation is never self-refuted.",
+            "examples": [
+              false
+            ],
+            "title": "Refuted",
+            "type": "boolean"
+          },
+          "set_disclosed": {
+            "description": "Whether the candidate set is disclosed alongside this fact.",
+            "examples": [
+              true
+            ],
+            "title": "Set Disclosed",
+            "type": "boolean"
+          },
+          "supplier": {
+            "$ref": "#/components/schemas/Supplier",
+            "description": "Which supplier produced the fact. Required even when value is null. `cascade` is a declared member of the closed set and is FORBIDDEN -- the supply raises rather than emit it.",
+            "examples": [
+              "id_walk"
+            ]
+          },
+          "supplier_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The hop SHAPE. A shape, never a value and never a name.",
+            "examples": [
+              "entry->parent*->business"
+            ],
+            "title": "Supplier Path"
+          },
+          "system_of_record": {
+            "$ref": "#/components/schemas/SystemOfRecord",
+            "description": "The system of record for the fact.",
+            "examples": [
+              "asana"
+            ]
+          },
+          "total_match_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The PRE-filter total. Equal to match_count here BY CONSTRUCTION: the id walk does not filter, so there is no erased population.",
+            "examples": [
+              1
+            ],
+            "title": "Total Match Count"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The supplied value, or null when the fact is a TYPED ABSENCE. Exactly one of value / absent_reason is non-null (E-0).",
+            "examples": [
+              "3000000000000003"
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "family",
+          "supplier",
+          "grain",
+          "population",
+          "system_of_record",
+          "set_disclosed",
+          "refuted",
+          "basis_version"
+        ],
+        "title": "EvidenceModel",
+        "type": "object"
+      },
       "ExportOptions": {
         "additionalProperties": true,
         "description": "Open / additive options substructure.\n\nPer spike-handoff §6 P1-C-02 + PRD §6: ``model_config = ConfigDict(extra=\"allow\")``\nis LOAD-BEARING. Closing this enum FORBIDDEN — it would foreclose the\nPhase 2 ``predicate_join_semantics`` field per the LEFT-PRESERVATION GUARD\nADR (mechanism (b) escape valve).\n\nPhase 1 named members:\n    include_incomplete_identity: PRD §3.1 + AC-5/AC-6.\n    dedupe_key: PRD §5.1 — account-grain identity key.\n\nPhase 2 reserved (NOT typed in Phase 1; admitted via ``extra=\"allow\"``):\n    predicate_join_semantics: ``Literal[\"preserve-outer\", \"allow-inner-rewrite\"]``\n        controlling the LEFT-PRESERVATION GUARD per the companion ADR.",
@@ -1029,6 +1307,18 @@
         "title": "ForwardingStageCensusResponse",
         "type": "object"
       },
+      "Grain": {
+        "description": "ADR §12.1a / grain ruling §1.2.",
+        "enum": [
+          "G-0",
+          "G-1",
+          "G-2",
+          "G-2a",
+          "G-3"
+        ],
+        "title": "Grain",
+        "type": "string"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -1040,6 +1330,124 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "IdentitySupplyResponse": {
+        "description": "What the supply hands seat A, on the wire.\n\nThe three evidence objects keep the supply's own attribute names, so a\nreader comparing this response to ``IdentitySupply`` is comparing like with\nlike rather than decoding a rename.",
+        "properties": {
+          "asana_business": {
+            "$ref": "#/components/schemas/EvidenceModel",
+            "description": "The Business card gid family (G-1).",
+            "examples": [
+              {
+                "basis_version": 2,
+                "detection_tier": 1,
+                "family": "asana_business",
+                "grain": "G-1",
+                "match_count": 1,
+                "needs_healing": false,
+                "observed_at": "2026-09-06T12:00:00Z",
+                "population": "fleet",
+                "refuted": false,
+                "set_disclosed": true,
+                "supplier": "id_walk",
+                "supplier_path": "entry->parent*->business",
+                "system_of_record": "asana",
+                "total_match_count": 1,
+                "value": "3000000000000003"
+              }
+            ]
+          },
+          "basis_version": {
+            "description": "The supplier basis version. READ OFF the evidence objects, not minted here; the route refuses when they disagree.",
+            "examples": [
+              2
+            ],
+            "minimum": 1.0,
+            "title": "Basis Version",
+            "type": "integer"
+          },
+          "business_display_name": {
+            "$ref": "#/components/schemas/EvidenceModel",
+            "description": "The Business card name family (G-1). A display string.",
+            "examples": [
+              {
+                "basis_version": 2,
+                "detection_tier": 1,
+                "family": "asana_business",
+                "grain": "G-1",
+                "match_count": 1,
+                "needs_healing": false,
+                "observed_at": "2026-09-06T12:00:00Z",
+                "population": "fleet",
+                "refuted": false,
+                "set_disclosed": true,
+                "supplier": "id_walk",
+                "supplier_path": "entry->parent*->business",
+                "system_of_record": "asana",
+                "total_match_count": 1,
+                "value": "3000000000000003"
+              }
+            ]
+          },
+          "candidates": {
+            "description": "Every Business ancestor the walk confirmed. Present so a consumer can append N observations under SET-never-PICK; a two-candidate walk publishes no identity but discloses both candidates here.",
+            "examples": [
+              [
+                {
+                  "detection_tier": 1,
+                  "gid": "3000000000000003",
+                  "name": "Fixture Business A",
+                  "needs_healing": false
+                }
+              ]
+            ],
+            "items": {
+              "$ref": "#/components/schemas/BusinessCandidateModel"
+            },
+            "title": "Candidates",
+            "type": "array"
+          },
+          "offer": {
+            "$ref": "#/components/schemas/EvidenceModel",
+            "description": "The entry offer gid family (G-3).",
+            "examples": [
+              {
+                "basis_version": 2,
+                "detection_tier": 1,
+                "family": "asana_business",
+                "grain": "G-1",
+                "match_count": 1,
+                "needs_healing": false,
+                "observed_at": "2026-09-06T12:00:00Z",
+                "population": "fleet",
+                "refuted": false,
+                "set_disclosed": true,
+                "supplier": "id_walk",
+                "supplier_path": "entry->parent*->business",
+                "system_of_record": "asana",
+                "total_match_count": 1,
+                "value": "3000000000000003"
+              }
+            ]
+          },
+          "offer_gid": {
+            "description": "The offer gid the walk started from (echoed, digits-only).",
+            "examples": [
+              "3000000000000001"
+            ],
+            "title": "Offer Gid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "offer_gid",
+          "basis_version",
+          "asana_business",
+          "business_display_name",
+          "offer"
+        ],
+        "title": "IdentitySupplyResponse",
         "type": "object"
       },
       "ImputationSummary": {
@@ -1510,6 +1918,15 @@
         ],
         "title": "PaginationMeta",
         "type": "object"
+      },
+      "Population": {
+        "description": "The DENOMINATOR a fact was computed over (ADR §12.1a).",
+        "enum": [
+          "fleet",
+          "roster"
+        ],
+        "title": "Population",
+        "type": "string"
       },
       "ReorderSectionRequest": {
         "additionalProperties": false,
@@ -2238,6 +2655,36 @@
         "title": "SuccessResponse[ForwardingStageCensusResponse]",
         "type": "object"
       },
+      "SuccessResponse_IdentitySupplyResponse_": {
+        "examples": [
+          {
+            "data": {
+              "id": "123",
+              "name": "Example resource"
+            },
+            "meta": {
+              "request_id": "a1b2c3d4e5f67890",
+              "timestamp": "2026-03-15T10:30:00Z"
+            }
+          }
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/IdentitySupplyResponse",
+            "description": "Response data payload"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMeta",
+            "description": "Response metadata"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "SuccessResponse[IdentitySupplyResponse]",
+        "type": "object"
+      },
       "SuccessResponse_ResolutionResponse_": {
         "examples": [
           {
@@ -2395,6 +2842,31 @@
         ],
         "title": "SuccessResponse[list[WorkflowEntry]]",
         "type": "object"
+      },
+      "Supplier": {
+        "description": "ADR §3.3 -- the CLOSED set of SIX. Required even when ``value`` is null.\n\n``CASCADE`` is a declared member and is FORBIDDEN as a supplier: it is present\nso that an emission of it is a visible conflict rather than an unrepresentable\none. This module never emits it.",
+        "enum": [
+          "producer_held",
+          "id_walk",
+          "resolution_context",
+          "resolve_on_phone",
+          "parent_ref",
+          "cascade"
+        ],
+        "title": "Supplier",
+        "type": "string"
+      },
+      "SystemOfRecord": {
+        "description": "ADR §12.1a.",
+        "enum": [
+          "stripe",
+          "meta",
+          "asana",
+          "data",
+          "none"
+        ],
+        "title": "SystemOfRecord",
+        "type": "string"
       },
       "Task": {
         "description": "Asana Task resource model.\n\nUses NameGid for typed resource references (assignee, projects, etc.).\nCustom fields and complex nested structures remain as dicts.\n\nUnknown fields from API responses are silently ignored (per ADR-0005).\n\nExample:\n    >>> from autom8_asana.models import Task\n    >>> task = Task.model_validate(api_response)\n    >>> if task.assignee:\n    ...     print(f\"Assigned to {task.assignee.name}\")",
@@ -8953,6 +9425,125 @@
         ],
         "x-fleet-cross-service-refs": {
           "entity": "forwarding_stage_census",
+          "service": "autom8y"
+        },
+        "x-fleet-read-only": true
+      }
+    },
+    "/v1/identity-supply/{offer_gid}": {
+      "get": {
+        "description": "Walk upward from one offer gid and return the id-walk evidence objects.\n\nAuthentication: S2S JWT only, via the same ``require_service_claims``\ndependency ``/v1/receipts`` and ``/v1/forwarding-stage/census`` use. No new\nprincipal (see module docstring).\n\nArgs:\n    offer_gid: The producer-held offer gid to walk from. Digits only.\n\nReturns:\n    200: ``SuccessResponse[IdentitySupplyResponse]``. Three evidence\n         objects -- ``asana_business``, ``business_display_name``,\n         ``offer`` -- plus the candidate SET and the agreed\n         ``basis_version``. A typed absence is a 200, not an error: the\n         supply publishes absence as evidence, and collapsing that into an\n         HTTP error would destroy the very distinction the substrate\n         exists to record.\n\nError Responses:\n    - 401 MISSING_AUTH / SERVICE_TOKEN_REQUIRED: auth failures (S2S only)\n    - 422: the offer gid is not a decimal string\n    - 502 IDENTITY_SUPPLY_BASIS_CONFLICT: the evidence objects disagree on\n      ``basis_version``\n    - 503 IDENTITY_SUPPLY_UNAVAILABLE: the supply raised",
+        "operationId": "get_identity_supply_v1_identity_supply__offer_gid__get",
+        "parameters": [
+          {
+            "description": "The `contract.offer_gid` carried on the producer's rows. Digits only; anything else is rejected with 422 before any Asana read.",
+            "in": "path",
+            "name": "offer_gid",
+            "required": true,
+            "schema": {
+              "description": "The `contract.offer_gid` carried on the producer's rows. Digits only; anything else is rejected with 422 before any Asana read.",
+              "examples": [
+                "3000000000000001"
+              ],
+              "pattern": "^[0-9]{1,64}$",
+              "title": "Offer Gid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse_IdentitySupplyResponse_"
+                }
+              }
+            },
+            "description": "The supply's typed evidence objects and candidate set"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 401 Get Identity Supply V1 Identity Supply  Offer Gid  Get"
+                }
+              }
+            },
+            "description": "Unauthorized -- AUTH-TEB (JWTAuthMiddleware) or application-layer error"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 403 Get Identity Supply V1 Identity Supply  Offer Gid  Get"
+                }
+              }
+            },
+            "description": "Forbidden -- AUTH-TEB-004 (JWTAuthMiddleware) or application-layer error"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found (Resource or Schema not found)"
+          },
+          "422": {
+            "description": "REFUSED -- the offer gid is not a decimal string. Rejected by path validation before any Asana read is issued."
+          },
+          "502": {
+            "description": "REFUSED -- IDENTITY_SUPPLY_BASIS_CONFLICT: the supplied evidence objects disagree on basis_version, so no single envelope version is true of all of them. NEVER retry into this; it is a supplier contract violation."
+          },
+          "503": {
+            "description": "REFUSED -- IDENTITY_SUPPLY_UNAVAILABLE: the supply raised. Retryable. This is NOT the shape of an unreachable offer -- an unreachable offer is a 200 carrying `absent_reason: resolver_unavailable` evidence, because the supply types that absence itself."
+          }
+        },
+        "security": [
+          {
+            "ServiceJWT": []
+          },
+          {
+            "OAuth2Asana": [
+              "query:read"
+            ]
+          }
+        ],
+        "summary": "Supply id-walk identity evidence for one offer gid",
+        "tags": [
+          "identity-supply"
+        ],
+        "x-fleet-cross-service-refs": {
+          "entity": "identity_observation_ledger",
           "service": "autom8y"
         },
         "x-fleet-read-only": true
