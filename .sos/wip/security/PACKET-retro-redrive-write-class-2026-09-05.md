@@ -369,7 +369,7 @@ luck is not in the design.**
 
 # EC-4 — ONE ROW AT A TIME is a MECHANISM property
 
-Bulk is not discouraged. It is **not expressible**. Five layers, each
+Bulk is not discouraged. It is **not expressible**. Six layers, each
 independently checkable, ordered outermost-first.
 
 | # | Layer | The property | How bulk fails here | Checkable by |
@@ -378,7 +378,20 @@ independently checkable, ordered outermost-first.
 | **M-2** | **Signature** | The entry contract is `pk: str`, singular. A list, tuple, dict, comma-joined string, prefix or glob is a **typed refusal before any store read** | There is no plural form to pass | B-7's test |
 | **M-3** | **Call graph** | The retro module invokes no `scan_*` store method | Enumeration is absent from the code even if M-1 later drifts | B-6, AST-structural — never whole-file, never grep |
 | **M-4** | **Control flow** | The path contains **no loop over rows**: one `get_item`, at most one `client.book`, exactly one conditional `UpdateItem` | There is no iteration construct for a payload to feed | AST: no `For`/`While`/comprehension whose iterable derives from the payload |
-| **M-5** | **The row itself** | The terminal write's `ConditionExpression` includes `attribute_not_exists(retro_redrive_at)` | N invocations against one row yield **at most one** POST. Replay is refused **by the row**, not by the caller | B-8's test |
+| **M-5** | **The row itself** | The terminal write's `ConditionExpression` includes `attribute_not_exists(retro_redrive_at)` | N invocations against one row yield **at most one TERMINAL**. A SERIAL replay is also bounded to one POST (the second invocation's pre-check sees `retro_redrive_at` and refuses before the POST); **N CONCURRENT invocations are NOT** — the condition is evaluated at STAMP time, after the POST. See M-6 | B-8's test |
+| **M-6** | **One execution at a time** | `reserved_concurrent_executions = 1` on the retro function (`contente_retro_redrive.tf`) | This is what bounds one word to at most one POST: with a single concurrent execution there is no window for two invocations to race between the pre-check and the stamp. Deleting it, or raising it above 1, re-opens N-POSTs-per-word | `test_retro_redrive_terraform.py::TestReservedConcurrencyIsTheOnePostGuard` |
+
+★ CORRECTION (PT-04 F-01, 2026-09-05). The M-5 row above previously read "N
+invocations against one row yield **at most one** POST. Replay is refused **by
+the row**". That was wrong, and it is the sentence S-08's module text mirrored.
+`attribute_not_exists(retro_redrive_at)` is evaluated at STAMP time, which is
+AFTER the POST, so it bounds the TERMINAL and not the POST. N CONCURRENT
+invocations of one word each pass the handler's pre-check, each POST, and then
+N-1 lose the conditional write and surface as CRITICAL
+`terminal_stamp_not_applied` — N customer-visible appointments on one word. The
+bound is real but it is held by M-6, not by M-5, and the two are now stated
+apart. The layer count moves from five to six; the conjunction claim below is
+unchanged.
 
 **Why five and not one.** M-1 is the strongest (it survives every code change) but
 is the furthest from the developer and the easiest to widen in a hurry. M-5 is
