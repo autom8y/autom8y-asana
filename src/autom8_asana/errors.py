@@ -293,6 +293,13 @@ class HydrationError(AsanaError):
         partial_result: The HydrationResult with what succeeded before failure.
             Allows advanced error handlers to salvage partial data.
         cause: The underlying exception that caused the failure.
+        walk_failure: For upward-traversal failures only, a TYPED discriminator
+            naming WHICH of the four walk failure modes fired. The three upward
+            raise sites previously collapsed into one exception type carrying only
+            ``phase="upward"``, so a caller could not tell "the entry had no parent
+            at all" from "we walked to the root and found no Business" from a cycle
+            from a depth cut-off. ``None`` for every downward failure and for any
+            caller that does not set it -- purely additive.
     """
 
     def __init__(
@@ -304,6 +311,13 @@ class HydrationError(AsanaError):
         phase: Literal["downward", "upward"],
         partial_result: Any = None,  # HydrationResult, but avoiding circular import
         cause: Exception | None = None,
+        walk_failure: Literal[
+            "parent_absent",
+            "walk_root_without_business",
+            "walk_cycle",
+            "walk_depth_exceeded",
+        ]
+        | None = None,
     ) -> None:
         """Initialize HydrationError.
 
@@ -314,12 +328,15 @@ class HydrationError(AsanaError):
             phase: "downward" or "upward" indicating where failure occurred.
             partial_result: HydrationResult with what succeeded before failure.
             cause: The underlying exception that caused the failure.
+            walk_failure: Typed upward-traversal failure discriminator; None
+                otherwise.
         """
         super().__init__(message)
         self.entity_gid = entity_gid
         self.entity_type = entity_type
         self.phase = phase
         self.partial_result = partial_result
+        self.walk_failure = walk_failure
         self.__cause__ = cause
 
 
