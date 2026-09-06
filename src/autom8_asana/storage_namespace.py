@@ -208,7 +208,7 @@ class StorageNamespaceContract:
 
 
 # ===========================================================================
-# THE REGISTRY — 11 namespaces from the A1 live census (2026-06-10).
+# THE REGISTRY — 12 namespaces, established from the A1 live census (2026-06-10).
 #
 # Values are BYTE-EQUAL to live (Phase-alpha derivation-neutrality). The IAM
 # principal ARN is the warmer-lane role; the ECS full-bucket grant is recorded as
@@ -285,7 +285,7 @@ DATAFRAMES_V2 = StorageNamespaceContract(
     semantic_plane=SemanticPlane.DATAFRAME_V2_GID_KEYED,
     writer_owner=WriterOwner(
         repo="autom8y-asana",
-        code_anchor="dataframes/storage.py:342",  # S3DataFrameStorage default prefix
+        code_anchor="dataframes/storage.py:347",  # S3DataFrameStorage default prefix
         external_name=None,
     ),
     reader_apis=(
