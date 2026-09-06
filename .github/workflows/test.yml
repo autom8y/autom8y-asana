@@ -4,6 +4,35 @@ run-name: "Test [${{ github.event.inputs.dispatch_correlation_id || github.sha }
 on:
   push:
     branches: [main]
+    # Deploy-hazard guard (2026-09-05). A main-branch `Test` success is the sole
+    # trigger of `satellite-dispatch.yml` (workflow_run), which repository_dispatches
+    # `satellite-deploy` to autom8y/autom8y and rolls the asana ECS service. So a
+    # docs-only push to main redeploys production: b371deed (22:06:38Z, four
+    # `.ledge/**` markdown files, zero code) drove the 22:18:32-22:34:23Z blue/green
+    # swap and the resulting `Asana Availability Fast Burn` + `High Error Rate` page.
+    # This deny-list suppresses the CI run -- and therefore the deploy -- for pushes
+    # that touch ONLY agent/ledger prose substrate.
+    #
+    # Deny-list, not an allowlist, on purpose: an unlisted or newly-added path still
+    # triggers. The filter can only ever suppress paths proven non-build; it can never
+    # silently withhold a real deploy. `pull_request` is deliberately NOT filtered --
+    # every PR still runs the full suite, so required checks are unaffected.
+    #
+    # Deliberately ABSENT from this list, though they are "docs" by name:
+    #   docs/**          `docs/api-reference/openapi.json` is a Test input
+    #                    (openapi_spec_path + spec_check_enabled below).
+    #   **.md / *.md     `README.md` is COPY'd by the Dockerfile (build input); .md
+    #                    files also live under src/, tests/, scripts/ and vendor/.
+    #   .know/**         `.know/cache-freshness-ttl-manifest.yaml` is loaded at
+    #                    runtime (src/autom8_asana/metrics/sla_profile.py). Only the
+    #                    prose subset of .know is filtered.
+    paths-ignore:
+      - '.ledge/**'
+      - '.sos/**'
+      - '.claude/**'
+      - '.gemini/**'
+      - '.knossos/**'
+      - '.know/**.md'
   pull_request:
     branches: [main]
   # sdk-contract-governance Sprint 3: accept dispatch from

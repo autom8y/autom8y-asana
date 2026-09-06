@@ -41,6 +41,7 @@ if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
     from autom8_asana.models.business.base import BusinessEntity
     from autom8_asana.models.business.business import Business
+    from autom8_asana.models.business.detection import DetectionResult
     from autom8_asana.models.task import Task
 
 __all__ = [
@@ -51,6 +52,7 @@ __all__ = [
     # Functions
     "hydrate_from_gid_async",
     "_traverse_upward_async",
+    "_traverse_upward_with_detection_async",
     "_convert_to_typed_entity",
     "_is_recoverable",
 ]
@@ -568,12 +570,33 @@ def _collect_success_branches(business: Business) -> list[HydrationBranch]:
 # =============================================================================
 
 
-async def _traverse_upward_async(
+async def _traverse_upward_with_detection_async(
     entity: Task,
     client: AsanaClient,
     max_depth: int = 10,
-) -> tuple[Business, list[BusinessEntity]]:
-    """Walk parent chain to find Business root.
+) -> tuple[Business, list[BusinessEntity], DetectionResult]:
+    """Walk parent chain to find Business root, RETURNING the detection result.
+
+    Per CW-S09-3 (identity-activity-substrate S-B5): this is the detection-carrying
+    form of :func:`_traverse_upward_async`. The walk delegates its Business
+    identification to the five-tier detector with ``allow_structure_inspection=True``
+    (Tier 4 ON by explicit choice), and Tier 4 concludes BUSINESS from three
+    lowercased subtask names while self-flagging ``needs_healing=True`` at
+    ``CONFIDENCE_TIER_4 = 0.9`` -- the SECOND-HIGHEST confidence in the set, so a
+    naive confidence guard reads it as near-certain.
+
+    Before this function existed, all three discriminators (``tier_used``,
+    ``needs_healing``, ``confidence``) died at the return boundary: only
+    ``entity_type`` was extracted and only ``tier_used`` reached a ``logger.debug``
+    extra. A caller could not tell a deterministic Tier-1 identification from a
+    self-flagged Tier-4 one.
+
+    This function returns the ``DetectionResult`` for the node that terminated the
+    walk, so a caller may carry it, refuse on it, or ignore it -- three different
+    contracts, all now available. :func:`_traverse_upward_async` is the
+    behaviour-preserving two-tuple wrapper for every existing caller.
+
+    Walk parent chain to find Business root.
 
     Per TDD-HYDRATION: Upward Traversal Algorithm.
 
@@ -599,9 +622,14 @@ async def _traverse_upward_async(
         max_depth: Maximum traversal depth (default 10, actual hierarchy max is ~5).
 
     Returns:
-        Tuple of (Business, path) where:
+        Tuple of (Business, path, detection_result) where:
         - Business is the root entity found
         - path is list of BusinessEntity instances traversed (excluding Business)
+        - detection_result is the ``DetectionResult`` for the node that TERMINATED
+          the walk, carrying ``tier_used``, ``confidence`` and ``needs_healing``.
+          A ``tier_used == 4`` / ``needs_healing is True`` result means the Business
+          identification rests on subtask-name structure inspection, which the
+          detector itself flags as needing healing.
 
     Raises:
         HydrationError: If:
@@ -613,13 +641,16 @@ async def _traverse_upward_async(
     Example:
         # From Contact (depth 2 from Business)
         # Path: Contact -> ContactHolder -> Business
-        business, path = await _traverse_upward_async(contact, client)
+        business, path, det = await _traverse_upward_with_detection_async(contact, client)
         assert len(path) == 1  # ContactHolder only
+        assert det.tier_used == 1  # deterministic project-membership identification
 
         # From Offer (depth 4 from Business)
         # Path: Offer -> OfferHolder -> Unit -> UnitHolder -> Business
-        business, path = await _traverse_upward_async(offer, client)
+        business, path, det = await _traverse_upward_with_detection_async(offer, client)
         assert len(path) == 3  # OfferHolder, Unit, UnitHolder
+        if det.needs_healing:
+            ...  # the identification is self-flagged; do not treat it as an id join
     """
     visited: set[str] = {entity.gid}
     path: list[BusinessEntity] = []
@@ -635,12 +666,17 @@ async def _traverse_upward_async(
     while depth < max_depth:
         # Check for parent reference
         if current.parent is None:
+            # depth == 0 means the ENTRY itself carries no parent reference, so the
+            # walk was never attempted; depth > 0 means we walked and hit the root.
+            # These are two distinct facts and the ADR's typed-absence set keeps
+            # them apart (`parent_absent` vs `walk_root_without_business`).
             raise HydrationError(
                 f"Reached root without finding Business at task {current.gid} "
                 f"(name: {current.name})",
                 entity_gid=entity.gid,
                 entity_type=None,
                 phase="upward",
+                walk_failure=("parent_absent" if depth == 0 else "walk_root_without_business"),
             )
 
         parent_gid = current.parent.gid
@@ -652,6 +688,7 @@ async def _traverse_upward_async(
                 entity_gid=entity.gid,
                 entity_type=None,
                 phase="upward",
+                walk_failure="walk_cycle",
             )
         visited.add(parent_gid)
 
@@ -708,7 +745,7 @@ async def _traverse_upward_async(
                 },
             )
 
-            return business, path
+            return business, path, detection_result
 
         # Not Business - convert to typed entity and continue
         typed_entity = _convert_to_typed_entity(parent_task, entity_type)
@@ -724,7 +761,45 @@ async def _traverse_upward_async(
         entity_gid=entity.gid,
         entity_type=None,
         phase="upward",
+        walk_failure="walk_depth_exceeded",
     )
+
+
+async def _traverse_upward_async(
+    entity: Task,
+    client: AsanaClient,
+    max_depth: int = 10,
+) -> tuple[Business, list[BusinessEntity]]:
+    """Walk parent chain to find Business root.
+
+    Per TDD-HYDRATION: Upward Traversal Algorithm.
+
+    Behaviour-preserving two-tuple form of
+    :func:`_traverse_upward_with_detection_async`. Every raise mode, every API
+    call, every log line and both returned values are identical -- this wrapper
+    only DROPS the third element. Callers that need to tell a deterministic
+    Tier-1 identification from a self-flagged Tier-4 one must call the
+    detection-carrying form directly.
+
+    Args:
+        entity: Starting entity (Task or BusinessEntity) with parent reference.
+        client: AsanaClient for API calls.
+        max_depth: Maximum traversal depth (default 10, actual hierarchy max is ~5).
+
+    Returns:
+        Tuple of (Business, path) -- see
+        :func:`_traverse_upward_with_detection_async` for the full contract.
+
+    Raises:
+        HydrationError: Identical raise modes to the detection-carrying form.
+
+    Example:
+        business, path = await _traverse_upward_async(contact, client)
+    """
+    business, path, _detection_result = await _traverse_upward_with_detection_async(
+        entity, client, max_depth
+    )
+    return business, path
 
 
 def _convert_to_typed_entity(
