@@ -52,6 +52,7 @@ from autom8_asana.models.business.hydration import (
     _traverse_upward_with_detection_async,
 )
 from autom8_asana.models.business.identity_supply import (
+    BASIS_VERSION,
     RATIFIED_ABSENT_REASONS,
     TIER4_ABSENT_REASON,
     TIER_DETERMINISTIC_MEMBERSHIP,
@@ -408,13 +409,23 @@ class TestGuardHasTeeth:
         # NA-B5-4: an UNKNOWN healing state must withhold, not publish.
         if guard(1, None) is None:
             failures.append("admits_unknown_healing_state")
+        # NA-W2-1: the DEFAULT-DENY over an UNRULED tier. The whole point of an
+        # allow-list is that a tier nobody has ruled on yet -- a future tier 6 --
+        # is refused because it was never allowed, not because someone
+        # remembered to deny it. An ENUMERATED deny-list over {2,3,4,5} passes
+        # every other arm in this battery and publishes tier 6; only these two
+        # arms tell the two guards apart.
+        if guard(6, False) is None:
+            failures.append("admits_an_unruled_tier")
+        if guard(6, True) is None:
+            failures.append("admits_a_flagged_unruled_tier")
         return failures
 
     def test_the_real_guard_passes_the_battery(self) -> None:
         assert self._battery(classify_identification) == []
 
     def test_a_noop_guard_is_rejected(self) -> None:
-        """A guard that admits everything fails 7 of 8 -- the battery is not vacuous."""
+        """A guard that admits everything fails 9 of 10 -- the battery is not vacuous."""
         failures = self._battery(lambda _tier, _flag: None)
         assert set(failures) == {
             "admits_selfflagged_tier4",
@@ -424,6 +435,8 @@ class TestGuardHasTeeth:
             "admits_unflagged_tier3_inference",
             "admits_unflagged_tier5_fallback",
             "admits_unknown_healing_state",
+            "admits_an_unruled_tier",
+            "admits_a_flagged_unruled_tier",
         }
 
     def test_a_conflating_guard_is_rejected(self) -> None:
@@ -438,9 +451,12 @@ class TestGuardHasTeeth:
         This is the guard exactly as it stood at ``05df2f32`` -- the deny-list
         ``needs_healing or detection_tier == 4``, transcribed verbatim. It passed
         the OLD battery 0/4. It must now FAIL, and it must fail on precisely the
-        arms NA-B5-3 named and nowhere else: it admits an unflagged tier-2
-        name-pattern identity, an unflagged tier-3 inference, an unflagged tier-5
-        fallback, and an unknown healing state at tier 1.
+        arms NA-B5-3 named plus the unruled-tier arm NA-W2-1 named: it admits an
+        unflagged tier-2 name-pattern identity, an unflagged tier-3 inference, an
+        unflagged tier-5 fallback, an unknown healing state at tier 1, and any
+        unruled tier. It does NOT fail the flagged-unruled arm, because its flag
+        clause still catches that one -- which is the point: the deny-list is
+        wrong about the TIER dimension specifically.
 
         If this test ever went green, the inversion would have been reverted
         without the battery noticing -- which is the exact failure mode the old
@@ -461,6 +477,7 @@ class TestGuardHasTeeth:
             "admits_unflagged_tier3_inference",
             "admits_unflagged_tier5_fallback",
             "admits_unknown_healing_state",
+            "admits_an_unruled_tier",
         }
         # ...and it still passes every arm the OLD battery had, so the delta is
         # attributable to the closure and to nothing else.
@@ -468,6 +485,58 @@ class TestGuardHasTeeth:
         assert _deny_list(1, False) is None
         assert _deny_list(1, True) is not None
         assert _deny_list(None, None) is not None
+
+    def test_an_ENUMERATED_deny_list_is_REJECTED_on_the_unruled_arm(self) -> None:
+        """NA-W2-1: the default-deny is now PINNED, not merely true in code.
+
+        The allow-list's real property is that a tier NOBODY HAS RULED ON is
+        refused BECAUSE IT WAS NEVER ALLOWED. Before this arm existed, the
+        battery could not tell the allow-list apart from an ENUMERATED deny-list
+        over the four tiers we happen to know are bad today -- and that guard
+        would publish a future tier 6.
+
+        The fixture is deliberately the STRONGEST enumerated form: it already
+        closes NA-B5-4 (``flag is not False`` rather than a truthiness test), so
+        it passes all EIGHT of the battery's prior arms. The single failure is
+        therefore attributable to the ENUMERATION itself and to nothing else --
+        a weaker fixture would have muddied the attribution.
+        """
+
+        def _enumerated_deny_list(
+            detection_tier: int | None, needs_healing: bool | None
+        ) -> AbsentReason | None:
+            if detection_tier is None:
+                return AbsentReason.UNDECIDABLE
+            if needs_healing is not False:
+                return AbsentReason.UNDECIDABLE
+            if detection_tier in (2, 3, 4, 5):
+                return AbsentReason.UNDECIDABLE
+            return None
+
+        # RED on the new arm ONLY -- the other nine are untouched.
+        assert self._battery(_enumerated_deny_list) == ["admits_an_unruled_tier"]
+        # ...and the fact behind it, stated directly.
+        assert _enumerated_deny_list(6, False) is None
+        assert classify_identification(6, False) is not None
+        assert classify_identification(6, False) is UNPUBLISHABLE_TIER_ABSENT_REASON
+
+    def test_an_unruled_tier_is_refused_end_to_end(self) -> None:
+        """The same default-deny through the assembler, not only the guard."""
+        supply = build_identity_supply(
+            WalkOutcome(
+                offer_gid="o1",
+                candidates=(_candidate(detection_tier=6, needs_healing=False),),
+                failure=None,
+            ),
+            observed_at=OBSERVED_AT,
+        )
+        for family in ("asana_business", "business_display_name"):
+            ev = supply.families()[family]
+            assert ev.value is None, "an UNRULED tier published an identity"
+            assert ev.absent_reason is not None
+            assert ev.absent_reason.value == "undecidable"
+            assert ev.absent_reason.value in RATIFIED_ABSENT_REASONS
+            assert ev.detection_tier == 6
 
 
 class TestDetectorSelfFlagging:
@@ -931,6 +1000,22 @@ class TestSchemaPins:
             ev = supply.families()[family]
             assert ev.value is None
             assert ev.supplier is Supplier.ID_WALK
+
+    def test_the_basis_version_follows_the_rule_it_versions(self) -> None:
+        """NA-W2-2: v2 records the S-W2-5 disposition-rule change.
+
+        The constant's own docstring says to bump when the disposition rules
+        change; the allow-list inversion flipped four input classes from PUBLISH
+        to REFUSE, so it did. Pinned at the EMITTED field, not only at the
+        constant, so a bump that never reaches the evidence is a failure here.
+        """
+        assert BASIS_VERSION == 2
+        supply = build_identity_supply(
+            WalkOutcome(offer_gid="o1", candidates=(_candidate(),), failure=None),
+            observed_at=OBSERVED_AT,
+        )
+        for ev in supply.families().values():
+            assert ev.basis_version == BASIS_VERSION
 
     def test_the_id_walk_families_declare_grain_G1(self) -> None:
         supply = build_identity_supply(

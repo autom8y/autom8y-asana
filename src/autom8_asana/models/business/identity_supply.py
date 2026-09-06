@@ -80,6 +80,7 @@ if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
 
 __all__ = [
+    "BASIS_VERSION",
     "AbsentReason",
     "BusinessCandidate",
     "Evidence",
@@ -118,7 +119,19 @@ TIER_STRUCTURE_INSPECTION = 4
 
 #: Basis version of this supplier's rules. Bump when the disposition rules below
 #: change, so an appended observation can be re-graded against the rule that made it.
-BASIS_VERSION = 1
+#:
+#: **v2 (S-W2-5).** :func:`classify_identification` went from a deny-list to an
+#: ALLOW-LIST, flipping FOUR input classes from PUBLISH to REFUSE: an unflagged
+#: tier 2, an unflagged tier 3, an unflagged tier 5, and any UNRULED tier. The
+#: rule above is the rule, so the version follows it -- a bump is cheap and a
+#: silently-unversioned rule change is not.
+#:
+#: **The bump RECORDS a rule change; it does NOT imply a v1 population.**
+#: :func:`build_identity_supply` has no production caller at this head (the
+#: appender is [data]-side and the SDK adapter is BUILD-wave 3's), so no v1
+#: corpus exists to re-grade. Stating that here rather than leaving a reader to
+#: infer a v1 cohort from the number.
+BASIS_VERSION = 2
 
 #: Hop-shape label -- a SHAPE, never a value and never a name (ADR §12.1a
 #: ``supplier_path``).
