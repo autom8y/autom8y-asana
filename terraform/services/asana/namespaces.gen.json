@@ -183,7 +183,7 @@
       ],
       "semantic_plane": "dataframe-v2-gid-keyed",
       "writer_owner": {
-        "code_anchor": "dataframes/storage.py:342",
+        "code_anchor": "dataframes/storage.py:347",
         "external_name": null,
         "is_attributed": true,
         "repo": "autom8y-asana"
