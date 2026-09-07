@@ -1,0 +1,40 @@
+name: Merge-surface sweep
+run-name: "Merge-surface sweep [${{ github.event.pull_request.number || github.sha }}]"
+
+# Fails a pull request whose ADDED lines carry a secret-SHAPED value (32-hex runs, 25-char base32 runs,
+# 12-digit runs, Basic auth, glc_ tokens, AWS key ids, real-looking e-mails). Shape only: no literal secret,
+# slug or identifier lives in this workflow or its script, and the matched text is never printed.
+# The sweep unit is the whole merge surface (merge-base...head), never the last delta.
+# The same engine self-tests first: a runtime-built fixture MUST fail, a clean fixture MUST pass.
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sweep:
+    name: Added lines of the merge surface
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Self-test (positive control must fail, negative control must pass)
+        run: bash .github/scripts/merge-surface-sweep.sh --self-test
+
+      - name: Sweep the merge surface
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git fetch --no-tags --quiet origin "$BASE_SHA" "$HEAD_SHA"
+          bash .github/scripts/merge-surface-sweep.sh --range "$BASE_SHA...$HEAD_SHA"
