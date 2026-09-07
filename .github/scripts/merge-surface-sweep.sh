@@ -8,7 +8,8 @@
 #   basic-auth  Authorization Basic <base64>
 #   glc-token   glc_<token>
 #   aws-key-id  AKIA/ASIA/AROA/AIDA + 16
-#   email       real-looking e-mail, excluding decorator forms (no local part) and example.*/localhost
+#   email       real-looking e-mail, excluding decorator forms (no local part), example.*/localhost, and any domain
+#               listed in SWEEP_ALLOW_EMAIL_DOMAINS (comma-separated; the operator's own contact domains)
 #
 # Modes:
 #   --range <base>...<head>   sweep the ADDED lines of `git diff` over that range (three-dot: merge-base)
@@ -26,6 +27,8 @@ export SKIP_PATHS
 # stdin: "file<TAB>line<TAB>text" ; stdout: "class<TAB>file:line"
 classify() {
   perl -ne '
+    BEGIN { our %ALLOW = map { lc($_) => 1 } grep { length } split(/\s*,\s*/, $ENV{SWEEP_ALLOW_EMAIL_DOMAINS} // ""); }
+    sub allowed_domain { my $d = lc(shift); return 1 if $ALLOW{$d}; for my $a (keys %ALLOW) { return 1 if $d =~ /(?:^|\.)\Q$a\E$/ } 0 }
     chomp;
     my ($f, $n, $t) = split(/\t/, $_, 3);
     $t = "" unless defined $t;
@@ -37,8 +40,9 @@ classify() {
     push @hits, "basic-auth" if $t =~ /Authorization[[:space:]]*[:=][[:space:]]*["'"'"']?Basic[[:space:]]+[A-Za-z0-9+\/=]{16,}/i;
     push @hits, "glc-token"  if $t =~ /glc_[A-Za-z0-9+\/=_-]{20,}/;
     push @hits, "aws-key-id" if $t =~ /(?<![A-Z0-9])(?:AKIA|ASIA|AROA|AIDA)[A-Z0-9]{16}(?![A-Z0-9])/;
-    push @hits, "email"      if $t =~ /(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}(?![A-Za-z0-9])/
-                              && $t !~ /@(?:example\.(?:com|org|net)|localhost)(?![A-Za-z0-9])/i;
+    push @hits, "email"      if $t =~ /(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,})(?![A-Za-z0-9])/
+                              && $t !~ /@(?:example\.(?:com|org|net)|localhost)(?![A-Za-z0-9])/i
+                              && !allowed_domain($1);
     print "$_\t$f:$n\n" for @hits;
   '
 }
