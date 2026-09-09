@@ -37,7 +37,7 @@ closes_watch_item: "G-A (FV-3 cert) — artifact-correct → delivered-correct"
 3. **operator-downloaded** — `~/Downloads/walkthrough_1210776074464695_20260629T184926Z.html`, e2e-/qa byte-verified this session
 
 ## Tenant-isolation oracle — PASS at every hop
-`harvest_appointment_addresses(bytes) == { d167d635-***[at]appointments.contenteapp.com }` — North Star's address **ONLY**, zero wrong-tenant — on all three artifacts. The §6 placeholder `xxxx-xxxx@appointments.contenteapp.com` is raw-present but harvester-invisible (`x ∉ hex`, by design). The harvester is strictly weaker than the producer's `CANONICAL_ADDR_RE` (a superset → not a reimplementation; G-PROPAGATE).
+`harvest_appointment_addresses(bytes) == { d167d635-***[at]appointments.contenteapp.com }` — office-d167d635's address **ONLY**, zero wrong-tenant — on all three artifacts. The §6 placeholder `xxxx-xxxx[at]appointments.contenteapp.com` is raw-present but harvester-invisible (`x ∉ hex`, by design). The harvester is strictly weaker than the producer's `CANONICAL_ADDR_RE` (a superset → not a reimplementation; G-PROPAGATE).
 
 ## Provenance + certification chain (re-derive, don't trust)
 - **build:** `feat/fcfv-sprint3-ob-guide-attestation` @ `174518c7` — the `freeze_walkthrough_deck` invocation + the byte-diff oracle + AC-1..AC-7 (two-sided).

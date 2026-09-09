@@ -64,7 +64,7 @@ client `office-d167d635`.
 | FROZEN_BYTES | `1047203` |
 | PRESENCE(expected) | `True` (`expected.encode() in frozen`) |
 | HARVESTED | `{'d167d635-***[at]appointments.contenteapp.com'}` (exactly one) |
-| PLACEHOLDER_RAW_PRESENT | `True` — the `xxxx-xxxx@appointments.contenteapp.com` placeholder IS in raw bytes (deck:342); the shape-based harvester correctly ignores it (`x` ∉ hex). This is why the oracle must NOT assert `b'xxxx-xxxx@…' not in frozen`. |
+| PLACEHOLDER_RAW_PRESENT | `True` — the `xxxx-xxxx[at]appointments.contenteapp.com` placeholder IS in raw bytes (deck:342); the shape-based harvester correctly ignores it (`x` ∉ hex). This is why the oracle must NOT assert `b'xxxx-xxxx@…' not in frozen`. |
 
 (The frozen file lives under the now-gitignored `export/` and is ephemeral; the sha256 is
 the durable receipt. The operator re-renders at attach time per the staged parameters below.)

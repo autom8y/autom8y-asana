@@ -108,9 +108,9 @@ CARDINALITY      unique full GUIDs extracted from :160                 = 42     
 EXTRACTED-SET NON-EMPTY CONTROL                                        = 42 entries
 
 THE SIX -- ALL SIX PRESENT:
-  PRESENT  6f22301a-4c51-4282-bf86-a64108e644ad   Salkin
-  PRESENT  1b271a63-33ff-4135-a92d-f1ef0eeea062   Sand Lake
-  PRESENT  241355e3-ad2b-4efb-8935-cf44f311a3a1   Lazar
+  PRESENT  6f22301a-4c51-4282-bf86-a64108e644ad   office-6f22301a
+  PRESENT  1b271a63-33ff-4135-a92d-f1ef0eeea062   office-1b271a63
+  PRESENT  241355e3-ad2b-4efb-8935-cf44f311a3a1   office-241355e3
   PRESENT  cdd8c6cf-b5e5-4689-8383-90b5ba80c709   office-cdd8c6cf
   PRESENT  ba3dd6c7-41c7-4745-9ada-556bb661bc1f   office-ba3dd6c7
   PRESENT  70316996-f9ee-4e54-ac0a-790d2439ae71   THE ORPHAN
@@ -154,11 +154,11 @@ a general licence.
 | # | fact | source | why I did not re-run it |
 |---|---|---|---|
 | E-1 | Zero `guid_extracted` for these GUIDs across the **full 90-day retention** on **two disjoint instruments**, 76 offices and 60,830 events of in-query control, no truncation | `DIAGNOSIS-verified-not-enabled-2026-09-08.md` §3 | live CloudWatch Insights measurement; the pathologist/diagnostician lane owns it |
-| E-2 | Salkin **75 rows / 73× "new lead"**, Sand Lake **41 / 39**, on a plane lineage-disjoint from Asana, every zero carrying a two-sided operator control | `PROBE-qc-outbound-deck-delivery-2026-09-08.md` §5.3, §3 | same |
+| E-2 | office-6f22301a **75 rows / 73× "new lead"**, office-1b271a63 **41 / 39**, on a plane lineage-disjoint from Asana, every zero carrying a two-sided operator control | `PROBE-qc-outbound-deck-delivery-2026-09-08.md` §5.3, §3 | same |
 | E-3 | **★ The control that fired:** office-79be1b75, the only deck staged inside the SendGrid window (`2026-08-27`), appears **64 times** in-window and **the deck is absent from all 64** ⇒ the deck travels by **Intercom, not SendGrid** | ibid. §4, §7 | this is the load-bearing control of the whole wave; re-running it would not strengthen it, and S-01 published it verbatim-reproducible at §9 |
 | E-4 | SendGrid Email Activity retains **30 days**, measured floor `2026-08-09T22:23:55Z` by bisection; **not** a 403 — the add-on is live, `messages.read` present | ibid. §3, §6.1 | ibid. |
 | E-5 | Five of six resolved to named offices in live Asana with a firing negative control (`deadbeef` → 0) and firing positive controls (`241355e3` → 4, `ba3dd6c7` → 1); **`70316996` → 0 on all three query forms** | ibid. §5.1 | live Asana API; measurement lane |
-| E-6 | `Forwarding Stage` is wrong in **both** directions — Lazar `Flowing` with zero arrivals (false-GREEN), Salkin `Verified → Stalled` | ibid. §0, §5.2 | ibid. |
+| E-6 | `Forwarding Stage` is wrong in **both** directions — office-241355e3 `Flowing` with zero arrivals (false-GREEN), office-6f22301a `Verified → Stalled` | ibid. §0, §5.2 | ibid. |
 | E-7 | Membership-invariance of the deck question; the denominator-inversion argument; the `REAL CLASS (6)` overclaim; the named-exclusion constraint; the F-register | `CUSTODY-name-the-client-wave0-register-2026-09-08.md` A9.1–A9.4 | adjudication, not measurement; binding on this sprint by dispatch |
 
 > **PT-02's own self-limits travel with its findings and are repeated here so they are not laundered:**
@@ -198,7 +198,7 @@ on an office with a 90-day arrival zero is a **false-GREEN in a surface a human 
 `Forwarding Stage` as the **fourth** member of the forbidden-denominator-input family — joining ASR
 `activity`, `account_status`, and `active_section_days` — and it is **the first of them to sit where a
 PERSON, not a query, consumes it.** Binding consequence: **`Forwarding Stage` MUST NOT be used as a
-denominator predicate or as an exclusion criterion, in either direction.** Diagnosing *why* Lazar reads
+denominator predicate or as an exclusion criterion, in either direction.** Diagnosing *why* office-241355e3 reads
 `Flowing` is **not this artifact's lane and is parked** (§9); S-01 established the contradiction and
 explicitly declined to diagnose it.
 
@@ -334,7 +334,7 @@ are not surprised by them.
 | **M-2** | reading the 90-day zero as **"never"** | The log group is **~149 d old** and retention is 90 d. **`2026-04-12 → 2026-06-10` is UNOBSERVABLE to CloudWatch; `2026-04-12 → 2026-08-09` is unobservable to SendGrid.** *Neither instrument can see the period in which these offices were actually onboarded.* On these instruments, `never` means `never within retention`. | §2.2 E-1/E-4 |
 | **M-3** | reading a **per-office** conclusion out of `parse/stats` | **`parse/stats` has NO RECIPIENT DIMENSION.** No claim in this artifact rests on any aggregate. `parse/stats` was not called by S-01 and is not called here. | fence |
 | **M-4** | upgrading *consumed-without-inspection* into **"a booking was lost"** | A peer measured that sked mail is consumed terminally without recording content — **retroactively unmeasurable**. The same discipline binds all five: **we can say their mail never arrived; we cannot say a booking was lost.** Nothing in §3 claims a lost booking. | fence |
-| **M-5** | using **`Forwarding Stage`** as a denominator or exclusion predicate | Proven wrong in **both directions on the same measurement** — Lazar `Flowing`/zero-arrivals, Salkin `Verified → Stalled`. **Fourth member of the forbidden-input family.** | §3.3 |
+| **M-5** | using **`Forwarding Stage`** as a denominator or exclusion predicate | Proven wrong in **both directions on the same measurement** — office-241355e3 `Flowing`/zero-arrivals, office-6f22301a `Verified → Stalled`. **Fourth member of the forbidden-input family.** | §3.3 |
 | **M-6** | promoting **`ba3dd6c7`**'s guessed-domain zeros to a taken zero | **Guessed domains. The zeros are NOT taken.** Unmeasured ≠ zero. | §3.5 |
 | **M-7** | reading **`cdd8c6cf`**'s zero as *no outbound mail* | Address confidence is **LOW**; graded **dark-on-outbound**. | §3.4 |
 | **M-8** | reading §4 as *"`70316996` is excluded from the denominator"* | **It is removed from the CLASS, by name. Its DENOMINATOR status is F-1 and is OPEN.** Two different acts; only the first is done. | §4.1 |
@@ -357,7 +357,7 @@ sender is *"a constant — Nova / `support[at]contenteapp.com` **via Intercom**,
 `INTERCOM_BASE_URL` are **present** in Secrets Manager acct `<aws-account-id>`, `us-east-1` — re-verified
 own-hands at §2.1 Probe B with a firing positive control and a firing negative control. **That is the
 exact credential whose absence forced the 2026-09-05 VERDICT to refuse B-arm-1.** Per-office
-conversation permalinks are already on the Asana deck stories (Sand Lake `215474754286826`, Lazar
+conversation permalinks are already on the Asana deck stories (office-1b271a63 `215474754286826`, office-241355e3
 `215474129292698`, office-cdd8c6cf `215474577154148`, office-79be1b75 app-user `63ee63979f949cc64457b127`).
 
 **Why I did not take it.** S-01 declined on the grounds that *"re-aiming the instrument is a dispatch
@@ -411,7 +411,7 @@ part of why this class reached us through a human instead of an instrument.
 |---|---|
 | **The allowlist ↔ Asana disagreement** that produced `70316996` | **NOTHING RECONCILES THEM AND NOTHING WATCHES THE DISAGREEMENT.** Both readings receipted; neither zero untaken. |
 | **H-1(ii) — the symmetric orphan** *(PT-02's inference, NOT measured)* | An office in an Asana active/activating section but **NOT** on the allowlist would be **IN** the denominator and **INCAPABLE OF PRODUCING A BOOKING BY CONSTRUCTION** — clause (c) unsatisfiable **silently, with no red signal anywhere.** **Never counted. NOT asserted non-empty.** |
-| **`Forwarding Stage` false-GREEN** (Lazar `Flowing` / zero arrivals) | Live, in a surface a **human** reads. Unreconciled against arrivals. |
+| **`Forwarding Stage` false-GREEN** (office-241355e3 `Flowing` / zero arrivals) | Live, in a surface a **human** reads. Unreconciled against arrivals. |
 | **The condition itself** — `verified != enabled`, ratified in committed code since 2026-07-09 | It reached us **through client success, not through an instrument.** |
 
 ---
@@ -429,7 +429,7 @@ part of why this class reached us through a human instead of an instrument.
 - **PARKED — any widening of intake log lines to carry office identity.** Coupled to the PII control:
   **the office-blindness of the 1,252-event residual IS the control.** Not to be traded for
   observability without a warden + security ruling.
-- **NOT DIAGNOSED HERE, deliberately:** *why* Lazar reads `Forwarding Stage = Flowing` against a
+- **NOT DIAGNOSED HERE, deliberately:** *why* office-241355e3 reads `Forwarding Stage = Flowing` against a
   90-day arrival zero. S-01 established the contradiction and declined to diagnose it. **So do I.**
   It could be a manual flip, a bad automation, or a real forwarding setup pointed elsewhere.
 

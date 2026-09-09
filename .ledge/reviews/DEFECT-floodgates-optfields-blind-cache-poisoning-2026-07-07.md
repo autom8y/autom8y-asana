@@ -42,10 +42,10 @@ WITH custom_fields and the resolve succeeds — which is why the unit-test fakes
 (no cache model) and the standalone probe both pass. Classic green-tests / red-live.
 
 ## Blast radius
-Affects EVERY office (Sand Lake's kit was posted before this two-phase orchestrator
+Affects EVERY office (office-1b271a63's kit was posted before this two-phase orchestrator
 existed, via the standalone posters — never through this preflight-first path). A
 batch run would have failed all 7 identically. The n=1 pilot caught it before any
-client task was touched (Wholebody PLAY confirmed 0 automation comments post-pilot).
+client task was touched (office-0507ae4e PLAY confirmed 0 automation comments post-pilot).
 
 ## Fix options (10x-dev, smallest sufficient)
 1. **Force-fresh the custom_fields read** in `_read_office_phone` / `_resolve_office_guid`

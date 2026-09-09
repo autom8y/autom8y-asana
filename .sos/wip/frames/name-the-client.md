@@ -159,7 +159,7 @@ telos:
   receipt_grammar:
     per_item_file_line_anchors:
       - ".ledge/decisions/RATIFICATION-client-outcome-decision-space-2026-09-08.md:10-27 (C-1..C-18), :29-40 (§2 defers, incl. the starred G-FL1 omission and the R-35 no-forcing-function risk), :42-48 (§3 substrate refutation), :50-56 (§4 six unconfirmed assumptions)"
-      - ".sos/wip/TRIAGE-client-booking-blockers-2026-09-08.md §10 (the match_lead.py:725-728 defect; 77 modelled vs 76 measured 5xx), §12.1 (74-office control, 585,935 records), §12.2 (CORRECTION 1: b167331c is office-b167331c, NOT Sand Lake), §12.3 (CORRECTION 2: ratified-silent in committed code), §12.4 (an untaken zero caught by its own dead control)"
+      - ".sos/wip/TRIAGE-client-booking-blockers-2026-09-08.md §10 (the match_lead.py:725-728 defect; 77 modelled vs 76 measured 5xx), §12.1 (74-office control, 585,935 records), §12.2 (CORRECTION 1: b167331c is office-b167331c, NOT office-1b271a63), §12.3 (CORRECTION 2: ratified-silent in committed code), §12.4 (an untaken zero caught by its own dead control)"
       - ".sos/wip/DIAGNOSIS-verified-not-enabled-2026-09-08.md §3 (89-day zero on a disjoint instrument), §6 (cost<->integrity coupling; the 1,252 office-blind residual IS the PII control), §7.0 (the charge's SendGrid premise REFUTED AS STATED), §7.1-7.4 (Q-A/Q-B/Q-C/Q-D), §9 (the 15,084-event 2026-08-23->08-27 outage in no record), §12 PR-2 (the load-bearing correction), GO/PARK"
       - ".sos/wip/REPORT-tier-split-consumer-2026-09-08.md §0 + §2 (a green nightly job writing to five orphan branches nobody reads; the missing primitive is a READER), §3 (the six never-arriving GUIDs; three TIER-S drifts incl. BETTER LIFE at 299 arrivals), §4 (the positive control FIRED), §5.1 + §5.2 (two structural false-S generators), §7.5 (the named trigger), §10 (what was not verified)"
       - ".ledge/decisions/PROPOSAL-fast-lane-blast-radius-predicate-2026-09-08.md:43 (FL-1..FL-4 verbatim), :54 (why FL-3 is load-bearing), :111-120 (H2 refused three independent ways), :268 (the G-FL1 UV-P: AUTHORED AND UNRATIFIED)"
@@ -371,7 +371,7 @@ the shape of the boundary is Pythia's and the architect's.
 
 DIAGNOSIS GO/PARK is explicit and it constrains WS-DARK's decomposition before it starts:
 
-> **PARK — "fix the booking pipeline for Salkin/Sand Lake."** ... *"Engineering effort aimed at
+> **PARK — "fix the booking pipeline for office-6f22301a/office-1b271a63."** ... *"Engineering effort aimed at
 > the pipeline for these two accounts would be building a cure for a cost that has not been
 > measured to exist."*
 
@@ -379,7 +379,7 @@ The receiving chain is *"provably working at every layer we own."* What remains 
 clinics never switched forwarding on** — and the reason is the question
 `VERDICT-client-onboarding-delivery-2026-09-05.md:82` left open on the **`received`** element:
 **we cannot show they were ever asked.** The deck send is a **manual operator step** (that
-verdict's §3.1 records the Sand Lake staging line verbatim; B-arm-2 REFUSED **and REFUTED for
+verdict's §3.1 records the office-1b271a63 staging line verbatim; B-arm-2 REFUSED **and REFUTED for
 every candidate office**).
 
 **Consequence for the envelope:** WS-DARK's first move is a **measurement (Q-C, outbound),
@@ -701,7 +701,7 @@ its own authoring seat.
 `active_section_days` is **never-lit** (NULL 144/144, two incompatible measurands).
 
 ### T-8 — `parse/stats` HAS NO RECIPIENT DIMENSION (inherited)
-DIAGNOSIS §7.2, stated so it cannot be misread: *"It can NEVER say whether Salkin's mail arrived.
+DIAGNOSIS §7.2, stated so it cannot be misread: *"It can NEVER say whether office-6f22301a's mail arrived.
 It bounds the aggregate only. **Anyone reporting a per-office conclusion from Q-B has produced an
 untaken zero.**"*
 
@@ -746,7 +746,7 @@ elsewhere.
 | **1** | **G-A1** | still deferred by R-39 on the cofounder's answer; untouched by the 09-08 sitting. Blocks #1941's landing, does not enter this envelope |
 | **2** | **Blocker C(a)** — name the actor behind `salkin-safe-routing` | **not asked, not ruled**; only C(b) was decided |
 | **3** | **Blocker C(c)** — train-or-pin | **not asked, not ruled** |
-| **4** | **H2 and the ADIO identity** | H2 is refused by the fast-lane predicate **three independent ways** and fails the **R-A4 floor absolutely** (`production.tfvars:154` — *"the ONE policy flip that turns the 17 activated offices' live contente POST on"*). The *"ADIO Corrective"* vs *"office-e3267756"* identity confirmation is **still owed** and is not owed to this envelope |
+| **4** | **H2 and the office-e3267756 identity** | H2 is refused by the fast-lane predicate **three independent ways** and fails the **R-A4 floor absolutely** (`production.tfvars:154` — *"the ONE policy flip that turns the 17 activated offices' live contente POST on"*). The *"office-e3267756 Corrective"* vs *"office-e3267756"* identity confirmation is **still owed** and is not owed to this envelope |
 | **5** | **The main-branch `alarm_description` red** (1001 chars vs a 1000 cap) | the **SEV-1-delivery-claim lane**. Proven pre-existing four ways (CUSTODY PT-08 finding 2). **Curing it here would be bundling** |
 | **6** | **The PII-coupled 1,252 office-blind residual** | **warden + security call**, untouched by the sitting. Note the coupling is *adjacent* to WS-JOIN (§4.1) — adjacency is not inclusion, and WS-JOIN must not annex it |
 | **7** | **The extraction's preload grade** (BLOCKING vs LAZY; a ~40% increase in the always-loaded tier) | **not asked** at the sitting; belongs to the promotion packet's own disposition |

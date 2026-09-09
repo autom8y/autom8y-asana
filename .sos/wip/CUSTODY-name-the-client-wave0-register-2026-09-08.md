@@ -1068,19 +1068,19 @@ the window entirely.**
 | `6f22301a` | **office-6f22301a** | **75 rows — 73× "new lead"** |
 | `1b271a63` | **office-1b271a63** | **41 rows — 39× "new lead"** |
 
-**★ Salkin is being served 73 leads in 21 days while his bookings have been ZERO for 90.**
+**★ office-6f22301a is being served 73 leads in 21 days while his bookings have been ZERO for 90.**
 **Not an artifact.**
 
 ### THREE FINDINGS THE CHARGE DID NOT ANTICIPATE
 1. **FIVE OF SIX ARE NAMED FOR THE FIRST TIME** — REPORT carried them as *"never resolved"*:
-   **+ office-241355e3, office-ba3dd6c7, office-cdd8c6cf.** They **were worked** — Lazar has
+   **+ office-241355e3, office-ba3dd6c7, office-cdd8c6cf.** They **were worked** — office-241355e3 has
    a month of Gmail-forwarding Intercom threads.
 2. **★★ THE CLASS SPLITS.** `70316996` has **ZERO Asana presence** (controls firing) yet **IS on the
    live 42-office allowlist** — **an ALLOWLIST ORPHAN, not a dark client.**
    **It MUST NOT be dispositioned with the other five.** C-3's denominator inherits this split.
 3. **★ A THIRD FALSE-SIGNAL GENERATOR, ON A NEW AXIS — `Forwarding Stage`.**
-   **Lazar reads `Flowing` with ZERO arrivals in 90 days — a false-GREEN in a surface a HUMAN READS.**
-   Salkin's row records **`Verified → Stalled`** — **literally `verified != enabled`, as a CRM state
+   **office-241355e3 reads `Flowing` with ZERO arrivals in 90 days — a false-GREEN in a surface a HUMAN READS.**
+   office-6f22301a's row records **`Verified → Stalled`** — **literally `verified != enabled`, as a CRM state
    change.** (REPORT §5.1 and §5.2 were the first two generators; this is the third and the only one
    on a human-facing surface.)
 
@@ -1209,8 +1209,8 @@ not the MEMBERSHIP axis.** Both were being carried as if they were denominator g
 
 ### ★ A FOURTH ENTRY FOR THE FORBIDDEN-DENOMINATOR-INPUT FAMILY, EARNED THIS WAVE
 > **`Forwarding Stage` MUST NOT be used as a denominator or exclusion predicate.** Proven wrong in
-> **both directions on the same measurement**: Lazar `Flowing` with **zero arrivals in 90 days**
-> (false-GREEN); Salkin `Verified → Stalled`. **The first of the three false-signal generators to sit
+> **both directions on the same measurement**: office-241355e3 `Flowing` with **zero arrivals in 90 days**
+> (false-GREEN); office-6f22301a `Verified → Stalled`. **The first of the three false-signal generators to sit
 > where a PERSON, not a query, consumes it.**
 (Joins ASR `activity`, `account_status`, `active_section_days`.)
 
@@ -1245,9 +1245,9 @@ it is unblocked (Intercom creds present; per-office conversation permalinks on t
 ### ★ QUALIFICATION — "REAL CLASS" OVERCLAIMS AS A WAVE-LEVEL TOKEN
 | office | basis | grade |
 |---|---|---|
-| `6f22301a` Salkin | 75 rows / 73 lead notifications, **lineage-disjoint**, firing controls | **receipted-live** |
-| `1b271a63` Sand Lake | 41 / 39, same | **receipted-live** |
-| `241355e3` Lazar | Asana-present, PLAY task, month of Intercom threads, named owner | CRM-evidenced |
+| `6f22301a` office-6f22301a | 75 rows / 73 lead notifications, **lineage-disjoint**, firing controls | **receipted-live** |
+| `1b271a63` office-1b271a63 | 41 / 39, same | **receipted-live** |
+| `241355e3` office-241355e3 | Asana-present, PLAY task, month of Intercom threads, named owner | CRM-evidenced |
 | `cdd8c6cf` office-cdd8c6cf | Asana-present, deck staged, contact card, DIG result | CRM-evidenced |
 | `ba3dd6c7` office-ba3dd6c7 | Asana-present (1 hit), on allowlist | **membership settled, state unmeasured** |
 | `70316996` | — | **SPLITS OUT** |
@@ -2352,7 +2352,7 @@ were sound. They were controlling the wrong object.**
 
 ## A20.2 ★★★ WHAT `salkin-safe-routing` ACTUALLY CHANGES — MEASURED, DIFFED, VERBATIM
 
-**Salkin = the pin image (`67d89d7`/`ff02872a`) PLUS EXACTLY TWO OVERLAY LAYERS.** All 14 of the pin's
+**office-6f22301a = the pin image (`67d89d7`/`ff02872a`) PLUS EXACTLY TWO OVERLAY LAYERS.** All 14 of the pin's
 layers are inside salkin; salkin adds 2. **Confirmed by content-addressed digest set-difference**
 (`ONLY in pin: 0`). Control fired: the two images' config digests differ.
 
@@ -4115,8 +4115,8 @@ missing' — DOES NOT APPLY HERE, because the allowlist gives us all 36 characte
 
 | GUID | disposition | grade |
 |---|---|---|
-| `6f22301a` Salkin · `1b271a63` Sand Lake | **REAL — IN CLASS** | receipted-live |
-| `241355e3` Lazar · `cdd8c6cf` office-cdd8c6cf | **REAL — IN CLASS** | CRM-evidenced |
+| `6f22301a` office-6f22301a · `1b271a63` office-1b271a63 | **REAL — IN CLASS** | receipted-live |
+| `241355e3` office-241355e3 · `cdd8c6cf` office-cdd8c6cf | **REAL — IN CLASS** | CRM-evidenced |
 | `ba3dd6c7` office-ba3dd6c7 | IN CLASS on **membership** | **state UNMEASURED** |
 | **`70316996`** | **★ REMOVED BY NAME, reason recorded** | **not graded — F-1 REFUSED** |
 

@@ -52,7 +52,7 @@ therefore **structurally unavailable** — any design MUST self-warm via live `p
 ### The B5 lesson (why we do NOT re-propose a gid_map path)
 
 `DataServiceClient.get_gid_map()` was ratified then **falsified live at B5**: it returned `None` for
-Sand Lake under every vertical — an **external M2M data-export coverage gap**, not a code bug
+office-1b271a63 under every vertical — an **external M2M data-export coverage gap**, not a code bug
 (SVR `contact_synthesis.py:429` comment; spike). The revert to a pure-Asana phone bridge was
 correct at the time. The chosen design reads the **Asana task tree directly** (zero
 DataServiceClient / M2M / vertical / export surface), so the B5 failure MODE is **structurally

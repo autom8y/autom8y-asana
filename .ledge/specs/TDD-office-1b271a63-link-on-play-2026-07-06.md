@@ -11,7 +11,7 @@ target_branch_base: origin/main@eff75887
 schema_version: 1
 ---
 
-# MICRO-TDD — Sand Lake link-on-PLAY comment poster
+# MICRO-TDD — office-1b271a63 link-on-PLAY comment poster
 
 > **Grandeur anchor.** The trust-first telos sends its first client deck today. This
 > module posts the live capability URL onto office-1b271a63's real Asana PLAY,
@@ -22,7 +22,7 @@ schema_version: 1
 
 ## §0 Scope fence (bind these)
 
-- **RUNG = n=1.** This designs the single-task comment poster for ONE office (Sand Lake).
+- **RUNG = n=1.** This designs the single-task comment poster for ONE office (office-1b271a63).
 - **Batch is OUT of scope** (§8 is a one-sentence seam only — `authored`/watch-registered, do NOT build).
 - **Reserved levers (design around, NEVER invoke):** the real client SEND; `ASANA_PAT` mint/rotation;
   editing/deleting any existing human comment. The poster's only write is `create_comment` (ADD-only).

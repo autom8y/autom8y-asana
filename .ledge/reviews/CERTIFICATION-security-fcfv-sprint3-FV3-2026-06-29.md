@@ -46,7 +46,7 @@ Per `evidence-grade-vocabulary` STRONG-domain + `external-critique-gate-cross-ri
 |--------|-------|----------------------------|
 | worktree HEAD | `174518c71a5b7690fd242f32cd3072b71157d684` | `git rev-parse HEAD` |
 | branch | `feat/fcfv-sprint3-ob-guide-attestation` | `git rev-parse --abbrev-ref HEAD` |
-| build commit subject | `feat(onboarding): byte-exact OB-guide forwarding-address attestation for North Star pilot (N=1)` | `git log --oneline -1` |
+| build commit subject | `feat(onboarding): byte-exact OB-guide forwarding-address attestation for office-d167d635 pilot (N=1)` | `git log --oneline -1` |
 | worktree state | CLEAN (no staged/unstaged) | `git status --porcelain` empty |
 | autom8y-core | `4.9.0` | `importlib.metadata.version('autom8y-core')` → `4.9.0` |
 | mint gate import path | `autom8y_core.helpers.routing.format_routing_address` | imported live (re-mint below) |
