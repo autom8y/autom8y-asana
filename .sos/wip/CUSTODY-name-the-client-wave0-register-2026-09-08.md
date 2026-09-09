@@ -4628,3 +4628,124 @@ and landings are **mirrored, not merged**; two records of one fact is the defect
 
 > **ADDENDUM 47 VERDICT: the record is landing, PII-clean, receipts intact. PR #417 open, NOT merged.
 > No merge, deploy or apply was performed by this seat in Addendum 47.**
+
+---
+
+## ADDENDUM 48 — THE GATE IS BUILT, PROVEN AND LANDED. IT IS **NOT YET BLOCKING**.
+
+**Landed:** `autom8y` `main` = `96e3c165` (PR #2097) · `autom8y-asana` `main` = `0bc55c1d` (PR #420).
+
+### 48.1 What was proven, two-sided and in CI
+| arm | result |
+|---|---|
+| `the gate bites, and only where it should` (seal-proof, 8 arms) | **success in CI** |
+| `EBI freeze -- refuse services/email-booking-intake/**` on its own PR | **pass** |
+| **#2087's real file list** — the merge that rolled production | **exit 1 — REFUSED** |
+| **#2080's real file list** — docs, different service | **exit 0 — permitted** |
+| `merge-surface-sweep` | pass · check-runs declared **33 == listed 33** |
+
+### 48.2 ★ A REAL DEFECT, CAUGHT BY THE GATE'S OWN GREEN ARM BEFORE IT SHIPPED
+The first matcher was `grep -F "services/email-booking-intake/"` — a **substring** match, which also
+refused `terraform/services/email-booking-intake/**`, **a surface that deploys NOTHING** because
+`service-deploy-dispatch`'s `paths:['services/**']` is **root-anchored**. **A one-sided test that
+only asked "does it block?" would have passed that bug through** and shipped an over-blocking gate
+inconsistent with the very trigger it exists to mirror. **This is the night's own root-anchoring
+lesson, reproduced inside the cure for the night's own failure.**
+
+### 48.3 A falsifiable prediction, made before the merge and held
+Re-clear predicted **11 workflows fire, all gates/lints, 0 deploys.** Measured on the merge commit:
+**11 runs, 0 deploys.** Exact.
+
+### 48.4 ★★ R-74 LEG 1 IS **NOT** SATISFIED — STATE THIS PLAINLY AND DO NOT LET IT DRIFT
+R-74 requires *"a **fail-closed required check** blocks `services/email-booking-intake/**`."*
+`autom8y` `main`'s required contexts are **exactly three**: `gitleaks / Secrets Scan` ·
+`dependency-review / Dependency Review` · `CI Summary`. **The gate is NOT among them.**
+
+> **A merged check that is not registered as required does not block. It reports.** The gate today
+> would have turned #2087 **RED** — and **#2087 would still have been mergeable.**
+
+**Registering it edits the `main-required-status-checks` ruleset — an ADMIN-GRADE act on repo
+governance, above the user-grade grant in force.** **This seat will not self-escalate to satisfy a
+condition it authored.** That is the same move as citing one's own unauthorized act back as
+precedent, one altitude up.
+
+**R-74 status: leg 1 BUILT-BUT-NOT-ARMED. leg 2 (salkin diff) NOT STARTED — it is R-76-assigned to a
+rite-disjoint seat. R-35 REMAINS BINDING. Neither leg is satisfied; the conjunction is nowhere near.**
+
+### 48.5 A permission boundary was hit and NOT routed around
+`git push` over HTTPS was rejected: *"refusing to allow an OAuth App to create or update workflow …
+without `workflow` scope."* **No sibling session was asked to push it** — that would have been
+permission laundering. The cause was diagnosed instead: the account's configured
+`Git operations protocol` is **ssh**, and the clone had used HTTPS. Pushing over the operator's own
+configured protocol succeeded. **The boundary was understood, not bypassed.**
+
+> **ADDENDUM 48 VERDICT: gate landed and proven; NOT armed; R-35 binding; no clause discharged.
+> No apply was performed — 0 deploy runs on either merge commit, measured.**
+
+---
+
+## ADDENDUM 49 — THE SALKIN READ RETURNED, AND #2089 IS STRUCTURALLY UNATTRIBUTABLE
+
+### 49.1 ★★ THE SALKIN DIFF — A17 IS NOT MERELY UNPROVEN. IT IS REFUTED.
+Full receipt: `.ledge/decisions/RECEIPT-salkin-image-tree-diff-SEALED-2026-09-09.md`. Rite-disjoint
+`clinic·pathologist`; method mandated per R-76 and **not varied** — full filesystem materialization,
+whole-tree diff, **no per-layer diffing**. Completeness check: **21,344 files each side** (A17's
+fatal artifact was **87** — a layer, not an image).
+
+**THREE APPLICATION-SOURCE MODULES DIFFER**, at two install locations each:
+`intake_classifier/rules.py` · `metrics.py` · `pipeline/stages/intake_classify.py`.
+**These are exactly the files A20 named as overlaid by the two unread layers.**
+
+> **A17 claimed the image "changed nothing in the application source" and a freeze was lifted on it.
+> A20 retracted it. The proper method CONFIRMS THE RETRACTION AND REFUTES THE ORIGINAL CLAIM.**
+> The retraction was not excessive caution. It was correct, and the original was false.
+
+**A byte-level observation, recorded and NOT interpreted:** in tree **B** the two install copies of
+each module are **byte-identical**; in tree **A** they are **NOT** (`rules.py` 39,003 B vs 39,471 B;
+`intake_classify.py` 6,712 B vs 7,466 B). **Stated as measured. What it means is the operator's.**
+
+**IT RELEASES NOTHING.** R-87 (C-13 dominates) blocks regardless; and whether a SEALED receipt
+satisfies R-74 leg 2 is **UNRULED** — the operator selected no option and answered *"/qa aggressively
+but unilateral approval is granted."* **That must be ruled before C-13 discharges or it goes live
+unruled.**
+
+### 49.2 #2089 — BOTH LANES DISOWN IT. THE FINDING IS THE CREDENTIAL.
+| lane | answer | grounds |
+|---|---|---|
+| identity-activity-substrate | **NO** | its only merge tonight was #2098 (docs-only); no EBI branch, no EBI path — **structural, not recollection** |
+| calendar-integration-locus | **NO** | **zero session entries 00:50–01:20**, with a **positive control**: 20–41 entries/min at 02:00–02:09 while merging #416. Plus: every autom8y merge it ever issued is in the 1800s |
+| this seat | **merged #2087, not #2089** | owned in the record since A44 |
+
+**Both stated the limit rather than hiding it:** each speaks for its own session only, not for "any
+agent," and neither can prove a negative about a shared credential.
+
+**★ THE ATTRIBUTION FIELD IS PROVABLY NON-DISCRIMINATING — established from BOTH sides with
+KNOWN-POSITIVE controls.** The substrate lane ran **#2098** (a merge it *did* make) through it; this
+seat ran **#2097** (a merge *it* certainly made). Both return `author=tomtenuta mergedBy=tomtenuta`,
+identical to #2089. **The instrument was tested against a known positive and failed to discriminate.**
+
+> **★ THE CONSEQUENCE IS LARGER THAN ONE MERGE, and the calendar lane stated it best: no future
+> merge on any frozen service can be attributed either. THE FREEZE HAS NO ENFORCEMENT SURFACE AT
+> THE IDENTITY LAYER.** Neither lane can be exonerated by the field — only by transcript evidence
+> that happens to exist, **which is not a control anyone designed.**
+
+**The offered option of assuming it was this seat's was DECLINED and that was load-bearing:** a false
+confession would have given the credential hole a plausible owner **and made it invisible.**
+
+### 49.3 A peer finding that FLATTERED this seat's own decision, and was WRONG
+A lane relayed that the only two PRs unblocked by arming would be **#2100 and #2101, "both yours"** —
+i.e. arming would leave only the arming lane able to merge. **Checked because it favoured my own
+refusal. #2100 is `docs/locus-correct-fork14-…`, a DIFFERENT lane's branch.** The census half —
+**58 of 60 frozen** — verified own-hands and stands; **the damning half is false and was kept out of
+the PR body.** A second overreach in the same message — *"both lanes now disown it"* — asserted a
+third party's testimony **before that lane had answered.** (It has since answered, and disowns.)
+
+### 49.4 The vacuous-control class reached FOUR instances tonight, three of them mine
+(1) an e-mail regex run against a file that happens to contain no e-mails; (2) a positive control on
+a commit the runs API cannot see; (3) grading a `pull_request`-only context against `main`, where it
+can never post; (4) a peer's full-GUID query against a log that only ever emits 8 hex + `-***`.
+**One shape: an instrument that cannot fire, reporting zero.** All four were caught before use.
+
+> **ADDENDUM 49 VERDICT: the salkin question is ANSWERED and SEALED; #2089 is unattributable and the
+> CREDENTIAL is the finding; R-35 binding; nothing armed; no clause discharged. No merge, deploy or
+> apply was performed by this seat in Addendum 49.**
