@@ -113,7 +113,35 @@ A dead **notify** path, inactive ~20 months. `a8/autom8/.ledge/reviews/decommiss
 
 `.sos/wip/CUSTODY-name-the-zero-wave2-register-2026-09-08.md:31` states the handler *"exists in NO repo on disk."* **True on the facts, misleading in framing** — it reads as a gap in our tree when the truth is **it was never ours**. A successor acting on that line will keep searching for something that cannot be found. Amend to: *externally owned; client side lives in `a8/autom8`.*
 
-**Consequence for C-13 / R-65.** That ruling reserves *"read the receiver's handler first"* to the operator's own hand. **That act cannot mean reading code** — the code is outside every repo and account we hold. **It can only mean asking the external owner.** Which collapses it into the same conversation R-35 is already waiting on: **C-13 and R-35 are not two waits. They are one.**
+**Consequence for C-13 / R-65.** That ruling reserves *"read the receiver's handler first"* to the operator's own hand. **That act cannot mean reading code** — the code is outside every repo and account we hold.
+
+> ### ★ AMENDED 2026-09-09 — THE CONCLUSION BELOW WAS WRONG. THE PREMISE ABOVE STANDS.
+>
+> **SUPERSEDED REASONING, KEPT VISIBLE ON PURPOSE:** *"It can only mean asking the external owner. Which
+> collapses it into the same conversation R-35 is already waiting on: C-13 and R-35 are not two waits.
+> They are one."*
+>
+> **THE CORRECTION.** `REGISTRY-name-the-client-carried-gates-2026-09-08.md:394` had already **★★ STRUCK**
+> that claim — *"C-13 and R-35 are ONE wait | ★★ STRUCK — THEY ARE TWO INDEPENDENT WAITS"* — and its row 5
+> (`:338`) names C-13's owner as **"the conductor / operator's own hand. NOT the cofounder."** `:397` adds
+> that the 2026-09-09T18:00Z cut **"is C-13's alone and is neither discharged nor delayed nor explained by
+> anything in R-35."** This seat authored the paragraph above without having read that registry.
+>
+> **WHERE THE ERROR WAS.** The premise is sound: the handler genuinely cannot be read, because it is not
+> ours. The **inference** was not: *cannot read* was taken to entail *must ask*. R-65's act is **DECIDE**,
+> and a decision the operator can take alone does not require the external owner at all. **This is the
+> arc's T-13 signature — rigour at the evidence layer, with the consequence drawn about an object never
+> measured.**
+>
+> **RATIFIED BY THE OPERATOR, 2026-09-09 ≈03:20Z sitting, ruling R-83:** C-13 and R-35 are **TWO
+> INDEPENDENT WAITS.** An operator confirmation of the *"one wait"* reading given earlier that same night
+> was **withdrawn as contaminated**, because this seat had placed the claim into the confirming question's
+> option text without first reading the record that struck it.
+>
+> **DISCLOSED, NOT RESOLVED:** the REGISTRY's strike cites `RULINGS-ebi-operator-interview-2026-09-08.md:65-67`
+> as its authority, and **that file exists nowhere in the repos tree** (control: `find` resolves five sibling
+> `RULINGS-*.md`). The operator ruled the REGISTRY governs **on the merits**; the dangling citation is
+> recorded as an open defect in the registry, not as a resolved one.
 
 ---
 
