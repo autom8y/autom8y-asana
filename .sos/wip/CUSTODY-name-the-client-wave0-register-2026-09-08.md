@@ -4581,3 +4581,50 @@ own history.**
 
 > **ADDENDUM 46 VERDICT: S-06 is RELEASED to proceed with a mutable, dated, explicitly-UNRULED
 > denominator artifact. No merge, deploy or apply was performed by this seat in Addendum 46.**
+
+---
+
+## ADDENDUM 47 — THE WAVE'S OWN RECORD CARRIED LIVE CUSTOMER PII, AND THE GUARD CAUGHT IT
+
+**PR #417 opened; `Added lines of the merge surface` went RED on the first push. It was RIGHT.**
+18 hits. **Classified individually rather than waved through or force-merged:**
+
+| class | n | verdict |
+|---|---|---|
+| **customer mailboxes** | **2** | **★ GENUINE PII.** Real contact addresses for two real client offices, sitting in a working tree, **one commit from being published.** **Fully redacted.** |
+| bare cloud account id | 4 | redacted to a placeholder — `autom8y` **S2-6**: each bare instance *"weakens a forward-only posture"* |
+| vendor / infra addresses | 7 | false positive — public support + `github.com` infra |
+| reserved-TLD fixtures | 3 | false positive — incl. **the sweep's OWN positive-control fixture** |
+| 12-digit run inside a 40-char git SHA | 2 | false positive — **the exact class S2-6 already named** |
+
+### 47.1 ★ The finding, which is larger than the PR
+**The custody record of an initiative named for the observer problem was carrying live customer
+contact data, and nothing had ever looked.** These artifacts have sat in a working tree for days.
+**The only reason it was caught is that landing them ran them past a guard for the first time** —
+which is itself the argument for landing records rather than accumulating them. *Not looking* is not
+a control.
+
+### 47.2 No receipt was corrupted to reach green
+SHAs abbreviated to their conventional **8-char prefix** (still a valid, resolvable reference);
+e-mails keep their **domain** in a non-routing `[at]` form. **Every redaction preserves the meaning
+the record depends on.**
+
+### 47.3 ★ TWO OF MY OWN VERIFICATIONS WERE DEFECTIVE AND I CAUGHT BOTH BEFORE SHIPPING
+1. **A VACUOUS CONTROL — the exact trap this register named at A9.** My "control" for the e-mail
+   regex ran it against a file that **happens to contain no e-mails**, and returned 0. **A control
+   that cannot fire proves nothing.** Replaced with a synthetic line that **must** hit both classes;
+   it returned `digits12=1 email=1`.
+2. **I APPROXIMATED THE RULE INSTEAD OF READING IT.** I verified with `grep -oE '[0-9]{12}'`, which
+   matches **inside** longer runs; the sweep's actual rule is
+   `(?<![0-9])[0-9]{12}(?![0-9])` — **not flanked by digits.** My grep over-counted 11 phantom hits
+   from 16-digit Asana GIDs. **Re-verified against `merge-surface-sweep.sh` itself.**
+
+**Result: `digits12=0 email=0` under the real rule, with a firing control. Sweep PASSES. 0 failures
+across 26 checks (`total_count` 26 == listed 26).**
+
+### 47.4 Ceded to a peer rather than duplicated
+`.know/telos/name-the-zero.md` was dropped from #417 — **peer PR #419 carries it.** Per A41.3, grants
+and landings are **mirrored, not merged**; two records of one fact is the defect, not the cure.
+
+> **ADDENDUM 47 VERDICT: the record is landing, PII-clean, receipts intact. PR #417 open, NOT merged.
+> No merge, deploy or apply was performed by this seat in Addendum 47.**
