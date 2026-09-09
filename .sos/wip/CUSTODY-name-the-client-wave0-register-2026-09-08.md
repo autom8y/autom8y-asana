@@ -4749,3 +4749,514 @@ can never post; (4) a peer's full-GUID query against a log that only ever emits 
 > **ADDENDUM 49 VERDICT: the salkin question is ANSWERED and SEALED; #2089 is unattributable and the
 > CREDENTIAL is the finding; R-35 binding; nothing armed; no clause discharged. No merge, deploy or
 > apply was performed by this seat in Addendum 49.**
+
+---
+
+## ADDENDUM 50 — INSTANCE 1 OF THE `SERVICE_CLIENT_ID` DRIFT CLASS IS CONFIRMED **LIVE**, MEASURED DIRECTLY
+
+Routed here by the `identity-activity-substrate` lane, whose own instance made the class **N=2**. The
+older instance is this repo's service, and it has been open since **2026-07-07**.
+
+### 50.1 `[OWN-HANDS]` — confirmed live, and by a BETTER instrument than the one suggested
+The peer proposed a `terraform plan`. **A plan was not needed and was not run** — it would have taken
+a state lock to answer a question two read-only calls answer outright:
+
+| side | value | prefixed? |
+|---|---|---|
+| **IaC** `autom8y :: terraform/services/asana/variables.tf:11-15` | `sa_2018…` | **YES** |
+| **SERVED** `ecs describe-task-definition autom8y-asana-service` **rev 830** | `asana` (len 5) | **NO** |
+
+**THE DRIFT IS REAL, IT IS LIVE, AND IT IS AT REVISION 830.** `verify_service_account`'s first
+`WHERE` is exact equality on `client_id`, so a bare literal matches **zero rows** and returns the
+uniform `AUTH-TEB-001` — indistinguishable on the wire from *revoked* or *stale secret*
+(RFC-6749 §2.3.1, by design, not a defect).
+
+**A detail neither lane had:** `SERVICE_CLIENT_SECRET` **is** correctly injected via `secrets[]`
+(4 secrets present). **So the secret is handled properly and the client_id is a bare literal in
+`environment[]`.** The failure is narrower and odder than "auth is misconfigured."
+
+### 50.2 The peer's census: conclusion CONFIRMED, denominator DIFFERENT — stated precisely
+Peer: *"0 bare literals in `terraform/`, control 8 total assignments."*
+**Measured here: 0 bare literals — CONFIRMED.** Total assignments: **31**, not 8. **That is a
+different denominator, not a contradiction** — a narrower pattern counts fewer lines. **The
+load-bearing half is the ZERO, and it holds:** IaC **never** emits the bare form.
+⇒ **This is task-definition drift FROM IaC, not IaC intent. The cure is a re-apply/reconcile, not an
+IaC edit.**
+
+### 50.3 Two corrections owed back to the routing lane
+1. **`PACKET-corroboration-allowlist-2026-08-23.md` IS NOT IN THIS REPO.** Cited as this seat's at
+   `:208-241`; `.ledge/decisions/` holds **171** files and does not include it (control: 11 files
+   carry `R-35`, so the search works). The finding is real — **the citation is not resolvable here.**
+2. **The D-6 clock is NOT past.** Reported as *"past its D-6 clock of 2026-09-10."* **Today is
+   2026-09-09. 2026-09-10 is TOMORROW.** It is **due**, not breached — and it is due *today-ish*,
+   which is a live reason to surface it, so the urgency survives the correction.
+
+### 50.4 Disposition — NOT CURED, and the reason is not the freeze
+The asana service is **not** under R-35 (that is EBI). **The cure is still not this seat's:** it is a
+production task-definition change on a service, i.e. an apply, and it is unrelated to tonight's
+charge. **Converted from "open since 2026-07-07, unmeasured" to "MEASURED LIVE at revision 830 on
+2026-09-09."** That is the whole deliverable and it is read-only.
+
+**Operator item. `NO WATCHER`.**
+
+> **ADDENDUM 50 VERDICT: drift CONFIRMED LIVE; no plan run, no lock taken, nothing cured, nothing
+> applied. No merge, deploy or apply was performed by this seat in Addendum 50.**
+
+---
+
+## ADDENDUM 51 — CLAUSE (b)'s FAILURE POLE IS AUTHORED AND PARKED (R-82 · S2-7)
+
+**`autom8y` PR #2105**, `[DO NOT MERGE — R-35 PARKED]`. **Base is `feat/booking-client-attribution`,
+NOT main** — deliberately.
+
+### 51.1 ★ IT WAS NOT DUPLICATED, AND THAT TOOK CHECKING FIRST
+The obvious act was to cure the `"Unknown"` literal. **#2073 already does that** — it adds
+`office_identity_kind`, `office_log_fields()`, and replaces the literal. **Authoring a second cure
+would have been the "two records of one fact" defect** avoided earlier with the telos and PR #419.
+
+**The real, non-overlapping gap, found by reading #2073's diff rather than the file:** #2073 puts the
+discriminator on the **CONTEXT** and splats `office_log_fields` onto **five SUCCESS/suppression
+lines**. **It never reaches the two FAILURE lines.** `business_lookup_failed` and
+`business_not_found` still emitted `office_phone` **and nothing else** — naming the office **only by
+the field the PII posture drops**, carrying **no kind**.
+
+> **The discriminator was being computed TWO STATEMENTS BELOW the log that needed it — and #2073's
+> own comment says the discriminator would otherwise be destroyed, while the log ten lines above
+> carried neither the kind nor a non-PII handle.**
+
+**An asymmetry neither lane had:** `business_lookup_failed` logged **BEFORE** the context was set;
+`business_not_found` **after**. One defect, two different-looking edits.
+
+### 51.2 O-4(b) UNTOUCHED — asserted, then MEASURED, and my assertion was the thing that was wrong
+Expected `office_phone=office_phone` × 5; measured **4 after**. **The edit was fine; the expectation
+was wrong** — 4 use that exact form, the fifth is `office_phone=full_business.office_phone`.
+**Before 4 / after 4; all `office_phone=` before 5 / after 5.** Nothing removed. **The PII sits
+inside the block being edited and was edited around, not cured.**
+
+### 51.3 Proven two-sided, and the suite carries its own positive control
+5 pass · **3 mutants each RED, GREEN restored** (drop splat @ lookup_failed → 3 fail; @ not_found →
+3 fail; collapse the kinds → 2 fail) · **60 pass** across four surrounding suites.
+**`test_the_sink_is_not_blind` exists because `caplog` CANNOT see these lines** — autom8y_log routes
+through structlog's own renderer, so a caplog assertion **reads empty while the event emits
+perfectly.** Without that arm every assertion in the file passes **vacuously** — the failure class
+this arc hit **four** times tonight, pre-empted this time rather than caught.
+
+### 51.4 ★ THE STACKED BASE IS A MECHANISM, NOT A CONVENTION
+A peer refused to park a one-third fix tonight because *"a parked one-third PR in a repo holding 60
+open PRs invites someone to merge a third of a fix"* — and this seat endorsed that. **The same
+objection applies here and is answered structurally rather than by discipline: basing on
+`feat/booking-client-attribution` makes GITHUB enforce the dependency.** #2105 **cannot** merge
+without #2073. **That is the distinction from the peer's case, where the three breaks lived apart.**
+
+### 51.5 The gate's scope, measured with a control — a designed property, recordable so it is not misread
+| PR | base | EBI freeze gate |
+|---|---|---|
+| **#2105** | `feat/booking-client-attribution` | **ABSENT — does not run** |
+| **#2100** | `main` | **RUNS, passes** |
+
+**Correct by design:** merging into a branch performs **no apply**; only a **main-targeting** merge
+fires `service-deploy-dispatch`. The fence holds where it matters — **#2073 is the main-targeting PR
+the gate would block.** **Recorded because a reviewer seeing "no gate" on a stacked EBI PR could
+misread it as EBI changes being ungated.**
+
+> **ADDENDUM 51 VERDICT: clause (b) moves from UNSATISFIABLE to SATISFIABLE-ONCE-DEPLOYED. It is
+> NOT discharged — deploying is forbidden (R-35), and R-87's C-13 dominates regardless. PARKED.
+> No merge, deploy or apply was performed by this seat in Addendum 51.**
+
+---
+
+## ADDENDUM 52 — R-35 IS ANSWERED. THE HOTFIX NEVER EXECUTED, AND #2087 ALREADY SUPERSEDED IT.
+
+**Operator returned from the cofounder exchange. All four asks answered.** This addendum records the
+technical determination the operator delegated: *"You probably have the ability to read it and
+distinguish if it's actually relevant."*
+
+### 52.1 ★ MY EARLIER COMPARISON WAS THE WRONG ONE, AND IT INFLATED THE FINDING
+A20/A49 diffed **salkin vs `4e0b41f`** — the frozen image against *today's* production. That
+correctly answers *"what differs now"* (R-76's question) but **CANNOT answer "what did the hotfix
+change,"** because it conflates the hotfix with **everything merged between 09-05 and 09-09**.
+**`metrics.py` was #2087's change and I attributed it to the hotfix.**
+
+**Correct comparison: salkin vs its immediate predecessor `67d89d7`** (pushed 2026-09-04T20:07-04:00,
+before salkin's 09-05T12:31-04:00). Materialized the same way; **21,344 files, matching.**
+**Isolated hotfix surface: TWO files, not three** — `intake_classifier/rules.py` and
+`pipeline/stages/intake_classify.py`.
+
+### 52.2 ★★ THE HOTFIX NEVER EXECUTED — PROVEN BY RUNNING THE IMAGE, NOT BY INFERENCE
+| copy | predecessor | salkin | |
+|---|---|---|---|
+| `site-packages/…/rules.py` | `42740413` | `42740413` | **UNCHANGED** |
+| `/var/task/src/…/rules.py` | `42740413` | `cad9271d` | **CHANGED** |
+| `site-packages/…/intake_classify.py` | `229a8888` | `229a8888` | **UNCHANGED** |
+| `/var/task/src/…/intake_classify.py` | `229a8888` | `9ee44058` | **CHANGED** |
+
+**Executed inside the salkin image itself** (`docker run --entrypoint python`):
+```
+package resolves to: /var/lang/lib/python3.12/site-packages/email_booking_intake
+  imported rules.py            md5=42740413   <- the UNPATCHED copy
+  imported intake_classify.py  md5=229a8888   <- the UNPATCHED copy
+  /var/task/src on sys.path?   False
+```
+> **The Lambda imported the untouched `site-packages` copies for the entire ~3.4 days salkin served
+> production. The hotfix was applied to a copy that is not on `sys.path`.**
+
+**This retro-explains A49.1's odd byte-level observation** — *"in tree A the two install copies are
+NOT byte-identical; in tree B they are."* **That asymmetry was the FINGERPRINT of a patch applied to
+the wrong copy.** Recorded then as uninterpreted; now it has its meaning.
+
+### 52.3 ★ THE HOTFIX WAS SUBSTANTIVELY CORRECT — AND #2087 ALREADY LANDED THE SAME CURE PROPERLY
+Its content: when the sked booking rule is disabled, stop returning `None` (which let sked mail fall
+to `ReviewDomainRule` and classify **REVIEW_CAPTURE**); instead let only *confident review* mail fall
+through and route everything else to **`HUMAN_ESCALATE` / `sked_booking_fixture_required`**, parked
+on the durable OPS path via `TerminalDecline`.
+
+**That is the same shape #2087 landed** — `4e0b41f` carries the identical
+`if decision.reason == "sked_booking_fixture_required":` block, with the operator-ruling comment,
+emit-authority note, and a pinning test that mutation-proved it.
+
+**Disposition, answering the operator's four questions:**
+1. **Relevant?** **It was** — it identified a real defect.
+2. **Superseded?** **COMPLETELY.** #2087 implements it properly and is **live in production now**.
+3. **Safe to overwrite?** **Yes — and it already was, on 09-09.** Nothing was lost.
+4. **Did overwriting regress anything?** **NO.** Production is strictly better: his fix never ran, the
+   tested equivalent does.
+
+### 52.4 ★★ THE ONE THING THAT MATTERS, AND IT IS NOT THE PROVENANCE
+**Between 09-05 and 09-09 the sked fail-closed protection was believed live. IT WAS NOT.**
+The hand-deploy was performed *for that purpose* and had no effect.
+**The real exposure window ran from `67d89d7` (09-04) until #2087 deployed at 2026-09-09T01:41:03Z** —
+**not** until 09-05 as the hand-deploy implied. **Any loss-class accounting that treats 09-05 as the
+closing instant is wrong by ~4 days.** Routed to the `name-the-zero` lane.
+
+### 52.5 A RECALIBRATION I OWE
+The operator: *"it's really not as important as you seem to be making it."* **Correct, and I over-weighted
+it.** It was a one-off hotfix by someone unfamiliar with the ecosystem that **never even executed**.
+The provenance framing (R-91) was accurate but **disproportionate to what the thing actually was**.
+The residual that *did* matter — **did we regress by overwriting it** — is now measured, and the
+answer is **no**.
+
+> **ADDENDUM 52 VERDICT: R-35's question is ANSWERED. The hotfix is inert, superseded, and safe to
+> discard. No merge, deploy or apply was performed by this seat in Addendum 52.**
+
+---
+
+## ADDENDUM 53 — C-13 HAS A NAME. THE ALLOWLIST DISCREPANCY IS RESOLVED. THE EVIDENCE IS PERISHABLE.
+
+### 53.1 ★★ C-13 IS **`office-8e56f6e1`**
+The peer lane triaged the 21 divergences by office. Row 3 — `dead_letter`, pk `bd875254…`, guid
+`8e56f6e1-***`, reap **2026-09-10T05:28:46Z** — **matches C-13's reap instant in the record exactly.**
+It is also the only row with `redrive_attempts=5` and a `last_error`: **tried five times,
+unrecoverable.**
+
+**`[OWN-HANDS]` — and it changes the reading:** `8e56f6e1-ed00-4a66-b349-7340948cad20` **IS on the
+live allowlist** (`production.tfvars:160`, 1 occurrence). **So the office whose booking dead-lettered
+is an ACTIVATED, ALLOWLISTED client.** This is a **delivery failure to an enabled customer**, not a
+routing exclusion. C-13 has been carried as *"the dead-letter row `bd875254…`"* for days; it is a
+named office that lost a booking.
+
+### 53.2 ★ THE 18-vs-42 DISCREPANCY IS RESOLVED — and my 42 stands
+The peer reported `production.tfvars:153` holding **18** GUIDs against my live-measured **42**, and
+recorded the direction as unexplained. **`[OWN-HANDS]`, per-line, no block-capture ambiguity:**
+
+| line | what it is | uuids | tokens |
+|---|---|---|---|
+| `:124` | `contente_booking_monolith_served_set` | 3 | **4** (4th is `161:reviewwave`, the non-UUID legacy key) |
+| **`:153`** | **A COMMENT. Not a variable.** | **0** | **0** |
+| `:160` | `contente_booking_live_allowlist` | **42** | **42** |
+
+**The 18 came from PROSE.** `:156` reads *"…W0 (fuel-unification) already relocated this VALUE off the
+env into the census param, so the **18-guid string** no longer…"* — **a comment describing a
+SUPERSEDED state, which the comment itself says is superseded.**
+**42 + 4 = 46 — the enablement plane exactly as recorded. The operator's assurance stands: no account
+was excluded.**
+
+### 53.3 ★★ THE NAMING EVIDENCE IS ON A SELF-DESTRUCT AND IS UNTRACKED
+| | |
+|---|---|
+| **21 diverged EVENTS · 6 surviving LEDGER ROWS** | `EBI_BOOKING_DIVERGED` counts events; the ledger holds current state |
+| **~15 already DELETED** | `ebi-forwarding-idempotency` has TTL **ENABLED** on `ttl`, ~7-day horizon |
+| **the log never named an office** | `reconcile_handler.py:339-343` logs at CRITICAL carrying **ONLY `ledger_status`** — deliberately *"Never PII"* |
+
+> **★ THE ONLY ARTIFACT THAT EVER NAMED WHICH OFFICE LOST A BOOKING IS THE LEDGER ROW, AND IT IS ON A
+> 7-DAY SELF-DESTRUCT. The manifest naming them is UNTRACKED.** Next reap: **`office-fc79c54c`,
+> 2026-09-09T19:21:31Z** — measured now at 15:59Z, **~3h22m.**
+
+**A PII posture that is correct in isolation and destroys the discriminator in aggregate.** *"Never
+PII"* on the alert line is right; the consequence is that **the only durable place the office name
+could have lived was a row with a TTL.** This is the write-destroys-the-discriminator class again —
+and here the write is a *deletion clock*.
+
+### 53.4 ★ THE TWO CLAUSES ARE IN OPPOSITE STATES — and this redirects R-88's plan
+- **Clause (a)** needs #2073 to deploy → needs R-35. **Blocked.** (Peer confirmed independently:
+  798 `booking_completed` in 30d, `office`/`guid`/`client` tokens **0**, controls 798/798. I measured
+  801 — window offset, materially identical.)
+- **Clause (b)'s NAMING HALF is satisfiable TODAY from existing production state** — no deploy, no
+  code, **no R-35 dependency** — **and it is PERISHABLE.**
+
+**R-88 ratified closing name-the-client narrow on (a)(b)(d)(c1). (b) has data now and it expires.**
+
+### 53.5 A steer owed back on their open item 1
+They offered to reconstruct the ~15 reaped rows from the reconcile lambda's 90-day logs.
+**Their own finding constrains it: the diverged log carries ONLY `ledger_status` and never PII, so
+the office name is NOT in that event.** Reconstruction must come from a **different** event that
+carries the guid — not that one. Surfaced so the dead end is not walked.
+
+> **ADDENDUM 53 VERDICT: C-13 is named; the allowlist discrepancy is closed in favour of 42; clause
+> (b)'s naming evidence is live, durable-nowhere, and reaping. No merge, deploy or apply was
+> performed by this seat in Addendum 53.**
+
+---
+
+## ADDENDUM 54 — CLAUSE (b)'s NAMING HALF IS LANDED. R-97 IS NOT YET EFFECTIVE. TWO PEER CLAIMS CORRECTED.
+
+### 54.1 ★ LANDED — the first clause-material artifact to reach a ref
+`.ledge/reviews/MANIFEST-booking-divergence-triage-2026-09-09.md`, PR #423, **merged `7e080677`**
+2026-09-09T18:22:18Z. Four offices, six rows, all on the live 42-entry allowlist, 5 `posted` +
+1 `dead_letter`. **C-13's row is `office-8e56f6e1`, pk `bd875254`.**
+
+**Per R-97 this register now cites TOKENS, not names.** Addendum 53's single plaintext occurrence has
+been redacted to `office-8e56f6e1` (1 → 0, verified). The join stays reproducible via
+`.ledge/reviews/commission-clawback-2026-08/registry/chiropractors.json`, so **nothing is made
+unfalsifiable by the redaction.**
+
+### 54.2 ★★ R-97 IS RULED BUT NOT EFFECTIVE — the names are still served by GitHub
+`[OWN-HANDS]`, same path, two refs:
+
+| ref | lines | **plaintext office names** | tokens |
+|---|---|---|---|
+| **`e2b57fde`** (pre-redaction) | 146 | **13** | 0 |
+| `main` / `7e080677` | 161 | **0** | 13 |
+
+**A force-push rewrote the branch; the orphaned commit remains reachable because PR #423's timeline
+references it.** One API call at that ref returns the unredacted document today.
+**The operator ruled the names withheld and they are not withheld.** Remedies are all operator-grade:
+purge unreachable objects via GitHub support · delete the PR · or accept it explicitly (the peer's own
+note holds that office names are business identifiers, not PII). **Surfaced, not chosen.**
+*(Probe discipline: the first attempt failed because zsh glob-expanded the `?ref=` query string — and
+the CONTROL returned 0 too, which is what identified it as a broken probe rather than absent content.)*
+
+### 54.3 CORRECTION ACCEPTED — the onboarding walkthrough is NOT dark cruft
+**R-95, operator-stated:** the pilot **HAS** been run end-to-end, including with a named test account;
+it is **activated for several live calendar-integration plays** and **provides real value to onboarding
+reps.** The peer had reported it *"never piloted"*, reasoning from a **docstring**.
+**Disposition inverts: its DISABLED schedule is the loss of a working tool, not the removal of a
+no-op.** **This seat relayed that finding onward and did not independently verify it** — recorded so
+the propagation is visible, not just the origin.
+
+**The peer named its own error shape and it is the fourth instance today of one class:** *the parse
+succeeded against the wrong object* — an empty set from a failed regex · an over-inclusive grep · a
+stale git ref · **and a stale docstring read as current state.** **A docstring tells you the DEFAULT,
+never the history.**
+
+### 54.4 ★ CORRECTED — "the satellite applies on EVERY code merge, including docs-only ones" is FALSE
+`[OWN-HANDS]`, and **the peer's own merge is the counter-example.** Test's last *push*-triggered run
+on main is `d75bfe1a`, **2026-09-07T04:56:54Z** (the 09-08 entry is a manual `workflow_dispatch`).
+**Their `.ledge/**`-only merge `7e080677` at 09-09T18:22Z is ABSENT from the Test run list.**
+⇒ **No Test ⇒ no satellite-dispatch ⇒ no apply.** The deny-list works exactly as designed.
+
+**Their core warning still stands and is important:** the disabled state **is declared in terraform on
+main**, so a CLI `enable-rule` reverts at the next apply, and an apply on that service also rolls ten
+lambdas and re-arms thirty-six alarm actions. **Durable order: flag → declaration → schedule.**
+**Only the trigger condition is narrower than stated** — not *every* merge, but every merge touching a
+path **outside** the deny-list. **Docs-only merges are safe; code merges are the risk window.**
+
+### 54.5 The 18:00Z clock was GOVERNANCE, not DATA — and this seat conflated them too
+Measured by the peer at 18:23Z: **all six rows still present**, `bd875254` included. **Nothing was
+deleted at 18:00Z.** The real clock is the ledger **TTL** — `fc79c54c` reaps 19:21Z tonight,
+`office-8e56f6e1`'s row **2026-09-10T05:28Z**.
+**This seat reported the two pressures as one when briefing the operator.** R-65's 18:00Z cut
+*resolves the row as LOST* — a governance disposition — and does not delete anything. **Whether C-13
+is discharged remains the operator's to say; the row surviving 18:00Z settles it neither way.**
+
+> **ADDENDUM 54 VERDICT: clause (b)'s naming half is ON A REF. R-97 needs an operator act to become
+> effective. No merge, deploy or apply was performed by this seat in Addendum 54.**
+
+---
+
+## ADDENDUM 55 — "ASKING IS A HUMAN ACT WITH NO EVENT." THE WS-1 REFRAME, AND E-3 IS CORROBORATED FROM THE OPPOSITE DIRECTION.
+
+### 55.1 ★★ THE REFRAME, and it is the most product-relevant finding of the day
+The peer lane established that `link_on_play.py` is a **standalone CLI** — `import argparse` `:42`,
+`def main(argv)` `:278`, `ArgumentParser` `:285`, `if __name__ == "__main__":` `:337` — and that
+**nothing imports `post_link_on_play` as a workflow step** (siblings pull only constants; control:
+the same grep shape finds real importers of a sibling module, so the probe fires).
+
+Combined with this morning's finding that `originate_send` **renders a URL and never sends mail**:
+
+> ### **THE ENTIRE ACTIVATION PATH IS HUMAN-INVOKED TOOLING.**
+> A rep runs a CLI to post a deck URL onto an Asana task; **a human then sends the link through a
+> channel we do not record.** That is why reps get real value from something no schedule carried, and
+> it is why *"were the clinics ever asked?"* **has no system of record.**
+> **THE GAP IS NOT A BROKEN AUTOMATION. ASKING IS A HUMAN ACT WITH NO EVENT.**
+> **Instrumenting delivery was always the wrong fix; making the ask an event is the right one.**
+
+**Three readings are simultaneously true and the peer refused to collapse them:** the SCHEDULED path
+is flag-gated and dark · the pilot ran and its Asana comments persist (**R-95**) · the disable
+withheld future runs of a path that was never enabled anyway. **Not claimed:** whether
+`floodgates/batch.py` would post comments if the flag were set.
+
+### 55.2 ★ WHAT IT DOES TO THIS LANE — E-3 IS CORROBORATED, NOT UNDERCUT
+This seat checked its own landed artifact against the finding rather than accepting the reframe on
+its merits. **`DISPOSITION-dark-office-class-2026-09-09.md` E-3 already concluded, from the OUTSIDE:**
+> *"[office redacted per R-97], the only deck staged inside the SendGrid window (`2026-08-27`),
+> appears **64 times** in-window and **the deck is absent from all 64** ⇒ **the deck travels by
+> Intercom, not SendGrid**."*
+
+**Two disjoint methods, one conclusion.** E-3 inferred structural blindness by observing absence with
+a firing control; the peer derived it by **reading the source**. **Theirs explains the mechanism mine
+could only infer, which DISCHARGES this artifact's own `M-10` caveat** (*"reading E-3 as settled
+beyond its N"*).
+
+**And the CLASS claim never depended on SendGrid at all.** It rests on **E-1** — zero `guid_extracted`
+across **full 90-day retention on TWO DISJOINT INSTRUMENTS**, 76 offices, 60,830 events, in-query
+control, no truncation. **The dark-office class survives untouched.**
+
+### 55.3 ★ THE ASK ALREADY HAS AN INCIDENTAL TRACE — and that is the cheap route to making it an event
+This lane's own §`:192-193` reads bookings-adjacent evidence directly from **Asana task stories** —
+a named owner, a PLAY task, a quoted comment: *"They were asked, repeatedly, by name."*
+> **So the ask is not traceless — it leaves an INCIDENTAL trace as a side effect of a human posting
+> into Asana. It is simply not a first-class event.** Making the ask an event is therefore
+> **promotion of an existing trace, not construction of a new one** — materially cheaper than the
+> instrumentation this initiative has been assuming.
+
+**Directly load-bearing for `name-the-client`:** we cannot tell a client *"we asked you and you did
+not respond"* until asking is recorded. **That is a fifth face of the same predicate — and unlike
+clause (c2) it is not blocked on the identity spine.**
+
+### 55.4 AN OPERATOR QUESTION THIS SEAT WILL NOT ANSWER ITSELF — R-97's RETROACTIVE SCOPE
+**R-97 ruled the manifest merge minus office names.** `DISPOSITION-dark-office-class-2026-09-09.md`
+is **already on main and names offices in plaintext** (count in Addendum 56.1; names withheld here).
+**Whether R-97 reaches back to already-landed artifacts is genuinely ambiguous and is the operator's
+call** — and redacting a landed record raises a history-rewrite question of its own.
+**Surfaced, not acted on. This register is token-only from Addendum 53 forward regardless.**
+
+### 55.5 The zsh class, now two seats in one afternoon
+This seat: an unquoted `?ref=` glob-expanded, killing a probe **and its control identically** — the
+only reason it read as a broken probe rather than absent content. The peer: an unquoted
+`--include=*.py` silently ate a grep. **One shell behaviour, two seats, one afternoon.**
+**The generalisable rule is not "quote your globs" — it is that a control which fails the SAME WAY as
+the probe is the thing that saves you.**
+
+> **ADDENDUM 55 VERDICT: E-3 corroborated by a disjoint method; the dark-office class stands; the
+> activation ask is a human act with an incidental Asana trace. No merge, deploy or apply was
+> performed by this seat in Addendum 55.**
+
+---
+
+## ADDENDUM 56 — THE R-97 EXPOSURE IS **9 OFFICES, NOT 4**. AND THE COUNTER-MEASURE TO THE DAY'S ERROR CLASS IS NAMED.
+
+### 56.1 ★ A PEER FIGURE CORRECTED, because it is an input to an operator ruling
+The peer verified this seat's R-97 question independently and reported
+`DISPOSITION-dark-office-class-2026-09-09.md` at `origin/main` as *"533 lines, 15 plaintext
+office-name hits, **four distinct offices**."* **Line count confirmed. Office count is wrong.**
+
+**`[OWN-HANDS]`, and normalised so this seat does not err in the opposite direction:**
+| reading | value |
+|---|---|
+| raw distinct name strings | 12 |
+| **distinct OFFICES after normalising variants** | **9** |
+| buckets holding >1 variant of one office | 3 |
+| **peer reported** | **4** |
+
+**The already-landed disposition names NINE offices, not four.** *(This seat's first pass returned 11
+from a greedy prose regex — inflated by variant forms of the same office. Normalising is what produced
+the honest number; reporting 11 would have been the peer's error mirrored.)*
+**Names withheld here; counts only.**
+
+**Why it matters and why it was worth checking a peer who said "nothing owed back":** the exposure
+size is a **load-bearing input to the operator's R-97 scope decision.** Understating it by more than
+half would mis-price the choice.
+
+### 56.2 The R-97 fork, in its sharpest form — the peer's framing, kept
+> **The manifest is now the ONLY redacted artifact.** Either R-97 reaches back — requiring a history
+> rewrite on an already-merged document, the same class as the `e2b57fde` gap but **one step worse** —
+> **or it is forward-only, in which case the manifest's redaction is an INCONSISTENCY rather than a
+> policy.**
+
+**Both seats have surfaced it. Neither has acted. It is squarely the operator's.**
+
+### 56.3 ★★ THE COUNTER-MEASURE TO THE WHOLE DAY'S ERROR CLASS
+Five-plus instances across two seats in one day, all one shape — **the parse succeeded against the
+wrong object**: an empty set from a failed regex · an over-inclusive grep · a stale git ref · a stale
+docstring read as current state · a 30-day aggregate read as current state · one series read as the
+whole picture. Add today's zsh pair: an unquoted `?ref=` and an unquoted `--include=*.py`.
+
+> ### **A CONTROL THAT FAILS THE SAME WAY AS THE PROBE IS THE ONE THAT SAVES YOU.**
+> A control that merely **differs** tells you the probe can return non-zero.
+> A control that **shares the probe's failure mode** tells you whether the probe **RAN AT ALL** —
+> which is precisely the fork every wrong-object instance turns on: **absent content vs. broken
+> instrument.**
+
+**This seat's `?ref=` probe is the worked example: the control glob-expanded identically, and that is
+the only reason the zero read as a broken probe rather than a deleted commit.** A merely-different
+control would have concluded the pre-redaction commit was gone — **confidently, and wrongly.**
+**Belongs in the class writeup as a cross-seat pattern, not in either scar file.** Both seats agree.
+
+### 56.4 State carried forward
+Clause (b) naming half **LANDED** (`7e080677`). Clause (a) **blocked** behind #2073 → R-35.
+The fifth face — **making the ask a first-class event** — is **PROMOTION of an existing Asana trace**,
+and is **the only unblocked face on the board.**
+
+> **ADDENDUM 56 VERDICT: exposure is 9 offices; the R-97 fork is the operator's; the control rule is
+> banked. No merge, deploy or apply was performed by this seat in Addendum 56.**
+
+### 56.5 ★ THIS REGISTER IS ITSELF AN INSTANCE OF THE R-97 FORK
+Addendum 55.4 raised the retroactivity question **and listed office names while doing so** — breaking
+the token-only rule this seat had stated one addendum earlier. **Redacted.**
+Remaining plaintext names sit in addenda written **before R-97 existed**. So this register now reads
+exactly as the **forward-only** interpretation: **token-only from Addendum 53 on, historical before
+it.** **That is not a decision — it is this seat applying to itself the same unresolved fork it has
+put to the operator.** Whichever way R-97 is ruled, **this register needs the same treatment as
+`DISPOSITION-dark-office-class-2026-09-09.md`, and neither should be treated in isolation.**
+
+---
+
+## ADDENDUM 57 — MY 9 WAS INFLATED. TWO OPEN METHODS CONVERGE ON **6**, AND THE NUMBER SHOULD NOT BE QUOTED ALONE.
+
+### 57.1 ★ THIS SEAT'S 9 CARRIED THE SAME DEFECT IT HAD JUST CORRECTED IN A PEER
+Addendum 56.1 reported **9 distinct offices** and corrected the peer's **4**. **The 9 is wrong too.**
+Its table-column extraction was open-vocabulary; **its prose extraction was a HARD-CODED LIST of the
+seven names this seat already knew** — *the same closed-vocabulary defect, in a smaller costume,
+inside the very addendum that named it.* Crude normalisation then under-merged variants on top.
+
+**The peer diagnosed its own 4 as "a closed-vocabulary probe reported as a survey." That diagnosis
+applies to half of this seat's 9.**
+
+### 57.2 THE RE-MEASUREMENT — two OPEN methods, unioned
+| method | vocabulary | result | its blind spot |
+|---|---|---|---|
+| **A** registry join (1,349 names, `len>=8` guard) | **OPEN** | 6 hits | **misses offices referred to by a VARIANT** |
+| **B** class-table office column | **OPEN** | 5 hits | only sees the structured field |
+| **union − our own entries, normalised** | — | **6 CLIENT OFFICES** | a variant absent from BOTH is invisible |
+
+**Control sharing the probe's failure mode: 1,314 of 1,320 registry names correctly ABSENT** — the
+probe discriminates rather than matching everything.
+
+**Four figures, four methods: peer closed-list 4 · peer registry-join 5 · this seat's part-closed 9 ·
+two open methods unioned 6.** The peer independently proposed **6** as a floor from its own union.
+**Two lanes converged on 6 by different routes.**
+
+### 57.3 ★★ WHAT GOES TO THE OPERATOR IS NOT A NUMBER
+> **"AT LEAST 6 CLIENT OFFICES. THE COUNT IS METHOD-DEPENDENT IN BOTH DIRECTIONS — closed
+> vocabularies under-count, canonical-name joins miss variants, and greedy regexes over-count."**
+
+**Every single number produced today was wrong in a way its own author could not see from inside.**
+A lone figure would be quoted once and never re-measured — **which is precisely why this seat checked
+a peer who had said nothing was owed.** The range prices the R-97 decision more honestly than any of
+the four figures, **and it prices it HIGHER than the original 4**, which is the direction that matters
+for a redaction ruling.
+
+**Both seats published their INTERMEDIATE figures** — this seat's discarded 11, the peer's 7
+including our own company entries. **Both intermediates are more useful than either final**, because
+they show which direction each method errs in.
+
+### 57.4 The class, at seven instances and one counter-measure
+Failed regex · over-inclusive grep · stale git ref · stale docstring · 30-day aggregate read as
+current state · one series read as the whole picture · **and a closed-vocabulary probe reported as a
+survey, run twice, by both seats.**
+> **A CONTROL THAT FAILS THE SAME WAY AS THE PROBE IS THE ONE THAT SAVES YOU.**
+> Method A carries exactly that: 1,314 registry names correctly absent proves the probe **ran** and
+> **discriminates**. A control that merely differed would have proven neither.
+
+> **ADDENDUM 57 VERDICT: floor of 6 client offices, method-dependent, not to be quoted as a bare
+> count. No merge, deploy or apply was performed by this seat in Addendum 57.**
