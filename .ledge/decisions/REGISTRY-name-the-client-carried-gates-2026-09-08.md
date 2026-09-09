@@ -266,7 +266,7 @@ fire on the office prefix and it does **not** fire on the phone number.
 | `scripts/ebi_witness_ledger.py:154` | `"ca70baa8",` — inside `_TIER_H: frozenset[str]` declared `:151`, consumed `:271` (`elif prefix in _TIER_H:`) |
 | `terraform/services/email-booking-intake/environments/production.tfvars` | present (1 match) — **production residency** |
 | repo-wide at `origin/main` | **35 files**, incl. witness-ledger JSONs and `.ledge/` handoffs |
-| named in prose | *"office `ca70baa8` (PostureWorks)"* — `HANDOFF-10xdev-to-eunomia-witness-coverage-provenance-2026-07-30.md:59` |
+| named in prose | *"office `ca70baa8` (office-fa59bf58)"* — `HANDOFF-10xdev-to-eunomia-witness-coverage-provenance-2026-07-30.md:59` |
 
 **★ Attribution correction:** the custody register cites this as `ebi_witness_ledger.py`. The file is
 at **`scripts/ebi_witness_ledger.py`** — there is **no** `services/email-booking-intake/src/ebi_witness_ledger.py`

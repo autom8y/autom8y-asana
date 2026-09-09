@@ -5,7 +5,7 @@ status: proposed
 
 # SPIKE — office-guid resolution: task-hierarchy is authoritative, phone is a lossy proxy
 
-- Date: 2026-07-08 (floodgates batch — Total Wellness Center held fail-closed)
+- Date: 2026-07-08 (floodgates batch — office-7363c7ea held fail-closed)
 - Trigger: PLAY 1215766139321621 refused — `2 Business tasks match office_phone='+13036277995'`
 
 ## The gap
@@ -13,17 +13,16 @@ status: proposed
 `onboarding_walkthrough/template_comment.py::_resolve_office_guid` (and its
 `contact_synthesis._business_gid_by_phone` bridge) resolve the receiver business by
 **office_phone → workspace /tasks/search → filter to Businesses-project members**. Phone is
-NOT unique: a practice's BUSINESS card and its OPPORTUNITY/lead card share it. For Total
-Wellness Center, `+13036277995` matches both `1214127219419742` (BUSINESS, section BUSINESSES)
+NOT unique: a practice's BUSINESS card and its OPPORTUNITY/lead card share it. For office-7363c7ea, `+13036277995` matches both `1214127219419742` (BUSINESS, section BUSINESSES)
 and `1214420107547660` ("Holly R. Geersen, DC", section OPPORTUNITY) — same practice (business
 Owner Name = "Dr. Holly Geerson"). Two hits after the discriminator → correct fail-closed refuse.
 
 ## The authoritative link was in the task tree
 
 ```
-PLAY 1215766139321621  "PLAY: Custom Calendar Integration — Total Wellness Center"
-  └─ parent 1214127290389479  "Total Wellness Center PLAYS/REQUESTS ✅"
-       └─ parent 1214127219419742  "Total Wellness Center"  [BUSINESS_PROJECT member]
+PLAY 1215766139321621  "PLAY: Custom Calendar Integration — office-7363c7ea"
+  └─ parent 1214127290389479  "office-7363c7ea PLAYS/REQUESTS ✅"
+       └─ parent 1214127219419742  "office-7363c7ea"  [BUSINESS_PROJECT member]
               Company ID = 7363c7ea-66f8-487f-9f6e-c7a12a63d33f
 ```
 A PLAY has exactly ONE business ancestor. The parent chain is the ownership relation; phone is a

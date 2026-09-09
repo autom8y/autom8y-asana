@@ -39,7 +39,7 @@ telos:
     framed_at: 2026-09-08
     frame_artifact: .sos/wip/frames/name-the-client.md:57
     why_this_initiative_exists: >-
-      Client success escalated two accounts (Dr. David Salkin `6f22301a`, Sand Lake Dental
+      Client success escalated two accounts (office-6f22301a `6f22301a`, office-1b271a63
       `1b271a63`) as booking failures. The measurement found something worse and older: their
       mail has NEVER arrived — zero `guid_extracted` across the full 89-day retention on two
       disjoint instruments, with 60,830 events of in-query control and 76 other offices
@@ -95,7 +95,7 @@ telos:
   receipt_grammar:
     per_item_file_line_anchors:
       - ".ledge/decisions/RATIFICATION-client-outcome-decision-space-2026-09-08.md:10-27 (C-1..C-18), :29-40 (§2 defers, incl. the starred G-FL1 omission and the R-35 no-forcing-function risk), :42-48 (§3 substrate refutation), :50-56 (§4 six unconfirmed assumptions)"
-      - ".sos/wip/TRIAGE-client-booking-blockers-2026-09-08.md §10 (the match_lead.py:725-728 defect; 77 modelled vs 76 measured 5xx), §12.1 (74-office control, 585,935 records), §12.2 (CORRECTION 1: b167331c is Oak Springs, NOT Sand Lake), §12.3 (CORRECTION 2: ratified-silent in committed code), §12.4 (an untaken zero caught by its own dead control)"
+      - ".sos/wip/TRIAGE-client-booking-blockers-2026-09-08.md §10 (the match_lead.py:725-728 defect; 77 modelled vs 76 measured 5xx), §12.1 (74-office control, 585,935 records), §12.2 (CORRECTION 1: b167331c is office-b167331c, NOT Sand Lake), §12.3 (CORRECTION 2: ratified-silent in committed code), §12.4 (an untaken zero caught by its own dead control)"
       - ".sos/wip/DIAGNOSIS-verified-not-enabled-2026-09-08.md §3 (89-day zero on a disjoint instrument), §6 (cost<->integrity coupling; the 1,252 office-blind residual IS the PII control), §7.0 (the charge's SendGrid premise REFUTED AS STATED), §7.1-7.4 (Q-A/Q-B/Q-C/Q-D), §9 (the 15,084-event 2026-08-23->08-27 outage in no record), §12 PR-2 (the load-bearing correction), GO/PARK"
       - ".sos/wip/REPORT-tier-split-consumer-2026-09-08.md §0 + §2 (a green nightly job writing to five orphan branches nobody reads; the missing primitive is a READER), §3 (the six never-arriving GUIDs; three TIER-S drifts incl. BETTER LIFE at 299 arrivals), §4 (the positive control FIRED), §5.1 + §5.2 (two structural false-S generators), §7.5 (the named trigger), §10 (what was not verified)"
       - ".ledge/decisions/PROPOSAL-fast-lane-blast-radius-predicate-2026-09-08.md:43 (FL-1..FL-4 verbatim), :54 (why FL-3 is load-bearing), :111-120 (H2 refused three independent ways), :268 (the G-FL1 UV-P: AUTHORED AND UNRATIFIED)"

@@ -45,21 +45,21 @@ Derived by joining unit↔offer on `office_phone` where `offer.mrr NOT NULL AND 
 
 | unit_gid | unit_name | office_phone | unit_mrr (frame) | offer_mrr (join) |
 |---|---|---|---:|---:|
-| 1199595892774942 | Palmetto Clinics — Integrative Therapy | +18649537836 | NULL | 1185 |
-| 1199595892774944 | Palmetto Clinics — Testosterone Therapy | +18649537836 | NULL | 1185 |
-| 1199965498890341 | Palmetto Clinics — Weight Loss | +18649537836 | NULL | 1185 |
-| 1200087475234528 | First Choice Medical Center — Neuropathy | +13605758897 | NULL | 550 |
-| 1200585406043690 | Balanced Body Holistic Healthcare — Neuropathy | +12018805145 | NULL | 600 |
-| 1200804835344553 | Hoosier Health Plus — SoftWave Therapy | +17656417700 | NULL | 485 |
-| 1200823338038287 | Jenkins Chiropractic — Chiropractic | +14087717207 | NULL | 550 |
+| 1199595892774942 | office-e856f80a — Integrative Therapy | +18649537836 | NULL | 1185 |
+| 1199595892774944 | office-e856f80a — Testosterone Therapy | +18649537836 | NULL | 1185 |
+| 1199965498890341 | office-e856f80a — Weight Loss | +18649537836 | NULL | 1185 |
+| 1200087475234528 | office-e3505007 — Neuropathy | +13605758897 | NULL | 550 |
+| 1200585406043690 | office-c4f2fbda — Neuropathy | +12018805145 | NULL | 600 |
+| 1200804835344553 | office-id-126 — SoftWave Therapy | +17656417700 | NULL | 485 |
+| 1200823338038287 | office-ae29ed17 — Chiropractic | +14087717207 | NULL | 550 |
 | 1200836133305609 | Lake Wylie Back Pain Relief — Chiropractic | +18038316500 | NULL | 550 |
-| 1200839804770770 | American Chiropractic Medical Services — Spinal Decompression | +18104200801 | NULL | 570 |
-| 1200839805152873 | Thiele Chiropractic — Chiropractic | +18606438003 | NULL | 542 |
-| 1200839805319469 | Gonzales Chiropractic — Chiropractic | +12018580444 | NULL | 700 |
-| 1200839805433889 | Neural FX - Rancho Cucamonga — Chiropractic | +19093601700 | NULL | 700 |
-| 1200839805628474 | Baker Chiropractic & Rehab — Chiropractic | +16605824357 | NULL | 1300 |
-| 1200839807912502 | Parrish Chiropractic Center, P.C. — Chiropractic | +16105307700 | NULL | 425 |
-| 1200839808122423 | West LA Neuro-Kinesiology — Spinal Decompression | +13104277374 | NULL | 900 |
+| 1200839804770770 | office-1932d915 — Spinal Decompression | +18104200801 | NULL | 570 |
+| 1200839805152873 | office-id-103 — Chiropractic | +18606438003 | NULL | 542 |
+| 1200839805319469 | office-eaca5fe8 — Chiropractic | +12018580444 | NULL | 700 |
+| 1200839805433889 | office-id-102 — Chiropractic | +19093601700 | NULL | 700 |
+| 1200839805628474 | office-id-161 — Chiropractic | +16605824357 | NULL | 1300 |
+| 1200839807912502 | office-933da175 — Chiropractic | +16105307700 | NULL | 425 |
+| 1200839808122423 | office-id-117 — Spinal Decompression | +13104277374 | NULL | 900 |
 
 All 15 confirmed leaf units in project `1201081073731555` (membership-verified), absent from the offer frame.
 

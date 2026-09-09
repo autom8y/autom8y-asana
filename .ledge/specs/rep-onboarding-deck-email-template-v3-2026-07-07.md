@@ -207,7 +207,7 @@ guid, never types an address.
 - **deck link:** `https://decks.cntently.com/207688021de88a6d7231e1d08ea77a85/`
 - **routing email (system-composed):**
   `1b271a63-33ff-4135-a92d-f1ef0eeea062@appointments.contenteapp.com`
-- **PLAY task:** `1215823342887129` (Sand Lake Dental)
+- **PLAY task:** `1215823342887129` (office-1b271a63)
 
 The exact composed template-comment text for this instance is carried in the
 architect's final message and in `TDD-rep-template-v3-tenant-match-2026-07-07.md`

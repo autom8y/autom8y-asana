@@ -31,7 +31,7 @@
 - **Blocker C(a)** (name the actor behind `salkin-safe-routing`) and **C(c)** (train-or-pin) — **not asked, not ruled.** Only (b) was decided.
 - **★ G-FL1 — NEVER PUT TO THE OPERATOR.** I asked about the *sequencing* of speaking words, never "do you ratify the fast-lane predicate?" **S-13's predicate is authored and unratified.** My omission, recorded as such.
 - **G-P6, G-RS16, G-P4, G-M7, R-41, G-CIREACH, G-RS4, G-P2** — carried per C-12; none ruled.
-- **H2 / the ADIO allowlist** — not ruled; the "ADIO Corrective" vs "ADIO Chiropractic Kennesaw" identity confirmation is still owed.
+- **H2 / the ADIO allowlist** — not ruled; the "ADIO Corrective" vs "office-e3267756" identity confirmation is still owed.
 - **The extraction's preload grade** (BLOCKING vs LAZY; a 40% increase in the always-loaded tier) — not asked.
 - **The pre-existing red on main** (`alarm_description` 1001 chars vs a 1000 cap) — belongs to the SEV-1-delivery-claim lane; not ruled here.
 - **The 1,252 office-blind residual** and its PII coupling — warden + security call, untouched.

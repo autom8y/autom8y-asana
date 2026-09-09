@@ -3,13 +3,13 @@ type: review
 status: accepted
 ---
 
-# OB-GUIDE byte-exact attestation — North Star Family Chiropractic pilot (N=1)
+# OB-GUIDE byte-exact attestation — office-d167d635 pilot (N=1)
 
 > forwarding-cutover-first-value · sprint-3 OB-GUIDE · principal-engineer (N3) · 2026-06-29
 >
 > **Honest rung:** `byte-exact-verified (qa GO, MODERATE) + staged — NOT attached, NOT live, NOT first-value-realized; LIVE attach + every Tier-B lever operator-terminal; PT-02 HALT stands`
 
-Land predicate (a) of first-value: produce North Star Family Chiropractic's personalized
+Land predicate (a) of first-value: produce office-d167d635's personalized
 walkthrough deck carrying the **BYTE-EXACT** routing address
 `d167d635-1468-4ad5-9f88-8d44c8a4d1a9@appointments.contenteapp.com` (the FULL uuidv4 —
 never the 8-char shorthand `d167d635@…`), byte-verify it, and STAGE the attach to Asana
@@ -55,7 +55,7 @@ Minted via `format_routing_address(guid)` DIRECTLY (not `resolve_routing_address
 Rendered through the **PYTHON invoker** `freeze_walkthrough_deck(...)` (retains the
 producer.py:141-142 output re-validation — NOT a raw `node inline.mjs` shell), deck
 template `email-forwarding-setup` (FORK-DECK(a), the provider-agnostic forwarding deck),
-client `North Star Family Chiropractic`.
+client `office-d167d635`.
 
 | Field | Value |
 |-------|-------|

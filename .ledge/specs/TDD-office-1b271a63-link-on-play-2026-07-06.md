@@ -14,7 +14,7 @@ schema_version: 1
 # MICRO-TDD — Sand Lake link-on-PLAY comment poster
 
 > **Grandeur anchor.** The trust-first telos sends its first client deck today. This
-> module posts the live capability URL onto Sand Lake Dental's real Asana PLAY,
+> module posts the live capability URL onto office-1b271a63's real Asana PLAY,
 > idempotently and fail-closed. The design is proven ONLY by two-sided teeth (a RED
 > input the poster REFUSES) + a live read-back receipt — never by a green suite alone.
 > The client SEND stays the operator's. The poster only ADDS a comment; it NEVER
@@ -288,7 +288,7 @@ style of `tests/unit/automation/workflows/test_onboarding_walkthrough.py`).
   `client.stories.list_for_task_async = MagicMock(return_value=SimpleNamespace(collect=AsyncMock(return_value=[<fake stories>])))`.
 - Patch `resolve_section_gids` at the link_on_play module path with `AsyncMock(return_value={"active": "SEC_ACTIVE"})`.
 - GREEN fake_task membership: `[{"project": {"gid": "1209442849265632"}, "section": {"gid": "SEC_ACTIVE", "name": "ACTIVE"}}]`,
-  name `"PLAY: Custom Calendar Integration — Sand Lake Dental"`.
+  name `"PLAY: Custom Calendar Integration — office-1b271a63"`.
 - **Anti-theater invariant (every RED + every dry-run test):** `client.stories.create_comment_async.assert_not_awaited()`.
 
 ### GREEN

@@ -25,11 +25,11 @@ it is named as the thing being refused — and it must not be asserted downstrea
 
 | # | GUID | office | class disposition | grade | axis on which the grade was earned |
 |---|---|---|---|---|---|
-| 1 | `6f22301a-4c51-4282-bf86-a64108e644ad` | **Dr. David Salkin** | **REAL — IN CLASS** | **receipted-live** | outbound lead-notification plane, **lineage-disjoint from Asana**, 75 rows / 73× *"new lead"* in 21 d, controls firing |
-| 2 | `1b271a63-33ff-4135-a92d-f1ef0eeea062` | **Sand Lake Dental** | **REAL — IN CLASS** | **receipted-live** | same instrument, 41 rows / 39× *"new lead"*, controls firing |
-| 3 | `241355e3-ad2b-4efb-8935-cf44f311a3a1` | **Lazar Spinal Care PC** | **REAL — IN CLASS** | **CRM-evidenced** | Asana-present (4 hits, positive control firing), PLAY task, a month of Intercom forwarding threads, named owner |
-| 4 | `cdd8c6cf-b5e5-4689-8383-90b5ba80c709` | **Restore Neuro Rehab** | **REAL — IN CLASS** | **CRM-evidenced** | Asana-present, deck staged `2026-07-08`, contact card, `2026-08-27` DIG result naming an open unanswered objection |
-| 5 | `ba3dd6c7-41c7-4745-9ada-556bb661bc1f` | **FNC Minneapolis Concussion Clinic** | **IN CLASS — on MEMBERSHIP** | **membership settled, state UNMEASURED** | Asana-present (1 hit, task `1214407456474353`), allowlist-present. **No state receipt on either axis.** |
+| 1 | `6f22301a-4c51-4282-bf86-a64108e644ad` | **office-6f22301a** | **REAL — IN CLASS** | **receipted-live** | outbound lead-notification plane, **lineage-disjoint from Asana**, 75 rows / 73× *"new lead"* in 21 d, controls firing |
+| 2 | `1b271a63-33ff-4135-a92d-f1ef0eeea062` | **office-1b271a63** | **REAL — IN CLASS** | **receipted-live** | same instrument, 41 rows / 39× *"new lead"*, controls firing |
+| 3 | `241355e3-ad2b-4efb-8935-cf44f311a3a1` | **office-241355e3** | **REAL — IN CLASS** | **CRM-evidenced** | Asana-present (4 hits, positive control firing), PLAY task, a month of Intercom forwarding threads, named owner |
+| 4 | `cdd8c6cf-b5e5-4689-8383-90b5ba80c709` | **office-cdd8c6cf** | **REAL — IN CLASS** | **CRM-evidenced** | Asana-present, deck staged `2026-07-08`, contact card, `2026-08-27` DIG result naming an open unanswered objection |
+| 5 | `ba3dd6c7-41c7-4745-9ada-556bb661bc1f` | **office-ba3dd6c7** | **IN CLASS — on MEMBERSHIP** | **membership settled, state UNMEASURED** | Asana-present (1 hit, task `1214407456474353`), allowlist-present. **No state receipt on either axis.** |
 | — | `70316996-f9ee-4e54-ac0a-790d2439ae71` | **— no identity of record —** | **★ REMOVED FROM THIS CLASS, BY NAME (§4)** | **not graded — the call is REFUSED** | operator fork **F-1**. **Not decided here. Not decided by any agent.** |
 
 **The two grades, stated precisely so they are not collapsed downstream.** Two offices are
@@ -111,11 +111,11 @@ THE SIX -- ALL SIX PRESENT:
   PRESENT  6f22301a-4c51-4282-bf86-a64108e644ad   Salkin
   PRESENT  1b271a63-33ff-4135-a92d-f1ef0eeea062   Sand Lake
   PRESENT  241355e3-ad2b-4efb-8935-cf44f311a3a1   Lazar
-  PRESENT  cdd8c6cf-b5e5-4689-8383-90b5ba80c709   Restore Neuro
-  PRESENT  ba3dd6c7-41c7-4745-9ada-556bb661bc1f   FNC Minneapolis
+  PRESENT  cdd8c6cf-b5e5-4689-8383-90b5ba80c709   office-cdd8c6cf
+  PRESENT  ba3dd6c7-41c7-4745-9ada-556bb661bc1f   office-ba3dd6c7
   PRESENT  70316996-f9ee-4e54-ac0a-790d2439ae71   THE ORPHAN
 
-POSITIVE CONTROL   PRESENT  b167331c-536f-4996-9b2d-2f696f35f556  (Oak Springs)
+POSITIVE CONTROL   PRESENT  b167331c-536f-4996-9b2d-2f696f35f556  (office-b167331c)
 NEGATIVE CONTROLS  ABSENT   deadbeef-0000-...    ABSENT  e3267756-0000-...   <- the probe CAN say no
 PREFIX-COLLISION CONTROL   each 8-hex prefix -> exactly 1 full GUID; deadbeef -> 0 matches
 ```
@@ -155,7 +155,7 @@ a general licence.
 |---|---|---|---|
 | E-1 | Zero `guid_extracted` for these GUIDs across the **full 90-day retention** on **two disjoint instruments**, 76 offices and 60,830 events of in-query control, no truncation | `DIAGNOSIS-verified-not-enabled-2026-09-08.md` §3 | live CloudWatch Insights measurement; the pathologist/diagnostician lane owns it |
 | E-2 | Salkin **75 rows / 73× "new lead"**, Sand Lake **41 / 39**, on a plane lineage-disjoint from Asana, every zero carrying a two-sided operator control | `PROBE-qc-outbound-deck-delivery-2026-09-08.md` §5.3, §3 | same |
-| E-3 | **★ The control that fired:** Foundation Spine & Posture, the only deck staged inside the SendGrid window (`2026-08-27`), appears **64 times** in-window and **the deck is absent from all 64** ⇒ the deck travels by **Intercom, not SendGrid** | ibid. §4, §7 | this is the load-bearing control of the whole wave; re-running it would not strengthen it, and S-01 published it verbatim-reproducible at §9 |
+| E-3 | **★ The control that fired:** office-79be1b75, the only deck staged inside the SendGrid window (`2026-08-27`), appears **64 times** in-window and **the deck is absent from all 64** ⇒ the deck travels by **Intercom, not SendGrid** | ibid. §4, §7 | this is the load-bearing control of the whole wave; re-running it would not strengthen it, and S-01 published it verbatim-reproducible at §9 |
 | E-4 | SendGrid Email Activity retains **30 days**, measured floor `2026-08-09T22:23:55Z` by bisection; **not** a 403 — the add-on is live, `messages.read` present | ibid. §3, §6.1 | ibid. |
 | E-5 | Five of six resolved to named offices in live Asana with a firing negative control (`deadbeef` → 0) and firing positive controls (`241355e3` → 4, `ba3dd6c7` → 1); **`70316996` → 0 on all three query forms** | ibid. §5.1 | live Asana API; measurement lane |
 | E-6 | `Forwarding Stage` is wrong in **both** directions — Lazar `Flowing` with zero arrivals (false-GREEN), Salkin `Verified → Stalled` | ibid. §0, §5.2 | ibid. |
@@ -172,21 +172,21 @@ a general licence.
 
 ## §3 PER-OFFICE DISPOSITION — five, at grade
 
-### §3.1 `6f22301a` — Dr. David Salkin — **REAL, IN CLASS — receipted-live**
+### §3.1 `6f22301a` — office-6f22301a — **REAL, IN CLASS — receipted-live**
 **Reason of record.** 75 rows of outbound mail in 30 days, 73 of them *"You have a new lead from
 Contente"*, on an instrument **lineage-disjoint from Asana**, with a firing two-sided operator control
 (`to_email LIKE "%zzzznotarealdomain%"` → 0). Bookings on the arrival axis: **zero for 90 days.**
 **A live customer being served 73 leads into a pipe whose return path was never connected.** This is
 the single strongest row in the class and it is not a reporting artifact under any reading.
 
-### §3.2 `1b271a63` — Sand Lake Dental — **REAL, IN CLASS — receipted-live**
+### §3.2 `1b271a63` — office-1b271a63 — **REAL, IN CLASS — receipted-live**
 **Reason of record.** 41 rows / 39× *"new lead"*, same instrument, same controls. CRM corroboration is
 additionally present (deck staged `2026-07-07`, `Forwarding Stage = Sent`, an Intercom permalink on the
 task) but **the grade is earned by the lineage-disjoint instrument, not by the CRM.** A `2026-08-27`
 DIG result records the account blocked on the client's unanswered `06-22` objection, with the `07-07`
 walkthrough sent **on top of** the open question.
 
-### §3.3 `241355e3` — Lazar Spinal Care PC — **REAL, IN CLASS — CRM-evidenced**
+### §3.3 `241355e3` — office-241355e3 — **REAL, IN CLASS — CRM-evidenced**
 **Reason of record.** Asana-present (4 hits, positive control firing). A **month** of Intercom
 follow-ups on Gmail forwarding, `2026-04-30 → 2026-05-19`, including the client's own *"Thanks for
 adding our forwarding address. We've approved it on our end…"*. Named owner. A PLAY task.
@@ -202,7 +202,7 @@ denominator predicate or as an exclusion criterion, in either direction.** Diagn
 `Flowing` is **not this artifact's lane and is parked** (§9); S-01 established the contradiction and
 explicitly declined to diagnose it.
 
-### §3.4 `cdd8c6cf` — Restore Neuro Rehab — **REAL, IN CLASS — CRM-evidenced**
+### §3.4 `cdd8c6cf` — office-cdd8c6cf — **REAL, IN CLASS — CRM-evidenced**
 **Reason of record.** Asana-present. Deck staged `2026-07-08T13:57:29Z`; contact card
 `[mailbox redacted][at]bridgewellnesscenteraz.com`; `Forwarding Stage → Sent` `2026-07-09T10:38:09Z`. A
 `2026-08-27T17:15:05Z` DIG result: *"account blocked on our unanswered 06-21 question (Jane App →
@@ -213,7 +213,7 @@ Google Calendar reverse sync); 'backend team will review' (06-22) never closed. 
 *no-outbound-mail*: the contact card is from `2026-07-08`, the office name does not match the address
 domain, and **address confidence is LOW** (S-01 §10.6). The zero is honest about what it is.
 
-### §3.5 `ba3dd6c7` — FNC Minneapolis Concussion Clinic — **IN CLASS on MEMBERSHIP; state UNMEASURED**
+### §3.5 `ba3dd6c7` — office-ba3dd6c7 — **IN CLASS on MEMBERSHIP; state UNMEASURED**
 **Reason of record.** Asana-present — 1 hit, task `1214407456474353`, positive control firing — and
 allowlist-present (verified own-hands, §2.1). **Membership is SETTLED.**
 
@@ -339,7 +339,7 @@ are not surprised by them.
 | **M-7** | reading **`cdd8c6cf`**'s zero as *no outbound mail* | Address confidence is **LOW**; graded **dark-on-outbound**. | §3.4 |
 | **M-8** | reading §4 as *"`70316996` is excluded from the denominator"* | **It is removed from the CLASS, by name. Its DENOMINATOR status is F-1 and is OPEN.** Two different acts; only the first is done. | §4.1 |
 | **M-9** | reading §0 as *"the five are IN the C-3 denominator"* | The denominator's **predicate is undefined and its grain unnamed** (F-2, F-3). They are **REAL and IN CLASS**. Their denominator membership is **not ruled here**. | §1, §3.6 |
-| **M-10** | reading E-3 as settled beyond its N | S-01's strongest claim — that SendGrid is structurally blind to deck sends — rests on **ONE** in-window control office. Foundation Spine was **the only** deck staged after the retention floor. **N=1 on the control.** A second in-window deck send would strengthen it; none exists. | §2.2 |
+| **M-10** | reading E-3 as settled beyond its N | S-01's strongest claim — that SendGrid is structurally blind to deck sends — rests on **ONE** in-window control office. office-79be1b75 was **the only** deck staged after the retention floor. **N=1 on the control.** A second in-window deck send would strengthen it; none exists. | §2.2 |
 
 ---
 
@@ -358,7 +358,7 @@ sender is *"a constant — Nova / `support[at]contenteapp.com` **via Intercom**,
 own-hands at §2.1 Probe B with a firing positive control and a firing negative control. **That is the
 exact credential whose absence forced the 2026-09-05 VERDICT to refuse B-arm-1.** Per-office
 conversation permalinks are already on the Asana deck stories (Sand Lake `215474754286826`, Lazar
-`215474129292698`, Restore Neuro `215474577154148`, Foundation Spine app-user `63ee63979f949cc64457b127`).
+`215474129292698`, office-cdd8c6cf `215474577154148`, office-79be1b75 app-user `63ee63979f949cc64457b127`).
 
 **Why I did not take it.** S-01 declined on the grounds that *"re-aiming the instrument is a dispatch
 decision, not mine."* **The same applies to this seat, and more so:** an attending that re-aims an

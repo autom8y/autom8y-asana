@@ -11,18 +11,18 @@ halt_above: PT-02
 closes_watch_item: "G-A (FV-3 cert) — artifact-correct → delivered-correct"
 ---
 
-# Realization Receipt — Predicate (a): OB-Guide Delivered (North Star Family Chiropractic)
+# Realization Receipt — Predicate (a): OB-Guide Delivered (office-d167d635)
 
 > Closes the FV-3 certification's **G-A** watch-item (artifact-correct → *delivered*-correct). Records the operator-authorized live attach + the three-way byte identity + the e2e /qa that lifts predicate (a) to **render-proven**. The first genuine production write of the forwarding-cutover arc. **PT-02 HALT stands for predicate (b).**
 
 ## What was realized
-**Predicate (a) — the guide leg — is REALIZED.** North Star Family Chiropractic's personalized onboarding walkthrough deck, carrying the byte-exact routing address `d167d635-1468-4ad5-9f88-8d44c8a4d1a9@appointments.contenteapp.com` (≡ `format_routing_address("d167d635-1468-4ad5-9f88-8d44c8a4d1a9")`), is attached **live** to the pilot clinic's Asana onboarding record.
+**Predicate (a) — the guide leg — is REALIZED.** office-d167d635's personalized onboarding walkthrough deck, carrying the byte-exact routing address `d167d635-1468-4ad5-9f88-8d44c8a4d1a9@appointments.contenteapp.com` (≡ `format_routing_address("d167d635-1468-4ad5-9f88-8d44c8a4d1a9")`), is attached **live** to the pilot clinic's Asana onboarding record.
 
 ## G-A audit trail (the attach)
 | Field | Value |
 |---|---|
 | attachment GID | `1216128125285279` |
-| parent task | `1210776074464695` — "PLAY: Custom Calendar Integration — North Star Family Chiropractic" (Calendar Integrations, gid `1209442849265632`) |
+| parent task | `1210776074464695` — "PLAY: Custom Calendar Integration — office-d167d635" (Calendar Integrations, gid `1209442849265632`) |
 | attachment name | `walkthrough_1210776074464695_20260629T184926Z.html` |
 | created_at | `2026-06-29T18:50:29.463Z` |
 | size | `1047203` bytes |

@@ -10,7 +10,7 @@ build_commit: 174518c71a5b7690fd242f32cd3072b71157d684
 date: 2026-06-29
 ---
 
-# FV-3 CERTIFICATION — OB-guide byte-exact tenant-isolation (North Star Family Chiropractic, N=1)
+# FV-3 CERTIFICATION — OB-guide byte-exact tenant-isolation (office-d167d635, N=1)
 
 > forwarding-cutover-first-value · sprint-3 OB-GUIDE · security-rite FV-3 · security-reviewer (N3) · 2026-06-29
 >
@@ -139,7 +139,7 @@ Convergence is rite-disjoint and unanimous: N1 CONVERGED; all three N2 lenses CO
 
 ## §6 CERTIFICATION BOUNDARY (explicit + honest)
 
-FV-3 **certifies**: the **N=1 staged artifact's tenant-correctness** — the guid-held, directly-minted, byte-verified, DARK deck for North Star Family Chiropractic carries the byte-exact `d167d635-1468-4ad5-9f88-8d44c8a4d1a9@appointments.contenteapp.com` ≡ `format_routing_address(CRR-1 guid)`, with producer-independent oracle teeth and no path to a wrong-tenant address or live attach in the attested path.
+FV-3 **certifies**: the **N=1 staged artifact's tenant-correctness** — the guid-held, directly-minted, byte-verified, DARK deck for office-d167d635 carries the byte-exact `d167d635-1468-4ad5-9f88-8d44c8a4d1a9@appointments.contenteapp.com` ≡ `format_routing_address(CRR-1 guid)`, with producer-independent oracle teeth and no path to a wrong-tenant address or live attach in the attested path.
 
 FV-3 **does NOT certify**: the **live phone-resolve tenant-selection path at fleet scale (T7)** — the sharpest pre-fleet-flip residual. Grounding receipt (N3 source inspection):
 

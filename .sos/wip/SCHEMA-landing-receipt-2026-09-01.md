@@ -87,7 +87,7 @@ widened.**
 
 Measured 2026-09-01: **367** near-simultaneous same-`(clinic, contact)` row pairs
 exist in the window. Counting raw rows inflates a clinic's soak by roughly 2x on
-this path alone. Nation of Wellness's single booking is present as **two** rows
+this path alone. office-64803da3's single booking is present as **two** rows
 (18229605 / 18229606) — a row-counting harness would report Nation at 2-of-3 on
 one booking.
 
@@ -377,7 +377,7 @@ assertion time or labelled UV-P.
 | SVR-8 | leads 336056 and 332849 carry `source_id IS NULL` | bash-probe | `SELECT id, source_id … WHERE id=336056` → `source_id=None`; `… WHERE phone='+16194468090'` → `(332849, None, …)` |
 | SVR-9 | the retired-substrate guard raises on an `ad_accounts` query, live | bash-probe | `selftest` → `[PASS] live reader refuses path-b: RetiredSubstrateError raised` |
 | SVR-10 | 41 clinics reach 3 on `eligible`; 3 on `eligible_via_email_booking_intake` | bash-probe | `survey --json` over `2026-08-02 →`, 90 clinics: `elig>=3: 41`, `ebi>=3: 3` |
-| SVR-11 | Nation of Wellness stands at 1 of 3, sole member synthetic | bash-probe | `clinic --office-phone +14079068111` → `ELIGIBLE 1 of 3 … shortfall 2`, exit 3 |
+| SVR-11 | office-64803da3 stands at 1 of 3, sole member synthetic | bash-probe | `clinic --office-phone +14079068111` → `ELIGIBLE 1 of 3 … shortfall 2`, exit 3 |
 
 | # | UV-P |
 |---|---|
@@ -393,7 +393,7 @@ rite-disjoint re-derivation that S-10 exists to perform.
 
 ## §11 Findings this instrument produced on its first real execution
 
-### R-5 (shape.md) — **Nation of Wellness soak has STALLED at 1 of 3**
+### R-5 (shape.md) — **office-64803da3 soak has STALLED at 1 of 3**
 
 Queried 2026-09-01 (unqueried since 08-27, per `CONSULT:140`):
 

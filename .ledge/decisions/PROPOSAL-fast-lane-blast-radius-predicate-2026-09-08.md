@@ -227,7 +227,7 @@ Stated so no reader infers coverage that was not taken.
 - **Any live AWS state.** No Lambda config, no ECR, no CloudTrail, no alarm state read by this seat. Blocker C's production facts are carried from the CUSTODY fence-check and the CHARGE, not re-taken.
 - **`merge-surface-sweep`'s current colour.** Carried from the CUSTODY register (RED, 3 hits); not re-run. I did not confirm it is a *required* context on the branch-protection rule — that is CHARGE Addendum L's claim, uninspected here.
 - **Whether the S-14 diff as written passes the existing test suite.** No test was run. `tests/test_match_lead.py` exists at `origin/main`; its contents were not read, so **whether FL-E1's two-sided test already exists or must be authored is unknown**.
-- **Whether ADIO Corrective and ADIO Chiropractic Kennesaw are the same account.** TRIAGE's caveat carried; no lookup performed. Immaterial to the REFUSE verdict (which fires on the surface, the direction, and the floor regardless of identity) but material to H2 itself.
+- **Whether ADIO Corrective and office-e3267756 are the same account.** TRIAGE's caveat carried; no lookup performed. Immaterial to the REFUSE verdict (which fires on the surface, the direction, and the floor regardless of identity) but material to H2 itself.
 - **Any Asana card.** No Asana tool in this session.
 - **The contents of the out-of-band `salkin-safe-routing` image.** No branch or commit for it exists in the repo (TRIAGE §6); unreadable from any ref.
 - **The autom8y working tree.** Never read — every autom8y fact above came from `git show origin/main:<path>` at `cc88b75e`.

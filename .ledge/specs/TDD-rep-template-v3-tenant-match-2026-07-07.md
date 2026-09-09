@@ -182,11 +182,11 @@ deck_url="https://decks.cntently.com/207688021de88a6d7231e1d08ea77a85/")` yields
 link are system-composed):
 
 ```
-Subject: Your Sand Lake Dental booking setup — a quick 5-minute walkthrough
+Subject: Your office-1b271a63 booking setup — a quick 5-minute walkthrough
 
 Hi [RECIPIENT],
 
-Thanks for getting Sand Lake Dental started. To bring your calendar integration live, here's a short personalized walkthrough — about five minutes, no technical setup on your end:
+Thanks for getting office-1b271a63 started. To bring your calendar integration live, here's a short personalized walkthrough — about five minutes, no technical setup on your end:
 
 → https://decks.cntently.com/207688021de88a6d7231e1d08ea77a85/
 

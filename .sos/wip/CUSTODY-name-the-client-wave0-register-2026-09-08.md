@@ -1029,7 +1029,7 @@ pushed into answering a ~90-day question.
 | **The sprint's real question** — *"REAL CLASS or REPORTING ARTIFACT?"* | **★ REAL CLASS**, with a firing positive control. |
 
 ### ★★★ THE CONTROL THAT SAVED THE WAVE — and its stderr
-**Foundation Spine & Posture**, the ONLY deck staged *inside* the retention window
+**office-79be1b75**, the ONLY deck staged *inside* the retention window
 (`2026-08-27T15:29:54Z`, 12 days before probe; `Forwarding Stage → Sent` at 15:52:08Z):
 ```
 to_email LIKE "%foundationspine%"          HTTP 200   ROWCOUNT: 64   span 2026-08-10 -> 2026-09-08   stderr:[]
@@ -1065,15 +1065,15 @@ the window entirely.**
 ### WHAT DID LAND — FULLY TAKEN
 | GUID | office | outbound, 30d |
 |---|---|---|
-| `6f22301a` | **Dr. David Salkin** | **75 rows — 73× "new lead"** |
-| `1b271a63` | **Sand Lake Dental** | **41 rows — 39× "new lead"** |
+| `6f22301a` | **office-6f22301a** | **75 rows — 73× "new lead"** |
+| `1b271a63` | **office-1b271a63** | **41 rows — 39× "new lead"** |
 
 **★ Salkin is being served 73 leads in 21 days while his bookings have been ZERO for 90.**
 **Not an artifact.**
 
 ### THREE FINDINGS THE CHARGE DID NOT ANTICIPATE
 1. **FIVE OF SIX ARE NAMED FOR THE FIRST TIME** — REPORT carried them as *"never resolved"*:
-   **+ Lazar Spinal Care PC, FNC Minneapolis, Restore Neuro Rehab.** They **were worked** — Lazar has
+   **+ office-241355e3, office-ba3dd6c7, office-cdd8c6cf.** They **were worked** — Lazar has
    a month of Gmail-forwarding Intercom threads.
 2. **★★ THE CLASS SPLITS.** `70316996` has **ZERO Asana presence** (controls firing) yet **IS on the
    live 42-office allowlist** — **an ALLOWLIST ORPHAN, not a dark client.**
@@ -1203,7 +1203,7 @@ no reconciliation to its real referent. **This is why `70316996` is undecidable 
 **It is not handled; it is deferred, correctly.**
 
 ### EVIDENTIARY, AND EXPLICITLY *NOT* DENOMINATOR HOLES — a precision correction
-`ba3dd6c7` (FNC Minneapolis, Asana-present, task `1214407456474353`) and `cdd8c6cf` (Restore Neuro):
+`ba3dd6c7` (office-ba3dd6c7, Asana-present, task `1214407456474353`) and `cdd8c6cf` (office-cdd8c6cf):
 **membership is SETTLED**; what is unmeasured is **outbound state**. **Evidentiary on the STATE axis,
 not the MEMBERSHIP axis.** Both were being carried as if they were denominator gaps. **They are not.**
 
@@ -1248,8 +1248,8 @@ it is unblocked (Intercom creds present; per-office conversation permalinks on t
 | `6f22301a` Salkin | 75 rows / 73 lead notifications, **lineage-disjoint**, firing controls | **receipted-live** |
 | `1b271a63` Sand Lake | 41 / 39, same | **receipted-live** |
 | `241355e3` Lazar | Asana-present, PLAY task, month of Intercom threads, named owner | CRM-evidenced |
-| `cdd8c6cf` Restore Neuro | Asana-present, deck staged, contact card, DIG result | CRM-evidenced |
-| `ba3dd6c7` FNC Minneapolis | Asana-present (1 hit), on allowlist | **membership settled, state unmeasured** |
+| `cdd8c6cf` office-cdd8c6cf | Asana-present, deck staged, contact card, DIG result | CRM-evidenced |
+| `ba3dd6c7` office-ba3dd6c7 | Asana-present (1 hit), on allowlist | **membership settled, state unmeasured** |
 | `70316996` | — | **SPLITS OUT** |
 
 **Writing `REAL CLASS (6)` downstream would be the wave-level-CLOSED pattern. FIVE, per-item, two
@@ -4116,8 +4116,8 @@ missing' — DOES NOT APPLY HERE, because the allowlist gives us all 36 characte
 | GUID | disposition | grade |
 |---|---|---|
 | `6f22301a` Salkin · `1b271a63` Sand Lake | **REAL — IN CLASS** | receipted-live |
-| `241355e3` Lazar · `cdd8c6cf` Restore Neuro | **REAL — IN CLASS** | CRM-evidenced |
-| `ba3dd6c7` FNC Minneapolis | IN CLASS on **membership** | **state UNMEASURED** |
+| `241355e3` Lazar · `cdd8c6cf` office-cdd8c6cf | **REAL — IN CLASS** | CRM-evidenced |
+| `ba3dd6c7` office-ba3dd6c7 | IN CLASS on **membership** | **state UNMEASURED** |
 | **`70316996`** | **★ REMOVED BY NAME, reason recorded** | **not graded — F-1 REFUSED** |
 
 **`REAL CLASS (6)` is never asserted** — PT-02's overclaim warning honoured.

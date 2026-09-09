@@ -21,7 +21,7 @@ The onboarding_walkthrough resolves a PLAY task's owning business (and its offic
 
 ### The felt bug (client-held)
 
-Total Wellness Center PLAY `1215766139321621` refused with `ContactCardBusinessAmbiguous` because
+office-7363c7ea PLAY `1215766139321621` refused with `ContactCardBusinessAmbiguous` because
 `+13036277995` aliases the practice's BUSINESS card `1214127219419742` AND its opportunity/lead
 card `1214420107547660` ("Holly R. Geersen, DC") — same practice, two Business-project matches
 after the discriminator, correct fail-closed refuse (SVR

@@ -5,7 +5,7 @@ type_note: live-integration defect report (n=1 pilot finding)
 severity: HIGH (blocks all floodgates execution; not client-facing — fail-closed)
 date: 2026-07-07
 initiative: client-onboarding-delivery / floodgates
-found_by: n=1 pilot (Wholebody Systems) on merged main 7a60f2e1 (#208)
+found_by: n=1 pilot (office-0507ae4e) on merged main 7a60f2e1 (#208)
 client_impact: NONE — Phase-1 is local, failed before any produce/deploy/post; zero client mutation
 ---
 

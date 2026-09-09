@@ -213,7 +213,7 @@ All resolver reads run under `AsanaClient(cache_provider=NullCacheProvider())` (
 
 ### T-1 (POSITIVE, hierarchy) — a TWC-class office resolves via the walk where phone was AMBIGUOUS
 
-- Input: PLAY `1215766139321621` (Total Wellness Center).
+- Input: PLAY `1215766139321621` (office-7363c7ea).
 - Expect: `resolve_business_gid(...).business_gid == "1214127219419742"`, `method == "hierarchy"`, `ancestor_depth == 2` (PLAY -> `1214127290389479` -> `1214127219419742`, SVR spike:24-28); `company_id == "7363c7ea-66f8-487f-9f6e-c7a12a63d33f"` (spike:27).
 - Contrast: the phone path on the SAME office raises `ContactCardBusinessAmbiguous` (2 matches for `+13036277995`, SVR spike:16-19). **The walk succeeds where phone fails** — this is the discriminating teeth (two-sided: the walk bites correctly, phone refuses correctly).
 
