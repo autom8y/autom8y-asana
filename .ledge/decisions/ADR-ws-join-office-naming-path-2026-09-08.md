@@ -113,7 +113,7 @@ disposition (`activated` / `monolith_served` / `non_census` / `unresolved`) and 
 
 **But the census has no name column.** `CensusOffice` (`:189-196`) is
 `{prefix, full_guid, membership, engine, tier_ratified, h_fragile}`. Office names appear in that
-file only as **code comments** (e.g. *"Nation of Wellness"* at `:171`). So the registry gets us
+file only as **code comments** (e.g. *"office-64803da3"* at `:171`). So the registry gets us
 prefix→**guid**; the **name** must still come from J1.
 
 ---
@@ -664,7 +664,7 @@ fourth. Working tree confirmed still `fix/wss-wildcard-scope-bypass-closure` @ `
 | # | Claim | Method | Anchor / result | Grade |
 |---|---|---|---|---|
 | **SVR-1** | The `:21`/`:394` DROP comments say what the charge says they say | `file-read` @ `e292b616` | 942 lines. `:21` — *"office_phone in the payload are DROPPED (not hashed, not truncated —"* · `:394` — *"office_phone are DROPPED (not hashed). The raw payload string is"*. **Both in comments.** Positive control: `grep -n "DROPPED"` → 1 hit; negative control `zzzz_no_such_token` **rc=1** | **[STRONG]** two-sided |
-| **SVR-2** | The census holds **no name column** | `file-read` @ `e292b616` | `ewl.py:189-196` `CensusOffice = {prefix, full_guid, membership, engine, tier_ratified, h_fragile}`. Office names appear **only** in comments (`:171` *"Nation of Wellness"*). **This is why option G must invent data and option C must not.** | **[STRONG]** |
+| **SVR-2** | The census holds **no name column** | `file-read` @ `e292b616` | `ewl.py:189-196` `CensusOffice = {prefix, full_guid, membership, engine, tier_ratified, h_fragile}`. Office names appear **only** in comments (`:171` *"office-64803da3"*). **This is why option G must invent data and option C must not.** | **[STRONG]** |
 | **SVR-3** | ★ `office_phone` is **already emitted unredacted** onto the log plane | `file-read` @ `e292b616` | `resolve_office.py` **five sites**: `:204`, `:214`, `:233`, `:248`, `:262` — all `office_phone=` into `log.info`/`log.warning`. `:259-265` also carries `guid=redact_uuid(guid)` **and** `office_name=`. Positive control: `git grep -q "_redact_phone"` **rc=0** (the service *does* hash the field elsewhere — `book_appointment.py:151`); negative control `zzzz_no_such_token` **rc=1** | **[STRONG]** two-sided |
 | **SVR-4** | ★ The join **already exists** in three holders | `file-read` @ `e292b616` | **J1** `resolve_office.py:170` `get_business_by_guid_async(guid)` + `:229` `get_business_by_phone_async(...)` → `full_business.business_name` · **J2** `book_contente.py:279` `"office_phone": payload.get("office_phone")` + `:282` `"payload": json.dumps(payload)` · **J3** `resolve_office.py:259-265` one line, three fields | **[STRONG]** |
 | **SVR-5** | **asana** deploy fence (**O-3**), read **LIVE** | `file-read` @ asana `origin/main 389c59bc` | `test.yml:29-35` `paths-ignore: ['.ledge/**','.sos/**','.claude/**','.gemini/**','.knossos/**','.know/**.md']`; own comment `:20-22` *"Deny-list, not an allowlist, on purpose: an unlisted or newly-added path still triggers."* Positive control `.ledge` → **rc=0** at `:30`; negative control `zzz-nonexistent-path` → **rc=1** | **[STRONG]** two-sided |

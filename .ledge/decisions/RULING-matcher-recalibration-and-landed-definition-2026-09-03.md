@@ -75,7 +75,7 @@ later sitting by operator choice.
 
 - **R-L1 Which bookings count — ONLY email-forwarding-integration bookings.**
   The certificate attests this integration; other channels do not count.
-- **R-L2 Test/synthetic leads — NEVER count.** Nation of Wellness (sole soak
+- **R-L2 Test/synthetic leads — NEVER count.** office-64803da3 (sole soak
   member on a `platform='test'` lead) is a mechanism proof, not a landed
   client, and reads 0 of 3.
 - **R-L3 Weak-tier name matches — do NOT count toward certification.** They

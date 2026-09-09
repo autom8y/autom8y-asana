@@ -98,11 +98,11 @@ Add `terminal_decline=TerminalDecline("missing_contact_name", ParkKind.REVIEW)` 
 
 ---
 
-## §5 REFUSE EXEMPLAR — H2 (the ADIO allowlist widening)
+## §5 REFUSE EXEMPLAR — H2 (the office-e3267756 allowlist widening)
 
 ### §5.1 The change
 
-Add ADIO's office GUID to `contente_booking_live_allowlist` at `terraform/services/email-booking-intake/environments/production.tfvars:160`, parsed at `config.py:500` (`parse_contente_booking_live_allowlist`). Own-hands delta at `origin/main`: the list holds **42** GUIDs; ADIO's `e3267756…` is **absent** (grep exit 1) while Salkin `6f22301a-4c51-4282-bf86-a64108e644ad` and Sand Lake `1b271a63-33ff-4135-a92d-f1ef0eeea062` are **present** (grep exit 0 — the two positive controls that make the ADIO zero a taken zero). **H2 is 42 → 43.**
+Add office-e3267756's office GUID to `contente_booking_live_allowlist` at `terraform/services/email-booking-intake/environments/production.tfvars:160`, parsed at `config.py:500` (`parse_contente_booking_live_allowlist`). Own-hands delta at `origin/main`: the list holds **42** GUIDs; office-e3267756's `e3267756…` is **absent** (grep exit 1) while office-6f22301a `6f22301a-4c51-4282-bf86-a64108e644ad` and office-1b271a63 `1b271a63-33ff-4135-a92d-f1ef0eeea062` are **present** (grep exit 0 — the two positive controls that make the office-e3267756 zero a taken zero). **H2 is 42 → 43.**
 
 ### §5.2 Verdict: **REFUSE** — on three independent conjuncts
 
@@ -113,7 +113,7 @@ Add ADIO's office GUID to `contente_booking_live_allowlist` at `terraform/servic
 | **FL-3 DIRECTION** | **★ FAIL** | The effect does **not** fall on an unrecorded path. An off-allowlist office's bookings are **recorded today** — demoted to the dry_run keyspace (TRIAGE §11). H2 **changes an already-recorded outcome**: the same booking stops being a dry-run row and becomes a live outbound POST. FL-3's second half fails outright. |
 | **FL-4 FLOOR** | **★ FAIL — absolutely** | `production.tfvars:154` states what the variable is, verbatim: *"**This is the ONE policy flip that turns the 17 activated offices' live contente POST on.**"* A live contente POST is a **customer-visible outbound act** — R-A4(2) of `RULING-decision-space-amendments-2026-08-26.md:85-88`: *"**No wording reaches these**, in any grant, at any tier: (1) credential-rotation **EXECUTION**; (2) customer-visible **outbound** acts; (3) business-of-record **identity mints**. The floor sits **above both tiers** — ADMIN-GRADE does not approach it, and **no grant phrasing, however explicit, lifts it**."* It fails CHARTER §5(b) ("anything a customer sees") on the same facts. |
 
-**And the identity is not confirmed.** TRIAGE §11, verbatim: *"Shannon's card says 'ADIO **Corrective** Chiropractic'; the office resolving is 'ADIO **Chiropractic Kennesaw**'. Probably the same account, possibly a second location. **Confirm before acting on the allowlist finding.**"* Turning live outbound POSTs on for an office whose identity is *probably* right is the shape of act the never-confidently-wrong floor (CHARTER `:52`) forbids. H2 requires an operator word **and** prior identity confirmation — the predicate's refusal and the standing requirement agree.
+**And the identity is not confirmed.** TRIAGE §11, verbatim: *"Shannon's card says 'office-e3267756 **Corrective** Chiropractic'; the office resolving is 'office-e3267756 **Chiropractic Kennesaw**'. Probably the same account, possibly a second location. **Confirm before acting on the allowlist finding.**"* Turning live outbound POSTs on for an office whose identity is *probably* right is the shape of act the never-confidently-wrong floor (CHARTER `:52`) forbids. H2 requires an operator word **and** prior identity confirmation — the predicate's refusal and the standing requirement agree.
 
 ### §5.3 The self-check the task demanded
 
@@ -227,7 +227,7 @@ Stated so no reader infers coverage that was not taken.
 - **Any live AWS state.** No Lambda config, no ECR, no CloudTrail, no alarm state read by this seat. Blocker C's production facts are carried from the CUSTODY fence-check and the CHARGE, not re-taken.
 - **`merge-surface-sweep`'s current colour.** Carried from the CUSTODY register (RED, 3 hits); not re-run. I did not confirm it is a *required* context on the branch-protection rule — that is CHARGE Addendum L's claim, uninspected here.
 - **Whether the S-14 diff as written passes the existing test suite.** No test was run. `tests/test_match_lead.py` exists at `origin/main`; its contents were not read, so **whether FL-E1's two-sided test already exists or must be authored is unknown**.
-- **Whether ADIO Corrective and ADIO Chiropractic Kennesaw are the same account.** TRIAGE's caveat carried; no lookup performed. Immaterial to the REFUSE verdict (which fires on the surface, the direction, and the floor regardless of identity) but material to H2 itself.
+- **Whether office-e3267756 Corrective and office-e3267756 are the same account.** TRIAGE's caveat carried; no lookup performed. Immaterial to the REFUSE verdict (which fires on the surface, the direction, and the floor regardless of identity) but material to H2 itself.
 - **Any Asana card.** No Asana tool in this session.
 - **The contents of the out-of-band `salkin-safe-routing` image.** No branch or commit for it exists in the repo (TRIAGE §6); unreadable from any ref.
 - **The autom8y working tree.** Never read — every autom8y fact above came from `git show origin/main:<path>` at `cc88b75e`.
@@ -247,7 +247,7 @@ Stated so no reader infers coverage that was not taken.
 | 5 | The idiom + imports already exist in `match_lead.py` | file-read | `match_lead.py:71-74`, `:549`, `:574`, `:594`, `:686`, `:913` | `terminal_decline=TerminalDecline("name_evidence_organic", ParkKind.OPS),` |
 | 6 | `LeadMatchError` accepts `terminal_decline`; the kind constant exists | file-read | `…/errors.py:127`, `:133-141` | `KIND_MISSING_CONTACT_NAME: ClassVar[str] = "missing_contact_name"` |
 | 7 | The allowlist is the live-POST policy flip | file-read | `terraform/…/production.tfvars:154` | `This is the ONE policy flip that turns the 17 activated` |
-| 8 | ADIO absent, Salkin + Sand Lake present, 42 entries | bash-probe (zero + 2 positive controls) | `production.tfvars:160` | `6f22301a-4c51-4282-bf86-a64108e644ad` (control hit); `e3267756` exit 1 |
+| 8 | office-e3267756 absent, office-6f22301a + office-1b271a63 present, 42 entries | bash-probe (zero + 2 positive controls) | `production.tfvars:160` | `6f22301a-4c51-4282-bf86-a64108e644ad` (control hit); `e3267756` exit 1 |
 | 9 | The allowlist parser locus | bash-probe | `…/config.py:500` | `def parse_contente_booking_live_allowlist(raw_csv: str) -> frozenset[str]:` |
 | 10 | PR deploys nothing; merge to main deploys | file-read | `.github/workflows/service-deploy-dispatch.yml:26-32` | `paths:` / `- 'services/**'` under `push: branches: - main` |
 | 11 | The deploy path executes a terraform apply | file-read | `.github/workflows/service-deploy-lambda.yml:270` (call), `:304` (apply) | `run: terraform apply -input=false -auto-approve tfplan` |

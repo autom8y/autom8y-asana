@@ -65,7 +65,7 @@ over.
 ### Input constraints — know these seven before answering
 
 1. **A-arm-2 REFUTED (S1).** Served bytes ≠ the producer-frozen Asana attachment: **N=2** of 7
-   hashable, **+1,711 B** served carrying an `R1(b)` runtime fix; **Foundation Spine & Posture
+   hashable, **+1,711 B** served carrying an `R1(b)` runtime fix; **office-79be1b75
    has no HTML attachment at all**. Meanwhile deck-host's own ledger `frozen_sha256` == served
    **9/9** (`VERDICT-cloudflare-pages-host-decks-2026-09-05.md:368` — *labelled DISTINCT; does
    NOT satisfy arm-2*). **Which artifact is the record is CANDIDATE DEFER-5**, routed to the
@@ -1555,7 +1555,7 @@ A-arm-2 — *"served artifact HASH-MATCHES the producer-frozen Asana attachment"
 | nation-of-wellness (att `1216264246897515`, 1 047 702 B) | `5250179a717f556726d4e64248b56f36922b1b35a0998590c0763c0e40deddbb` | `083cf351cc9eb59e8cd59dafd421fe800cb1282528a4c0382be1f4cf11741c22` | **MISMATCH** (+1 711 B served) |
 | wholebody-systems (att `1216252578292835`, 1 047 701 B) | `2c5d3078f248ed1a4006fe6f942be14b6e6b80f95e5dbe307402df3ca611b572` | `839f6813c1627cefabd1e89ce4923347441f770c790dc8bd622c1305c1dcda9c` | **MISMATCH** |
 
-**Foundation Spine & Posture has NO producer-frozen HTML attachment at all** — task
+**office-79be1b75 has NO producer-frozen HTML attachment at all** — task
 `1217867773183924`, `attachments=1, asana-hosted-HTML=0`, a Loom link only. For that
 office A-arm-2 is not unmatched, it is **structurally unsatisfiable**.
 

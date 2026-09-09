@@ -10,7 +10,7 @@ build_commit: 174518c71a5b7690fd242f32cd3072b71157d684
 date: 2026-06-29
 ---
 
-# FV-3 CERTIFICATION — OB-guide byte-exact tenant-isolation (North Star Family Chiropractic, N=1)
+# FV-3 CERTIFICATION — OB-guide byte-exact tenant-isolation (office-d167d635, N=1)
 
 > forwarding-cutover-first-value · sprint-3 OB-GUIDE · security-rite FV-3 · security-reviewer (N3) · 2026-06-29
 >
@@ -46,7 +46,7 @@ Per `evidence-grade-vocabulary` STRONG-domain + `external-critique-gate-cross-ri
 |--------|-------|----------------------------|
 | worktree HEAD | `174518c71a5b7690fd242f32cd3072b71157d684` | `git rev-parse HEAD` |
 | branch | `feat/fcfv-sprint3-ob-guide-attestation` | `git rev-parse --abbrev-ref HEAD` |
-| build commit subject | `feat(onboarding): byte-exact OB-guide forwarding-address attestation for North Star pilot (N=1)` | `git log --oneline -1` |
+| build commit subject | `feat(onboarding): byte-exact OB-guide forwarding-address attestation for office-d167d635 pilot (N=1)` | `git log --oneline -1` |
 | worktree state | CLEAN (no staged/unstaged) | `git status --porcelain` empty |
 | autom8y-core | `4.9.0` | `importlib.metadata.version('autom8y-core')` → `4.9.0` |
 | mint gate import path | `autom8y_core.helpers.routing.format_routing_address` | imported live (re-mint below) |
@@ -57,9 +57,9 @@ Per `evidence-grade-vocabulary` STRONG-domain + `external-critique-gate-cross-ri
 ### 4.1 Independent re-mint convergence (N3, this session)
 
 ```
-MINT: d167d635-1468-4ad5-9f88-8d44c8a4d1a9@appointments.contenteapp.com
+MINT: d167d635-***[at]appointments.contenteapp.com
 MATCH_GRANDEUR: True
-ALT_V4_MINT: b167331c-536f-4996-9b2d-2f696f35f556@appointments.contenteapp.com
+ALT_V4_MINT: b167331c-***[at]appointments.contenteapp.com
 ```
 
 `format_routing_address("d167d635-1468-4ad5-9f88-8d44c8a4d1a9")` == the grandeur address, byte-for-byte. This is the right clinic (CRR-1 guid), minted DIRECTLY from the held guid — never phone- or name-resolved (G-DENOM, positive selection).
@@ -71,7 +71,7 @@ ALT_V4_MINT: b167331c-536f-4996-9b2d-2f696f35f556@appointments.contenteapp.com
 | FROZEN_SHA256 | `cc1702124d3af095288da75c37596cf7760f6b302c442485cf47665ba74f2644` |
 | FROZEN_BYTES | `1047203` |
 | PRESENCE(expected) | `True` |
-| HARVESTED | `{'d167d635-1468-4ad5-9f88-8d44c8a4d1a9@appointments.contenteapp.com'}` (exactly one) |
+| HARVESTED | `{'d167d635-***[at]appointments.contenteapp.com'}` (exactly one) |
 
 N1 reproduced this sha256 rite-disjointly. The frozen deck is ephemeral/gitignored; the sha256 is the durable receipt. N3 did not re-render the full deck (out of spot-verify scope); N3's re-mint + the AC-3 teeth re-fire corroborate the load-bearing tenant-correctness claim the digest stands on.
 
@@ -139,7 +139,7 @@ Convergence is rite-disjoint and unanimous: N1 CONVERGED; all three N2 lenses CO
 
 ## §6 CERTIFICATION BOUNDARY (explicit + honest)
 
-FV-3 **certifies**: the **N=1 staged artifact's tenant-correctness** — the guid-held, directly-minted, byte-verified, DARK deck for North Star Family Chiropractic carries the byte-exact `d167d635-1468-4ad5-9f88-8d44c8a4d1a9@appointments.contenteapp.com` ≡ `format_routing_address(CRR-1 guid)`, with producer-independent oracle teeth and no path to a wrong-tenant address or live attach in the attested path.
+FV-3 **certifies**: the **N=1 staged artifact's tenant-correctness** — the guid-held, directly-minted, byte-verified, DARK deck for office-d167d635 carries the byte-exact `d167d635-***[at]appointments.contenteapp.com` ≡ `format_routing_address(CRR-1 guid)`, with producer-independent oracle teeth and no path to a wrong-tenant address or live attach in the attested path.
 
 FV-3 **does NOT certify**: the **live phone-resolve tenant-selection path at fleet scale (T7)** — the sharpest pre-fleet-flip residual. Grounding receipt (N3 source inspection):
 

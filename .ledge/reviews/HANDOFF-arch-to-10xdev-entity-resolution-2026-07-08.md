@@ -23,7 +23,7 @@ carries a `file:line` SVR.
 
 ## Premise (the felt bug)
 
-Total Wellness Center PLAY `1215766139321621` is **HELD** fail-closed: `+13036277995` aliases the
+office-7363c7ea PLAY `1215766139321621` is **HELD** fail-closed: `+13036277995` aliases the
 BUSINESS card `1214127219419742` AND opportunity card `1214420107547660`, so the phone resolver
 raises `ContactCardBusinessAmbiguous` (SVR spike:9-19). The authoritative fix (walk PLAY ancestors ->
 first `BUSINESS_PROJECT` member -> Company ID) is proven live via the spike's monkeypatch driver

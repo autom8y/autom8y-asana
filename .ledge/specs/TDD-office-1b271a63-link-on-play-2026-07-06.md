@@ -11,10 +11,10 @@ target_branch_base: origin/main@eff75887
 schema_version: 1
 ---
 
-# MICRO-TDD — Sand Lake link-on-PLAY comment poster
+# MICRO-TDD — office-1b271a63 link-on-PLAY comment poster
 
 > **Grandeur anchor.** The trust-first telos sends its first client deck today. This
-> module posts the live capability URL onto Sand Lake Dental's real Asana PLAY,
+> module posts the live capability URL onto office-1b271a63's real Asana PLAY,
 > idempotently and fail-closed. The design is proven ONLY by two-sided teeth (a RED
 > input the poster REFUSES) + a live read-back receipt — never by a green suite alone.
 > The client SEND stays the operator's. The poster only ADDS a comment; it NEVER
@@ -22,7 +22,7 @@ schema_version: 1
 
 ## §0 Scope fence (bind these)
 
-- **RUNG = n=1.** This designs the single-task comment poster for ONE office (Sand Lake).
+- **RUNG = n=1.** This designs the single-task comment poster for ONE office (office-1b271a63).
 - **Batch is OUT of scope** (§8 is a one-sentence seam only — `authored`/watch-registered, do NOT build).
 - **Reserved levers (design around, NEVER invoke):** the real client SEND; `ASANA_PAT` mint/rotation;
   editing/deleting any existing human comment. The poster's only write is `create_comment` (ADD-only).
@@ -288,7 +288,7 @@ style of `tests/unit/automation/workflows/test_onboarding_walkthrough.py`).
   `client.stories.list_for_task_async = MagicMock(return_value=SimpleNamespace(collect=AsyncMock(return_value=[<fake stories>])))`.
 - Patch `resolve_section_gids` at the link_on_play module path with `AsyncMock(return_value={"active": "SEC_ACTIVE"})`.
 - GREEN fake_task membership: `[{"project": {"gid": "1209442849265632"}, "section": {"gid": "SEC_ACTIVE", "name": "ACTIVE"}}]`,
-  name `"PLAY: Custom Calendar Integration — Sand Lake Dental"`.
+  name `"PLAY: Custom Calendar Integration — office-1b271a63"`.
 - **Anti-theater invariant (every RED + every dry-run test):** `client.stories.create_comment_async.assert_not_awaited()`.
 
 ### GREEN
@@ -304,7 +304,7 @@ style of `tests/unit/automation/workflows/test_onboarding_walkthrough.py`).
 
 ### RED (must REFUSE — assert `pytest.raises(LinkOnPlayRefused)` AND `create_comment_async.assert_not_awaited()`)
 - **R1 egress guard (mailbox-bearing text)** — `deck_url` carrying a canonical routing address
-  (e.g. append `b167331c-536f-4996-9b2d-2f696f35f556@appointments.contenteapp.com`); valid task; the composed
+  (e.g. append `b167331c-***[at]appointments.contenteapp.com`); valid task; the composed
   text matches `CANONICAL_ROUTING_ADDR_RE` → refuse. (Real refusal: the guard inspects the composed bytes.)
 - **R2 wrong task / not ACTIVE** — valid PLAY name but membership is a different project OR a section gid not in
   the resolved ACTIVE set → refuse.

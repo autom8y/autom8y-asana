@@ -187,9 +187,9 @@ system-side:
 1. Resolve the office's guid (`office_guid`) — the office's **Company ID** custom
    field (`business.py:263` `company_id = TextField()`; `dataframes/schemas/
    business.py:13` `source="cf:Company ID"`; the office guid per `offer.py:123-130`).
-   `office_guid` for Sand Lake = `1b271a63-33ff-4135-a92d-f1ef0eeea062`.
+   `office_guid` for office-1b271a63 = `1b271a63-33ff-4135-a92d-f1ef0eeea062`.
 2. Compose `own = format_routing_address(office_guid)` (`routing.py:75`). For Sand
-   Lake this is `1b271a63-33ff-4135-a92d-f1ef0eeea062@appointments.contenteapp.com`
+   Lake this is `1b271a63-***[at]appointments.contenteapp.com`
    (live-verified, TDD §Evidence).
 3. Inject `own` inline (after `booking inbox: `) into the composed comment text.
 4. **Guard before posting:** harvest every routing address in the composed text and
@@ -200,14 +200,14 @@ guid, never types an address.
 
 ---
 
-## 8. Golden Sand Lake instance (for downstream grooming)
+## 8. Golden office-1b271a63 instance (for downstream grooming)
 
 - **office_guid (Company ID):** `1b271a63-33ff-4135-a92d-f1ef0eeea062`
 - **deck slug:** `207688021de88a6d7231e1d08ea77a85`
 - **deck link:** `https://decks.cntently.com/207688021de88a6d7231e1d08ea77a85/`
 - **routing email (system-composed):**
-  `1b271a63-33ff-4135-a92d-f1ef0eeea062@appointments.contenteapp.com`
-- **PLAY task:** `1215823342887129` (Sand Lake Dental)
+  `1b271a63-***[at]appointments.contenteapp.com`
+- **PLAY task:** `1215823342887129` (office-1b271a63)
 
 The exact composed template-comment text for this instance is carried in the
 architect's final message and in `TDD-rep-template-v3-tenant-match-2026-07-07.md`

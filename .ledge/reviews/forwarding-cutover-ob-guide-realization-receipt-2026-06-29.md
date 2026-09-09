@@ -11,18 +11,18 @@ halt_above: PT-02
 closes_watch_item: "G-A (FV-3 cert) — artifact-correct → delivered-correct"
 ---
 
-# Realization Receipt — Predicate (a): OB-Guide Delivered (North Star Family Chiropractic)
+# Realization Receipt — Predicate (a): OB-Guide Delivered (office-d167d635)
 
 > Closes the FV-3 certification's **G-A** watch-item (artifact-correct → *delivered*-correct). Records the operator-authorized live attach + the three-way byte identity + the e2e /qa that lifts predicate (a) to **render-proven**. The first genuine production write of the forwarding-cutover arc. **PT-02 HALT stands for predicate (b).**
 
 ## What was realized
-**Predicate (a) — the guide leg — is REALIZED.** North Star Family Chiropractic's personalized onboarding walkthrough deck, carrying the byte-exact routing address `d167d635-1468-4ad5-9f88-8d44c8a4d1a9@appointments.contenteapp.com` (≡ `format_routing_address("d167d635-1468-4ad5-9f88-8d44c8a4d1a9")`), is attached **live** to the pilot clinic's Asana onboarding record.
+**Predicate (a) — the guide leg — is REALIZED.** office-d167d635's personalized onboarding walkthrough deck, carrying the byte-exact routing address `d167d635-***[at]appointments.contenteapp.com` (≡ `format_routing_address("d167d635-1468-4ad5-9f88-8d44c8a4d1a9")`), is attached **live** to the pilot clinic's Asana onboarding record.
 
 ## G-A audit trail (the attach)
 | Field | Value |
 |---|---|
 | attachment GID | `1216128125285279` |
-| parent task | `1210776074464695` — "PLAY: Custom Calendar Integration — North Star Family Chiropractic" (Calendar Integrations, gid `1209442849265632`) |
+| parent task | `1210776074464695` — "PLAY: Custom Calendar Integration — office-d167d635" (Calendar Integrations, gid `1209442849265632`) |
 | attachment name | `walkthrough_1210776074464695_20260629T184926Z.html` |
 | created_at | `2026-06-29T18:50:29.463Z` |
 | size | `1047203` bytes |
@@ -37,7 +37,7 @@ closes_watch_item: "G-A (FV-3 cert) — artifact-correct → delivered-correct"
 3. **operator-downloaded** — `~/Downloads/walkthrough_1210776074464695_20260629T184926Z.html`, e2e-/qa byte-verified this session
 
 ## Tenant-isolation oracle — PASS at every hop
-`harvest_appointment_addresses(bytes) == { d167d635-1468-4ad5-9f88-8d44c8a4d1a9@appointments.contenteapp.com }` — North Star's address **ONLY**, zero wrong-tenant — on all three artifacts. The §6 placeholder `xxxx-xxxx@appointments.contenteapp.com` is raw-present but harvester-invisible (`x ∉ hex`, by design). The harvester is strictly weaker than the producer's `CANONICAL_ADDR_RE` (a superset → not a reimplementation; G-PROPAGATE).
+`harvest_appointment_addresses(bytes) == { d167d635-***[at]appointments.contenteapp.com }` — office-d167d635's address **ONLY**, zero wrong-tenant — on all three artifacts. The §6 placeholder `xxxx-xxxx[at]appointments.contenteapp.com` is raw-present but harvester-invisible (`x ∉ hex`, by design). The harvester is strictly weaker than the producer's `CANONICAL_ADDR_RE` (a superset → not a reimplementation; G-PROPAGATE).
 
 ## Provenance + certification chain (re-derive, don't trust)
 - **build:** `feat/fcfv-sprint3-ob-guide-attestation` @ `174518c7` — the `freeze_walkthrough_deck` invocation + the byte-diff oracle + AC-1..AC-7 (two-sided).
