@@ -20,7 +20,8 @@ parent_wave: close-the-activation-loop (S-4b successor initiative)
 
 **Gate A closed by inscription.** Realization predicate (operator's words, ruling
 sitting 2026-09-03): every ad-driven booking that arrives with minimal patient
-info is attributed to its originating lead — tiered by evidence, flagged when wrong; restated with provenance once the record-correction primitive lands, and never silently dropped. Verified-realized = the change is adversarially
+info is attributed to its originating lead — tiered by evidence, reversible when
+wrong, and never silently dropped. Verified-realized = the change is adversarially
 certified by a rite-disjoint critic AND at least one organic minimal-info booking
 has been attributed by the new tiers and spot-confirmed correct — NOT "PRs
 merged", NOT self-attested green. DONE IS A BAR, NOT A DATE.
@@ -42,7 +43,7 @@ telos:
     code_or_artifact_landed:
       - "W-CAL calibration artifact (replay of phone-matched bookings, per shape x window; sets every threshold BEFORE landing, R-M8)"
       - "W-ROUTE: FULL_NAME-no-phone routed to the matcher (today excluded at services/email-booking-intake/src/email_booking_intake/pipeline/stages/match_lead.py:338-347 @ origin/main b80a9687); per-shape window (today single-valued at activation_read_client.py:483 / config.py:164)"
-      - "W-TIER: HIGH silent / WEAK tagged+counted+flagged-when-wrong bind (matched_weak label absent from metrics.py:325 outcome enum today) / thin-evidence park; floor at name_evidence.py:295 relaxed per R-M3"
+      - "W-TIER: HIGH silent / WEAK tagged+counted+reversible bind (matched_weak label absent from metrics.py:325 outcome enum today) / thin-evidence park; floor at name_evidence.py:295 relaxed per R-M3"
       - "W-RECENCY: decisive-recency binds, close-recency parks (today structurally impossible: name_evidence.py:178-183 RECENCY_MAX_BONUS 0.5 < AMBIGUITY_EPSILON 1.0)"
       - "W-FLAG: contradiction flag on a WEAK bind, never auto-undo (no surface exists today; R-15)"
       - "W-COUNT: exposable per-shape x tier outcome counts as a data surface (no consumer in ~/code/a8/contente/dashboard_ui today; R-19)"
@@ -51,7 +52,7 @@ telos:
     user_visible_surface: >-
       An ad-driven booking that arrives with only a name or initials is
       attributed to its lead: strong evidence binds silently (HIGH), weaker
-      evidence binds tagged, counted and flagged when wrong; restated with provenance once the record-correction primitive lands (WEAK),
+      evidence binds tagged, counted and reversible from the ops queue (WEAK),
       thin evidence parks to a human — and per-office match outcomes per shape
       and tier are readable by the agency view as a data surface.
   verified_realized_definition:
