@@ -189,7 +189,7 @@ system-side:
    business.py:13` `source="cf:Company ID"`; the office guid per `offer.py:123-130`).
    `office_guid` for Sand Lake = `1b271a63-33ff-4135-a92d-f1ef0eeea062`.
 2. Compose `own = format_routing_address(office_guid)` (`routing.py:75`). For Sand
-   Lake this is `1b271a63-33ff-4135-a92d-f1ef0eeea062@appointments.contenteapp.com`
+   Lake this is `1b271a63-***[at]appointments.contenteapp.com`
    (live-verified, TDD §Evidence).
 3. Inject `own` inline (after `booking inbox: `) into the composed comment text.
 4. **Guard before posting:** harvest every routing address in the composed text and
@@ -206,7 +206,7 @@ guid, never types an address.
 - **deck slug:** `207688021de88a6d7231e1d08ea77a85`
 - **deck link:** `https://decks.cntently.com/207688021de88a6d7231e1d08ea77a85/`
 - **routing email (system-composed):**
-  `1b271a63-33ff-4135-a92d-f1ef0eeea062@appointments.contenteapp.com`
+  `1b271a63-***[at]appointments.contenteapp.com`
 - **PLAY task:** `1215823342887129` (office-1b271a63)
 
 The exact composed template-comment text for this instance is carried in the

@@ -130,8 +130,8 @@ existing surface's invariant.
 
 ## 3. Two-sided teeth (RED before, GREEN after — mirrors `link_on_play.py:224-228`)
 
-Guard fixtures. `OWN = 1b271a63-33ff-4135-a92d-f1ef0eeea062@appointments.contenteapp.com`
-(Sand Lake), `FOREIGN = b167331c-536f-4996-9b2d-2f696f35f556@appointments.contenteapp.com`.
+Guard fixtures. `OWN = 1b271a63-***[at]appointments.contenteapp.com`
+(Sand Lake), `FOREIGN = b167331c-***[at]appointments.contenteapp.com`.
 
 | # | Case | Input | Expected |
 |---|------|-------|----------|
@@ -164,7 +164,7 @@ Executed against the real `autom8y_core.helpers.routing.format_routing_address` 
 `CANONICAL_ROUTING_ADDR_RE` in the autom8y-asana `.venv` (2026-07-07):
 
 - `format_routing_address("1b271a63-33ff-4135-a92d-f1ef0eeea062")` →
-  `1b271a63-33ff-4135-a92d-f1ef0eeea062@appointments.contenteapp.com`; regex matches it.
+  `1b271a63-***[at]appointments.contenteapp.com`; regex matches it.
   → **GREEN-1 substrate confirmed.**
 - Harvest of `"Your routing email is: {OWN} ... stale: {FOREIGN}"` →
   `{OWN, FOREIGN}`; `harvested − {OWN} = {FOREIGN} ≠ ∅`. → **RED-1 substrate confirmed.**
@@ -190,7 +190,7 @@ Thanks for getting office-1b271a63 started. To bring your calendar integration l
 
 → https://decks.cntently.com/207688021de88a6d7231e1d08ea77a85/
 
-For the step that connects your inbound booking notifications to the Contente calendar system, please forward your booking emails to your dedicated booking inbox: 1b271a63-33ff-4135-a92d-f1ef0eeea062@appointments.contenteapp.com
+For the step that connects your inbound booking notifications to the Contente calendar system, please forward your booking emails to your dedicated booking inbox: 1b271a63-***[at]appointments.contenteapp.com
 
 Once that's set, new booking requests flow straight into your scheduling, and we'll confirm it's live with a test booking.
 

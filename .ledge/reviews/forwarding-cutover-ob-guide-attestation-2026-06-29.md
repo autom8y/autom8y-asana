@@ -11,7 +11,7 @@ status: accepted
 
 Land predicate (a) of first-value: produce office-d167d635's personalized
 walkthrough deck carrying the **BYTE-EXACT** routing address
-`d167d635-1468-4ad5-9f88-8d44c8a4d1a9@appointments.contenteapp.com` (the FULL uuidv4 —
+`d167d635-***[at]appointments.contenteapp.com` (the FULL uuidv4 —
 never the 8-char shorthand `d167d635@…`), byte-verify it, and STAGE the attach to Asana
 task `1210776074464695`. Proven by a TWO-SIDED byte-diff through the REAL Node producer +
 an INDEPENDENT oracle — never by "the producer ran".
@@ -34,8 +34,8 @@ robustly resolved (re-mint / node22 on PATH), not papered over.
 |------|-------|--------|---------|
 | **G-1** | CodeArtifact auth BEFORE any uv op | **PASS** (after re-mint) | Harness token was **EXPIRED** (`exp=1782331638`, −116.9h). Re-minted via `aws codeartifact get-authorization-token --domain autom8y --domain-owner 696318035277 --region us-east-1` → fresh token (`exp=1782795692`, valid 12.0h, sha256 prefix `eab65a636eaa7d05`); `UV_INDEX_AUTOM8Y_USERNAME=aws`. AWS identity `arn:aws:iam::696318035277:user/tom.tenuta`. |
 | **G-2** | `uv sync --frozen` resolves core 4.9.0 from CodeArtifact (package env) | **PASS** | `uv sync --frozen` completed; `.venv` created at worktree root; `autom8y-core` installed `4.9.0`. |
-| **G-3** | Import-shadow catch (3-fold) | **PASS** | `uv run --frozen --no-sync python -c "…version('autom8y-core')…format_routing_address('d167d635-…')"` → stdout `4.9.0` then `d167d635-1468-4ad5-9f88-8d44c8a4d1a9@appointments.contenteapp.com`, exit 0. No stale 4.6.0 shadow (despite the autom8y-asana main checkout being on `chore/bump-core-4.6.0`). |
-| **G-4** | `autom8y-routing-address` CLI | **PASS** | `uv run --frozen --no-sync autom8y-routing-address d167d635-1468-4ad5-9f88-8d44c8a4d1a9` → `d167d635-1468-4ad5-9f88-8d44c8a4d1a9@appointments.contenteapp.com`, exit 0. |
+| **G-3** | Import-shadow catch (3-fold) | **PASS** | `uv run --frozen --no-sync python -c "…version('autom8y-core')…format_routing_address('d167d635-…')"` → stdout `4.9.0` then `d167d635-***[at]appointments.contenteapp.com`, exit 0. No stale 4.6.0 shadow (despite the autom8y-asana main checkout being on `chore/bump-core-4.6.0`). |
+| **G-4** | `autom8y-routing-address` CLI | **PASS** | `uv run --frozen --no-sync autom8y-routing-address d167d635-1468-4ad5-9f88-8d44c8a4d1a9` → `d167d635-***[at]appointments.contenteapp.com`, exit 0. |
 | **G-5** | `node --version` ≥ v22 | **PASS** (after re-path) | mise default shim was **v20.10.0**; node 22.23.1 installed at `/Users/tomtenuta/.local/share/mise/installs/node/22/bin/node` → prepended to PATH → `node --version` = `v22.23.1`. Producer `package.json` requires `node >=22`. |
 | **G-6** | Vendored producer present + complete | **PASS** | `build/inline.mjs` (9.5k), `node_modules/`, `build/vendor/react.umd.js` (11k), `build/vendor/fonts/fonts.base64.css` (199k) all present. |
 
@@ -43,8 +43,8 @@ robustly resolved (re-mint / node22 on PATH), not papered over.
 
 ```
 expected = format_routing_address("d167d635-1468-4ad5-9f88-8d44c8a4d1a9")
-         = "d167d635-1468-4ad5-9f88-8d44c8a4d1a9@appointments.contenteapp.com"
-assert expected == "d167d635-1468-4ad5-9f88-8d44c8a4d1a9@appointments.contenteapp.com"  # holds
+         = "d167d635-***[at]appointments.contenteapp.com"
+assert expected == "d167d635-***[at]appointments.contenteapp.com"  # holds
 ```
 
 Minted via `format_routing_address(guid)` DIRECTLY (not `resolve_routing_address_by_phone_async`
@@ -63,7 +63,7 @@ client `office-d167d635`.
 | FROZEN_SHA256 | `cc1702124d3af095288da75c37596cf7760f6b302c442485cf47665ba74f2644` |
 | FROZEN_BYTES | `1047203` |
 | PRESENCE(expected) | `True` (`expected.encode() in frozen`) |
-| HARVESTED | `{'d167d635-1468-4ad5-9f88-8d44c8a4d1a9@appointments.contenteapp.com'}` (exactly one) |
+| HARVESTED | `{'d167d635-***[at]appointments.contenteapp.com'}` (exactly one) |
 | PLACEHOLDER_RAW_PRESENT | `True` — the `xxxx-xxxx@appointments.contenteapp.com` placeholder IS in raw bytes (deck:342); the shape-based harvester correctly ignores it (`x` ∉ hex). This is why the oracle must NOT assert `b'xxxx-xxxx@…' not in frozen`. |
 
 (The frozen file lives under the now-gitignored `export/` and is ephemeral; the sha256 is
@@ -163,7 +163,7 @@ TENANT_BINDING  : guid d167d635-1468-4ad5-9f88-8d44c8a4d1a9  (PREFERRED, zero re
 ## G-PROPAGATE statement
 
 - The frozen address is **byte-identical** to `format_routing_address("d167d635-1468-4ad5-9f88-8d44c8a4d1a9")`
-  = `{NSF_GUID}@{APPOINTMENTS_DOMAIN}` = `d167d635-1468-4ad5-9f88-8d44c8a4d1a9@appointments.contenteapp.com`.
+  = `{NSF_GUID}@{APPOINTMENTS_DOMAIN}` = `d167d635-***[at]appointments.contenteapp.com`.
 - The EBI `F-TP-1` fail-closed allowlist holds the SAME guid `d167d635-1468-4ad5-9f88-8d44c8a4d1a9`.
 - **Reimplemented NONE** of the three frozen primitives: `format_routing_address` (autom8y-core gate,
   called directly), `CANONICAL_ADDR_RE` (producer-side validator), `injectFrozenAddress` (producer

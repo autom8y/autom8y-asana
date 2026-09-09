@@ -304,7 +304,7 @@ style of `tests/unit/automation/workflows/test_onboarding_walkthrough.py`).
 
 ### RED (must REFUSE — assert `pytest.raises(LinkOnPlayRefused)` AND `create_comment_async.assert_not_awaited()`)
 - **R1 egress guard (mailbox-bearing text)** — `deck_url` carrying a canonical routing address
-  (e.g. append `b167331c-536f-4996-9b2d-2f696f35f556@appointments.contenteapp.com`); valid task; the composed
+  (e.g. append `b167331c-***[at]appointments.contenteapp.com`); valid task; the composed
   text matches `CANONICAL_ROUTING_ADDR_RE` → refuse. (Real refusal: the guard inspects the composed bytes.)
 - **R2 wrong task / not ACTIVE** — valid PLAY name but membership is a different project OR a section gid not in
   the resolved ACTIVE set → refuse.
