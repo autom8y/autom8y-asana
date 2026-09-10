@@ -116,7 +116,7 @@ pole proves the field exists. The zero is TAKEN.
 {"office_name": "Shift Family Chiropractic", "chiropractor_guid": "21b09c5c-***",
  "office_identity_kind": "resolved", "status": "scheduled", "appointment_id": "18250755",
  "idempotency_key": "ebi-4d0bd6f3d17e6e7f", "event": "booking_completed", "service": "unknown",
- "level": "info", "trace_id": "b794d95ecfb3c4e4803e987edc41c7df", "span_id": "f5ed8e5322b515aa",
+ "level": "info", "trace_id": "b794d95e…", "span_id": "f5ed8e5322b515aa",
  "timestamp": "2026-09-09T22:12:29.271714Z"}
 ```
 **Raw line quoted verbatim — claimed timestamp #2:**
@@ -124,7 +124,7 @@ pole proves the field exists. The zero is TAKEN.
 {"office_name": "Active 4 Life Chiropractic", "chiropractor_guid": "087d7de5-***",
  "office_identity_kind": "resolved", "status": "scheduled", "appointment_id": "18250925",
  "idempotency_key": "ebi-8b4bef77290ed771", "event": "booking_completed", "service": "unknown",
- "level": "info", "trace_id": "07d39550bbf74b8ee7258dfe6041b9ad", "span_id": "67c879ae92820a2e",
+ "level": "info", "trace_id": "07d39550…", "span_id": "67c879ae92820a2e",
  "timestamp": "2026-09-10T00:55:19.465324Z"}
 ```
 
@@ -221,7 +221,7 @@ NAMED: 6   ABSENT: 17
 **Deploy correlation, own-hands:**
 ```
 $ aws lambda get-function --function-name autom8-email-booking-intake --query Code.ImageUri
-696318035277.dkr.ecr.us-east-1.amazonaws.com/autom8y/email-booking-intake:aa92926   rc=0
+<acct>.dkr.ecr.us-east-1.amazonaws.com/autom8y/email-booking-intake:aa92926   rc=0
 $ aws lambda get-function-configuration ... --query [LastModified,PackageType]
 2026-09-10T00:04:23.000+0000	Image                                                rc=0
 $ git log -1 aa92926   # autom8y
@@ -355,7 +355,7 @@ a violation. But an operator reading those 7 lines still cannot tell which clien
 **Bar (as AMENDED — R-78 split + RATIF-VI-D1):** *"CLOSES AT ONE OFFICE carrying BOTH poles."*
 I graded against ONE, per RATIF-VI-D1. **I did not grade against R-79's superseded `>=2`.**
 
-**Query:** `filter @message like /07d39550bbf74b8ee7258dfe6041b9ad/`, window 2026-09-10T00:50:00Z →
+**Query:** `filter @message like /07d39550…/`, window 2026-09-10T00:50:00Z →
 01:05:00Z. **`Complete`, rc=0.** 38 lines in the trace.
 
 **Positive pole, verbatim** (`+0.465324s`) — quoted in full under leg (a) above.
@@ -365,11 +365,11 @@ I graded against ONE, per RATIF-VI-D1. **I did not grade against R-79's supersed
  "reason_code": "p4_null_source", "appt_dt": "2026-09-10 16:00:00",
  "office_name": "Active 4 Life Chiropractic", "chiropractor_guid": "087d7de5-***",
  "office_identity_kind": "resolved", "event": "terminal_decline", "service": "unknown",
- "level": "info", "trace_id": "07d39550bbf74b8ee7258dfe6041b9ad",
+ "level": "info", "trace_id": "07d39550…",
  "span_id": "67c879ae92820a2e", "timestamp": "2026-09-10T00:55:19.513049Z"}
 ```
 **Claim 2 CONFIRMED in every particular:** same office, same single trace
-`07d39550bbf74b8ee7258dfe6041b9ad`; `class=ad_lead_gate_refused`; `office_identity_kind=resolved`
+`07d39550…`; `class=ad_lead_gate_refused`; `office_identity_kind=resolved`
 on both poles; both non-blank. **Delta re-computed from the raw sub-second stamps:
 `19.513049 − 19.465324 = 0.047725 s` = 47.7 ms — the "48ms" claim is accurate.**
 
