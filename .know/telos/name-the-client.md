@@ -30,7 +30,9 @@ account activates without an end-to-end proof that its pipe works. Verified-real
 the operator's ratified receipt (C-7), carried VERBATIM into every sprint's exit
 criteria: a LIVE attributed booking naming that office, TWO-SIDED — a failure for the
 SAME office also names it, with its kind, never blank — held across the C-3 denominator
-(ALL active clients, not one). NOT "PRs merged". DONE IS A BAR, NOT A DATE.
+— AS SPLIT BY R-78 (2026-09-09) into (c1) ANTI-ANECDOTE, which closes at ONE office
+per RATIF-VI-D1, and (c2) COVERAGE over a ruled population, which is BOOKED OPEN.
+NOT "PRs merged". DONE IS A BAR, NOT A DATE.
 
 ```yaml
 telos:
@@ -76,7 +78,8 @@ telos:
     user_visible_evidence:
       - "(a) A LIVE attributed booking line on the plane NAMING the office it belongs to — resolved to a client identity, not an 8-hex prefix, and readable without a cross-service trace join"
       - "(b) TWO-SIDED (C-7): a FAILURE for the SAME office also names it, carrying its kind, never blank — the negative pole is a required half of the receipt, not a nice-to-have"
-      - "(c) Held across the C-3 denominator: ALL ACTIVE CLIENTS, not one. A green receipt for a single office is a DIFFERENT CLAIM, not a partial pass"
+      - "(c1) ANTI-ANECDOTE — the receipt is not a one-off. CLOSES AT ONE OFFICE carrying BOTH poles (RATIF-VI-D1, 2026-09-09), superseding R-79's >=2. Needs no denominator, which is why it is closable at all"
+      - "(c2) COVERAGE over a ruled population — BOOKED OPEN. This is where 'ALL ACTIVE CLIENTS' now lives. It waits on WS-JOIN plus an identity ruling; two lanes independently proved the un-split form unfalsifiable"
       - "(d) An account that attempts activation without a passing end-to-end pipe proof is REFUSED activation (C-17), demonstrated two-sided: a healthy pipe activates, a broken pipe does not"
       - "NOT 'PRs merged'. NOT a served image. NOT a projection — the parent's S-14 AFTER figure (41.6% -> 21.2%) is a PROJECTION and is named as one (RATIFICATION §4.2)"
     verification_method: telemetry
@@ -132,3 +135,46 @@ the telos docs but is **EMITTED BY NOTHING** — this is precisely face 3 of the
 (`EXTRACTION-observer-law-and-untaken-zero-2026-09-08.md:185-240`: BUILT, TESTED, UNWIRED and
 GUARD-BLIND). A date set here would lapse silently and the initiative that just extracted that
 law would have shipped an instance of it. When an emitter exists, re-examine this amendment.
+
+### Amendment — 2026-09-10 (R-78 split + RATIF-VI-D1; part of the declaration, travels with it)
+
+**What changed and why.** `:33` and `:79` above previously read *"held across the C-3 denominator
+(ALL active clients, not one)"* and *"A green receipt for a single office is a DIFFERENT CLAIM, not
+a partial pass."* **That rendering is RETIRED.** It is replaced, not weakened.
+
+**R-78 · BINDING** (`.ledge/decisions/RATIFICATION-decision-space-sitting-2026-09-09.md:51-58`) split
+clause (c), following the O-8 precedent — *compose, do not collapse*. Its own words:
+
+> *"the operator's words at framing were '3 sounds good, but for all active clients—not just one.'
+> The telos rendered that as a universal quantifier over an unenumerable set, which two lanes
+> independently proved unfalsifiable. **The split adopts the instruction and retires the rendering.**"*
+
+**RATIF-VI-D1** (`.ledge/decisions/RATIFICATION-decision-space-sitting-VI-2026-09-09.md:15`) then
+narrowed **(c1) ONLY**, from R-79's `>= 2 distinct offices` to **ONE office, both poles**. R-79's own
+text concedes *"two is arbitrary … defensible only as the literal encoding of 'not just one.'"*
+
+**THE INSTRUCTION IS NOT WEAKENED — IT IS RELOCATED.** *"All active clients"* is the operator's
+standing requirement and it survives in full, as **(c2), BOOKED OPEN**. Nothing here closes it and
+nothing here may be read as closing it. What the split does is stop an unfalsifiable quantifier from
+blocking a falsifiable claim that stands on its own.
+
+**Why this amendment was itself necessary — the wave's own defect class.** This file is quoted
+VERBATIM into all twelve sprint exit criteria (`.sos/wip/frames/name-the-client.shape.md:62-70`).
+A stale bar reproduced into every downstream gate is *a declared instrument with no enforcement on
+the thing it protects* — the exact class `name-the-client` wave 1 exists to close, sitting inside the
+wave's own governing document. **A bar amendment is the operator's alone**, and this one was ruled
+before it was written.
+
+**Supersession chain, stated so no seat has to reconstruct it:**
+`telos :33/:79 (2026-09-08)` → `R-78 split (2026-09-09)` → `R-79 (c1) >= 2 (2026-09-09)` →
+`RATIF-VI-D1 (c1) = 1 (2026-09-09)`. **Anyone holding >= 2 as a gate is holding R-79, which D-1
+dropped.** Recording the second office remains valuable; it is a bonus, not a bar.
+
+**Status at amendment time, stated so the attester inherits nothing:** (c1)'s bar is MET on the live
+plane — office `087d7de5` carries a `booking_completed` and a `terminal_decline` in ONE trace 48ms
+apart, both naming the office, both `office_identity_kind=resolved`. **This amendment does not attest
+that.** The rite-disjoint attester re-derives every leg and inherits none of it.
+
+**Unchanged by this amendment:** clauses (a), (b) and (d) in full; the two-sided requirement; *never
+blank*; *NOT "PRs merged"*; **DONE IS A BAR, NOT A DATE**; and the rite-disjoint attester's duty to
+re-derive every leg and inherit none.
