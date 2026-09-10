@@ -65,3 +65,28 @@ retired, or `nhc-db` open to the internet, and cannot see this room.
 | **offer-grain aggregation (R-132)** | `autom8y-asana` **PR #431 PARKED** | 48 / 6 RED / 48 · asana source is not deploy-inert; operator merges |
 | **deadman replaced (R-126 / R-134)** | `autom8y` **PR #2165** | 23 / 10 RED on the old tf / 23 · `terraform fmt` clean · **auto-merge armed**, pending only CodeQL `Analyze Python`; main moved under it four times · merge is plan-only; **one apply is the operator's word** |
 | **fourth leg wiring** | — | NOT STARTED. Waits on #431 landing (the aggregation the referent needs) and on the dry-run binding to the Offer grain. N=3 (R-133). |
+
+---
+
+## §7 CROSS-ARC CLOSURE — the placeholder-phone class (vertical-summary session, C4S-R208 → C4S-R215)
+
+**Read-only exchange, both directions; no count moved; no office phone on any face.** Their spike:
+`.ledge/spikes/SPIKE-placeholder-phone-root-cause-2026-09-10.md` @ `c83170b8`, branch
+`vertical-summary/c4-cure-charter` — cited, not duplicated.
+
+**What this seat measured for them (own-hands, origin/main):**
+- Scheduling writes `appointments.phone = lead_phone` verbatim — `scheduling/booking.py:191-193`; no office-phone fallback, no default contact.
+- EBI sends `lead_phone = ctx.resolved_phone` (`book_appointment.py:161-162`), refuses to book without one (`:108-109`), and sets it at **`match_lead.py:1029` `ctx.resolved_phone = ctx.contact_phone`** right after creating the lead on the same field. **No guard that `contact_phone != office_phone`** — zero exclusion forms across `extract_fields.py` / `match_lead.py` / `extraction/*`, control `office_phone` firing at `match_lead.py:1140`.
+- gcal never creates appointment rows: `gcal_sync.py:524 _store_event_id` / `:560 _clear_event_id` are `select … where` + update; the only `insert` is Google's `events.insert` (`:172`).
+- **The modern GHL binding is dark scaffolding:** `ghl_sync.py:44 GHL_AVAILABLE = False`; create call + `_store_ghl_event_id` commented out (`:99-122`); `_store_ghl_event_id` (`:372`) has ZERO live callers; no writer of `appointments.ghl_event_id` in scheduling / autom8y / autom8y-data at main. The SDK (`autom8y/sdks/python/autom8y-ghl`) parses `contactId` (`Appointment.contact_id`, required on create) and exposes `appointments.get(event_id)` → `GET /calendars/events/appointments/{event_id}` — but is a dependency of nothing and installed in no venv.
+- **`Lead.ghl_contact_id` ALREADY EXISTS** — `models/shared.py:82` class, `:164` field — declared, never read or written in any of the three repos. A dark column, on the right table.
+
+**What their data established (theirs, cited):** the office-phone class spans 58 months (2021→2026), ten-plus lead writers, **1,104 distinct real people** whose phone field holds the clinic's number. EBI is a **carrier since 2026-04-12, not the origin.** Originators are upstream in `contente-legacy@e616180ff` (Heroku): **A1** `server/api/website/onboarding.js:255-261` — one placeholder lead per onboarded office, phone = office phone; **A2** `models/leads.js:289-306`; **A4** the LLM extractor lineage (n8n → monolith `booking_handler.py` 2024-03 → EBI), unverified because it is an LLM. Shape B (thousands of events on one phone) is the `/calendar/reviewwave` path driven N times (`model/appointments.js:46-51`, `scheduler.js:371-413`) by the `notify-reviewwave` Lambda whose source is in no checkout — not an intake defect, not office phones.
+
+**Operator disposition (theirs, C4S-R215):** the office-phone class is OUT as a disclosed data-defect exclusion, never "unattributed"; **the re-arm trigger is THIS SEAT carrying GHL contactId forward**; A1/A4 are the named upstream cures.
+
+### Defer registry additions (namespace RATIF-VIII)
+| id | item | waits on | watcher |
+|---|---|---|---|
+| **RATIF-VIII-A4-EDGE** | `contact_phone != office_phone` guard at `match_lead.py:1029` — A4's downstream edge. **In-grant, deliberately NOT built:** refusing a mail whose only number is the clinic's is a product disposition (is it a booking at all?), and the HealthCom body-retain lever (#2169, name-the-wave) answers that before anyone writes a refusal. | a disposition on the HealthCom class | **name-the-wave** (bodies) · this seat (guard) |
+| **RATIF-VIII-CONTACTID** | Carry GHL `contactId` forward: populate dark `Lead.ghl_contact_id` (zero schema) · one column + migration on `appointments` · **un-scaffold the dark binding first** (`GHL_AVAILABLE`, SDK dependency, create call). C4S-R215's re-arm trigger. | an operator word; larger than a column, smaller than a design | **vertical-summary session** (re-arm) · this seat (build) |
