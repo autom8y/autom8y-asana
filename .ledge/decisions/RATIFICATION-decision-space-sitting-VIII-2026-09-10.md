@@ -60,8 +60,8 @@ retired, or `nhc-db` open to the internet, and cannot see this room.
 ## §6 EXECUTION RECEIPTS — the day's landings under R-125
 | item | where | receipt |
 |---|---|---|
-| **NULL → enabled (R-128)** | `autom8y-scheduling` `95c19608` (#76) | two-sided 70 / 3 RED / 70 · affected set measured before merge: 12 clinics, 27 refusals/24h · ECS td `:268` rolling · live receipt: the `offer_disabled=null` refusal class → 0 (watch running) |
-| **blank siblings named (R-129)** | `autom8y` `4deffb38` (#2149) | 362 / mutant A 3 RED / mutant B 2 RED / 362 · declared cross-stack divergence recorded in the guard · Lambda image `4deffb3` live 19:04:26Z · live receipt: blank office-scoped lines → 0 (watch running) |
+| **NULL → enabled (R-128)** | `autom8y-scheduling` `95c19608` (#76) | two-sided 70 / 3 RED / 70 · affected set measured before merge: 12 clinics, 27 refusals/24h · ECS td `:268` PRIMARY COMPLETED **19:11:14Z**, image `95c1960` · live receipt: **zero `scheduling_gate_rejected` of any class since rollout, 7 `booking_success` as traffic control** (60 records, own-hands, single read). The two refusals at 18:13Z/18:24Z predate rollout (old task). Positive half — the twice-refused clinic `…4776` passing — organic, not yet observed. |
+| **blank siblings named (R-129)** | `autom8y` `4deffb38` (#2149) | 362 / mutant A 3 RED / mutant B 2 RED / 362 · declared cross-stack divergence recorded in the guard · Lambda image `4deffb3` live 19:04:26Z · live receipt: **`ad_lead_gate_refused` 5 named / 0 blank since** (178 records, own-hands, single read) |
 | **offer-grain aggregation (R-132)** | `autom8y-asana` **PR #431 PARKED** | 48 / 6 RED / 48 · asana source is not deploy-inert; operator merges |
-| **deadman replaced (R-126 / R-134)** | `autom8y` **PR #2165** | 23 / 10 RED on the old tf / 23 · `terraform fmt` clean · merge is plan-only; **one apply is the operator's word** |
+| **deadman replaced (R-126 / R-134)** | `autom8y` **PR #2165** | 23 / 10 RED on the old tf / 23 · `terraform fmt` clean · **auto-merge armed**, pending only CodeQL `Analyze Python`; main moved under it four times · merge is plan-only; **one apply is the operator's word** |
 | **fourth leg wiring** | — | NOT STARTED. Waits on #431 landing (the aggregation the referent needs) and on the dry-run binding to the Offer grain. N=3 (R-133). |
