@@ -4,14 +4,14 @@
 **Charge:** `.sos/wip/CHARGE-name-the-client-wave1-2026-09-10.md` · **Governing sitting:** `.ledge/decisions/RATIFICATION-decision-space-sitting-VII-2026-09-10.md` (R-112 … R-122) — **landed to asana main in the same PR as this handoff; until then it existed in one working tree only (the attester flagged this).**
 **Bar graded against:** `.know/telos/name-the-client.md` @ asana `83a9ae99` — **AMENDED tonight** (R-113): (c) split into (c1)=1 office both poles / (c2) BOOKED OPEN.
 **`ari knows --validate`:** 1,700 broken references. **Every `@` reference below is unvalidated by default.** Verify at the stated ref, never from memory.
-**Self-cap:** MODERATE. Two receipts are PENDING at authoring time and are marked `[PENDING …]`; a later seat patches them in place — it does not assume them.
+**Self-cap:** MODERATE. Every receipt is landed at this revision; nothing is pending.
 
 ---
 
 ## §0 THE THREE SENTENCES
 
 1. **Clauses (a), (b), (c1) are ATTESTED by a rite-disjoint seat at the amended bar** — (b) with a flag — and **three offices carry both poles.** **Wave 1 is NOT CLOSED:** (d) is unbuilt. ★ **Scoping correction, caught by the attester:** this seat's dispatch cited R-121 as the authority for grading three legs; R-121 governs work threads. **R-116 says build (d) first, then verify all four.** The anchors for "(d) unbuilt tonight" are **R-119 and sitting VII §5**, and the three-leg verdict is worded so it cannot be read as operator-sanctioned closure. Right object, wrong question — aimed at the attestation, caught by it.
-2. **Three production-adjacent changes landed tonight under the sitting-VII grant, each with a two-sided receipt:** V13 recorded (`autom8y` `47f50912`, byte-identical to this seat's superseded #2135), the telos amended (`asana` `83a9ae99`), and the scheduling refusal discriminator (`autom8y-scheduling` `da24ab49`, deploy in flight `[PENDING AFTER]`). **The deploy hazard (#2120) was already merged** and is now measured at 641 → 201 prose files with a justified residual.
+2. **Three production-adjacent changes landed tonight under the sitting-VII grant, each with a two-sided receipt:** V13 recorded (`autom8y` `47f50912`, byte-identical to this seat's superseded #2135), the telos amended (`asana` `83a9ae99`), and the scheduling refusal discriminator (`autom8y-scheduling` `da24ab49`, **deployed 04:56:59Z, first organic AFTER line 05:04:18Z**). **The deploy hazard (#2120) was already merged** and is now measured at 641 → 201 prose files with a justified residual.
 3. **The organizing defect — a declared instrument with no enforcement on what it protects — was found in THREE new places tonight** (carriers #7, #8-revised, #9), and the S1 census found **zero of 9 named instruments carry an occurrence floor while 37 floor-shaped alarms already exist fleet-wide.** The primitive exists; it is unextended.
 
 ---
@@ -26,7 +26,7 @@
 | **C1** | **SVR** | `.sos/wip/C1-orphan-module-adjudication-2026-09-10.md` (529L) + `.sos/wip/C1-corroboration-main-thread-2026-09-10.md` (74L, independent). All three orphans **UNRECORDED, none DEAD**: `asana-redis`→`asana`; `recon-canary-synthetic-upstream`→`account-status-recon`; `serving-color-alarm`→7 services / 8 blocks. **Escalation confirmed own-hands:** `manifest-query.sh module-consumers` feeds `service-terraform.yml:194`; an unrecorded module → `[]` → zero stacks planned. |
 | **C2** | **RULED R-112** → executed | Landed as `47f50912` by another seat, **byte-identical** (37,744 B, `diff rc=0`) to this seat's #2135 (closed superseded). V13 **PASS 20/20** on main; `module-consumers serving-color-alarm` → `["auth","api-gateway","ads","data","asana","scheduling","sms"]`, was `[]`. |
 | **C3** | **DONE** | #2120 merged 01:32:12Z. **Verified on main, not PR state:** negated `paths` (`!services/**/.ledge/**`, `.know`, `.sos`, `tests`). **641 → 201 `.md` in radius.** Residual is deliberate: **13 of 15 Dockerfiles COPY a README** (reproduced own-hands). |
-| **C4** | **NOT STARTED** | Negative half (docs-only `services/**` commit → 0 dispatch runs) not run tonight. Positive half `[UV-P: fence positive pole \| METHOD: organic next-apply observation \| REASON: synthetic positive control IS the hazard]`. **NO WATCHER.** |
+| **C4** | **NEGATIVE HALF SVR (harvested)** | `tests/**` merge `d1ac56d5` (#2141) to main → **0 new `service-deploy-dispatch` runs** (last two remain yesterday's `aa92926e`, `002316ca`). #2120's exclusion observed on a real commit. Positive half `[UV-P: fence positive pole \| METHOD: organic next-apply observation \| REASON: synthetic positive control IS the hazard]`. **NO WATCHER.** |
 | **C5** | **SVR** | `validate-manifest.sh` against main's manifest: `[FAIL] V13 19/20 rc=1` → `[PASS] 20/20 rc=0`; positive control (mutated copy fails a different check) not separately run — **inherited from C1's V13 replay, which reproduced exactly three rows and self-corrected from seven.** |
 | **C6** | **OPEN — OPERATOR** | `push: branches:[main]` on `manifest-validate.yml` not added. **Now SAFE to arm** (V13 green on main, so it would not be red-on-arrival — R-109's objection no longer applies). One word. **NO WATCHER.** |
 
@@ -58,7 +58,7 @@
 ### NEW TONIGHT — outside the charged DAG, inside the sitting-VII grant
 | item | state | receipt |
 |---|---|---|
-| **SCHED-1 discriminator** | **MERGED `da24ab49` @ 04:26:41Z · `[PENDING AFTER]`** | `autom8y-scheduling` #75. Additive: `offer_resolved` / `offer_guid` / `offer_disabled` on `scheduling_gate_rejected`. **Two-sided:** cure 70 passed · mutant 4 FAILED + positive control PASSED · restored 70 passed. **BEFORE (live, `/ecs/autom8y-scheduling-service`, 58 scanned):** `extra` keys `[office_phone, reason]`, `offer_resolved` ABSENT ×5. AFTER: deploy chain Test → satellite-dispatch → ECS in flight at authoring. |
+| **SCHED-1 discriminator** | **MERGED `da24ab49` @ 04:26:41Z · DEPLOYED · LIVE AFTER [SVR]** | `autom8y-scheduling` #75. Additive: `offer_resolved` / `offer_guid` / `offer_disabled` on `scheduling_gate_rejected`. **Two-sided:** cure 70 passed · mutant 4 FAILED + positive control PASSED · restored 70 passed. **BEFORE (live, `/ecs/autom8y-scheduling-service`, 58 scanned):** `extra` keys `[office_phone, reason]`, `offer_resolved` ABSENT ×5. **AFTER:** ECS td `:267` PRIMARY COMPLETED **04:56:59Z**, image `scheduling:da24ab4`, 2/2. **First organic refusal on the new task, 05:04:18.947Z:** `reason=business_disabled · offer_resolved=True · offer_disabled=None · offer_guid=ca70baa8-a36…` — **the NULL case, fact (C), rendered visible on production.** Harvested, not manufactured. |
 | **SCHED-2 NULL-shadow** | **CHARACTERIZED; fix NOT AUTHORED** | `.sos/wip/SPLIT-not-enrolled-and-null-shadow-2026-09-10.md` (388L). Path **reachable**; **0 live instances** (taken zero, both controls fire); **177 offices ARMED** one enabled-row insert from firing; NULL class fastest-growing (326→386). **This seat said it would author a proving test and park a fix; it did not get to it.** Sitting VII §3.1 holds: behaviour change stays parked for a dawn word regardless. |
 | **F-2 decision page** | **SVR, awaiting OPERATOR** | `.sos/wip/F2-activating-vocabularies-2026-09-10.md` (368L). **9 named sites across 5 grains** (commit said 4+/3). Disagreeing pair proven by execution: `UNIT_CLASSIFIER` vs `_VENDORED_MONOLITH_SECTIONS`, project `1201081073731555`, Engaged/Scheduled → `activating` vs `inactive`. **"Use both" is not an option** — `guard()` refuses multi-grain. **`taxonomy_divergence` will not catch it.** No recommendation. |
 | **Clause (d)** | **NOT BUILT — blocked on F-2** | Foundation `b17a066c` (asana, **BRANCH-ONLY**, not on main) ships no default referent by design. Every disputed vocabulary is on main; the branch adds only the mechanism that refuses to choose. |
@@ -90,9 +90,9 @@
 |---|---|---|---|
 | **RATIF-VII-F2** | which `activating` vocabulary governs | **operator, at dawn**, from the F-2 decision page | **operator** |
 | **RATIF-VII-(d)** | clause (d) build | F-2 | this seat, after the ruling |
-| **RATIF-VII-NULL** | NULL-shadow proving test + parked fix | dawn word (sitting VII §3.1) | this seat — **not started** |
-| **RATIF-VII-AFTER** | live AFTER receipt for `da24ab49` | deploy chain | this seat (bg watch `bvnebagsz`) |
-| **RATIF-VII-R3** | attestation verdict | eunomia | this seat |
+| **RATIF-VII-NULL** | NULL-shadow proving test + parked fix | `[UV-P: the shadow is reachable on a real query \| METHOD: `tests/integration/conftest.py` harness against MySQL, constructing lowest-id `disabled IS NULL` + higher-id `disabled=0` for one phone and asserting the resolver returns the NULL row \| REASON: no in-memory async driver in the venv (`aiosqlite` absent, CodeArtifact 401) and sqlite would be a WRONG-OBJECT proof for MySQL NULL/TINYINT semantics]` · fix stays PARKED for a dawn word (§3.1) | **this seat, with the harness** |
+| **RATIF-VII-AFTER** | live AFTER receipt for `da24ab49` | — | **landed 05:04:18Z** |
+| **RATIF-VII-R3** | attestation verdict | — | **landed** (three legs attested, (d) unbuilt) |
 | **SHAPE-C4** | deploy-fence positive pole | organic next `services/**` apply | **NO WATCHER** |
 | **SHAPE-C6** | arm `push:` on manifest-validate | operator | **NO WATCHER** |
 | **SHAPE-B6** | #2071 reassess | — | **NO WATCHER · NO HOLDER** |
@@ -102,7 +102,7 @@
 | **CARRIER-4** | the 15 reaped divergences | a read via `office_resolved` nobody has run | **NO WATCHER** |
 | **CARRIER-8** | `wrote_nowhere` subject collapse: cure or loss? | — | **NO WATCHER** |
 | **CARRIER-10** | `nhc-db` public exposure | operator | **NO WATCHER** |
-| **ATTEST-F3** | a DIRECT probe for `booking_gate_declined` — a test that goes RED if `office_log_fields(ctx)` is removed from `book_appointment.py:183` alone | test-only PR in `services/email-booking-intake/**` (within R-120) | **this seat, next session** |
+| **ATTEST-F3** | **CLOSED** — `autom8y` **`d1ac56d5`** (#2141). Single-site mutant: 1 failed / 15 passed, RED is exactly the new probe, **every pre-existing test stayed GREEN** (F-3 reproduced), restored 16/16. | — | done |
 | **SPLIT-rank2** | the 448-decline clinic never named | a name from `office_resolved` by trace join (split agent recovered all 29 phones) | **NO WATCHER** |
 | **SHAPE-Dn vs RATIF-VI-Dn** | the D-numbering homonym | — | resolved by qualification in every artifact tonight; **carry the rule, not a watcher** |
 
@@ -128,8 +128,7 @@ Never-grantable floor untouched · freeze gate / ruleset 17263542 untouched eith
 ```bash
 # 0. orient (this file), then re-resolve every ref by hand — the .know domains are STALE
 cd /Users/tomtenuta/Code/a8/a8/repos/autom8y-asana && cat .ledge/handoffs/HANDOFF-name-the-client-wave1-overnight-2026-09-10.md
-# 1. patch the two PENDING receipts if the bg watch / attester landed while you were away
-cat /private/tmp/claude-501/-Users-tomtenuta-Code-a8-a8-repos-autom8y-asana/7f8de4af-738e-429d-9039-56ca238249ee/tasks/bvnebagsz.output | tail -8
+# 1. every receipt in this file is landed; the attestation is at
 ls -la .ledge/reviews/ATTEST-name-the-client-wave1-legs-abc1-2026-09-10.md
 # 2. OPERATOR: rule F-2 from the decision page — nothing on clause (d) moves until this is a word on the record
 ${EDITOR:-less} .sos/wip/F2-activating-vocabularies-2026-09-10.md
