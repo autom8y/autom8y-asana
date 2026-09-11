@@ -45,6 +45,7 @@ import contextlib
 import math
 import os
 import random
+import time
 from dataclasses import dataclass, field
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -512,3 +513,43 @@ class TestCouplingRegression:
         transport.assert_awaited_once()
         read = {call.args for call in cache.get_async.await_args_list}
         assert read == {("1201081073731555", "unit"), ("1143843662099250", "offer")}
+
+
+# ---------------------------------------------------------------------------
+# PRODUCTION DEFAULTS -- the one thing every other test in this file bypasses
+# ---------------------------------------------------------------------------
+
+
+class TestProductionDefaults:
+    """The production default clock is the WALL clock. Nothing else is a grid.
+
+    Every other test here INJECTS a clock -- which is what makes them
+    deterministic, and also what makes them blind. The epoch grid is only a grid
+    because ``now`` is seconds since the UNIX epoch: ``(-lead) % interval`` is a
+    fixed point of the UTC calendar. A monotonic source counts from an arbitrary
+    per-process origin, so the same expression picks an arbitrary phase on every
+    boot -- which is the cured defect, silently restored.
+
+    This is not an exotic refactor to imagine: the loop's own class docstring
+    points at ``SliHeartbeat``, and harmonising the background timers onto the
+    event loop's monotonic ``loop.time()`` is the obvious tidy-up. Without this
+    test that change is fully green. With it, it is RED on three legs.
+    """
+
+    def test_default_clock_is_wall_clock_epoch_not_monotonic(self) -> None:
+        # Constructed exactly as production does it (api/lifespan.py): no clock
+        # injected, no sleep injected.
+        loop = AccountStatusPushLoop()
+
+        # (1) identity -- the default IS the wall clock.
+        assert loop._clock is time.time, f"default clock is {loop._clock!r}, not time.time"
+
+        # (2) behaviour -- holds even if someone wraps or re-exports the callable.
+        #     A monotonic source fails on magnitude alone: it counts from an
+        #     arbitrary origin (process/boot), not from 1970-01-01T00:00:00Z.
+        observed = loop._clock()
+        assert abs(observed - time.time()) < 1.0, observed
+        assert observed > 1.7e9, f"clock reads {observed}; that is not epoch seconds"
+
+        # (3) the sleep default, by the same argument.
+        assert loop._sleep is asyncio.sleep, f"default sleep is {loop._sleep!r}"
