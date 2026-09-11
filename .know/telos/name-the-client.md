@@ -1,7 +1,7 @@
 ---
 type: telos
 initiative: name-the-client
-status: INSCRIBED (inception) — verification_deadline NULL, LAWFUL under the R-17 BAR-NOT-DATE carve-out; see the Amendment section, which is part of this declaration
+status: WAVE 1 CLOSED-WITH-REFUSAL (2026-09-11, sitting IX R-147; attested rite-disjoint in .ledge/reviews/ATTEST-name-the-client-wave1-closure-2026-09-11.md) — (c2) OPEN, carried into read-the-name as R3; (d) PROBE LIVE / SUBJECT DARK, REFUSED-CORRECTLY, migrates to read-the-name as R2; formerly INSCRIBED (inception) — verification_deadline NULL, LAWFUL under the R-17 BAR-NOT-DATE carve-out; see the Amendment section, which is part of this declaration
 created: 2026-09-08
 inscribed_by: >
   main thread of session autom8y-asana-f3, PT-00 pre-flight item B-2, transplant
@@ -178,3 +178,38 @@ that.** The rite-disjoint attester re-derives every leg and inherits none of it.
 **Unchanged by this amendment:** clauses (a), (b) and (d) in full; the two-sided requirement; *never
 blank*; *NOT "PRs merged"*; **DONE IS A BAR, NOT A DATE**; and the rite-disjoint attester's duty to
 re-derive every leg and inherit none.
+
+### Amendment — 2026-09-11 (R-147 closure; part of the declaration, travels with it)
+
+**Wave 1 is CLOSED-WITH-REFUSAL.** The rite-disjoint attester (eunomia `verification-auditor`,
+`.ledge/reviews/ATTEST-name-the-client-wave1-closure-2026-09-11.md`) re-derived every leg on
+2026-09-11 and inherited none:
+
+- **(a) ATTESTED** — 38 of 38 `booking_completed` on 09-11 resolved to an office; the field-absent
+  class is still visible on 09-08/09-09 from the identical query shape (control).
+- **(b) ATTESTED, F-3 DISCHARGED** — 202 of 202 failure lines on 09-11 carry a kind, zero blank;
+  autom8y `d1ac56d5` is an ancestor of main and its probe is on main. FLAG-A: 54 of the 202 read
+  `kind=absent` — non-blank, so (b) holds as written, but those lines name no office; that residual
+  sizes (c2) and is booked (S-4) with NO WATCHER.
+- **(c1) ATTESTED** — 15 offices carry both poles on 09-11 alone, against a bar of one.
+- **(c2) NOT ATTESTED — CARRIED OPEN** (R-141) into `read-the-name` as its third clause; waits on
+  WS-JOIN and the identity one-page sitting (R-110).
+- **(d) ATTESTED PROBE LIVE / SUBJECT DARK; REFUSED-CORRECTLY concurred (R-147).** The activation
+  smoke (asana #439, 43 tests) and its ruled Offer-grain referent (#441, 32 tests, G6-equivalent to
+  `Business.max_offer_activity`) are two-sided pipe-free — the attester's own fail-open mutant turned
+  15 tests red. But no activation path exists in production to gate: the lifecycle engine has no live
+  constructor, the inbound webhook route is a no-op, no scheduler invokes it, and 7,281,524 scanned
+  records over 30 days match zero lifecycle events against 17,773 on the control shape. A gate wired
+  there would be a cure on a dead path (the #2105 shape), so the seat refused and the attester
+  concurred. (d) migrates to `read-the-name` as its second clause on a scheduled-sweep substrate;
+  the attester notes that substrate may already exist as `autom8-asana-unit-reconciliation`
+  (keys `ACTIVATING`, hard-coded `dry_run=True`, zero events across 553 boots) — unadjudicated.
+
+**What closure means here:** the naming question is answered on live traffic and will not be
+re-measured as if open. The promise's second clause — *before you have to ask us* — is not a
+property of a log line but of a consumer, and none exists; that is the successor epoch's bar
+(`.know/telos/read-the-name.md`, DRAFT, unratified until sitting X).
+
+**Unchanged by this amendment:** the two-sided requirement; *never blank*; *NOT "PRs merged"*;
+**DONE IS A BAR, NOT A DATE**; and the rite-disjoint attester's duty to re-derive every leg and
+inherit none.
