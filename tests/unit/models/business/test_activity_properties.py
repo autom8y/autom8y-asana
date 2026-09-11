@@ -344,3 +344,53 @@ class TestBusinessMaxUnitActivity:
     def test_empty_unit_holder(self) -> None:
         business = _make_business_with_units([])
         assert business.max_unit_activity is None
+
+
+# ---------------------------------------------------------------------------
+# Business.max_offer_activity -- the OFFER-grain analogue of max_unit_activity
+# (operator ruling R-132, 2026-09-10). Same holder idiom as the unit tests above.
+# ---------------------------------------------------------------------------
+
+
+def _business_with_offer_activities(*unit_offer_activities: list) -> Business:
+    """A Business whose units each carry offers with the given activities."""
+    units = []
+    for acts in unit_offer_activities:
+        unit = MagicMock(spec=Unit)
+        unit.offers = [MagicMock(spec=Offer, account_activity=a) for a in acts]
+        units.append(unit)
+    holder = MagicMock(spec=UnitHolder)
+    holder.units = units
+    biz = Business(gid="biz-offer-agg", name="Offer Agg Test")
+    biz._unit_holder = holder
+    return biz
+
+
+class TestMaxOfferActivity:
+    def test_no_units_no_offers_is_none(self) -> None:
+        assert _business_with_offer_activities().max_offer_activity is None
+
+    def test_all_unregistered_offers_is_none(self) -> None:
+        assert _business_with_offer_activities([None, None]).max_offer_activity is None
+
+    def test_single_activating_offer(self) -> None:
+        biz = _business_with_offer_activities([AccountActivity.ACTIVATING])
+        assert biz.max_offer_activity is AccountActivity.ACTIVATING
+
+    def test_priority_active_beats_activating_across_units(self) -> None:
+        biz = _business_with_offer_activities(
+            [AccountActivity.ACTIVATING], [AccountActivity.INACTIVE, AccountActivity.ACTIVE]
+        )
+        assert biz.max_offer_activity is AccountActivity.ACTIVE
+
+    def test_priority_activating_beats_inactive_and_ignored(self) -> None:
+        biz = _business_with_offer_activities(
+            [AccountActivity.IGNORED, AccountActivity.INACTIVE], [None, AccountActivity.ACTIVATING]
+        )
+        assert biz.max_offer_activity is AccountActivity.ACTIVATING
+
+    def test_ordering_matches_the_unit_aggregation_exactly(self) -> None:
+        """Same rule as max_unit_activity: ACTIVITY_PRIORITY is the single source."""
+        acts = list(ACTIVITY_PRIORITY)
+        biz = _business_with_offer_activities(acts[::-1])
+        assert biz.max_offer_activity is ACTIVITY_PRIORITY[0]
