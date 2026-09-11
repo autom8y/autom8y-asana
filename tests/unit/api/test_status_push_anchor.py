@@ -52,6 +52,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from autom8_asana.api.status_push import (
     DEFAULT_STATUS_PUSH_INTERVAL_SECONDS,
     AccountStatusPushLoop,
+    _iso_z,
     push_account_status_snapshot,
     seconds_until_next_fire,
 )
@@ -553,3 +554,69 @@ class TestProductionDefaults:
 
         # (3) the sleep default, by the same argument.
         assert loop._sleep is asyncio.sleep, f"default sleep is {loop._sleep!r}"
+
+
+class TestNonFiniteIntervalNeverFailsBoot:
+    """A boot self-attestation must never be able to fail a boot.
+
+    ``api/lifespan.py`` calls ``status_push_loop.start()`` UNGUARDED, so anything
+    ``start()`` raises propagates into lifespan startup and the task never
+    becomes healthy. Rendering ``next_fire_at`` from a ``nan`` delay did exactly
+    that for a positive non-finite ``STATUS_PUSH_INTERVAL_SECONDS`` -- a
+    regression introduced by the anchor, in a wave whose subject is a service
+    going dark when it boots wrong.
+
+    The cure guards the RENDERING only. Parsing is untouched (F-10 walls the env
+    var's semantics), so the loop's behaviour for such an interval is exactly
+    origin/main's: it sleeps forever, never fires, and does not spin.
+    """
+
+    async def _start_and_settle(self, raw: str) -> tuple[asyncio.Task | None, AsyncMock, dict]:
+        """Start a DEFAULT-constructed loop (no clock, no sleep injected)."""
+        with (
+            patch.dict(os.environ, _env_without_interval(STATUS_PUSH_INTERVAL_SECONDS=raw)),
+            patch(
+                f"{_STATUS_PUSH_MODULE}.push_account_status_snapshot", new_callable=AsyncMock
+            ) as mock_push,
+            patch(f"{_STATUS_PUSH_MODULE}.logger") as mock_logger,
+        ):
+            loop = AccountStatusPushLoop()
+            # THE REGRESSION ASSERTION: this call must not raise. It is
+            # deliberately not wrapped -- a raise here fails the test as an
+            # ERROR, which is what the unguarded lifespan call site would do.
+            task = loop.start()
+            await asyncio.sleep(0.05)  # settle: a spinning loop would fire here
+            started = {}
+            for call in mock_logger.info.call_args_list:
+                if call.args[0] == "status_push_loop_started":
+                    started = call.kwargs["extra"]
+            if task is not None:
+                assert not task.done(), "the loop task died instead of sleeping"
+            await loop.stop()
+        return task, mock_push, started
+
+    async def test_positive_non_finite_interval_starts_without_raising_and_never_fires(
+        self,
+    ) -> None:
+        for raw in ("inf", "nan"):
+            task, mock_push, started = await self._start_and_settle(raw)
+            # Existing rules unchanged: inf and nan both fail `<= 0`, so a task
+            # is created exactly as it was at origin/main.
+            assert task is not None, raw
+            # No hot spin: sleep(nan)/sleep(inf) never becomes ready.
+            assert mock_push.await_count == 0, f"interval={raw!r} fired {mock_push.await_count}x"
+            # The self-attestation still attests what it can.
+            assert started["lead_seconds"] == _LEAD, raw
+            assert started["next_fire_at"] is None, raw
+
+    async def test_negative_non_finite_interval_still_takes_the_disable_path(self) -> None:
+        with patch.dict(os.environ, _env_without_interval(STATUS_PUSH_INTERVAL_SECONDS="-inf")):
+            loop = AccountStatusPushLoop()
+        assert loop.start() is None
+
+    def test_renderer_returns_none_instead_of_raising(self) -> None:
+        """The guard is on the rendering, and covers finite-but-unrenderable too."""
+        assert _iso_z(float("nan")) is None
+        assert _iso_z(float("inf")) is None
+        assert _iso_z(1e300) is None  # finite, outside platform time_t
+        assert _iso_z(1789097400.0) == "2026-09-11T03:30:00Z"

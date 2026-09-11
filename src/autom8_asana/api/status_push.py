@@ -144,9 +144,23 @@ def seconds_until_next_fire(now_epoch: float, interval: float, lead: float) -> f
     return delay if delay > min_gap else delay + interval
 
 
-def _iso_z(epoch_seconds: float) -> str:
-    """Render an epoch instant as second-resolution ISO-8601 UTC (``...Z``)."""
-    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(epoch_seconds))
+def _iso_z(epoch_seconds: float) -> str | None:
+    """Render an epoch instant as second-resolution ISO-8601 UTC (``...Z``).
+
+    Returns ``None`` when the instant is not renderable rather than raising: a
+    boot SELF-ATTESTATION must never be able to fail a boot. Two reachable
+    cases, both from an operator-set interval -- a non-finite interval
+    (``inf``/``nan``) makes the computed delay ``nan``, and an astronomically
+    large finite one lands outside the platform's ``time_t`` range. In both the
+    loop's behaviour is exactly origin/main's (it sleeps forever, never fires,
+    does not spin); only the rendering is guarded, and the parsing of
+    :data:`STATUS_PUSH_INTERVAL_ENV_VAR` is deliberately NOT touched.
+    """
+    try:
+        return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(epoch_seconds))
+    except (ValueError, OverflowError, OSError):
+        # ValueError: nan. OverflowError/OSError: outside platform time_t.
+        return None
 
 
 async def push_account_status_snapshot(trigger: str) -> None:
