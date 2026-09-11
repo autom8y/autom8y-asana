@@ -462,6 +462,33 @@ class Business(BusinessEntity, SharedCascadingFieldsMixin, FinancialFieldsMixin)
         return min(activities, key=lambda a: ACTIVITY_PRIORITY.index(a))
 
     @property
+    def max_offer_activity(self) -> AccountActivity | None:
+        """Highest activity level across all Offers of all child Units.
+
+        The OFFER-grain analogue of ``max_unit_activity``, added for the
+        onboarding activation smoke (operator ruling R-132, 2026-09-10): the
+        Offer grain is the authoritative status source (``OFFER_CLASSIFIER``,
+        project 1143843662099250) and it carries ``activating``; nothing on main
+        aggregated it to the Business. Same rule, same ordering:
+        ACTIVE > ACTIVATING > INACTIVE > IGNORED. Offers hang off Units
+        (``Unit.offers``), so this walks both levels.
+
+        Returns None if there are no offers, or every offer's section is
+        unregistered in ``OFFER_CLASSIFIER``.
+        """
+        from autom8_asana.models.business.activity import ACTIVITY_PRIORITY
+
+        activities = [
+            o.account_activity
+            for u in self.units
+            for o in u.offers
+            if o.account_activity is not None
+        ]
+        if not activities:
+            return None
+        return min(activities, key=lambda a: ACTIVITY_PRIORITY.index(a))
+
+    @property
     def address(self) -> Location | None:
         """Primary business address (via LocationHolder).
 
