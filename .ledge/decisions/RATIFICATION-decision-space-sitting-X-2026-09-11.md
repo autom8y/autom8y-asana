@@ -72,3 +72,11 @@ Eleven items: **seven RECs held, four displaced** (R-152 hand · R-153 loose end
 - **R2 has no existing substrate.** WS-2 becomes a **build**: a scheduled observer at OFFER grain (project 1143843662099250) that holds prior membership state and emits dated crossings INTO the activating bucket, feeding the smoke (#439) under the ruled referent (#441). Its enforcement path, if ever, must pass write-authz and needs its own ruling. To be charged separately, with its own critic; not the S-1 seat's.
 - **Two new carriers for the risk map:** **#15** terraform declaring a Lambda whose handler never existed (a declared instrument with no code, scheduled, paused); **#16** a live write path around the authz gate.
 - **#439 / #441 merge words:** R-155's condition ("after R2's substrate is ruled") is now answerable: the ruling is that the substrate must be built. The words stay the operator's.
+
+## §7 ADDENDUM — R-159 (same night, after §6)
+
+| # | question | options offered | ruling | REC held? |
+|---|---|---|---|---|
+| **R-159** | #439 / #441 after the substrate ruling (§6: no substrate exists; WS-2 is a build) | merge both now as WS-2's inputs · hold until WS-2 is charged and seated · close both and re-land from the WS-2 charge · wrong question | **Merge both now as WS-2's inputs**, stacked order (#439 then #441), recorded as built-unconsumed by design with the consumer named as the WS-2 observer to be built. Execution: #439 auto-merge armed on green by this seat; #441 retargeted to main and merged after #439 lands; shas in the next seat's handoff. | held |
+
+Calibration after R-159: **eight held, four displaced** across twelve items.
