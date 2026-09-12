@@ -27,7 +27,7 @@ seat: calendar-integration-locus
 | R3 · closure attestation | asana **#442** (auto-merge armed by seat) | **CLOSED-WITH-REFUSAL**; verdict table in the file |
 | S-3 · scheduling negative pole | autom8y-scheduling **#77 MERGED** 20:53:01Z | `TestSchedulingGateNegativePoleS3`: clean 73 / mutant 6 RED / clean 73 |
 | R-142 · sizing read (offer grain) | **TAKEN** | `READ-offer-activity-sizing-2026-09-11.md` (scratchpad); folded into the S-1 charge §7 |
-| S-5 · `office_phone` cure | autom8y **#2181 OPEN — hold RELEASED** | clean 9 / mutant 2 RED / clean 9; 155 neighbours green; its first CI run was red on a base that predates #2179 (custody-receipt guard); branch updated onto main, auto-merge armed on green. **Its merge is the next EBI apply and carries #2178.** |
+| S-5 · `office_phone` cure | autom8y **#2181 MERGED** 21:26:45Z (`5dc87295`) — **LIVE on v68** | clean 9 / mutant 2 RED / clean 9; 155 neighbours green. Its own deploy run 34649416130 **FAILED at Deploy Lambda** (terraform state-lock collision with a concurrent plan on the same stack); image built, never served. Served by the re-fire run 34661356644 from main `225ad2b9` (name-the-wave's successor seat): alias `live` v67 → v68 at 2026-09-12T00:28:11Z, image `225ad2b`, retain var still served — seat's qualified read. Carries #2178 and #2182. |
 | S-1 · charge | **WRITTEN** `.sos/wip/CHARGE-read-the-name-s1-per-office-floor-2026-09-11.md` | both shapes, operator lean disclosed, §7 sized, W=3/A=5 proposed |
 | R-146 · READ telos draft | asana **#440** (auto-merge armed) | `.know/telos/read-the-name.md`, UNRATIFIED in line one |
 | R-139 · HealthCom dispatch | **LANDED — name-the-wave's hand** | runs 34645431951 and 34646999685 failed at Run Tests on their own tfvars-comment guards (`test_ebi_image_pin_currency`, `TestCustodyReceiptIsFour`; fixed by #2176 → #2179); run 34647971504 from main `e8f9fd58` moved alias `live` v66 → v67 at 21:18:21Z. Seat's qualified read-back matches. |
@@ -67,7 +67,8 @@ seat: calendar-integration-locus
 4. **This seat pushed the R-147 addendum from a stale local branch** (rc=1, caught unpiped), rebased onto the moved remote and re-pushed; and reaped a worktree before confirming the push. Order: confirm the remote ref, then reap.
 5. **The sizing report says `max_offer_activity` is not on main**: stale by minutes (#431 merged `0a8bc429`); the computed semantics are identical.
 6. **The repo's attribution hook now rejects any Bash command that carries the generated-with line next to a `git commit`**, not only a trailer; two commits were blocked whole, nothing ran, redone with PR bodies written outside Bash. Order: file first, commit in a command with no attribution text.
-7. **FLAG-E (attester):** at attestation time the authorising record (#438) was not on main. Auto-merge is armed; until it lands, R-135..R-147 are reachable only on the PR branch.
+7. **A deploy can fail on a terraform state lock and look like a merge that landed.** #2181's deploy run failed at Deploy Lambda when a concurrent plan on the same stack held the state lock; the image was built and pushed, the alias never moved, and this record first said "deploy in flight". Bank: the merge receipt is the alias move read qualified, never the run start. Two seats on one stack need a lock discipline; charged to the READ epoch alongside R-143.
+8. **FLAG-E (attester):** at attestation time the authorising record (#438) was not on main. Auto-merge is armed; until it lands, R-135..R-147 are reachable only on the PR branch.
 
 ## §5 STANDING FENCES — plus today's
 
