@@ -1,0 +1,11 @@
+{
+  "snapshot_date": "2026-09-11",
+  "source": ".ledge/reviews/READ-offer-activity-sizing-2026-09-11.md",
+  "vocabulary": "OFFER_CLASSIFIER (autom8y-asana src/autom8_asana/models/business/activity.py), max over ACTIVITY_PRIORITY per business; ruled R-132 / R-165 (ADR D5, E2)",
+  "classes": {
+    "ccb52f4c": "active"
+  },
+  "fallback": "unknown",
+  "stale_after_days": 30,
+  "note": "guid8 -> Offer-grain class for the 27 offices in the S-1 charge plus controls; every other office renders class=unknown until the sizing read is re-run over the plane's office set (defer, owner: the S1.3 seat; the page surfaces staleness)."
+}
