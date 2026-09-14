@@ -16,7 +16,7 @@ Every row is one UTC day, read own-hands the following day with the commands in 
 
 | day | UTC date | evaluations (`office_floor_evaluated` lines) | controlled (`"control": "passed"` — `status==Complete ∧ records_scanned≥500 ∧ offices_with_bookings≥5` on both queries) | refused (`"control": "failed"`) | `LastSuccessTimestamp` datapoints (`Autom8y/EbiOfficeFloor`) | prober gauge datapoints (`Autom8y/Freshness` `age_since_last_invocation_seconds`, max s) | deadman alarm states 23:59Z (`…-lambda-freshness` / `…-freshness-prober-liveness`) | pages to scratch (`NumberOfMessagesPublished` on `autom8-ebi-office-floor-scratch`) | page-class distribution (ZERO / RATE / none) | `***` residual > 10 % tripwire | notes |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| 0 | 2026-09-14 (partial, read 06:41Z) | 4 (3 S1.4b controlled invokes 06:00:27 / 06:00:48 / 06:01:07Z + the first SCHEDULED fire 06:27:15Z; `filter-log-events` one page) | 3 (A, C-dry-run, D; scheduled D: `records_scanned` 13979, offices_with_bookings 31) | 1 (leg B, 10-min window, `records_scanned_below_floor`; timestamp withheld) | 2 (06:00Z, 06:27Z — A and D only; B refused and C dry-run emitted nothing) | 8 samples since 05:52Z, min 200 s, max 2000.6 s (< 7200) | both OK (`…-lambda-freshness` OK 06:04:56Z; `…-freshness-prober-liveness` OK 06:27:14Z) | 4 — ALL four are alarm `INSUFFICIENT_DATA → OK` OK-action notifications (05:53:09 / 05:53:48 / 06:04:56 / 06:27:14Z), 0 from the evaluator (`paged:false` on all four run lines); subscriptions 0 | leg A/D: 39 offices, 3 ZERO / 0 RATE / 36 none; `ccb52f4c` quiet at 3.23 % (93 arrivals / 3 bookings) | not read (needs the 11:27Z digest) | born 05:52:27Z by run 34810812077; first scheduled fire OBSERVED 06:27:15Z; day-1 read must add the 11:27Z digest (`MessageId`, `sns:Publish` proven), the `***` share, and the full-day sums |
+| 0 | 2026-09-14 (partial, read 06:41Z) | 4 (3 S1.4b controlled invokes 06:00:27 / 06:00:48 / 06:01:07Z + the first SCHEDULED fire 06:27:15Z; `filter-log-events` one page) | 3 (A, C-dry-run, D; scheduled D: `records_scanned` 13979, offices_with_bookings 31) | 1 (leg B, 10-min window, `records_scanned_below_floor`; timestamp withheld) | 2 (06:00Z, 06:27Z — A and D only; B refused and C dry-run emitted nothing) | 8 samples since 05:52Z, min 200 s, max 2000.6 s (< 7200) | both OK (`…-lambda-freshness` OK 06:04:56Z; `…-freshness-prober-liveness` OK 06:27:14Z) | 4 — ALL four are alarm `INSUFFICIENT_DATA → OK` OK-action notifications (05:53:09 / 05:53:48 / 06:04:56 / 06:27:14Z), 0 from the evaluator (`paged:false` on all four run lines); subscriptions 0 | from the 06:27:15Z run line: `zero_floor_count: 3`, `rate_floor_count: 0`, 39 evaluated → 36 quiet; office lines `floor_class` quiet 108 / zero 9 over the four runs (Gate C's own read); `ccb52f4c` quiet at 3.23 % (93 arrivals / 3 bookings) | `residual_share: 0.0746`, `residual_share_high: false` on the 06:27:15Z run line (own-hands 07:05Z; the earlier "needs the 11:27Z digest" was untrue — the field is on every run line) | born 05:52:27Z by run 34810812077; first scheduled fire OBSERVED 06:27:15Z; day-1 read must add the 11:27Z digest (`MessageId`, `sns:Publish` proven), the `***` share, and the full-day sums |
 
 ## 2 · Daily own-hands commands (region us-east-1; rc read unpiped)
 
@@ -50,15 +50,20 @@ aws cloudwatch get-metric-statistics --namespace AWS/SNS --metric-name NumberOfM
   --start-time "$(date -u -r $S +%FT%TZ)" --end-time "$(date -u -r $E +%FT%TZ)" --period 86400 --statistics Sum --output json
 aws sns list-subscriptions-by-topic --topic-arn "arn:aws:sns:us-east-1:<ACCOUNT>:autom8-ebi-office-floor-scratch" --output json --query 'length(Subscriptions)'
 
-# page-class distribution + the *** tripwire — from the 11:00Z digest line(s)
+# page-class distribution — the per-office lines carry `floor_class` (lowercase: quiet | zero | rate); `page_class` exists ONLY on the run line (Gate C F-1)
 QID=$(aws logs start-query --log-group-name "$LG" --start-time "$S" --end-time "$E" \
-  --query-string 'fields @timestamp, @message | filter @message like /office_floor_office/ | stats count(*) as offices, sum(@message like /"page_class":\s*"ZERO"/) as zero, sum(@message like /"page_class":\s*"RATE"/) as rate' \
-  --output text --query queryId); sleep 8; aws logs get-query-results --query-id "$QID" --output json
+  --query-string 'fields @timestamp, @message | filter @message like /office_floor_office/ | stats count(*) as offices, sum(@message like /"floor_class":\s*"zero"/) as zero, sum(@message like /"floor_class":\s*"rate"/) as rate, sum(@message like /"floor_class":\s*"quiet"/) as quiet' \
+  --output text --query queryId); sleep 8; aws logs get-query-results --query-id "$QID" --output json   # a healthy plane prints quiet ≫ 0; zero=rate=quiet=0 is an UNTAKEN read, not a quiet day
+
+# the *** tripwire and the floor counts — from EVERY run line (`office_floor_evaluated`), not the digest
+QID=$(aws logs start-query --log-group-name "$LG" --start-time "$S" --end-time "$E" \
+  --query-string 'fields @timestamp | filter @message like /office_floor_evaluated/ | parse @message /"residual_share":\s*(?<share>[0-9.]+)/ | parse @message /"residual_share_high":\s*(?<high>true|false)/ | parse @message /"zero_floor_count":\s*(?<zero>[0-9]+)/ | parse @message /"rate_floor_count":\s*(?<rate>[0-9]+)/ | display @timestamp, share, high, zero, rate | sort @timestamp asc' \
+  --output text --query queryId); sleep 8; aws logs get-query-results --query-id "$QID" --output json   # the column is the DAY'S MAX share; `high: true` on any run line is the tripwire
 ```
 
 Fences: an Insights zero needs `recordsScanned` comparable to a control (UNTAKEN-ZERO); the office-floor function has no alias, so an unqualified read IS its served object; no phone digits, guid8 only, `<ACCOUNT>` for the account id (merge-surface sweep `digits12`).
 
-## 2b · Ruled constraint on what the soak may certify (pythia, T2 ruling on asana #454)
+## 2b · Ruled constraint on what the soak may certify (pythia's T2 ruling, `.ledge/decisions/RULING-read-the-name-t2-15caa02c-class-2026-09-14.md` R-2; measured in asana #454 → `24886bca`)
 
 The fleet's booking lines carry `chiropractor_guid` only from **2026-09-09**; the 30-day `last_booking_age_days` lookback is therefore ~6 days effective on day 0 and reaches its full horizon on **2026-10-09**. Until then the soak may certify ACTIONABLE and CLASS UNKNOWN rows of the digest; it may **not** certify EXPECTED SILENCE (class ∈ {inactive, ignored} with no booking) — record those rows as `EXPECTED SILENCE (unattributable before 2026-10-09)`. A computed attribution floor printed on the page is the ruled cure (owner: S1.3 builder seat), not a re-tune of A/A′/r.
 
