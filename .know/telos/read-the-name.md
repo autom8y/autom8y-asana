@@ -1,7 +1,7 @@
 ---
 type: telos
 initiative: read-the-name
-status: DRAFT — UNRATIFIED. Drafted under sitting IX R-146 (2026-09-11); becomes the bar only when a decision-space sitting (X or later) ratifies it. Until then it binds nothing and is cited only as "the draft".
+status: RATIFIED — sitting X, 2026-09-11 late (R-149, successor initiative as drafted). S-1 shape ruled R-150 (logs-native evaluator, W=3d rolling, A=5, bookings 0, own silence deadman); consumer ruled R-154 (platform_alerts, business hours); builder = a fresh cold-start seat (R-151). Frame: .sos/wip/frames/read-the-name.md (R-157); SHAPE pending the fresh seat's first sitting. Decision-space of record: .ledge/decisions/RATIFICATION-decision-space-sitting-X-2026-09-11.md
 created: 2026-09-11
 inscribed_by: >
   seat calendar-integration-locus, main thread, the afternoon after sitting IX.
@@ -18,7 +18,7 @@ parent_initiative: name-the-client (wave 1 closing on (d) + R3; clause (c2) carr
 self_cap: MODERATE
 ---
 
-# Telos — read-the-name (DRAFT, 2026-09-11)
+# Telos — read-the-name (RATIFIED at sitting X, 2026-09-11)
 
 **Why a new verb.** `name-the-client` answered *can the plane name the client on both
 poles?* — on live traffic, every completed booking names its office and every failure
@@ -100,7 +100,11 @@ verbatim into every sprint's exit.
   **charges** (R-143, R-144), not clauses of this bar.
 - `nhc-db` exposure: KNOWN AND ACCEPTED (R-124).
 
-## What sitting X must rule before this draft binds
+## What sitting X ruled (this section is kept as the record of the draft's open questions)
+
+**Ruled 2026-09-11 late:** (1) the four clauses stand as written (R-149); (2) S-1 is the logs-native evaluator, W = 3 days rolling, A = 5 arrivals, bookings floor 0, paging `platform_alerts` in business hours, carrying its own silence deadman (R-150, R-154); (3) whether (R4) belongs here was not put to the sitting — it stays as drafted until a sitting moves it; (4) `read-the-name` is a successor initiative with its own frame, shape, and numbering continuing from R-147 (R-149, R-157).
+
+### The draft's questions, as they were asked
 
 1. The four clauses as written, or amended.
 2. S-1's shape (R-145 fork) and its window.
