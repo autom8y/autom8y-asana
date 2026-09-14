@@ -6,13 +6,16 @@ rite: sre
 initiative: read-the-name
 wave: 1
 sprint: S1.1
-status: COMPLETE — K1..K5 ALL PASS; no RECEDE
+status: S1.1 COMPLETE — design proof; K1..K5 PASS; instrument NOT BUILT, NOT ARMED; R1 NOT realized (R-168)
 self_cap: MODERATE
 ---
 
 # OBS — `read-the-name` wave 1 · S1.1 OBSERVE · the S-1 design proof
 
-**Verdict line one: K1 PASS · K2 PASS · K3 PASS · K4 PASS · K5 PASS. The sprint does NOT recede.**
+**Verdict line one: K1 PASS · K2 PASS (consistency check, DEF-4) · K3 PASS · K4 PASS · K5 PASS.
+The sprint does NOT recede.** This is a **design proof only** — the instrument is **not built and
+not armed**, and **R1 is NOT realized** (R-168). K1–K5 are gates on the *calibration*, not on the
+*instrument*.
 The founding office `ccb52f4c` fires the **RATE** floor under the ruled `(U-3, A′ = 20, r = 0.025)`
 in **all three windows**; every office booking ≥ 7 % is quiet under **both** floors in all three
 windows; the ZERO floor's firing set is fully enumerated with **no unexplained member**;
@@ -503,29 +506,84 @@ time. The real margins on the ruled `r = 0.025`:
 | **C** | **2.02 %** | **×1.24** | **the thinnest cell in the grid** — and it is the only window measured entirely in the live regime (FACT-2) |
 
 > **Named risk for S1.3/S1.6, not a re-tune.** The founding office's live-regime margin is ×1.24.
-> One additional booking in a 3-day window at these arrival volumes (`3/99 = 3.03 % > r`) silences
-> the page. This is the floor behaving exactly as ruled — *any* evidence of booking silences it
-> (D1.2, P3 chosen because a false page is the expensive error) — but the operator should know that
-> **the founding case is now close to the boundary, and the boundary is one booking wide.**
-> Re-ruling `r` is a VALUE fork; this seat does not take it.
+> One additional booking in a 3-day window silences the page — and **the denominator moves with
+> it**: `booking_completed` is *inside* the terminal set and carries no `message_id` (FACT-1), so an
+> added booking increments `arr_noid` as well as `bookings`. Correctly under U-3 that is
+> **`3/100 = 3.00 % > r`**, not `3/99 = 3.03 %`; the latter holds the denominator fixed, which is
+> U-1's idiom inside a U-3 claim. The verdict is unchanged (both exceed `r = 2.5 %`) and the ×1.24
+> margin is unaffected (`0.025 / 0.020202`), but the arithmetic is now in the unit this report rules in.
+
+**Both halves, stated plainly — because only one of them is usually said.**
+
+**Half one — the floor is behaving exactly as ruled.** ADR D1.2 chose P3 (the union) precisely so
+that *any* evidence of a booking silences the floor, because a false page is the expensive error for
+a consumer whose attention is the scarce resource. An office that books is not below the floor. The
+×1.24 margin is not a malfunction; it is the ruled design meeting a quieter window.
+
+**Half two — the ADR's safety argument does not bind the quantity that actually moved, and this is a
+calibration hazard.** D1.5's *"×1.30 headroom"* was computed on the de-dup factor `f` **with bookings
+pinned at 4** (`4f/344 < r ⇒ f < 2.15`). The fresh measurement shows `f` **blew through that ceiling**
+in window C — **2.65 against a 2.15 bound** — and the founding office fired the RATE floor **anyway**,
+because its bookings *fell* at the same time (3 in window B → **2** in window C; the ADR's arithmetic
+held them at 4). **The quantity the ADR reasoned about is not the quantity that binds.** What binds is
+the rate margin, and in the only window measured entirely in the live regime (FACT-2) it is **×1.24
+and one event wide**.
+
+> **Carried to the handoff as a CALIBRATION HAZARD, not a re-tune.** Re-ruling `r` is a VALUE fork
+> (R-161: *"on K1/K2 failure the seat recedes to the operator, it does not re-tune"* — and K1 did not
+> fail, so there is nothing here that even reaches the recede rule). What S1.3 and S1.6 must carry is
+> that the ADR's headroom argument has been measured and found to be about the wrong variable, and
+> that the live-regime margin should be watched on every soak day rather than assumed from D1.5.
+
+> *A measurement note on the `bookings fell to 1` figure in circulation:* window C's booking count is
+> **2**, not 1, on this seat's own-hands query and on the rite-disjoint critic's independent
+> re-derivation. The `1` belongs to the pre-sitting measurement taken before window C closed (§0). The
+> argument is unaffected — bookings fell, `f` rose past its ceiling, and the office fired regardless.
 
 ### §5.2 The `terminal_decline` / `terminal_decline_parked` co-occurrence — measured, not inferred
 
 The ADR's FINDING-2 discharges co-occurrence *from source*. R-161's S1.1 contract requires it
-**quantified**. Measured over window A across the whole log group, keyed on `park_key` (the only
-field both events share — `terminal_decline_parked` carries **no** `message_id`, FACT-1):
+**quantified**. `park_key` is the only field both events share (`terminal_decline_parked` carries
+**no** `message_id`, FACT-1). **The query is pinned here, verbatim** — §2's thesis is that a
+divergence between the query that ran and the query that is cited must be impossible by
+construction, and that discipline binds this query too:
 
-| distinct events per `park_key` | `park_key` count | lines |
-|---|---|---|
-| **2** (both `terminal_decline` **and** `terminal_decline_parked`) | **524** | 1,062 |
-| 1 (one kind only) | 2 | 2 |
+```
+filter ispresent(park_key)
+| stats count(*) as n,
+        sum(if(event = "terminal_decline", 1, 0)) as td,
+        sum(if(event = "terminal_decline_parked", 1, 0)) as tdp,
+        count_distinct(event) as kinds
+      by park_key
+| stats count(*) as park_keys, sum(n) as lines by kinds, if(td > 0, 1, 0) as has_td, if(tdp > 0, 1, 0) as has_tdp
+| sort park_keys desc
+```
 
-`status=Complete · recordsScanned=65,762 · recordsMatched=1,064 · bytesScanned=16,771,500 · estimatedRecordsSkipped=0 · logGroupsScanned=1`
+Window A · `status=Complete · recordsScanned=65,762 · recordsMatched=1,064 · bytesScanned=16,771,500 · estimatedRecordsSkipped=0 · logGroupsScanned=1`
+
+| `kinds` | `has_td` | `has_tdp` | `park_key` count | lines | reading |
+|---|---|---|---|---|---|
+| **2** | 1 | 1 | **524** | 1,062 | **the two events ARE `terminal_decline` + `terminal_decline_parked`** |
+| 1 | 1 | **0** | 2 | 2 | a decline that was never parked |
+| 1 | 0 | 1 | **0** | 0 | an **orphan park** — does not occur |
 
 **524 of 526 park events (99.6 %) emit both lines for the same mail.** A naive sum of the two events
 over-counts by **524 mails in 8 days**. The ADR's ruling — `terminal_decline_parked` excluded from
 the terminal set (D1.1) — is **confirmed correct by measurement**, and `U-3` is immune to the
 double-count by construction.
+
+**Two corrections to the first version of this section, both from the rite-disjoint critique.**
+(a) The earlier fold printed only `count_distinct(event) as kinds by park_key`, and **`kinds = 2`
+does not identify *which* two events** — it was consistent with any co-occurring pair and therefore
+did not entail the sentence it was cited for. The `has_td` / `has_tdp` split above closes that: the
+pair is named by the query, not by the prose. (b) The earlier statistics line was quoted against a
+`filter ispresent(park_key)` variant while the query text printed in §2 omitted that filter; run
+**un**filtered the same fold returns a third bucket — `kinds = 62 · park_keys = 1 · lines = 64,698`,
+the no-`park_key` group — which the table silently dropped. The query above carries its filter.
+
+**The residual's direction is the part a runbook needs, and it is benign.** The 2 asymmetric keys
+are both `td = 1 / tdp = 0` — declines that were never parked. **Zero park events occur without a
+matching decline**, so there is no orphan-park class and no lost-mail signal hiding in the residual.
 
 **Correction to how the double-count must be detected.** The ADR states the over-count is visible as
 message_ids carrying both events. It is **not**: `terminal_decline_parked` carries no `message_id`,
@@ -639,62 +697,105 @@ named risk in §5.1, not as a threshold change.)
 | B | 28 | 0 | 0 | **0** |
 | C | 29 | 0 | 0 | **0** |
 
-**K2 — PASS.** Zero breaches on the quiet side. (Mechanically: an office with `bookings ≥ 1`
-cannot satisfy FLOOR-ZERO, and `rate ≥ 7 % > r = 2.5 %` excludes FLOOR-RATE — the two floors are
-disjoint by construction and the quiet-side margin at 7 % is ×2.8.)
+**K2 — PASS, but scored as a CONSISTENCY CHECK, not an independent gate.**
+
+K2 is **tautological given K1's floors** and this report says so rather than banking the bit:
+`rate ≥ 7 %` ⇒ `bookings ≥ 1` ⇒ FLOOR-ZERO excluded **by construction**; and `7 % > r = 2.5 %` ⇒
+FLOOR-RATE excluded **by construction**. K2 therefore **cannot fail** unless the evaluator computes
+the selection rate and the floor rate by different code paths — which is a real defect class, and
+is the only thing K2 actually tests. The 84 office-windows swept above confirm the two paths agree.
+
+**What K2 should become at S1.3 (carried to the handoff):** a test that *can* fail — e.g.
+*"no office with ≥ 1 booking and rate ≥ 7 % in the PRIOR rolling window fires in the CURRENT
+window"*. A cross-window form has genuine falsifying power; the within-window form does not.
 
 ### K3 — the ZERO floor's firing set, fully enumerated and class-labelled, no unexplained member
 
-Ruled setting `(U-3, A = 5)`. **Class labels are plane-derived, not Offer-grain** — see the UV-P
-below. The discriminator used is a **30-day booking lookback** (`Q-S1` over
-2026-08-15T00:00Z .. 2026-09-14T00:00Z; `status=Complete · recordsScanned=603,344 ·
-recordsMatched=4,637 · bytesScanned=155,221,152 · estimatedRecordsSkipped=0 · logGroupsScanned=1`),
-plus the two offices the ADR names by hand.
+Ruled setting `(U-3, A = 5)`. **Class labels are the ruled E2 Offer-grain snapshot**, not a proxy.
 
-| win | guid8 | arrivals U-3 | 30 d arrivals | 30 d bookings | name? | class label | unexplained? |
+**Correction, from the rite-disjoint critique (DEF-1).** The first version of this report declared the
+E2 snapshot source *"VERIFIED-ABSENT"* and labelled these members from a 30-day booking-history proxy
+— the **E4** option ADR D5.1 explicitly rejected as *"a proxy, not the class"*. **That absence call was
+wrong, and it was wrong because the probe was narrower than the claim**: `git ls-tree -r origin/main`
+plus a working-tree grep can establish "not on `origin/main`"; only a **ref-wide** probe can establish
+"not resolvable", and it was never run. Corrected scope, own-hands receipts:
+
+```
+git cat-file -e origin/main:.ledge/reviews/READ-offer-activity-sizing-2026-09-11.md
+  -> fatal: path does not exist in 'origin/main'                                   rc=128
+git log --all --oneline --diff-filter=A -- '*offer-activity-sizing*' '*SNAPSHOT-offer-class*'
+  -> 84186c6d docs(reviews): land the 09-11 offer-grain sizing read and the E2 class snapshot   rc=0
+git merge-base --is-ancestor origin/docs/e2-offer-class-snapshot-2026-09-14 origin/main
+  -> rc=1   (not an ancestor of main)
+git show origin/docs/e2-offer-class-snapshot-2026-09-14:.ledge/reviews/SNAPSHOT-offer-class-2026-09-11.json
+  -> 29 guid8 -> class rows; branch head 5c2e1cae                                   rc=0
+```
+
+**The corrected claim: the E2 snapshot is ABSENT AT `origin/main` and PRESENT on the named branch**
+`docs/e2-offer-class-snapshot-2026-09-14` (PR #449, armed) at
+`.ledge/reviews/SNAPSHOT-offer-class-2026-09-11.json` — `snapshot_date = 2026-09-11`,
+**29 `guid8 → class` rows**, `fallback = "unknown"`, `stale_after_days = 30`, source report beside it.
+It is a **build input available to S1.3 today**, not a gap to route to the operator.
+
+The table below is re-labelled from that snapshot. Where the snapshot covers a member its E2 class is
+authoritative; where it does not the member renders **`class=unknown`** per D5.1 rule 2 (never blank,
+never inferred). The 30-day booking column is **retained only as a clearly-labelled comparison** — it
+is not the label and it is not a build input.
+
+| win | guid8 | arrivals U-3 | **E2 class (snapshot 2026-09-11)** | D8.1 section | name? | 30 d bookings *(proxy — comparison only)* | unexplained? |
 |---|---|---|---|---|---|---|---|
-| A | `87bd31d7` | 33 | 106 | 12 | y | (a) GENUINE zero-booking window — books 12x in 30 d, so a real recent stall | **no** |
-| A | `e63bbbe0` | 24 | 70 | 0 | y | (b) structurally dark — 0 bookings in 30 d | **no** |
-| A | `6b93fb76` | 24 | 58 | 4 | y | (a) GENUINE zero-booking window — books 4x in 30 d, so a real recent stall | **no** |
-| A | `8a9b1a84` | 15 | 57 | 0 | y | (b) structurally dark — 0 bookings in 30 d | **no** |
-| A | `40f86e73` | 13 | 21 | 0 | y | (b) known-DISABLED office (ADR D5.4) | **no** |
-| A | `ea98e732` | 8 | 19 | 0 | y | (b) structurally dark — 0 bookings in 30 d | **no** |
-| A | `5a19f1ad` | 7 | 34 | 0 | **n** | (b) structurally dark — 0 bookings in 30 d | **no** |
-| A | `e5a68603` | 6 | 23 | 0 | y | (b) known MALFORMED-GUID office (ADR D5.4) | **no** |
-| A | `cf6ae0f2` | 6 | 15 | 0 | y | (b) structurally dark — 0 bookings in 30 d | **no** |
-| A | `2b591e43` | 5 | 7 | 0 | y | (b) structurally dark — 0 bookings in 30 d | **no** |
-| A | `2786b72d` | 5 | 20 | 0 | y | (b) structurally dark — 0 bookings in 30 d | **no** |
-| A | `735416d5` | 5 | 42 | 0 | y | (b) structurally dark — 0 bookings in 30 d | **no** |
-| B | `e63bbbe0` | 14 | 70 | 0 | y | (b) structurally dark — 0 bookings in 30 d | **no** |
-| B | `8a9b1a84` | 12 | 57 | 0 | y | (b) structurally dark — 0 bookings in 30 d | **no** |
-| B | `87bd31d7` | 12 | 106 | 12 | y | (a) GENUINE zero-booking window — books 12x in 30 d, so a real recent stall | **no** |
-| B | `6b93fb76` | 11 | 58 | 4 | y | (a) GENUINE zero-booking window — books 4x in 30 d, so a real recent stall | **no** |
-| B | `40f86e73` | 9 | 21 | 0 | y | (b) known-DISABLED office (ADR D5.4) | **no** |
-| B | `2b591e43` | 5 | 7 | 0 | y | (b) structurally dark — 0 bookings in 30 d | **no** |
-| C | `e63bbbe0` | 9 | 70 | 0 | y | (b) structurally dark — 0 bookings in 30 d | **no** |
-| C | `40f86e73` | 8 | 21 | 0 | y | (b) known-DISABLED office (ADR D5.4) | **no** |
-| C | `8a9b1a84` | 6 | 57 | 0 | y | (b) structurally dark — 0 bookings in 30 d | **no** |
-| A/B/C | `***` | — | — | — | — | (c) attribution residual — **excluded from evaluation** (ADR D5.3) | **no** |
+| A | `87bd31d7` | 33 | **inactive** | [2] EXPECTED SILENCE | y | 12 | **no** |
+| A | `e63bbbe0` | 24 | `unknown` (not in snapshot) | [3] CLASS UNKNOWN | y | 0 | **no** |
+| A | `6b93fb76` | 24 | **inactive** | [2] EXPECTED SILENCE | y | 4 | **no** |
+| A | `8a9b1a84` | 15 | `unknown` (not in snapshot) | [3] CLASS UNKNOWN | y | 0 | **no** |
+| A | `40f86e73` | 13 | **inactive** | [2] EXPECTED SILENCE | y | 0 | **no** |
+| A | `ea98e732` | 8 | `unknown` (not in snapshot) | [3] CLASS UNKNOWN | y | 0 | **no** |
+| A | `5a19f1ad` | 7 | `unknown` (not in snapshot) | [3] CLASS UNKNOWN | **n** | 0 | **no** |
+| A | `e5a68603` | 6 | `unknown` (not in snapshot) | [3] CLASS UNKNOWN | y | 0 | **no** |
+| A | `cf6ae0f2` | 6 | **inactive** | [2] EXPECTED SILENCE | y | 0 | **no** |
+| A | `2b591e43` | 5 | `unknown` (not in snapshot) | [3] CLASS UNKNOWN | y | 0 | **no** |
+| A | `2786b72d` | 5 | `unknown` (not in snapshot) | [3] CLASS UNKNOWN | y | 0 | **no** |
+| A | `735416d5` | 5 | `unknown` (not in snapshot) | [3] CLASS UNKNOWN | y | 0 | **no** |
+| B | `e63bbbe0` | 14 | `unknown` (not in snapshot) | [3] CLASS UNKNOWN | y | 0 | **no** |
+| B | `8a9b1a84` | 12 | `unknown` (not in snapshot) | [3] CLASS UNKNOWN | y | 0 | **no** |
+| B | `87bd31d7` | 12 | **inactive** | [2] EXPECTED SILENCE | y | 12 | **no** |
+| B | `6b93fb76` | 11 | **inactive** | [2] EXPECTED SILENCE | y | 4 | **no** |
+| B | `40f86e73` | 9 | **inactive** | [2] EXPECTED SILENCE | y | 0 | **no** |
+| B | `2b591e43` | 5 | `unknown` (not in snapshot) | [3] CLASS UNKNOWN | y | 0 | **no** |
+| C | `e63bbbe0` | 9 | `unknown` (not in snapshot) | [3] CLASS UNKNOWN | y | 0 | **no** |
+| C | `40f86e73` | 8 | **inactive** | [2] EXPECTED SILENCE | y | 0 | **no** |
+| C | `8a9b1a84` | 6 | `unknown` (not in snapshot) | [3] CLASS UNKNOWN | y | 0 | **no** |
+| A/B/C | `***` | — | n/a — not an office | [4] ATTRIBUTION RESIDUAL | — | — | **no** |
+
+- window **A**: snapshot covers **4 of 12** ZERO members; **8** render `class=unknown`.
+- window **B**: snapshot covers **3 of 6** ZERO members; **3** render `class=unknown`.
+- window **C**: snapshot covers **1 of 3** ZERO members; **2** render `class=unknown`.
+
+Snapshot coverage of the two offices that matter most elsewhere in this report:
+- `ccb52f4c` — **`active`** → renders in **[1] ACTIONABLE** — the FLOOR-RATE firing office (K1)
+- `933a026c` — **`ignored`** → renders in ****no ADR section**** — the K4 quiet-side anchor
 
 **K3 — PASS. Every member is explained; there is no unexplained member in any window.**
 
-Two findings inside the PASS that the builder and the runbook need:
+Three findings inside the PASS that the builder and the runbook need:
 
-- **2 of the 12 window-A members are true positives of the intended kind** — `87bd31d7` (12 bookings
-  in 30 d) and `6b93fb76` (4 in 30 d) have a live booking relationship and *stopped* inside the
-  window. That is the ZERO floor doing its job, and it means the ZERO floor is not merely a
-  dark-office detector.
-- **10 of 12 are structurally dark** (0 bookings in 30 days). Under D5.4 they are **labelled, never
-  suppressed** — and with the E2 snapshot unavailable to this seat they will render `class=unknown`
-  unless the builder can resolve the snapshot (UV-P below).
-
-> **UV-P — the E2 offer-class snapshot source is NOT resolvable at `origin/main`.** ADR D5.1 rules a
-> build-time constant sourced from `READ-offer-activity-sizing-2026-09-11`; that artifact is present
-> in **neither** the working tree nor `origin/main` (`git ls-tree -r --name-only origin/main` grepped for
-> `offer-activity-sizing` → empty). The class labels above are therefore **plane-derived proxies**
-> (30-day booking history), which is exactly the **E4** option the ADR *rejected* as "a proxy, not
-> the class". They are sufficient to discharge K3's *"no unexplained member"* test and are **not**
-> a substitute for E2 at build time.
+- **Snapshot coverage of the ZERO firing set is partial: 4 / 12 · 3 / 6 · 1 / 3.** Eight of the twelve
+  window-A members render `class=unknown`. So the readability concern this report raised **survives at
+  8/12, not 12/12** — the finding stands, its magnitude is one third smaller than first stated, and the
+  cure is a snapshot re-run over the plane's office set (already a defer in the snapshot's own `note`),
+  **not** a re-take of the Asana read.
+- **`933a026c` carries `class = "ignored"` — a FIFTH class value with no ADR D8.1 section.** D8.1 maps
+  `active|activating` → `[1] ACTIONABLE`, `inactive|dark` → `[2] EXPECTED SILENCE`, `unknown` →
+  `[3] CLASS UNKNOWN`. The snapshot's vocabulary is `{active, activating, inactive, ignored}` and
+  **`ignored` falls through every section.** A row matching no section is a blank-page risk against
+  telos Law 4. S1.3 must either map `ignored` or reject it at load. Raised as a UV-P (§9).
+- **The two members the 30-day proxy called "genuine stalls" are `inactive` at the Offer grain.**
+  `87bd31d7` (12 bookings in 30 d) and `6b93fb76` (4 in 30 d) are **`inactive`** in the E2 snapshot —
+  the proxy and the ruled class **disagree**, which is exactly why the ADR rejected E4. Under the ruled
+  labels both render in `[2] EXPECTED SILENCE`. This is the `15caa02c` books-while-dark pattern
+  (charge §7) appearing twice more: an Offer-grain data question, not a floor question.
+- **`ccb52f4c`, the FLOOR-RATE firing office, is `class = active`** — it renders in
+  **`[1] ACTIONABLE`**, which is the section the founding case must land in for the page to do its job.
 
 ### K4 — `933a026c` is quiet in all three windows, and the receipt states why
 
@@ -743,8 +844,8 @@ exactly zero cost reduction"*). No zero in this report is an unscanned zero.
 
 | gate | result |
 |---|---|
-| **K1** | **PASS** |
-| **K2** | **PASS** |
+| **K1** | **PASS** — with the window-C margin at **×1.24, one booking wide** (§5.1); the margin is a named calibration hazard, not a re-tune |
+| **K2** | **PASS — consistency check, not an independent gate** (tautological given K1's floors; see above) |
 | **K3** | **PASS** |
 | **K4** | **PASS** |
 | **K5** | **PASS** |
@@ -783,7 +884,9 @@ control's threshold must be a floor — e.g. `records_scanned > 1,000` — not a
 ## §9 UV-P REGISTER — frozen syntax, carried to the handoff
 
 ```
-[UV-P: the E2 offer-class snapshot source READ-offer-activity-sizing-2026-09-11 exists and is readable, so the builder can bake the guid_prefix -> max_offer_activity constant ADR D5.1 rules | METHOD: git ls-tree -r --name-only origin/main grepped for offer-activity-sizing, re-run at S1.3 entry; if still absent, re-take the Asana read or route the gap to the operator | REASON: VERIFIED-ABSENT by this seat at autom8y-asana origin/main 55dd171c and in the working tree. K3's class labels in this report are plane-derived 30-day-booking proxies (the E4 option the ADR rejected as "a proxy, not the class"), which discharge K3's no-unexplained-member test but are NOT a build input]
+[UV-P: the E2 offer-class snapshot at origin/docs/e2-offer-class-snapshot-2026-09-14 .ledge/reviews/SNAPSHOT-offer-class-2026-09-11.json will be on origin/main by S1.3 entry, and its 29 rows will still be within stale_after_days=30 of snapshot_date 2026-09-11 | METHOD: git merge-base --is-ancestor against origin/main re-run at S1.3 entry, plus a date check; if PR #449 has not merged the builder reads it from the named branch ref, which resolves today | REASON: CORRECTED CLAIM - the first version of this report said VERIFIED-ABSENT on the strength of an origin/main-only probe, which cannot decide resolvability. Own-hands ref-wide probe: absent at origin/main (rc=128), present on the named branch at head 5c2e1cae (rc=0). It is a build input available today. Residual: the snapshot covers 4 of 12 window-A ZERO members, so 8 render class=unknown until the sizing resolver is re-run over the plane's office set]
+
+[UV-P: the E2 snapshot class value "ignored" maps to one of ADR D8.1's four page sections | METHOD: rule it at S1.3 - either map ignored to a section or reject the value at snapshot load | REASON: VERIFIED-UNMAPPED by this seat. D8.1 enumerates active/activating, inactive/dark, unknown and the residual; the snapshot vocabulary is {active, activating, inactive, ignored}. 933a026c carries ignored and matches no section, which is a blank-page risk against telos Law 4]
 
 [UV-P: the per-office arrival denominators measured in windows A and B transfer to the live regime | METHOD: re-run Q-S1 over a fully post-09-11 3-day window at S1.6 and compare per-office arrivals against the window-B cell | REASON: FALSIFIED-IN-PART by this seat's per-day control (FACT-2): 883 terminal outcomes in window A and 389 in window B carry no office guid field at all and are absent from every office's denominator; the class is exactly zero from 2026-09-11. Window C is the only window measured entirely in the live regime and it is the tightest cell in the grid (ccb52f4c margin x1.24)]
 
@@ -822,16 +925,45 @@ The shape assigns `qa-adversary` as this sprint's rite-disjoint critic; that cri
 |---|---|
 | Every zero paired with a firing control on the identical call shape? | Yes — §7 K5; the attribution-class census is the unfiltered control and matches `recordsMatched` to `recordsScanned` exactly in all three windows. |
 | Any number inherited rather than measured? | **No.** The two inherited pre-sitting measurements are explicitly *not* used; their divergence is recorded as a UV-P. Every figure is this seat's own query with its statistics block printed. |
+| Did the seat's own probe match the width of its own claim? | **No — and this is the defect the rite-disjoint critique caught (DEF-1).** An `origin/main`-scoped probe was used to assert *unresolvability*, which it cannot decide. The corrected claim is scoped (`absent at origin/main, present on the named branch`) and the ref-wide command is printed. Recorded here rather than quietly fixed: **the same narrow-probe error is exactly the class this report accuses the ADR of elsewhere.** |
 | Does the report merely ratify the ADR? | **No.** It **falsifies** U-3's stated de-dup rationale (FACT-1), **falsifies** the ADR's specified detection key for the parked/decline double-count (§5.2), **falsifies** K4's secondary leg (§7 K4), **discovers** a mid-window substrate regime break the ADR did not know about (FACT-2), **discharges** two ADR UV-Ps by measurement (chained `stats`; `f` < 2.15) and **discharges** a third (`***` composition). Every ruling nonetheless survives. |
 | Is any headline claim checked against its own discipline? | Yes, and one was caught: the fold from `(office_guid, office_nm)` to `office_guid` was **not** assumed safe — it was diffed field-by-field against a separate by-guid-only run (0 mismatches, 3 windows), and the reason it is safe (FACT-1) is stated along with the condition under which it stops being safe (U-4). |
-| Does any conclusion rest on a number this seat did not measure? | **One, and it is named:** the offer-class labels in K3 are plane-derived proxies because the E2 snapshot artifact is absent from `origin/main` (UV-P 1). K3's gate — *no unexplained member* — does not depend on the Offer-grain class, only on explicability. |
+| Does any conclusion rest on a number this seat did not measure? | **No longer.** The first version's K3 labels were 30-day plane proxies resting on a **false absence call** for the E2 snapshot; the rite-disjoint critique falsified it and the labels are now the ruled E2 snapshot (§7 K3). The residual is honest coverage, not inference: 8 of 12 window-A members are `class=unknown` because the snapshot does not reach them. |
 | Fences honoured | guid8 only; **no office names printed** (ADR D8.1 binds `.ledge` artifacts to guid8); no phone digits; no reads under other worktrees or `.terraform/`; bounded Insights polling; rc unpiped; `"${REF}:path"` for git reads; read-only AWS. |
 
 **The acid test — *can we catch degradation before customers do with this monitoring?*** For the
-RATE class, yes and with room: the founding office is named in every window, no smoke-lead volume
-can silence it, and the firing set is one office wide. For the ZERO class, **conditionally**: it
-catches real stalls (`87bd31d7`, `6b93fb76`) but its boundary is one arrival wide and it fires 12
-offices in 8 days, 10 of them structurally dark — so without the E2 class labels it will ask a human
-to triage ten expected silences to find two real ones. **The E2 snapshot is not a cosmetic; it is
-what makes the ZERO class readable.** That is the sharpest thing this sprint has to hand S1.2 and
-S1.3.
+RATE class, yes and with room: the founding office is named in every window, it carries
+`class = active` so it lands in `[1] ACTIONABLE`, no plausible smoke-lead volume can silence it, and
+the firing set is one office wide. For the ZERO class, **conditionally**: it catches real stalls but
+its boundary is one arrival wide and it fires 12 offices in 8 days. With the ruled E2 snapshot applied
+(§7 K3), **4 of those 12 are class-labelled and 8 render `class=unknown`** — so the reader's triage
+load is real but **one third smaller than the first version of this report claimed**, and the cure is
+a snapshot re-run over the plane's office set, which the snapshot's own `note` already carries as a
+defer. **The E2 snapshot is not a cosmetic — it is what makes the ZERO class readable — and it
+exists.** That, and the `ignored` class value that maps to no page section, are the sharpest things
+this sprint hands S1.2 and S1.3.
+
+---
+
+## §12 DEFECT-CORRECTION LOG — rite-disjoint critique applied
+
+Critique: `qa-adversary` (10x-dev, rite-disjoint to sre), verdict **PASS-WITH-DEFECTS**, posted on
+PR #448. Every headline figure in this report was re-derived by the critic own-hands and reproduced
+**exactly** — per-office rows, firing sets, ZERO membership, `S_flip` arithmetic and the four-field
+statistics block. **No K-gate failed on rite-disjoint re-derivation, and nothing was re-tuned.**
+
+| # | defect | severity | what changed in this artifact |
+|---|---|---|---|
+| **DEF-1** | E2 snapshot declared `VERIFIED-ABSENT`; the probe was `origin/main`-scoped while the claim was resolvability-scoped | **MEDIUM** | §7 K3 re-labelled from the ruled E2 snapshot (`origin/docs/e2-offer-class-snapshot-2026-09-14`, 29 rows); the 30-day proxy demoted to a labelled comparison column; the claim re-scoped to *"absent at `origin/main`, present on the named branch"*; UV-P #1 re-pointed and *"re-take the Asana read"* struck; §11 and the acid test corrected; coverage sized honestly at 4/12 · 3/6 · 1/3 |
+| **DEF-2** | `3/99 = 3.03 %` held the denominator fixed — U-1 arithmetic inside a U-3 claim | LOW-MED | §5.1 flip sentence corrected to **`3/100 = 3.00 %`**, with the reason (`booking_completed` is in the terminal set and carries no `message_id`, so it increments `arr_noid` too). Verdict and ×1.24 margin unchanged |
+| **DEF-3** | §5.2's `kinds = 2` fold did not identify *which* two events; its query text was never pinned; its statistics line came from a filtered variant of an unfiltered printed query | LOW | §5.2 rewritten: query pinned verbatim with its filter, `has_td`/`has_tdp` split added so the pair is named **by the query**, the dropped third bucket disclosed, and the residual's direction stated (**zero orphan parks**) |
+| **DEF-4** | K2 scored as an independent gate though it is tautological given K1's floors | LOW | §7 K2 re-scored as a **consistency check**, the tautology stated in the gate body and the verdict table, and a cross-window form with real falsifying power handed to S1.3 |
+| **DEF-5** | `status:` frontmatter readable by a machine as "R1 realized"; K1 line carried no margin caveat | LOW | frontmatter → `S1.1 COMPLETE — design proof; K1..K5 PASS; instrument NOT BUILT, NOT ARMED; R1 NOT realized (R-168)`; verdict line and K1 row carry the scope and the ×1.24 margin |
+
+**Two corrections made this artifact's claims narrower, not wider** (DEF-1 shrank the readability
+finding by a third; DEF-4 removed a gate's worth of asserted evidential width), and **one strengthened
+a conclusion** (DEF-3: the park residual is now known to be one-directional and benign). The
+measurement layer required no change.
+
+**Still true after correction:** RECEDE **not triggered**; K1–K5 **PASS**; nothing re-tuned; the
+instrument is **not built and not armed**; **R1 is NOT realized** (R-168).
