@@ -17,10 +17,29 @@ The `autom8y` working checkout is on `fix/wss-wildcard-scope-bypass-closure`, **
 every `autom8y` read below went through the explicit `origin/main:` ref, never the checkout
 (the standing checkout-is-not-origin/main hazard).
 
-Working-tree-only artifacts consulted (labelled as such, never as `origin/main`):
-`.sos/wip/PYTHIA-forks-read-the-name-wave1-2026-09-14.md` (§F8 J/K slate, V-28/V-29),
-`.ledge/decisions/ADR-ws-join-office-naming-path-2026-09-08.md` (Option C). Both are
-UNTRACKED at R-ASANA — `git show origin/main:.sos/wip/PYTHIA-...` → path does not exist.
+Non-canonical artifacts consulted, **corrected per C-1..C-6 (change-warden, PR #447)**:
+
+| artifact | tracked at R-ASANA? | which copy the first draft read | disposition |
+|---|---|---|---|
+| `.sos/wip/PYTHIA-forks-read-the-name-wave1-2026-09-14.md` (§F8 J/K slate, V-28/V-29) | **NO** — `git cat-file -e origin/main:<path>` **rc=128** | working tree (the only copy) | correct as labelled |
+| `.ledge/decisions/ADR-ws-join-office-naming-path-2026-09-08.md` (Option C) | **YES** — `git cat-file -e` **rc=0 at `49506a21` AND at `origin/main`**, **775 lines** at both | **the working-tree copy** — labelled working-tree-only, which was **wrong** | **CORRECTED below** |
+
+The first draft's *"Both are UNTRACKED at R-ASANA"* was **false for the ADR**. This is the
+repo's own standing scar — *governance reads are `git show origin/main:<path>`, and name the
+ref* — firing inside the section written to prevent it. Recorded, not explained away.
+
+**Re-read at `origin/main` this session. The substance survives, verbatim:**
+`origin/main:516` — *"Land the reader in `autom8y` repo-root `scripts/`, beside
+`ebi_witness_ledger.py`"*; `origin/main:613` — *"**PT-01 / D-1** … §7.3 is **input to** that
+decision, **not a pre-emption of it**."* Every ADR claim in §2.5 below is now anchored to the
+canonical copy at `origin/main`, and no conclusion moved.
+
+**One divergence found, and it is the reason the scar matters:** `diff` of the canonical copy
+against the working-tree copy returns **two lines**. At `:116` the **canonical copy carries a
+redacted guid-prefix token where the working-tree copy carries a raw client name.** The
+non-canonical copy is the *less* redacted one. Reading governance from the working tree is not
+only a provenance error here — it walks a PII fence. (The name is not reproduced in this
+artifact; the divergence is reported by line and by kind only.)
 
 **Label key:** VERIFIED = re-derived first-hand at a named ref this session ·
 INHERITED = taken from a prior artifact, not re-derived · UV-P = deferred, method stated.
@@ -91,21 +110,6 @@ handler calls **the same** `task_service.move_to_section` at `tasks.py:681`. `IN
 the three intake/entity-write routes and no section move. **VERIFIED.** This correction
 materially changes K2's cost — see §3.
 
-### 1.6 The bypass is a CLASS, not an instance — a second in-process write plane
-
-While enumerating the above, a second ungated in-process Asana write surfaced at R-ASANA:
-`src/autom8_asana/persistence/healing.py:351` `await client.tasks.add_to_project_async(...)`
-(the self-healing path; `HealingManager` is imported by `persistence/session.py:26` and
-re-exported at `persistence/__init__.py:105`, and `client.py:35` imports `SaveSession`).
-It is OPT-IN (`healing.py:11-13`) and likewise never touches `write_authz` — **VERIFIED**,
-same exhaustive grep as §1.2.
-
-This matters for the K-slate: the reconciliation executor is **an instance of a class**, not
-a singular hole. Any "fix the executor" framing leaves `healing.py` exactly where it is.
-K1's "closes the whole class" claim is therefore *substantively true* — and so is its price
-(§3.1). Recorded, not adjudicated: `healing.py` is outside WS-2's scope and belongs to the
-SID-26 / security limb that sitting X §6 already flagged.
-
 ### 1.5 The live-ness half: no caller, today
 
 - Only in-repo caller of `execute_actions` is `lambda_handlers/reconciliation_runner.py:138`
@@ -118,14 +122,17 @@ SID-26 / security limb that sitting X §6 already flagged.
 - Its host (`autom8-asana-cache-warmer`) is `schedule_enabled = false`
   (R-A8 `terraform/services/asana/main.tf:501`). VERIFIED.
 - **No call site anywhere in `src/` passes `dry_run=False` to `execute_actions`.** VERIFIED
-  by enumerating all 13 `dry_run=False` occurrences in `src/**.py` at R-ASANA: nine are
-  docstring / error-message text inside `executor.py` itself (`:5,60,73,75,77,80,86,125`
-  plus the module header), one is a docstring example (`persistence/healing.py:25`), and
-  three are `dataclass` **field values** on result objects, not arguments
+  by enumerating all 13 `dry_run=False` occurrences in `src/**.py` at R-ASANA — **8 + 1 + 4**
+  (the first draft wrote "nine … plus the module header", which double-counted `:5`; corrected
+  per C-4): **8** are docstring / error-message text inside `executor.py` itself
+  (`:5,60,73,75,77,80,86,125` — **`:5` IS the module header**), **1** is a docstring example
+  (`persistence/healing.py:25`), and **4** are `dataclass` **field values** on result objects,
+  not arguments
   (`persistence/healing.py:368,388` `HealingResult(..., dry_run=False, ...)`;
   `services/scheduling_stratum_push.py:222,234` `StratumPushResult(..., dry_run=False, ...)`).
-  **Zero are calls.** (A bare `grep -c` returns 13 and would read as a live-path count —
-  it is not one.)
+  **Zero are calls.** (A bare `grep -c` returns 13 and would read as a live-path count — it is
+  not one. That the first draft's own cardinals slipped **in the paragraph whose whole point is
+  that a bare count misleads** is recorded as the sharpest instance of the lesson.)
 
 **Consequence for the K-slate:** F8 §11 says *"F8's whole K-slate is moot if false."* It is
 not false — the slate stands. But the slate is a **design-debt** question, not an incident:
@@ -133,6 +140,32 @@ nothing is writing around the gate right now, and nothing can start to without a
 that passes a reviewer.
 
 ---
+
+### 1.6 The bypass is a CLASS, not an instance — a second in-process write plane
+
+While enumerating the above, a second ungated in-process Asana write surfaced at R-ASANA:
+`src/autom8_asana/persistence/healing.py:351` `await client.tasks.add_to_project_async(...)`
+(the self-healing path; `HealingManager` is imported by `persistence/session.py:26` and
+re-exported at `persistence/__init__.py:105`, and `client.py:35` imports `SaveSession`).
+It is OPT-IN (`healing.py:11-13`) and likewise never touches `write_authz` — **VERIFIED**,
+same exhaustive grep as §1.2. `healing.py:351` sits on the **live branch after** the dry-run
+early return — it is a genuine Asana mutation, not a read path.
+
+**And it is unreached too — the symmetry the first draft failed to apply.** Re-derived this
+session at R-ASANA: `auto_heal` defaults **`False`** at `persistence/healing.py:83`
+(`def __init__(self, auto_heal: bool = False)`) and at `persistence/session.py:141`
+(threaded to `HealingManager` at `:205`); and **every** `auto_heal=True` / `heal_override=True`
+/ `heal=True` occurrence anywhere in `src/` is inside a **docstring** (`healing.py:73,121`,
+`models.py:147`, `session.py:436`). **Zero live enablements.** So both members of the class are
+*reachable by construction and unreached in fact* — the same two-part reading §1.5 applied to
+the executor, now applied symmetrically. (Condition carried from the change-warden critique;
+re-derived here, not inherited.)
+
+This matters for the K-slate: the reconciliation executor is **an instance of a class**, not
+a singular hole. Any "fix the executor" framing leaves `healing.py` exactly where it is.
+K1's "closes the whole class" claim is therefore *substantively true* — and so is its price
+(§3.1). Recorded, not adjudicated: `healing.py` is outside WS-2's scope and belongs to the
+SID-26 / security limb that sitting X §6 already flagged.
 
 ## §2 Q2 — WHAT THE OFFER-GRAIN OBSERVER NEEDS
 
@@ -145,7 +178,7 @@ every offer that CROSSED INTO the activating bucket since the last read.**
 | # | option | receipts | disposition |
 |---|---|---|---|
 | **R-A** | **Live Asana read.** `clients/sections.py:319` `list_for_project_async` for the section roster; tasks fetched with `memberships.section.name` in `opt_fields` — the idiom already exists at `services/dataframe_service.py:110`, `services/section_timeline_service.py:99`, `automation/workflows/active_offer_enumeration.py:154` | VERIFIED (all R-ASANA) | **Fallback / verification leg.** Spends Asana rate budget on a project with a 429 history, and needs a credential the observer would otherwise not need |
-| **R-B** | **The warmed Offer frame already in S3.** `lambda_handlers/traffic_offer_divergence_tripwire.py:208-212` pins `OFFER_FRAME_KEY = f"{DATAFRAMES_V2.prefix}{OFFER_PROJECT_GID}/offer/dataframe.parquet"`; **:217** `REQUIRED_OFFER_COLUMNS = ("office_phone", "section", "is_completed")` — **the frame already carries a per-offer `section` column** | VERIFIED (R-ASANA) | **★ REC (primary).** Zero Asana calls, zero Asana credential, and an IAM precedent that is already written (§2.2) |
+| **R-B** | **The warmed Offer frame already in S3.** `lambda_handlers/traffic_offer_divergence_tripwire.py:208-212` pins `OFFER_FRAME_KEY = f"{DATAFRAMES_V2.prefix}{OFFER_PROJECT_GID}/offer/dataframe.parquet"`; **:217** `REQUIRED_OFFER_COLUMNS = ("office_phone", "section", "is_completed")`, enforced at **:490** (`missing = [c for c in REQUIRED_OFFER_COLUMNS if c not in offer_df.columns]` → refuse) — so a per-offer `section` column is **contractually required of the frame, and a sibling consumer refuses without it** | **VERIFIED as a contract** (R-ASANA). **NOT an observed object** — corrected per C-5; see the UV-P below | **★ REC (primary).** Zero Asana calls, zero Asana credential, and an IAM precedent that is already written (§2.2) |
 | **R-C** | **The service's own HTTP surface** (`/v1/offers/section-timelines`, query router) | INHERITED (prior-wave finding; not re-read tonight) | **REJECT for v1.** Adds an auth hop and a live-service dependency to an instrument whose whole value is being independent of the thing it watches |
 
 **The one hazard R-B carries, stated:** the frame is only as fresh as whatever warms it, and
@@ -153,7 +186,12 @@ every offer that CROSSED INTO the activating bucket since the last read.**
 (R-A8 `main.tf:501` offer warmer, `:723` bulk, `:899` section — VERIFIED). The frame is
 presumably refreshed by the ECS service's on-demand warm path; *how stale it actually is
 right now was not measured.*
-`[UV-P: the S3 Offer frame's current LastModified / staleness | METHOD: s3 head-object on the OFFER_FRAME_KEY under the asana role | REASON: this charge is read-only with no AWS calls]`
+`[UV-P: the live object at OFFER_FRAME_KEY — BOTH its current LastModified/staleness AND whether its schema actually carries the `section` column | METHOD: s3 head-object + a single parquet schema read under the asana role | REASON: this charge is read-only with no AWS calls]`
+
+The schema half is corrected per **C-5**: what is VERIFIED is that a sibling consumer
+*requires* the column and *refuses* without it (`:217`/`:490`) — not that tonight's object
+carries it. Same class as the staleness gap, and it takes the same cure: **"frame carries
+`section`, else refuse"** is an exit receipt (§4.4 (vi)), not an assumption.
 Mitigation, not deferral: the observer must **refuse** on a stale input rather than emit a
 false crossing — the exact posture the tripwire already ships
 (`traffic_offer_divergence_alarm.tf:270`, R-A8: *"the emitter refuses rather than reading
@@ -163,11 +201,43 @@ false crossing — the exact posture the tripwire already ships
 
 | # | option | receipts | disposition |
 |---|---|---|---|
-| **S-1** | **An S3 state object in `autom8-s3`.** Bucket declared at R-A8 `terraform/services/asana/s3.tf:13-14`, **versioned** `:21-22`, SSE `:28-29`. IAM precedent is exact and already written: R-A8 `traffic_offer_divergence_lambda.tf:232` `["s3:GetObject","s3:PutObject"]` on **one exact key**, plus **:262** `s3:ListBucket` on the bucket — with the reason spelled out at **:237-247**: without `ListBucket`, S3 answers a MISSING key with **403, not 404**, and an emitter that reads 403 as "first run" re-seeds silently | VERIFIED (R-A8) | **★ REC.** One new key, one IAM statement copied from a sibling in the same stack, versioning already on (so two successive versions ARE the receipt) |
+| **S-1** | **An S3 state object in `autom8-s3`.** Bucket declared at R-A8 `terraform/services/asana/s3.tf:13-14`, **versioned** `:21-22`, SSE `:28-29`. IAM precedent is exact and already written: R-A8 `traffic_offer_divergence_lambda.tf:232` `["s3:GetObject","s3:PutObject"]` on **one exact key**, plus **:262** `s3:ListBucket` on the bucket (`Sid = "ListBucketForTruthful404OnBaselineKey"`, :260). **Read §2.2a before copying it** | VERIFIED (R-A8) | **★ REC.** One new key, one IAM statement copied from a sibling in the same stack, versioning already on (so two successive versions ARE the receipt) |
 | **S-2** | **DynamoDB.** `api/middleware/idempotency.py:265` constructs `boto3.client("dynamodb")` | VERIFIED (R-ASANA); and VERIFIED-ABSENT in IaC: the **only** `dynamodb` string in the whole asana stack is `backend.tf:10 dynamodb_table = "autom8y-terraform-locks"` (the state-lock table) | **REJECT.** The table this stack would need is not this stack's IaC. A new table + new IAM = a resource-creating apply on a stack whose apply path is itself an open hazard (§4.3) |
 | **S-3** | **SSM Parameter Store.** | **VERIFIED-ABSENT**: exhaustive grep of `src/**.py` at R-ASANA for `"ssm"` / `ssm_client` / `get_parameter` returns **zero** hits | **REJECT.** No precedent in this service at all, plus a 4KB/parameter ceiling against a per-offer membership map |
 | **S-4** | **Local parquet**, reusing `lifecycle/observation_store.py` (`:40` `_DEFAULT_BASE_DIR = Path.home()/".autom8"/"stage_transitions"`, `:43` `StageTransitionStore`, append-only) | VERIFIED (R-ASANA) | **REJECT as the store** (Lambda-ephemeral; dies on cold start, and a store that silently empties makes every offer look like a first-time crossing). **Keep its *schema* as prior art** for the in-run record shape |
 | **S-5** | **CloudWatch metrics as the state** | — | **REJECT.** A metric is not readable as prior membership; you cannot diff last tick's roster out of a counter |
+
+### 2.2a The guard is the REFUSAL; `s3:ListBucket` is only the wedge-preventer
+
+**Correction of an inverted premise in the first draft (C-1 — the single highest-blast-radius
+condition).** The first draft called `s3:ListBucket` *"the 403-vs-404 guard"* whose absence is
+*"a silent defect."* The sibling's own IaC comment says the opposite, and it is worth quoting
+because a builder will otherwise inherit the inversion. R-A8
+`traffic_offer_divergence_lambda.tf:246-250`, verbatim:
+
+> *"The emitter now REFUSES on any non-absent code
+> (`traffic_offer_divergence_tripwire.py BASELINE_ABSENT_ERROR_CODES`) — **that is the
+> structural guard and it holds with or without this grant.** This grant is what keeps the
+> guard from becoming a **WEDGE**: it makes the genuine first-run answer a truthful 404 so the
+> baseline can seed exactly once."*
+
+VERIFIED first-hand at R-A8 this session. The causal chain, corrected:
+
+| element | what it actually is |
+|---|---|
+| **Emitter refuses on any non-absent error code** | **THE GUARD.** Holds with or without the IAM grant. Code-side, testable, and the thing that must never be skipped |
+| **`s3:ListBucket` (bucket-scoped, LIST-only)** | **The wedge-preventer.** Makes a *genuine* first run answer a truthful 404 so the baseline seeds exactly once, instead of the guard refusing forever |
+| **Absence of the grant** | **Not a silent defect** — with the guard in place it is a *loud* one: the emitter refuses and says so. It is *silent* only if the builder copies the IAM and omits the guard |
+
+The stakes are named in the same comment (`:240-244`): reading a 403 as "first run" re-seeds
+from an empty prior and publishes the **whole standing divergent population** into the
+fast-burn alarm — *"a FALSE PAGE (the SEV1 topic has a live SMS subscriber)"*. And `:252-258`
+records the deliberate refusal to add an `s3:prefix` condition: that context key is populated
+on LIST requests only, so a prefix-conditioned `ListBucket` would not apply to the `GetObject`
+whose 404-vs-403 determination is being fixed.
+
+**Binding on the WS-2 build charge:** the refusal-on-non-absent-code is an **exit receipt in
+its own right** (§4.4 (vi)), never a consequence of an IAM statement.
 
 ### 2.3 The crossing emission
 
@@ -216,9 +286,17 @@ when all kinds reach 3 and **stops there**; the flip is an operator word. Ration
 `office_name` returns **exactly one file** — `lifecycle/activation_smoke.py:804-818`, the
 probe that **consumes** it. **There is no producer of `office_name` in this repo.** VERIFIED.
 
-The ADR-ws-join recommendation (Option C, working-tree artifact §7.1/§7.3) lands the
-resolver in the **`autom8y` repo root `scripts/`**, beside `ebi_witness_ledger.py` —
-deliberately *not* in asana `src/`. So the join will not become importable here by default.
+The ADR-ws-join recommendation (Option C, now read at the **canonical** copy
+`origin/main:516`) **recommends** landing the resolver in the `autom8y` repo root `scripts/`,
+beside `ebi_witness_ledger.py`, rather than in asana `src/`.
+
+**Corrected per C-3 — the first draft over-read a recommendation as a settled fact.** The same
+ADR marks the repo choice **undecided** at `origin/main:613`: *"**PT-01 / D-1** — which repo
+the reader lands in … §7.3 is **input to** that decision, **not a pre-emption of it**."* So the
+honest statement is two-part: **(a) there is no `office_name` producer in this repo today —
+VERIFIED, and it stands on its own legs; (b) whether one ever becomes importable here is
+PT-01/D-1, OPEN.** The v1 design below is deliberately correct under either answer, because it
+supplies no office facts at all.
 
 What `default_pipe_checks()` (`activation_smoke.py:879-906`) asks for, and what a v1
 observer can supply today:
@@ -259,7 +337,7 @@ narrowing to `(subject_identified,)` would *hide* the office debt. Keep all four
 |---|---|---|---|
 | **K2** | Route the executor through the HTTP write path | The route is `POST /tasks/{gid}/section` gated by **`WriteClass.TASKS`** (`tasks.py:648`), **not `INTAKE`**. The observer's principal would have to appear in `ASANA_WRITERS_TASKS_WRITE` (`write_authz.py:136`) — which grants it **all ten** `TASKS` routes (`tasks.py:197..801`): create, update, delete, complete, assignee, dependencies. **A section-move grant becomes a blanket task-write grant.** Transport itself is constructible: `auth/service_token.py:19` `ServiceTokenAuthProvider` (client_credentials) is already used by three Lambdas (`scheduling_stratum_snapshot.py:1110`, `enrollment_intent_bridge.py:678`, `workflow_handler.py:186`) | **Good transport, wrong grant** |
 | **K3** | Mint `WriteClass.ACTIVATION` | One enum member (`write_authz.py:100-108`), one `ALLOWLIST_ENV` row (`:135-142`), one route. Separately grantable, separately revocable, separately auditable — the allowlist env var names the class in every deny log (`:360`) | **★ REC** |
-| **K1** | Move the check into the service layer | Closes the class, not the instance — but `authorize_write(write_class, claims, request, ...)` (`:312-318`) is built on a `Request` and issuer-asserted claims (`resolve_principal`, `:204-256`). A Lambda has neither. Service-layer enforcement therefore requires **inventing a non-HTTP principal carrier** — a new identity surface, which sits against the charter's never-grantable identity-mint floor | **REJECT for now; record as design debt.** The right K1 is a *later* consequence of K3, not its alternative |
+| **K1** | Move the check into the service layer | Closes the class, not the instance — but `authorize_write(write_class, claims, request, ...)` (`:312-318`) is built on a `Request` and issuer-asserted claims (`resolve_principal`, `:204-256`). A Lambda has neither. Service-layer enforcement therefore requires **inventing a non-HTTP principal carrier** — a new identity surface, which sits against the charter's never-grantable identity-mint floor. **And a second cost the first draft missed** (independent D3 finding, change-warden; re-derived here): K1 would **void the meaning of `tests/unit/api/test_write_authz_coverage.py`**, whose GUARD-1 invariant is *defined over route dependencies* — `_declares_asana_write(route)` reads `openapi_extra["x-fleet-side-effects"]` (`:68-72`) and `_has_write_authz_dep(route)` reads `route.dependencies` (`:74-77`). Dissolve the single route-level decision site and the CI guard still passes while guarding nothing | **REJECT for now; record as design debt.** The right K1 is a *later* consequence of K3, not its alternative |
 | **K4** | Leave the bypass, gate at the observer | An advisory gate in front of an ungated enforcement point is a declared instrument with no enforcement on the thing it protects | **REJECT** (F8's own reasoning, upheld) |
 
 ### 3.2 Recommendation
@@ -301,7 +379,7 @@ reaching 3 (§2.4).
 
 ---
 
-## §4 Q4 — THE SMALLEST WS-2 BUILD, AND A DATED CONSUMER COMMITMENT
+## §4 Q4 — THE SMALLEST WS-2 BUILD, AND THE CONSUMER COMMITMENT (UNPAID)
 
 ### 4.1 Scope of the smallest honest build (observer in dry-run only; **no enforcement**)
 
@@ -312,7 +390,9 @@ reaching 3 (§2.4).
    frame_etag, membership:{offer_gid: section}, tallies:{kind: n}}`.
 3. A `service-lambda-scheduled` module + three IAM statements in R-A8
    `terraform/services/asana/`, copied from `traffic_offer_divergence_lambda.tf:217-263`
-   (including the `s3:ListBucket` 403-vs-404 guard — its absence is a *silent* defect).
+   — **and the emitter-side refusal that the IAM does not substitute for (§2.2a). Copying
+   the IAM and skipping the refusal reproduces exactly the false page the sibling's comment
+   was written to prevent.**
 4. Tests, two-sided and day-one-broken:
    - a crossing that MUST be emitted (INACTIVE→`ACTIVATING`);
    - a within-bucket move that MUST NOT be (`ACTIVATING`→`IMPLEMENTING`);
@@ -348,7 +428,7 @@ reaching 3 (§2.4).
    (VERIFIED, R-A8). The asana stack's apply path for its re-pin is a sitting-X §2 deferred
    item carrying **NO WATCHER**. No manual Service Terraform apply on a pinned stack.
 
-### 4.4 Proposed exit receipt for the WS-2 build charge (five items, dated, two-sided)
+### 4.4 Proposed exit receipt for the WS-2 build charge (six items, dated, two-sided)
 
 | # | receipt | why it is not satisfiable by a green test |
 |---|---|---|
@@ -357,18 +437,44 @@ reaching 3 (§2.4).
 | **(iii)** | The `SmokeReport` for (i) showing `office_named`, `failure_path_names_office`, `pipe_proof_fresh` **failed with their named kinds** | Renders the office debt visible; a report missing these is indistinguishable from one where they passed |
 | **(iv)** | The **cold-start run** emitting **zero** crossings with its own log line | The single most likely way this instrument fakes success |
 | **(v)** | Two successive **versions** of the state object at the named S3 key (versioning already on, `s3.tf:21`) | Proves prior state actually persisted across invocations |
+| **(vi)** *(added per C-1)* | **The emitter-side refusals, proved two-sided in their own right**: (a) a non-absent S3 error code on the state read → **REFUSE**, never a re-seed from an empty prior; (b) an input frame missing a `REQUIRED` column or past its staleness bound → **REFUSE**, never a fabricated empty diff. Each with a deliberately-broken fixture that trips it and a healthy fixture that does not | **This is THE guard.** The `s3:ListBucket` grant is only a wedge-preventer (§2.2a); a build that copies the IAM and omits these refusals reproduces the sibling's named false-page path — onto a SEV1 topic with a live SMS subscriber |
 
-### 4.5 The dated consumer commitment (the price of J3)
+### 4.5 The consumer commitment — **NOT YET PAID** (corrected per C-6)
 
 F8's J3 REC is explicitly conditioned: *"the recon charge must carry a **dated consumer
-commitment**, not an open defer."* Paying it:
+commitment**, not an open defer."*
 
-> **PROPOSED (operator rules):** the WS-2 build charge is cut **at the READ epoch's wave-2
-> sitting**. If it has not been cut by **2026-10-05**, `#439` / `#441` are re-classified
-> from *built-unconsumed-by-design* to **DEBT**, and the epoch's own Law-2 refusal
-> ("every new instrument states its consumer before it is built") fires **on the epoch
-> itself** — recorded in the next sitting's record, with no watcher needed because the date
-> is the watcher.
+**The first draft did not pay it, and said so in its own words without noticing.** What it
+offered was labelled *"PROPOSED (operator rules)"* — i.e. unspoken — and it had two structural
+defects, both upheld here:
+
+1. **It committed a penalty, not a consumer.** It committed a *reclassification* (#439/#441 →
+   DEBT) and a self-firing Law-2 refusal. **No named party was committed to consume anything**,
+   and its trigger (*"the READ epoch's wave-2 sitting"*) was itself undated. R-170 asked for a
+   dated **consumer** commitment; what was offered was a dated **consequence**.
+2. **"No watcher needed because the date is the watcher" is refuted by this fleet's own
+   ratified precedent.** `telos-integrity-ref` §3, the R-17 bar-not-date carve-out:
+   *"a `verification_deadline` binds nothing in this fleet — the `TELOS_OVERDUE` signal … is
+   **EMITTED BY NOTHING** …, so a date **lapses silently**; the **BAR** … is what an attester
+   can actually check."* A date with no reader is the exact artifact that carve-out exists to
+   refuse. The first draft's clause was, by the fleet's own law, theatre.
+
+**Stated plainly: R-170's dated consumer commitment is NOT YET PAID. It is not this seat's to
+pay, and no architect artifact can pay it.** It belongs to **the operator, at the next
+decision-space sitting, on the record with an instant.** This recon proposes the payment; it
+does not pretend to have made it.
+
+**What the operator would be asked to speak** (either form discharges R-170; the second is the
+one this fleet's own precedent prefers):
+
+| form | committer | consumer named | what an attester checks |
+|---|---|---|---|
+| **dated** | the **operator**, at the next decision-space sitting, with an instant on the record | the **WS-2 observer's charge owner** — a named seat that consumes `#439`/`#441` as its inputs | that the WS-2 build charge is cut by the spoken instant, read by a named human **at that sitting** (not by a date that watches itself) |
+| **bar-not-date** *(REC — R-17 form)* | same | same | **the BAR:** *the WS-2 observer emits its first real dated crossing (§4.4 (i)) with its negative control (ii) and its refusals (vi), attested by a rite-disjoint critic.* Rung + attester + two-sided receipt — checkable without any date at all |
+
+**Until one of those is spoken, `#439`/`#441` remain built-unconsumed with an OPEN
+commitment — not a satisfied one, and not a watched one.** Recorded here so the next reader
+inherits the gap rather than the reassurance.
 
 The modules are already landed: `7ea3e055` (#439) and `088a5f48` (#441) are on R-ASANA, and
 **zero production callers** import them — grep of `src/**.py` for
@@ -383,15 +489,34 @@ VERIFIED. The clock on the debt started when they merged, not when WS-2 is charg
 | item | class |
 |---|---|
 | Any AWS call (no `s3 head-object`, no `logs`, no `lambda get-function-configuration`) | **NOT TAKEN** — read-only charge |
-| The Offer frame's actual staleness | **UV-P** (§2.1) |
+| The live Offer object's staleness **and** its actual schema (does it carry `section`?) | **UV-P** (§2.1, widened per C-5) |
+| Payment of R-170's consumer commitment | **NOT PAID** — operator's, at a sitting, on the record (§4.5, per C-6) |
 | Re-derivation of "`unit_reconciliation.py` never existed in history" | **INHERITED** (sitting X §6); the module block itself re-derived at R-A8 |
 | Whether a human reads `platform_alerts` in business hours | **NOT TAKEN** — the charge's own standing assumption, operator's to confirm |
 | `processor.py`'s third-site Engaged/Scheduled disagreement (`:67-74`, re-read this session) | **VERIFIED-PRESENT**, not adjudicated here — it is the UNIT vocabulary, and WS-2 does not consume it |
 | Reading `.terraform/` or any other worktree | **REFUSED** by fence |
 
-## §6 EVIDENCE GRADE
+## §6 EVIDENCE GRADE AND CERTIFICATION PROVENANCE
 
-**MODERATE**, self-capped. Single agent, no rite-disjoint corroboration. Every code claim
+**Certified-with-conditions** by **change-warden** (`dre`, rite-disjoint from the producing
+`10x-dev` lineage) on PR #447, 2026-09-14. Its re-read was taken at **later** refs —
+`autom8y-asana` `55dd171c` (this artifact's `49506a21` +1 docs-only commit, **zero `src/`
+drift**) and `autom8y` `f33e84b7` — so every code claim below re-verifies at a ref *later*
+than the one it was written against.
+
+**All six conditions are applied in this revision, each re-derived first-hand rather than
+inherited:** C-1 §2.2a + §4.4 (vi) (the premise inversion — the refusal is the guard, the IAM
+grant is only a wedge-preventer) · C-2 §0 (the ADR **is** tracked; canonical re-read; the
+working-copy divergence reported) · C-3 §2.5 (PT-01/D-1 is OPEN, not settled) · C-4 §1.5
+(8+1+4, not 9+1+3) · C-5 §2.1 (contract-verified, object unmeasured; UV-P widened) · C-6 §4.5
+(the commitment is **NOT YET PAID**). Two further carries: the §1.6 liveness symmetry and the
+D3 finding that K1 would void `test_write_authz_coverage.py`'s meaning.
+
+The certification is a verdict on **this recon**. It is **not** a GO for the WS-2 build and
+**not** authority for any enforcement flip; neither was in scope.
+
+**MODERATE**, self-capped — and it stays MODERATE with the certification: one in-fleet critic
+sharing a common dispatcher with this seat is corroboration, not external validation. Every code claim
 is anchored at R-ASANA or R-A8 with file:line and was read first-hand this session; the
 remainder is labelled INHERITED, UV-P, or NOT TAKEN. The three findings most worth an
 independent re-derivation by the critic are **§1.4** (the gated class is `TASKS`, not
