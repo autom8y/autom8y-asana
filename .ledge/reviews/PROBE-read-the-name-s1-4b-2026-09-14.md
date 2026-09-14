@@ -1,5 +1,32 @@
 # PROBE — S1.4b POST-DEPLOY LIVE PROBE of the S-1 per-office booking-floor evaluator
 
+> ## ERRATUM — 2026-09-14, after rite-disjoint certification
+>
+> **Verdict on this artifact: CERTIFIED-WITH-ERRATA**, by the **integrity-architect** acting as S1.4b
+> CRITIC, rite-disjoint from the chaos-engineer station that ran the probe (review on `autom8y-asana`
+> PR #456). The critic authored none of this probe, invoked nothing, and re-derived every number with
+> their own hands against us-east-1 and both repos' `origin/main`.
+>
+> Six errata are applied **in place** below, each marked `[E-n]` at its site. Nothing was retracted;
+> four of the six are over-reads right-sized, one is an attribution sharpened, one re-seats a finding's
+> authority. In summary:
+>
+> | | What was wrong | Where |
+> |---|---|---|
+> | **E-1** | §7's SNS table used 5-minute buckets, which under-resolve the attribution and actively mislead — a reader maps the `06:00Z bkt = 1` onto legs A/B/C. Replaced with the strictly stronger `--period 60` table. | §7 |
+> | **E-2** | "Two independent lines of evidence" over-claimed: `NumberOfMessagesPublished` has **no publisher dimension**. For leg D the run line's `paged:false` is **load-bearing, not corroborating**. | §7 |
+> | **E-3** | "the withheld-timestamp half is proven LIVE" over-read: leg B exercised **1 of `_control`'s 6** predicates and **0 of `_lookback_control`'s 5**. | §3 |
+> | **E-4** | §2's D2 table rendered the lookback column as a checked leg; `offices_with_bookings` is **not a predicate of `_lookback_control` at all**. | §2 |
+> | **E-5** | The at-most-one-digest-per-UTC-day UV-P was mis-framed (`PageLedger.unread` **publishes anyway** by design) and its ≥24 h discharge clause could not establish the property. | §8 |
+> | **E-6** | F-3's authority was left implicit and is not this station's to claim; re-seated on the C-4 UV-P's own discharge clause, and re-filed as a record/build discrepancy **predicted and owned at S1.4a**. | §9 |
+>
+> Also added by the critic and carried here: **DEFECT-1** (§9), **UV-P-A** and **UV-P-B** (§8), and the
+> starvation geometry (§5). Two refusal conditions were looked for and neither held: no
+> `INTEGRITY-DESIGN-REFUSED` (the catastrophic state — a success timestamp on a half-run — is
+> **unrepresentable by construction**, because `_lookback_control` reassigns the single `control`
+> variable and the refusal path early-returns before `put_metric_data`), and no `RECOVERY-FLOOR-REFUSED`.
+> The arming word remains the operator's; neither the station nor the critic closes this gate.
+
 **Station**: chaos-engineer (sre, co-seated) · **Wave**: `read-the-name` wave 1 · **Date**: 2026-09-14
 **Region**: us-east-1 · **Object**: Lambda `autom8-email-booking-intake-office-floor` (`$LATEST` IS the
 served object — no alias exists; every configuration read below is unqualified and therefore reads the
@@ -112,7 +139,7 @@ Headroom is ~40x on time and ~3.8x on memory.
 
 ### The `office_floor_evaluated` line
 
-Fetched with `aws logs filter-log-events --log-group-name /aws/lambda/autom8-email-booking-intake-office-floor --start-time 1789099200000 --filter-pattern '"office_floor_evaluated"' --limit 20 --region us-east-1` (**one page**; page 2 via `--next-token` returned `0` events and **no** further token, so the three lines below are the COMPLETE filtered set for the group, not a truncation):
+Fetched with `aws logs filter-log-events --log-group-name /aws/lambda/autom8-email-booking-intake-office-floor --start-time 1789099200000 (= `2026-09-11T04:00:00Z`) --filter-pattern '"office_floor_evaluated"' --limit 20 --region us-east-1` (**one page**; page 2 via `--next-token` returned `0` events and **no** further token, so the three lines below are the COMPLETE filtered set for the group, not a truncation):
 
 ```json
 {"window_start": "2026-09-11T06:00:22.812663+00:00", "window_end": "2026-09-14T06:00:22.812663+00:00",
@@ -130,15 +157,38 @@ Fetched with `aws logs filter-log-events --log-group-name /aws/lambda/autom8-ema
  "event": "office_floor_evaluated", "level": "info", "timestamp": "2026-09-14T06:00:27.692777Z"}
 ```
 
-### The D2 in-run control, checked on BOTH queries
+### The D2 in-run control — **`[E-4]` the two chains are SEPARATE, and only one column is a checked leg**
 
-| ADR D2 predicate | Primary (3d) | Lookback (30d) | Verdict |
-|---|---|---|---|
-| `status == Complete` | `Complete` | `Complete` | PASS |
-| `records_scanned >= 500` | `14002` | `605299` (and `>= primary`, the relative floor) | PASS |
-| `offices_with_bookings >= 5` | `31` | (inherits primary) | PASS |
-| `estimated_records_skipped == 0` | `0` | `0` | PASS |
-| `log_groups_scanned >= 1` | `1` | `1` | PASS |
+`_control` and `_lookback_control` are two distinct predicate chains over two distinct reads. The
+earlier rendering of this table put both under one header and showed `offices_with_bookings` as
+"inheriting" into the lookback column; that reads as a checked leg and it is not.
+**`offices_with_bookings` is not a predicate of `_lookback_control` at all.**
+
+`_control` — six predicates over the PRIMARY read (all PASSED on leg A):
+
+| `_control` predicate | Leg A value | Verdict |
+|---|---|---|
+| `status != "PollTimeout"` | `Complete` | PASS |
+| `status == "Complete"` | `Complete` | PASS |
+| `log_groups_scanned >= 1` | `1` | PASS |
+| `estimated_records_skipped == 0` | `0` | PASS |
+| `records_scanned >= 500` | `14002` | PASS |
+| `offices_with_bookings >= 5` | `31` | PASS |
+
+`_lookback_control` — five predicates of its OWN over the SECOND read. Two were **passively observed
+passing**; three were **never evaluated** on any leg:
+
+| `_lookback_control` predicate | Leg A | State |
+|---|---|---|
+| `day_n_query_status != "PollTimeout"` | `Complete` | passively observed passing |
+| `day_n_query_status == "Complete"` | `Complete` | passively observed passing |
+| `day_n_log_groups_scanned >= 1` | `1` | **never evaluated in the refusing direction** |
+| `day_n_estimated_records_skipped == 0` | `0` | **never evaluated in the refusing direction** |
+| `day_n_records_scanned >= max(500, primary)` | `605299 >= 14002` | passively observed passing |
+
+The honest reading: leg A shows the lookback read was healthy. It does **not** show that the lookback's
+refusal branches bite. See **UV-P-A** (§8) — `_lookback_control` is the path minted to cure the DW-10
+silent-loss defect, and it has **zero live exercise in the refusing direction**.
 
 **LEG A CONTROL STATUS: PASSED on both queries.** `day_n_records_scanned = 605,299` is within 0.03% of
 the S1.4a pre-deploy in-process measurement of 605,145 (PROBE §9) — the same read under Lambda's
@@ -233,7 +283,14 @@ proves the second ~155 MB read was correctly skipped once the primary had alread
 
 **LEG B REFUSAL: `FLOOR-REFUSED` / `kind = records_scanned_below_floor`** · `paged: false` ·
 `page_class: none` · **NO** `LastSuccessTimestamp` datapoint (§7) · no publish (§7).
-**The deadman's withheld-timestamp half is proven LIVE**, not in-process.
+**`[E-3]` The withheld-timestamp half is proven LIVE for the PRIMARY control's records-floor
+predicate — and for that predicate only.** `_control` is a six-branch chain
+(`query_timeout` · `query_status_*` · `log_groups_scanned_zero` · `records_skipped` ·
+`records_scanned_below_floor` · `offices_with_bookings_below_floor`); leg B exercised **one** of the
+six. `_lookback_control` is a **separate five-branch chain**, and **not one of its five was exercised
+in the refusing direction by any leg** — leg B failed the primary first, so `day_n_query_status=NotRun`.
+The earlier unqualified "the deadman's withheld-timestamp half is proven LIVE" over-read that. The
+wire is proven; the full predicate surface is not. See **UV-P-A** (§8).
 
 ---
 
@@ -287,6 +344,22 @@ aws events list-targets-by-rule --rule autom8-email-booking-intake-office-floor-
 The scheduled `Input` carries **no** `dry_run` and **no** `window_start`/`window_end`, so the
 scheduled fire takes exactly leg A's code path — the default 3-day rolling window, `dry_run` false.
 
+**Starvation geometry, and how long silence stays invisible** (re-derived from the alarms' own
+configuration, not from the module's declared inputs). **A stuck invoke cannot starve the next
+scheduled fire**: `timeout = 300 s` is bounded far below the `rate(1 hour)` cadence, and
+`reserved_concurrency = 1` prevents *overlap*, not *re-invocation* — the handler's docstring says
+exactly this. The real vector is the **retry path**: up to **three deliveries of one scheduled event**
+inside `MaximumEventAgeInSeconds: 3600` (`MaximumRetryAttempts: 2`), each serialised by the concurrency
+of 1, with anything unplaceable ageing out to the DLQ. **But the freshness deadman does not see that as
+silence for roughly four hours**: its geometry is `Maximum(age_since_last_invocation_seconds)`,
+`Period 3600`, **`DatapointsToAlarm: 2` of `EvaluationPeriods: 3`**, `> 7200`, `TreatMissingData:
+missing` — age first exceeds 7200 s at ~T+2 h, and two breaching hourly Maxima land at ~T+3 h and
+~T+4 h, so the alarm reds at roughly the **fourth** consecutively missed fire. **One, two and three
+missed hourly fires are invisible to it** (consistent with `office_floor.tf`'s own "~4.1 h blind
+window" comment). The **faster** floor for this class is `autom8-email-booking-intake-office-floor-dlq-not-empty`
+(P300, 1 evaluation period) — and note what it does and does not catch: it fires on a failed
+**delivery**, not on an invocation that runs and returns an error with no DLQ entry.
+
 ### The fire HAPPENED, at 06:27:15Z, and it is NOT one of mine
 
 **Request-id disjointness (the match key).** The scheduled invocation's request id is
@@ -304,7 +377,7 @@ REPORT RequestId: 7a72a5f0-a17f-409b-b5d0-70704911ba46  Duration: 7640.03 ms
 
 ### Its `office_floor_evaluated` line
 
-Fetched with `aws logs filter-log-events --log-group-name /aws/lambda/autom8-email-booking-intake-office-floor --start-time 1789365700000 --filter-pattern '"office_floor_evaluated"' --limit 20 --region us-east-1` (**one page**; 1 event returned):
+Fetched with `aws logs filter-log-events --log-group-name /aws/lambda/autom8-email-booking-intake-office-floor --start-time 1789365700000 (= `2026-09-14T06:01:40Z`) --filter-pattern '"office_floor_evaluated"' --limit 20 --region us-east-1` (**one page**; 1 event returned):
 
 ```json
 {"window_start": "2026-09-11T06:27:10.634146+00:00", "window_end": "2026-09-14T06:27:10.634146+00:00",
@@ -330,7 +403,7 @@ Fetched with `aws logs filter-log-events --log-group-name /aws/lambda/autom8-ema
 `SampleCount = 1`, `Maximum = 1789367235` — epoch 1789367235 is `2026-09-14T06:27:15Z`, matching the
 run line's `06:27:15.835119Z`. The schedule's evaluation emitted the timestamp on its own.
 
-**Cadence**: the rule was created `05:26:56Z` (the log group's `creationTime` is `1789363616713`), the
+**Cadence**: the rule was created `05:26:56Z` (the log group's `creationTime` is `1789363616713`, i.e. `2026-09-14T05:26:56.713Z`), the
 first scheduled fire landed `06:27:07Z` — one hour later, as `rate(1 hour)` specifies. The verdict set
 reproduced leg A's exactly (39 offices evaluated, 3 ZERO, 0 RATE, residual share 7.46%) 27 minutes
 later against a 23-record-larger window, which is the evaluator being stable under a moving window,
@@ -358,29 +431,59 @@ shows leg B's and leg C's absence.
 
 ### `AWS/SNS` / `NumberOfMessagesPublished` on `autom8-ebi-office-floor-scratch`
 
-| Read at | 05:50Z bkt | 06:00Z bkt | 06:25Z bkt | Total |
+**`[E-1]` At `--period 60`** (re-derived by this station on the critic's erratum, and independently by
+the critic; the earlier 5-minute rendering under-resolved the attribution and actively misled — its
+`06:00Z bkt = 1` invited a reader to map that publish onto legs A/B/C, which ran `06:00:17Z..06:01:07Z`,
+when it is in fact the `06:04:56.621Z` alarm):
+
+```
+aws cloudwatch get-metric-statistics --namespace AWS/SNS --metric-name NumberOfMessagesPublished \
+  --dimensions Name=TopicName,Value=autom8-ebi-office-floor-scratch \
+  --start-time 2026-09-14T05:45:00Z --end-time 2026-09-14T06:45:00Z --period 60 --statistics Sum
+```
+
+| Minute | Sum |
+|---|---|
+| `05:53Z` | 2 |
+| `06:04Z` | 1 |
+| `06:27Z` | 1 |
+| **total** | **4** (three datapoints) |
+
+**The `06:00Z` and `06:01Z` minutes hold NO datapoint at all.** Legs A, B and C are separated from every
+publish on this topic **by time alone** — a taken zero at 1-minute resolution, needing no alarm
+arithmetic and no attribution premise whatsoever.
+
+**Every one of the four publishes is attributed to a CloudWatch ALARM action.**
+`aws cloudwatch describe-alarm-history --history-item-type StateUpdate` for the four alarms whose
+*action ARNs* target this topic returns exactly four `INSUFFICIENT_DATA -> OK` transitions. **The
+load-bearing detail: all four alarms carry `AlarmActions=1`, `OKActions=1` and
+`InsufficientDataActions=0`** — which is precisely why their creation-time `INSUFFICIENT_DATA` entries
+published *nothing*, and therefore why four transitions account for four publishes with **zero
+residual**. Each alarm's watched subject is named, because the fourth is not what its name suggests:
+
+| Transition | Alarm | Watches (ns / metric / dimension) | Geometry | Minute |
 |---|---|---|---|---|
-| `2026-09-14T05:59:47Z` (BEFORE) | 2 | — | — | 2 |
-| `2026-09-14T06:01:34Z` | 2 | — | — | 2 |
-| `2026-09-14T06:36:49Z` (FINAL) | 2 | 1 | 1 | **4** |
+| `05:53:09.828Z` | `...-office-floor-lambda-errors` | `AWS/Lambda Errors`, `FunctionName=autom8-email-booking-intake-office-floor` | P300, 1 eval, `>= 1`, notBreaching | 05:53Z (of 2) |
+| `05:53:48.769Z` | `...-office-floor-dlq-not-empty` | `AWS/SQS ApproximateNumberOfMessagesVisible`, `QueueName=...-office-floor-dlq` | P300, 1 eval, `> 0`, notBreaching | 05:53Z (of 2) |
+| `06:04:56.621Z` | `autom8-ebi-booking-floor-lambda-freshness` | `Autom8y/Freshness age_since_last_invocation_seconds` **Maximum**, `FunctionName=autom8-email-booking-intake-office-floor` | P3600, **2 of 3 datapoints**, `> 7200`, missing | 06:04Z |
+| `06:27:14.447Z` | `autom8-ebi-booking-floor-freshness-prober-liveness` | `AWS/Lambda Invocations` **Sum**, `FunctionName=`**`autom8-ebi-booking-floor-freshness-prober`** — the **watcher of the watcher**, not a second watcher of the evaluator | P86400, 2 eval, `< 1`, breaching | 06:27Z |
 
-**The counter moved, and every one of the four is attributed to a CloudWatch ALARM action — none to
-the Lambda.** `aws cloudwatch describe-alarm-history --history-item-type StateUpdate` over
-`05:00Z..06:40Z` for the four alarms whose actions target this topic returns exactly four
-`INSUFFICIENT_DATA -> OK` transitions, each alarm holding exactly one `OKActions` entry (the scratch
-topic), and each transition falling inside the bucket that incremented:
+**`[E-2]` The correction to how this evidence composes.** `AWS/SNS NumberOfMessagesPublished` carries
+**no publisher dimension** — the metric cannot attribute by publisher, ever. The earlier claim of "two
+independent lines of evidence" was therefore an over-claim, and the two lines are not symmetric:
 
-| Transition | Alarm | Bucket it explains |
-|---|---|---|
-| `2026-09-14T05:53:09.828Z` INSUFFICIENT_DATA → OK | `autom8-email-booking-intake-office-floor-lambda-errors` | 05:50Z (of 2) |
-| `2026-09-14T05:53:48.769Z` INSUFFICIENT_DATA → OK | `autom8-email-booking-intake-office-floor-dlq-not-empty` | 05:50Z (of 2) |
-| `2026-09-14T06:04:56.621Z` INSUFFICIENT_DATA → OK | `autom8-ebi-booking-floor-lambda-freshness` | 06:00Z |
-| `2026-09-14T06:27:14.447Z` INSUFFICIENT_DATA → OK | `autom8-ebi-booking-floor-freshness-prober-liveness` | 06:25Z |
+- **Legs A, B, C** need no attribution at all. Their minutes are empty (above). Proven by time.
+- **Leg D does not stand on the metric alone.** The `06:27Z` minute holds **exactly one publish and two
+  candidate producers**: the prober-liveness OK transition at `06:27:14.447Z` and leg D's own
+  evaluation at `06:27:15.835Z` — **1.4 seconds apart, same minute**. Had the alarm action silently
+  failed and leg D published, the count would still read `1`.
 
-Two independent lines of evidence say the Lambda published nothing: (i) the arithmetic above accounts
-for 4 of 4 publishes with zero residual, and (ii) all four `office_floor_evaluated` lines carry
-`paged: false` and `page_class: "none"`, which is the handler's own record of not having called
-`_publish`. **ZERO SNS publishes are attributable to legs A–D's evaluator code path.**
+So the composed claim is: **(i)** the metric arithmetic accounts for 4 of 4 with zero residual, and
+**(ii)** the run line's taken zero — `paged: false` / `page_class: "none"`, emitted unconditionally on
+every run line alongside `records_scanned`, so a *measured* absence rather than silence — which is
+**load-bearing, not corroborating, for the `06:27Z` minute, the one bucket the metric cannot resolve**.
+**ZERO SNS publishes are attributable to legs A–D's evaluator code path**, by conjunction for leg D.
+See **DEFECT-1** (§9) for why that boolean is not a strong enough receipt at the page hour.
 
 ### `AWS/Lambda` / `Invocations` on the function
 
@@ -453,8 +556,11 @@ surfaced as an `AccessDenied` in the response, not as a silent pass.
 ### PARTIALLY discharged
 
 The once-per-day property of the digest (the same pre-deploy UV-P) is **not** discharged: `rate(1 hour)`
-firing is proven, but `page_class = digest` has never been emitted, so the "at most once inside the
-hour-11 window" half awaits a ≥ 24 h window. Leg D proves the trigger, not the day-scoped uniqueness.
+firing is proven, but `page_class = digest` has never been emitted. **`[E-5]` And it is not awaiting a
+≥ 24 h window** — that was the mis-framing corrected below. Because `PageLedger.unread` publishes
+anyway by design, the property is a best-effort suppression with a named fail-open, and only the
+two-sided UV-P-B fixture (positive · teeth · the taken zero) can establish it. Leg D proves the
+trigger, not the day-scoped uniqueness, and no amount of quiet observation would.
 
 ### STILL OPEN after S1.4b (frozen syntax)
 
@@ -462,7 +568,17 @@ hour-11 window" half awaits a ≥ 24 h window. Leg D proves the trigger, not the
 
 [UV-P: the date-keyed page-idempotence read (`_read_page_ledger`) can execute against the evaluator's OWN log group under the deployed role | METHOD: deferred-to-the-11:27Z-scheduled-evaluation | REASON: the ledger read sits behind the same page gate; all four legs logged `idempotence_status: "not-checked"`, so the second resource ARN in the `StartInsightsQueryOnTheIntakeLogGroup` statement has never been exercised. Discharge: an `office_floor_evaluated` line carrying `idempotence_status` of `read` with a non-zero `evaluations_today`]
 
-[UV-P: the evaluator publishes AT MOST one digest per UTC date | METHOD: deferred-to-a-≥24h-observation-window-plus-the-C-3-double-invoke | REASON: no `page_class=digest` line exists yet; `rate(1 hour)` delivery is proven but day-scoped uniqueness is a property of 24 invocations, only one of which can page. Discharge: `page_class=digest` count per UTC day from the evaluator's own log group over ≥ 24 h]
+**`[E-5]` The at-most-one-digest property was mis-framed here, and its previous discharge clause
+(a ≥ 24 h observation window) could not have established it.** `PageLedger` (`digest.py`) defines a
+**third state** whose docstring says it outright — *"UNREAD IS A THIRD STATE AND IT PUBLISHES ANYWAY"* —
+and `already_paged` is `status == "read" and pages_today > 0`, so an untrustworthy ledger read
+**publishes**. R-172 is therefore a **best-effort suppression with a named fail-open**, not an
+invariant, and a clean 24 h records only that the fail-open branch did not fire that day. An unfired
+guard is not a safe design. Replaced with the critic's two-sided UV-P-B:
+
+[UV-P-B: the date-keyed page-idempotence gate SUPPRESSES a second digest inside one UTC date, and the suppression is CAUSED BY the ledger read rather than by accident | METHOD: deferred-to-a-two-sided-double-invoke-at-the-page-hour-plus-an-ingestion-latency-measurement | REASON: `PageLedger.unread` publishes anyway by explicit design, so a one-sided green cannot discharge the property; and the gate's input is an Insights read of the evaluator's OWN log group, whose ingestion latency versus the EventBridge retry backoff — `MaximumRetryAttempts: 2` with `MaximumEventAgeInSeconds: 3600`, i.e. **up to three deliveries of one scheduled event** — is unmeasured, which is exactly the retry case `_read_page_ledger`'s docstring says it exists to close. Discharge, all three legs: (i) POSITIVE — two page-hour invocations with the second fired after the first run line is queryable: exactly one `NumberOfMessagesPublished` delta, two run lines, the second carrying `idempotence_status=read`, `pages_today=1`, `paged=false`; (ii) TEETH — the same fixture with the second invoke fired BEFORE the first line is queryable: two publishes and a second run line carrying `pages_today=0` or `unread`, proving the suppression is the ledger's doing and not an unrelated accident; (iii) the TAKEN ZERO — the measured delay between a run line's `timestamp` and the first instant `IDEMPOTENCE_QUERY` returns it. Without (ii) and (iii), an always-`unread` ledger and a working gate are indistinguishable in the single-fire case]
+
+[UV-P-A: the lookback control's five `day_n_*` refusal predicates BITE — a non-Complete, short, skipped or wrong-group SECOND read is refused and `LastSuccessTimestamp` is withheld | METHOD: deferred-to-a-refusing-second-query-fixture, with the reachability seam named | REASON: every S1.4b leg either passed both queries or failed the PRIMARY before the lookback ran (`day_n_query_status=NotRun`), so `_lookback_control` has ZERO live exercise despite being the code path minted to cure the DW-10 silent-loss defect — the load-bearing half of the D2 invariant. Note the seam honestly: the event contract exposes only `{dry_run, window_start, window_end}`, the lookback window is a strict SUPERSET of the primary over the same group, and its floor is relative (`max(500, primary_records_scanned)`), so a lookback-only refusal may be **structurally unreachable from any live invoke** — an irreducible reactive seam at the live altitude, **named here for the change-warden**. Discharge: EITHER a live run line carrying `control=failed` with `kind` in the `day_n_*` family and no `LastSuccessTimestamp` datapoint in that minute, OR — if live reachability is genuinely nil — a cited in-process fixture that drives each of the five predicates two-sidedly, with the unreachability itself recorded as the reason the live leg is waived]
 
 [UV-P: the freshness dead-man `autom8-ebi-booking-floor-lambda-freshness` transitions to ALARM when the evaluator stops being invoked | METHOD: deferred-to-S1.7-three-leg-proof | REASON: S1.4b observed only the RESTORE leg (`INSUFFICIENT_DATA -> OK` at `06:04:56.621Z`, §7 / §9 F-2). A dead-man is proven only by the firing leg AND the restore leg; this probe supplies one of two, incidentally, and never drove the alarm. Discharge: ADR D2.7's three-leg two-sided proof]
 
@@ -490,15 +606,41 @@ S1.7's and is not claimed here. *Operational note for S1.7: the freshness deadma
 by a manual probe invocation, so its first OK is not evidence that the schedule sustains it — leg D's
 06:27Z invocation is.*
 
-**F-3 · C-4's ruled coverage trigger is firing on live traffic, and the field to carry it still does
-not exist.** Two of the three firing offices (`e63bbbe0` at 9 arrivals, `8a9b1a84` at 7 arrivals) sit
-in CLASS UNKNOWN above the ZERO floor — exactly PROBE §11.1 C-4's refutable trigger ("the digest's
-CLASS UNKNOWN section lists an office with `arrivals >= 5`"), firing on the very first live run as that
-record predicted. The 2026-09-11 snapshot is 3 days old and covers 29 of the 39 offices evaluated.
-`offices_unclassified` / `class_unknown_share` are still absent from `run_fields`.
-**Route to: the S1.3 seat (C-4 owner). Priority: before the arming word** — a digest that pages on an
-office whose class nobody can resolve is a page whose routing key is unread, which is the exact defect
-class the lookback control was built to close.
+**F-3 · `[E-6]` C-4's coverage trigger fires on live traffic — a record/build discrepancy PREDICTED
+AND OWNED at S1.4a, of which this station supplies only the live confirmation.**
+
+*Whose requirement this is* (the authority, stated rather than left implicit — it is not this station's
+to claim). ADR D8.2's run-line field list at `asana origin/main` ends at `evaluator_version` and
+contains **neither** `offices_unclassified` **nor** `class_unknown_share`; the ADR's erratum E-2 (the
+class-is-context amendment) introduces the CLASS UNKNOWN section but adds **no run-line field**. The
+requirement's actual source is the **C-4 arming-gate condition's own UV-P discharge clause** in
+`PROBE-read-the-name-s1-2026-09-14.md §11.1`: *"Discharge: the field landing on the run line plus a
+named owner for the trigger's first firing — which §9 shows would fire on the very first live run."*
+**Owner: the S1.3 seat. Due: before the arming word.**
+
+*What S1.4b contributes — the live confirmation, and nothing more.* Two of the three firing offices
+(`e63bbbe0` at 9 arrivals, `8a9b1a84` at 7) sit in CLASS UNKNOWN above the ZERO floor, satisfying
+C-4's refutable trigger ("the digest's CLASS UNKNOWN section lists an office with `arrivals >= 5`") on
+the very first live run, exactly as S1.4a §9 predicted it would. The 2026-09-11 snapshot is 3 days old
+and covers 29 of the 39 offices evaluated. `offices_unclassified` / `class_unknown_share` remain absent
+from `run_fields`. This is a **discrepancy between the record and the build**, not a station discovery —
+a digest that pages on an office whose class nobody can resolve is a page whose routing key is unread,
+the exact defect class the lookback control was built to close.
+
+**DEFECT-1 · The evaluator's publish leaves no independent receipt. Owner: the S1.3 seat, before the
+arming word.** Filed by the critic; recorded here because two of this artifact's own open UV-Ps depend
+on it. `_publish` calls `sns.publish(...)` and returns a bare `True` — **the response's `MessageId` is
+discarded**. A whole-day grep of the evaluator's log group for `MessageId` returns **0 events**. So
+"did the digest actually reach SNS" is answerable only by (a) the handler's own boolean and (b) a topic
+counter with **no publisher dimension** — the identical non-discriminating pair that left the `06:27Z`
+minute resolvable only by conjunction (§7 `[E-2]`). This is not cosmetic: §6's two open IAM UV-Ps both
+name their discharge as "`paged=true` co-emitted with the `NumberOfMessagesPublished` delta", and at
+`11:27Z` that delta lands in a minute that can also hold an alarm transition — **exactly as `06:27Z`
+did**. The S1.4a UV-P demanded something stronger and more specific: *"the `MessageId` from the real
+`sns:Publish` response co-emitted alongside the `office_floor_evaluated` line carrying `paged=true`."*
+**The deployed code cannot produce that receipt.** The cure is one line — carry
+`sns.publish(...)["MessageId"]` onto the run line — and it converts the 11:27Z discharge from an
+arithmetic inference into a direct one. Named, not fixed.
 
 **F-4 · `ccb52f4c`, the founding office, is evaluated and correctly quiet — the parity holds
 arithmetically.** 93 arrivals, 3 bookings, 3.23% against a RATE floor of `< 2.5%` at `>= 20` arrivals.
@@ -531,4 +673,13 @@ above observed peak. No action required — recorded as the baseline the next re
   zero topic edits. Four synchronous invocations and reads.
 - **The gap this probe cannot close is named, not papered over**: the live SNS delivery leg and the
   idempotence-ledger read belong to the 11:27Z scheduled evaluation, per §8.
+- **Certified rite-disjointly, with six errata applied in place** (see the ERRATUM block at the head of
+  this artifact). The critic re-derived every number independently and found no refusal condition; the
+  errata sharpened the attribution (E-1, E-2), right-sized two over-reads about *which* control was
+  proven (E-3, E-4), corrected a UV-P whose discharge clause could not establish its property (E-5),
+  and re-seated one finding's authority (E-6).
+- **Carried to the S1.3 / builder seats before the arming word**: **DEFECT-1** (the discarded
+  `MessageId`), **UV-P-A** (`_lookback_control`'s five predicates, zero live exercise — with the
+  structural-unreachability seam named for the change-warden) and **UV-P-B** (two-sided idempotence).
+  None of them is this station's to fix, and this station fixed none of them.
 
