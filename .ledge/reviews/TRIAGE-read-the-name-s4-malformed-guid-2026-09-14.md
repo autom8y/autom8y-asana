@@ -43,6 +43,14 @@ alarm plane** — the metric filters exist and emit; no alarm subscribes to any 
 > of this triage) and re-verified at source by this seat before acceptance. §0, §2.2, §3.1, §4 and
 > §7 are re-derived below. **The corrected finding is stronger for the record and weaker for this
 > seat: the instrument is not blind, it is undiscriminating.**
+>
+> **E-6 (second pass, same critic).** §4.3's discharge of ADR D5.3's UV-P read **"0 / 147 — every
+> one is a line where `redact_uuid` received a value and refused it."** **Inverted.** `redact_uuid`
+> returns `***` from a **falsy branch at `redact.py:66-67`, before the regex**, and on the parse path
+> `ctx.chiropractor_guid` is never assigned (`pipeline/context.py:136` seeds it `None`). The true
+> split is **88 absent-at-the-line / 59 present-but-refused** — a *real* split on the exact axis the
+> UV-P names, not a degenerate one. Corrected in §4.3; derived from figures already in §0 and §4.2,
+> no new query taken.
 
 ---
 
@@ -431,11 +439,27 @@ environments recycled. (`recordsMatched=11 recordsScanned=30358`.)
 > - **ADR D5.3's parenthetical** — *"it is the same class as the R-158 tail's 54/202 `kind=absent`
 >   residual"* — is **correct**. The first revision called it "quantitatively wrong"; that charge is
 >   **withdrawn**.
-> - **The ADR's own UV-P (§11) is discharged for this window.** On its stated axis — guid absent at
->   the line vs guid present but unresolvable — the split is **0 / 147**: every one of the 147 is a
->   line where `redact_uuid` received a value and refused it, never a line where no value existed.
->   Composition: 72 `stage_exception` + 32 `booking_intake_fault` + 16 `terminal_decline_parked` +
->   16 `terminal_decline` + 11 pre-horizon.
+> - **The ADR's own UV-P (§11) is discharged for this window — and the split is REAL, not degenerate.**
+>   On its stated axis the answer is **88 absent-at-the-line / 59 present-but-refused**.
+>   `***` has **two doors**, not one: `redact_uuid` returns it from the **falsy branch**
+>   (`redact.py:66-67`, *before* the regex) when it is handed nothing, and from the **regex branch**
+>   (`:68-70`) when it is handed a value that does not begin with 8 hex chars.
+>     - **88 absent-at-the-line (S4-D).** The `parse` stage dies before `resolve_office.py:165` ever
+>       runs, so `ctx.chiropractor_guid` keeps its `__init__` value `None` (`pipeline/context.py:136`
+>       `self.chiropractor_guid: str | None = None`) and takes the falsy branch. The loss line takes
+>       it too: `intake_loss_count.py:225` calls `office_log_fields_absent()` with **no argument**
+>       (default `guid=None`, `office_identity.py:134`). **No GUID ever existed on these lines.**
+>     - **59 present-but-refused (S4-A 39 + S4-C 9 + 11 pre-horizon).** A guid WAS extracted and
+>       assigned at `resolve_office.py:165`, then failed `_UUID_HEX_RE.match` — `<8cd5..len=27>`
+>       leads with 4 hex then a dash; `<1..len=1>` is one character.
+>   **This conflation is the discrimination failure of §4.3, one layer lower.** The tripwire cannot
+>   say which class moved (§4.3); `***` cannot even say whether a client was *nameable* — "we never
+>   had a key" and "we had a key and rejected it" have opposite remediations (fix the intake path vs
+>   fix the inbound address) and arrive at the page as the same three characters. **The runbook
+>   action D5.3's UV-P asks about therefore differs across 60 % / 40 % of the bucket**, which is
+>   exactly why the UV-P was raised.
+>   Composition by event: 72 `stage_exception` + 32 `booking_intake_fault` + 16
+>   `terminal_decline_parked` + 16 `terminal_decline` + 11 pre-horizon = 147.
 
 ## §5 WATCHER STATUS — `NO WATCHER` IS MEASURED, NOT ASSERTED
 
