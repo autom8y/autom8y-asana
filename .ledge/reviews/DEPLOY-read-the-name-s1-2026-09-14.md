@@ -139,6 +139,13 @@ completes, so the SNS failure's message surfaced only after the unrelated,
 successful intake alias shift finished. **STOP point per dispatch: diagnosed,
 not re-fired.** No apply, plan, or destroy was attempted by this station.
 
+**Terraform's own plan summary for this apply** (`Terraform Plan` step,
+`05:26:47Z`, before the graph ran): `Plan: 28 to add, 5 to change, 0 to
+destroy.` — 28 new resources (the office_floor module + office_floor_freshness
+module in full) and 5 in-place modifications (the four pre-existing Lambdas'
+`image_tag` plus the intake alias). Of the 28 planned adds, the table below
+shows which actually landed before the SNS error stopped the graph.
+
 **Partial-apply state — what the failed run actually left behind** (every line
 below is an own-hands AWS read taken AFTER the run reached `completed`, not an
 assumption from the log):
@@ -292,6 +299,133 @@ the preserve-fuel registry's now-FOUR-plus-`pending`-one unanimity set exists
 to protect — and for the four LIVE members, it held.
 [bash-probe: `aws lambda get-function --function-name {fn} --query
 "{ImageUri:Code.ImageUri,LastModified:Configuration.LastModified}"` x3]
+
+## §3b ROLL-FORWARD — cure #2210 and the re-fire (mid-dispatch update)
+
+**The chain, three shas/runs, named plainly:**
+
+1. **`4e8e163f`** (PR #2205, merged 05:19:36Z) → run **`34809228564`**
+   (`workflow_dispatch`? no — ordinary push-triggered `service-deploy-dispatch`)
+   → **FAILED** 05:30:50Z on the SNS tag-character defect (§3 above).
+2. **`d408a38c`** (PR #2210, "fix(ebi): office-floor scratch topic tag — drop
+   the parentheses (S1.5 roll-forward)", merged **05:35:47Z**) — a
+   ONE-LINE diff, verified: `terraform/services/email-booking-intake/office_floor.tf`
+   line 47 changes `"...WITHHELD (R-168)"` to `"...WITHHELD per R-168"` — the
+   parentheses are gone, nothing else in the file changed. [file-read:
+   `git diff 4e8e163f d408a38c -- terraform/services/email-booking-intake/office_floor.tf`]
+   Its own push-plan run, **`34810213990`** ("Service Terraform — push"),
+   completed `success` at `05:37:55Z`. [bash-probe: `gh run view 34810213990
+   --repo autom8y/autom8y --json name,status,conclusion,headSha`]
+3. **Roll-forward re-fire**: **run `34810338540`**, workflow
+   `Deploy Dispatch — email-booking-intake → production`, triggered by
+   `workflow_dispatch` (the S-5 precedent shape, cf. run `34661356644` in this
+   fleet's history) at `headSha d408a38c`, `createdAt 05:37:58Z`. **This is
+   the run this receipt now watches to terminal state** — the remainder of
+   this document (§4 onward) reports on `34810338540`'s outcome, not
+   `34809228564`'s.
+
+**Alias `live` in its TRANSIENT between-runs state** (read at `2026-09-14T05:39:00Z`,
+BEFORE `34810338540`'s apply could move it again — time-sensitive, captured
+first per the coordinator's instruction): `FunctionVersion: 70`, image tag
+`4e8e163` (== the FAILED run's merge commit, confirming the failed run's
+partial success on the four pre-existing consumers persisted un-touched
+through the gap between the two dispatches), `LastModified
+2026-09-14T05:26:57Z` — identical to the §4(2) "after" reading taken
+immediately following the first run's completion. Nothing moved the alias in
+the ~8-minute gap between the two runs, as expected (no apply was in flight
+during that window).
+
+**Expectation for the re-fire's own after-read** (stated here before the
+result is known, so the eventual finding is checked against a pre-registered
+expectation, not fitted to it after the fact): `34810338540` builds a NEW
+image from `d408a38c` and should re-shift the intake alias to a version ABOVE
+70, carrying a tag distinct from `4e8e163` (the `d408a38c`-built tag). The
+**unanimity condition** this station checks for a clean landing is now
+FOUR-WAY, not the original two-way alias-vs-new-function comparison: the
+office-floor function's `$LATEST` tag == the intake's alias-served tag == each
+of the three siblings' (`contente-reconcile`, `forwarding-nudge`,
+`contente-retro-redrive`) `$LATEST` tag, **all four at the `d408a38c` build**.
+Anything less than all four agreeing is a fresh split-fuel finding, not a
+clean landing.
+
+## §3c SECOND FAILURE — roll-forward re-fire `34810338540` (mid-dispatch update 2)
+
+**RUN CONCLUSION: `failure`.** Job table [bash-probe: `gh run view 34810338540
+--repo autom8y/autom8y --json status,conclusion,jobs`]:
+
+| Job | Conclusion |
+|---|---|
+| Detect Changes | success |
+| **CI (email-booking-intake) / Run Tests** | **failure** |
+| Smoke Advisory (email-booking-intake) | success (advisory-only) |
+| Build (${{ matrix.service }}) | skipped |
+| Deploy Lambda (${{ matrix.service }}) | skipped |
+| Deploy Summary | success (summary job) |
+
+**Because CI failed, Build and Deploy Lambda never ran — no `terraform
+apply` of any kind was attempted in this run.** Confirmed by direct AWS
+re-read taken AFTER this run's completion (`2026-09-14T05:42:40Z`): alias
+`live` is still `FunctionVersion: 70` (unchanged from §3b's between-runs
+reading) and `autom8-email-booking-intake-office-floor` still returns
+`ResourceNotFoundException`. **The AWS stack is byte-identical to its
+post-`34809228564` state; this second failure added zero new apply debris.**
+
+**Named diagnosis, exact assertion** [bash-probe: `gh api /repos/autom8y/autom8y/actions/jobs/<JOB_ID>/logs
+--allow-escape-sequences`, `<JOB_ID>` = the `CI (email-booking-intake) / Run
+Tests` job's own databaseId, resolved via `gh run view 34810338540
+--json jobs`]:
+
+```
+FAILED tests/test_ebi_image_pin_currency.py::TestPinIsRetired::test_the_registry_row_names_all_four_functions
+AssertionError: autom8-email-booking-intake,autom8-email-booking-intake-contente-reconcile,autom8-email-booking-intake-forwarding-nudge,autom8-email-booking-intake-contente-retro-redrive,pending:autom8-email-booking-intake-office-floor
+assert {..., 'pending:autom8-email-booking-intake-office-floor'} == {...four names, no pending entry...}
+1 failed, 3558 passed, 3 skipped, 10 warnings in 50.19s
+error: recipe `ci-test` failed on line 31 with exit code 1
+```
+
+**Root cause named**: TWO independent tests read the SAME
+`scripts/apply-preserve-fuel-registry.tsv` `email-booking-intake` row and
+assert CONTRADICTORY contracts on it:
+
+1. `scripts/tests/test_apply_preserve_fuel.py::test_ebi_registry_covers_every_image_tag_consumer`
+   (repo-root `Preserve Fuel Gate Integrity` workflow, **NOT required**) —
+   updated by PR **#2207** to REQUIRE the fifth
+   `pending:autom8-email-booking-intake-office-floor` entry (coverage for the
+   not-yet-born consumer).
+2. `services/email-booking-intake/tests/test_ebi_image_pin_currency.py::TestPinIsRetired::test_the_registry_row_names_all_four_functions`
+   (service-local test, part of the **REQUIRED** `CI (email-booking-intake) /
+   Run Tests` job via `just ci-test`) — hard-codes `_EXPECTED_SOURCES` as
+   EXACTLY the four pre-existing function names
+   (`services/email-booking-intake/tests/test_ebi_image_pin_currency.py:40-45`),
+   with no allowance for a `pending:`-prefixed fifth member. NOT touched by
+   #2207, because #2207 was scoped `scripts/`-only.
+
+**Why the first (failed) deploy's own CI passed on this same registry row**:
+run `34809228564`'s `CI (email-booking-intake) / Run Tests` job ran against
+`4e8e163f` — the merge commit that PREDATES #2207's registry edit entirely
+(the registry still had four sources, no `pending:` entry, when that CI run
+executed). The roll-forward's re-fire pulls `d408a38c`, which sits on top of
+BOTH #2207 (the five-source registry) and #2210 (the tag fix) — so this is
+the FIRST run in this chain whose CI has ever evaluated the five-source
+registry row against the service-local test's stale four-source contract.
+**This is a genuinely new defect, not a recurrence of the SNS tag issue and
+not predicted by anything this station's earlier reads flagged.**
+
+**Roll-forward chain, now three sha/run pairs** (per the coordinator's
+instruction, updated as each fires):
+
+1. `4e8e163f` (PR #2205) → run `34809228564` → **FAILED** (apply: SNS
+   `CreateTopic` tag-character defect, §3).
+2. `d408a38c` (PR #2210, tag-fix cure) → run `34810338540` → **FAILED**
+   (tests: registry-pin contradiction, this section). Build/Deploy never
+   reached; no new AWS state.
+3. **Third run pending** — the coordinator reports a tests-only cure
+   (`services/**/tests/**`, which per this stack's own path-filtering fires
+   no deploy on its own PR) is being cut now; this station HOLDS per
+   instruction and will record the third run's id, sha, and outcome here
+   once dispatched. **No re-fire attempted by this station itself** at any
+   point in this chain — every re-fire dispatch has come from the operator/
+   coordinator side.
 
 ## §5 Pending set as applied
 
