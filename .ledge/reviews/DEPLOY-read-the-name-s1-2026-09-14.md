@@ -33,7 +33,8 @@ file before commit (§8).
 
 - autom8y PR #2205 "feat(ebi): office booking floor evaluator, two page
   classes, unarmed" — `state: MERGED`, `mergedAt: 2026-09-14T05:19:36Z`,
-  `mergeCommit: 4e8e163f520c5e98a554c5e8297173889ae556f4`, merged by
+  `mergeCommit: 4e8e163f` (E-7: full 40-char sha truncated to 8 in this
+  receipt; the untruncated value is in the cited `gh pr view` JSON), merged by
   `tomtenuta` (auto-merge). [bash-probe: `gh pr view 2205 --repo autom8y/autom8y --json number,state,mergedAt,mergeCommit,mergedBy,title`]
 - PR #2205 files: `scripts/ebi_pending_terraform.sh`, 8 files under
   `services/email-booking-intake/src/email_booking_intake/office_floor/**`,
@@ -71,13 +72,20 @@ file before commit (§8).
   (INHERITED from the pre-merge enumeration's qualified `get-function`/
   `get-alias` read; not re-probed independently pre-apply by this station —
   the pre-merge artifact is the receipt of record for the BEFORE state).
-- Pre-merge alarm baseline file `alarms_before.json` carries **11** alarms,
-  not the 13 named in the dispatch brief — a discrepancy named honestly here,
-  not silently corrected. All 11 have both `Actions` and `OKActions` pointed
-  at `arn:aws:sns:us-east-1:<ACCOUNT>:autom8y-platform-alerts` (the
-  pre-existing shared alert topic — none of these 11 pre-date this dispatch's
-  scratch-topic work). [file-read: `alarms_before.json`, 11 `Name` entries,
-  all `autom8-email-booking-intake-*`]
+- Pre-merge alarm baseline file `alarms_before.json` carries **11** alarms
+  at the `autom8-email-booking-intake` prefix — **RECONCILED (E-1), not a
+  discrepancy**: the dispatch brief's **13** counts a wider prefix scope that
+  also includes **2** pre-existing, unrelated alarms under
+  `autom8-ebi-contente-reconcile-*` (`autom8-ebi-contente-reconcile-lambda-freshness`
+  and `autom8-ebi-contente-reconcile-freshness-prober-liveness`, from an
+  earlier, unrelated wave). **11 + 2 = 13**; both counts are correct at their
+  own prefix scope. All 11 in the captured baseline have both `Actions` and
+  `OKActions` pointed at `arn:aws:sns:us-east-1:<ACCOUNT>:autom8y-platform-alerts`
+  (the pre-existing shared alert topic — none of these 11 pre-date this
+  dispatch's scratch-topic work). [file-read: `alarms_before.json`, 11
+  `Name` entries, all `autom8-email-booking-intake-*`; bash-probe: `aws
+  cloudwatch describe-alarms --alarm-name-prefix autom8-ebi-contente-reconcile`
+  for the reconciling 2]
 
 ## §2 Run 34809228564 — job table (VERIFIED, own-hands re-run)
 
@@ -96,6 +104,22 @@ retained at the session scratchpad `run_watch2.log`]
 | Smoke Advisory (email-booking-intake) | success (advisory-only; ran independently of the deploy job's outcome and does not exercise the office-floor function, which never came into existence — see §3) |
 | Deploy Summary | success (summary job; does not override the run's own `failure` conclusion) |
 
+**Deploy singleton — enumerated, not assumed (E-5, change-warden).** This
+run's own Terraform Apply window was `[05:25:51Z–05:30:55Z]` (Init through
+the SNS-tag failure). Enumerating every `service-deploy-dispatch` /
+`service-terraform` execution across the fleet in the surrounding window
+found exactly ONE other run whose window intersects this one: run
+`34809830009`, which planned the **`data`** stack (a wholly different
+Terraform state) with its own Apply step **skipped** (plan-only) — it never
+touched `email-booking-intake` state and could not have raced this apply.
+The third run's own apply window, `[05:51:33Z–05:56:34Z]`, is disjoint from
+the first by **20m38s** — no two `email-booking-intake` applies were ever
+concurrent across this receipt's three dispatches. **Risk-map note**: the
+deploy singleton is gating (drain-before-fire), not a concurrency lock —
+`service-deploy-dispatch.yml` and `service-terraform.yml` use different
+concurrency groups (change-warden P-2); the enumeration above, not the
+existence of a lock primitive, is what rules out a race here.
+
 ## §3 DIAGNOSIS — Deploy Lambda job failure (STOP point; no re-fire attempted)
 
 **Named error, verbatim** [bash-probe: `gh run view 34809228564 --repo autom8y/autom8y --log-failed`]:
@@ -103,7 +127,7 @@ retained at the session scratchpad `run_watch2.log`]
 ```
 Error: creating SNS Topic (autom8-ebi-office-floor-scratch): operation error SNS:
 CreateTopic, https response error StatusCode: 400, RequestID:
-4255d8f5-df2b-51ee-8234-bbd458cbdea3, InvalidParameter: Invalid parameter: Tags
+4255d8f5 (E-7: UUID truncated to first 8 chars), InvalidParameter: Invalid parameter: Tags
 Reason: The given tag(s) contain invalid characters
 
   with aws_sns_topic.office_floor_scratch,
@@ -224,6 +248,16 @@ through the gap between the two dispatches), `LastModified
 immediately following the first run's completion. Nothing moved the alias in
 the ~8-minute gap between the two runs, as expected (no apply was in flight
 during that window).
+
+**The 26-minute v70 window was behaviour-identical (E-6, change-warden).**
+Alias `live` served v70 (image tag `4e8e163`) from `05:26:57Z` to
+`05:52:27Z` — ~26 minutes. `git diff --name-only 0850228f..4e8e163f --
+services/email-booking-intake/src ':(exclude)*office_floor*'` returns **0
+files** — PR #2205 added the `office_floor` subpackage and its Terraform
+but touched NO existing service source file. v70 was tag-different but
+behaviour-identical to the prior `0850228` image on every code path other
+than the not-yet-wired `office_floor` package; the 26-minute window carried
+no runtime risk to live intake traffic.
 
 **Expectation for the re-fire's own after-read** (stated here before the
 result is known, so the eventual finding is checked against a pre-registered
@@ -375,7 +409,11 @@ thread rather than re-deriving it itself, per the turn-budget instruction).
   image tag **`21d4395`** (== `21d43951` merge commit short form),
   `LastModified 2026-09-14T05:52:27Z`, 46 env vars. [bash-probe: `aws lambda
   get-alias` + `get-function --qualifier live` + `get-function-configuration
-  --qualifier live`, own-hands]
+  --qualifier live`, own-hands] Between v70 (`4e8e163`,
+  05:26:57Z-05:52:27Z) and v71 (`21d4395`), the intake image changed for the
+  registry-pin test fix and the SNS-tag fix only — see E-6 (§3b) for the
+  own-hands diff proving v70 itself was behaviour-identical to the prior
+  `0850228` build on every path outside `office_floor`.
 - **the office-floor function**: **BORN.** `aws lambda get-function
   --function-name autom8-email-booking-intake-office-floor` (unqualified —
   it carries no alias, so `$LATEST` IS its served object, per the preserve-
@@ -415,15 +453,24 @@ subscriptions, confirmed own-hands. The scratch design holds exactly as
 built: a real, addressable topic that pages nobody. [bash-probe: `aws sns
 list-topics` + `list-subscriptions-by-topic`, own-hands]
 
+**Realized-output containment proof (E-3, change-warden).** CloudWatch
+metrics on the topic show `NumberOfMessagesPublished = 3` in the post-apply
+window, while `NumberOfNotificationsDelivered` and
+`NumberOfNotificationsFailed` carry **no datapoints at all** — consistent
+with zero subscriptions (nothing to deliver to or fail against). The 3
+publishes are attributed to the S1.4b station's own controlled invokes at
+≈`06:00Z`, **not to a scheduled fire** (the schedule's first tick is
+≈`06:27Z`, after these publishes) — a controlled-test signature, named as
+such rather than left ambiguous.
+
 ### (4) Alarm diff — two-sided, against `alarms_before.json`
 
-- **Before**: 11 alarms in the captured `alarms_before.json` baseline (see
-  §1's honest discrepancy note against the dispatch brief's stated 13 — this
-  station's own file-read of the artifact shows 11; the coordinator's
-  05:57:40Z message states 13 pre-existing alarms unchanged, which this
-  station could not independently reconcile against the 11-count baseline
-  file within budget — both counts agree on the SUBSTANCE claim that matters:
-  **zero pre-existing alarms changed**, verified below).
+- **Before**: **13** pre-existing alarms, RECONCILED per §1 (E-1): 11 at
+  the `autom8-email-booking-intake` prefix (the captured `alarms_before.json`
+  baseline) + 2 at the `autom8-ebi-contente-reconcile-*` prefix (an earlier,
+  unrelated wave) = 13. Both the dispatch brief's 13 and this station's own
+  11-count file-read were correct at their own prefix scope; neither was in
+  error.
 - **After — pre-existing set unchanged**: own-hands re-read of
   `autom8-email-booking-intake*` (excluding `office-floor`) returns the
   identical 11-name set with `Actions`/`OKActions` still exactly
@@ -437,8 +484,12 @@ list-topics` + `list-subscriptions-by-topic`, own-hands]
   - `autom8-email-booking-intake-office-floor-dlq-not-empty` — Actions =
     scratch topic ARN only.
   - `autom8-ebi-booking-floor-lambda-freshness` — Actions = scratch topic ARN
-    only, `StateValue: INSUFFICIENT_DATA` (expected — the alarm's evaluation
-    window has not yet accumulated 2-of-3 datapoints since apply).
+    only. Read at `05:57:45Z`: `StateValue: INSUFFICIENT_DATA` (expected —
+    the alarm's evaluation window had not yet accumulated 2-of-3 datapoints
+    since apply). **Update (E-2, change-warden re-read): transitioned
+    INSUFFICIENT_DATA → OK at `2026-09-14T06:04:56Z`** — the prober's gauge
+    reached 2-of-3 fresh datapoints and the alarm evaluated healthy, the
+    expected steady state once the module ages past its bootstrap window.
   - `autom8-ebi-booking-floor-freshness-prober-liveness` — Actions = scratch
     topic ARN only, `StateValue: INSUFFICIENT_DATA` (same reason; the
     prober-seed invocation fires once at apply, one datapoint is not yet
@@ -469,21 +520,29 @@ Role `autom8-email-booking-intake-office-floor-lambda-role`:
   `sqs:SendMessage`, `sqs:GetQueueAttributes` — the base module's DLQ grant,
   unchanged in shape from the failed-run reading.
 
-### (6) First evaluation
+### (6) First evaluation — UV-P DISCHARGED (E-4, change-warden re-read)
 
-**Skipped by this station per the coordinator's instruction** (the main
-thread takes this leg — the schedule rule was created `05:26:57Z` by the
-first (failed) run, so the first scheduled `rate(1 hour)` firing is expected
-≈`06:27Z`, which falls after this station's own read window closed at
-`05:57:45Z`). Own-hands confirmation before handing this off: zero log
-streams exist yet in `/aws/lambda/autom8-email-booking-intake-office-floor`
-(`describe-log-streams` → `[]`) and `LastUpdateStatus: Successful` on the
-function — consistent with "born, not yet invoked," not with any error
-state. `[UV-P: first controlled office_floor_evaluated run, control status,
-recordsScanned, and confirmation no publish occurred (hour != 11 UTC) |
-METHOD: main-thread read at or after ~06:27Z | REASON: outside this
-station's dispatched read window; explicitly handed off per coordinator
-instruction, not a station failure to observe]`
+The S1.4b station's controlled invokes (source of the 3 SNS publishes,
+§4(3)) produced two real `office_floor_evaluated` records, read from
+`/aws/lambda/autom8-email-booking-intake-office-floor`:
+
+- **`2026-09-14T06:00:27.692Z`** — `dry_run: false`, `control: passed`,
+  `records_scanned: 14002`, **39 offices evaluated, 31 with bookings**,
+  `paged: false` (correct — hour 06 != the page-gate hour 11 UTC).
+- **`2026-09-14T06:00:48.820Z`** — a negative-control run:
+  `records_scanned_below_floor`, distinct from the main evaluation above.
+
+Both are CONTROLLED invokes (S1.4b), not the scheduled `rate(1 hour)` fire —
+the schedule rule was created `05:26:57Z` by the first (failed) run, so its
+first SCHEDULED tick is still expected ≈`06:27Z`. **The original UV-P (any
+controlled evaluation) is DISCHARGED** by the two records above; the residual
+narrows to one remaining, more specific gap:
+
+`[UV-P: the first SCHEDULED (rate(1 hour), not controlled-invoke)
+office_floor_evaluated firing | METHOD: main-thread or follow-up read at or
+after ~06:27Z | REASON: unobserved at this receipt's writing (~06:1xZ); the
+two 06:00Z records above are controlled invokes, not the schedule's own
+first tick]`
 
 ### (7) The other four Lambdas — confirmed at the `21d43951` build
 
@@ -536,9 +595,12 @@ merge event, not on CI-green, not on any intermediate label:
 - Its custom IAM policy (all four grants) **is attached**.
 - Its scratch SNS topic **exists with zero subscriptions** — unarmed exactly
   as R-168 specifies, not "does not exist" as the failed-run state left it.
-- Its freshness deadman (prober + two alarms) **exists**, correctly
-  `INSUFFICIENT_DATA` (too young to have 2-of-3 datapoints yet), pointed at
-  the scratch topic only.
+- Its freshness deadman (prober + two alarms) **exists**, pointed at the
+  scratch topic only; read at `05:57:45Z` both alarms were
+  `INSUFFICIENT_DATA` (too young to have 2-of-3 datapoints yet), and
+  `autom8-ebi-booking-floor-lambda-freshness` is confirmed to have since
+  transitioned to `OK` at `2026-09-14T06:04:56Z` (E-2, change-warden
+  re-read) — the deadman is not just present, it has proven it evaluates.
 - Unanimity **holds** across all five `var.image_tag` consumers at the
   `21d43951` build.
 - No pre-existing alarm's actions changed; no success-gap alarm was created
@@ -561,20 +623,33 @@ so neither is lost to a "third time's the charm" narrative:**
    gate caught what the non-required, repo-root gate's own cure had missed.
 
 **Residual for the operator/architect, not executed by this read-only
-station**: the first controlled `office_floor_evaluated` run (§4(6)) is
-handed to the main thread for a ≈06:27Z read; this receipt's own window
-closed before that time.
+station**: the first controlled `office_floor_evaluated` run is DISCHARGED
+(§4(6), E-4 — two real records at `06:00:27.692Z` and `06:00:48.820Z`). The
+narrowed residual is the first SCHEDULED (`rate(1 hour)`) firing, expected
+≈`06:27Z` and unobserved at this receipt's writing; handed to the main
+thread for that read.
 
 ## §8 Redaction check (merge-surface sweep class `digits12`)
 
 Every AWS account id in this document is replaced with the literal
 `<ACCOUNT>`. The GitHub run id (11 digits, `34809228564`) is left intact per
 the coordinator's ruling (autom8y #2203 precedent) — it is not account-shaped.
-Per-job GitHub ids (which run 12 digits, e.g. the Deploy Lambda job's own
-numeric id) are deliberately NOT cited anywhere in this document by their raw
-digit string, precisely because they would trip the same `digits12` class the
-coordinator named; job identity above is conveyed by job NAME only. Verified
-below (§9).
+Per-job GitHub ids (which run 12 digits) are deliberately NOT cited anywhere
+in this document by their raw digit string, precisely because they would
+trip the same `digits12` class the coordinator named; job identity above is
+conveyed by job NAME only.
+
+**Classes checked (E-7, change-warden — named explicitly, not left implicit)**:
+(1) **12+ digit numeric tokens** (`digits12`) — the AWS account id class,
+swept via `grep -n -E '[0-9]{12,}'`, must print nothing; (2) **phone-number
+shapes** — no phone digits appear anywhere in this receipt (none were ever
+sourced; the office-floor evaluator's own data is guid8-keyed, never
+phone-keyed); (3) **full GUIDs/UUIDs** (36-char dashed form) — the one
+instance found, the SNS `RequestID` in §3's error text, is truncated to its
+first 8 characters per E-7 rather than quoted in full, since a full UUID is
+its own distinguishing/re-identifying token class independent of digit
+count. The merge-commit sha in §1 is likewise truncated 40→8 chars (E-7).
+Verified below (§9).
 
 ## §9 Reap
 
