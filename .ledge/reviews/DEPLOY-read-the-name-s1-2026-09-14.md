@@ -312,6 +312,31 @@ instruction, updated as each fires):
    point in this chain — every re-fire dispatch has come from the operator/
    coordinator side.
 
+## §3d THIRD RUN — cure #2211 and its dispatch (mid-dispatch update 3)
+
+**Cure PR #2211** ("test(ebi): registry row may carry the office-floor
+birth-state entry (S1.5 roll-forward 2)"), `services/email-booking-intake/tests/**`-only
+(one file: `test_ebi_image_pin_currency.py`), reconciles the two tests named
+in §3c by splitting the expectation into a `live` set (still the original
+four, `_EXPECTED_SOURCES`) and a `pending` set (`_EXPECTED_PENDING = {
+"autom8-email-booking-intake-office-floor" }`), asserting both independently
+rather than one flat equality against four names. **MERGED `2026-09-14T05:45:36Z`**
+as **`21d43951`**. [bash-probe: `gh pr view 2211 --repo autom8y/autom8y --json
+state,mergedAt,mergeCommit`; diff read via `gh pr diff 2211`]
+
+**Third dispatch found and now watched**: run **`34810812077`**, discovered
+by matching the merge sha against the newest `Deploy`-named workflow runs.
+This receipt's own watch loop is live on it as this section is written; the
+outcome is reported in §4 below (updated in place once the run reaches a
+terminal state) rather than duplicated here.
+
+**Roll-forward chain, complete as of this writing:**
+
+1. `4e8e163f` (PR #2205) → run `34809228564` → **FAILED** (apply: SNS tag).
+2. `d408a38c` (PR #2210) → run `34810338540` → **FAILED** (tests: registry
+   pin, four-vs-five names).
+3. `21d43951` (PR #2211) → run `34810812077` → **outcome in §4**.
+
 ## §4 AFTER-READ, item by item (dispatch items 2–7)
 
 Item numbering below matches the dispatch brief; each is answered against the
