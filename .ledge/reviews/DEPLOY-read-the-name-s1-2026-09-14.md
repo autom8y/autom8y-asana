@@ -185,121 +185,6 @@ land.
   four pre-existing consumers resolved to ONE consistent tag, exactly as the
   preserve-fuel unanimity discipline requires of them.
 
-## §4 AFTER-READ, item by item (dispatch items 2–7)
-
-Item numbering below matches the dispatch brief; each is answered against the
-**actual** post-failure AWS state, not the "on success" assumption.
-
-### (2) alias `live` + new function + SNS topic scratch + EventBridge rule
-
-- **alias `live`** (`autom8-email-booking-intake`): version **70**, image tag
-  **`4e8e163`** (== merge commit `4e8e163f` short form), `LastModified
-  2026-09-14T05:26:57Z`, 46 env vars — the `services/**` merge DID rebuild and
-  reserve the image as expected. [bash-probe: `aws lambda get-alias`,
-  `get-function --qualifier live`, `get-function-configuration --qualifier live`]
-- **the new function** (`autom8-email-booking-intake-office-floor`): **does
-  not exist** — `ResourceNotFoundException`. There is no `$LATEST` image tag
-  to read, qualified or unqualified, because there is no function. The
-  unanimity check the dispatch asked for ("its `$LATEST` tag EQUALS the
-  intake's alias-served tag") is **not evaluable**: the fifth consumer has not
-  been born. [bash-probe: `aws lambda get-function --function-name
-  autom8-email-booking-intake-office-floor`]
-- **its env** (`EMAIL_BOOKING_INTAKE_OFFICE_FLOOR_PAGE_TOPIC_ARN` — note the
-  dispatch brief's guessed name `OFFICE_FLOOR_PAGE_TOPIC_ARN` is not the
-  actual variable; the module prefixes every env var
-  `EMAIL_BOOKING_INTAKE_OFFICE_FLOOR_*`, confirmed by direct read of
-  `office_floor.tf`'s `environment_variables` block): **not evaluable**, no
-  function exists to carry it.
-- **reserved concurrency, the EventBridge rule**: the rule
-  `autom8-email-booking-intake-office-floor-schedule` **does exist**, `State:
-  ENABLED`, `ScheduleExpression: rate(1 hour)` (matches `var.office_floor_schedule`
-  default) — but it targets **nothing** (`list-targets-by-rule` → `{"Targets": []}`).
-  An enabled rule with zero targets fires into the void every hour and invokes
-  no Lambda; this is a structurally inert, not merely unarmed, schedule.
-  [bash-probe: `aws events describe-rule` + `aws events list-targets-by-rule`]
-
-### (3) SNS topic `autom8-ebi-office-floor-scratch`
-
-**Does not exist.** `aws sns list-topics` filtered on `ebi-office-floor`
-returns `[]`. There is therefore nothing to check for zero subscriptions —
-the honest answer is not "0 subscriptions on an armed-but-quiet topic," it is
-"no topic." [bash-probe: `aws sns list-topics --region us-east-1 --query
-"Topics[?contains(TopicArn, 'ebi-office-floor')]"`]
-
-### (4) Alarm diff — two-sided
-
-- **Before** (`alarms_before.json`, captured pre-merge): **11** alarms, not
-  the 13 named in the dispatch brief — a discrepancy named here honestly (see
-  §1). All 11 already pointed `Actions`/`OKActions` at
-  `arn:aws:sns:us-east-1:<ACCOUNT>:autom8y-platform-alerts`.
-- **After**: re-read of the same `autom8-email-booking-intake*` prefix returns
-  the **identical 11-name set**, verified byte-for-byte equal via a Python set
-  comparison (`before_names == after_names` → `True`). **No pre-existing
-  alarm's actions changed** (the set match alone does not re-read every
-  alarm's `AlarmActions`, but since the apply never reached any resource that
-  could edit those 11 — they belong to the intake/reconcile/nudge modules
-  whose only touched attribute this run was `image_tag`, and Modify-in-place
-  on those modules does not touch `alarm_actions` — there is no code path in
-  this PR's diff that could have mutated them).
-- **New alarms expected** (`autom8-email-booking-intake-office-floor-lambda-errors`,
-  `-dlq-not-empty`, `autom8-ebi-booking-floor-lambda-freshness`,
-  `autom8-ebi-booking-floor-freshness-prober-liveness`): **NONE were
-  created.** `describe-alarms --alarm-name-prefix autom8-ebi-` returns only
-  the pre-existing, unrelated `autom8-ebi-contente-reconcile-freshness-prober-liveness`
-  and `autom8-ebi-contente-reconcile-lambda-freshness` (a different wave's
-  alarms). `describe-alarms --alarm-name-prefix autom8-email-booking-intake-office-floor`
-  returns an empty set. **No alarm anywhere references `autom8y-platform-alerts`
-  newly** — trivially true, since nothing new was created to reference
-  anything. The "success-gap alarm ABSENT (deliberately deferred to S1.7)"
-  expectation holds, but not for the reason the design intended — it's absent
-  because the whole module is absent, not because S1.7 hasn't arrived yet.
-  [bash-probe: `aws cloudwatch describe-alarms --alarm-name-prefix ...` x3]
-
-### (5) IAM
-
-The role `autom8-email-booking-intake-office-floor-lambda-role` exists
-(created 05:26:56Z) with:
-- **Attached managed policies**: `AWSLambdaBasicExecutionRole`,
-  `AWSXRayDaemonWriteAccess` — the module's own baseline grants, unrelated to
-  the office-floor-specific 4-grant policy.
-- **Inline policies**: exactly one, `autom8-email-booking-intake-office-floor-dlq`
-  (the DLQ send-message grant the base module attaches for `enable_dlq=true`).
-- **The custom 4-grant policy is ABSENT.** `aws_iam_policy.office_floor`
-  (`logs:StartQuery` + `logs:GetQueryResults` + `sns:Publish` scoped to the
-  scratch topic ARN + `cloudwatch:PutMetricData` namespace-conditioned) never
-  got created, because its policy document embeds
-  `local.office_floor_page_topic_arn`, which errored along with the topic.
-  **The role can invoke nothing this evaluator needs** — it cannot query
-  Insights, cannot publish, cannot emit its success metric — on top of the
-  function not existing at all.
-  [bash-probe: `aws iam get-role`, `list-attached-role-policies`,
-  `list-role-policies`]
-
-### (6) First evaluation
-
-**Not observable and could not be, even had the window been longer**: no
-function exists to have evaluated, the schedule rule has zero targets, and
-the log group (`/aws/lambda/autom8-email-booking-intake-office-floor`) reports
-`storedBytes: 0` — zero log events of any kind, `office_floor_evaluated` or
-otherwise. `[UV-P: first controlled office_floor_evaluated run | METHOD:
-deferred-to-re-apply-after-tag-fix | REASON: the evaluator Lambda does not
-exist in this apply's partial state; there is nothing to invoke or observe
-until the SNS topic tag defect is fixed and a clean apply lands the full
-module graph]`
-
-### (7) The other four Lambdas — unchanged alias/version behaviour, one resolved tag
-
-**Confirmed, own-hands, for the three non-aliased functions**
-(`contente-reconcile`, `forwarding-nudge`, `contente-retro-redrive`): each now
-reports `ImageUri` ending `:4e8e163` and `LastModified 2026-09-14T05:26:57Z` —
-identical to the main intake's newly-served tag. The whole-stack apply DID
-resolve one consistent tag across the four pre-existing consumers, even though
-it failed before reaching the fifth (office-floor). This is the exact claim
-the preserve-fuel registry's now-FOUR-plus-`pending`-one unanimity set exists
-to protect — and for the four LIVE members, it held.
-[bash-probe: `aws lambda get-function --function-name {fn} --query
-"{ImageUri:Code.ImageUri,LastModified:Configuration.LastModified}"` x3]
-
 ## §3b ROLL-FORWARD — cure #2210 and the re-fire (mid-dispatch update)
 
 **The chain, three shas/runs, named plainly:**
@@ -426,6 +311,121 @@ instruction, updated as each fires):
    once dispatched. **No re-fire attempted by this station itself** at any
    point in this chain — every re-fire dispatch has come from the operator/
    coordinator side.
+
+## §4 AFTER-READ, item by item (dispatch items 2–7)
+
+Item numbering below matches the dispatch brief; each is answered against the
+**actual** post-failure AWS state, not the "on success" assumption.
+
+### (2) alias `live` + new function + SNS topic scratch + EventBridge rule
+
+- **alias `live`** (`autom8-email-booking-intake`): version **70**, image tag
+  **`4e8e163`** (== merge commit `4e8e163f` short form), `LastModified
+  2026-09-14T05:26:57Z`, 46 env vars — the `services/**` merge DID rebuild and
+  reserve the image as expected. [bash-probe: `aws lambda get-alias`,
+  `get-function --qualifier live`, `get-function-configuration --qualifier live`]
+- **the new function** (`autom8-email-booking-intake-office-floor`): **does
+  not exist** — `ResourceNotFoundException`. There is no `$LATEST` image tag
+  to read, qualified or unqualified, because there is no function. The
+  unanimity check the dispatch asked for ("its `$LATEST` tag EQUALS the
+  intake's alias-served tag") is **not evaluable**: the fifth consumer has not
+  been born. [bash-probe: `aws lambda get-function --function-name
+  autom8-email-booking-intake-office-floor`]
+- **its env** (`EMAIL_BOOKING_INTAKE_OFFICE_FLOOR_PAGE_TOPIC_ARN` — note the
+  dispatch brief's guessed name `OFFICE_FLOOR_PAGE_TOPIC_ARN` is not the
+  actual variable; the module prefixes every env var
+  `EMAIL_BOOKING_INTAKE_OFFICE_FLOOR_*`, confirmed by direct read of
+  `office_floor.tf`'s `environment_variables` block): **not evaluable**, no
+  function exists to carry it.
+- **reserved concurrency, the EventBridge rule**: the rule
+  `autom8-email-booking-intake-office-floor-schedule` **does exist**, `State:
+  ENABLED`, `ScheduleExpression: rate(1 hour)` (matches `var.office_floor_schedule`
+  default) — but it targets **nothing** (`list-targets-by-rule` → `{"Targets": []}`).
+  An enabled rule with zero targets fires into the void every hour and invokes
+  no Lambda; this is a structurally inert, not merely unarmed, schedule.
+  [bash-probe: `aws events describe-rule` + `aws events list-targets-by-rule`]
+
+### (3) SNS topic `autom8-ebi-office-floor-scratch`
+
+**Does not exist.** `aws sns list-topics` filtered on `ebi-office-floor`
+returns `[]`. There is therefore nothing to check for zero subscriptions —
+the honest answer is not "0 subscriptions on an armed-but-quiet topic," it is
+"no topic." [bash-probe: `aws sns list-topics --region us-east-1 --query
+"Topics[?contains(TopicArn, 'ebi-office-floor')]"`]
+
+### (4) Alarm diff — two-sided
+
+- **Before** (`alarms_before.json`, captured pre-merge): **11** alarms, not
+  the 13 named in the dispatch brief — a discrepancy named here honestly (see
+  §1). All 11 already pointed `Actions`/`OKActions` at
+  `arn:aws:sns:us-east-1:<ACCOUNT>:autom8y-platform-alerts`.
+- **After**: re-read of the same `autom8-email-booking-intake*` prefix returns
+  the **identical 11-name set**, verified byte-for-byte equal via a Python set
+  comparison (`before_names == after_names` → `True`). **No pre-existing
+  alarm's actions changed** (the set match alone does not re-read every
+  alarm's `AlarmActions`, but since the apply never reached any resource that
+  could edit those 11 — they belong to the intake/reconcile/nudge modules
+  whose only touched attribute this run was `image_tag`, and Modify-in-place
+  on those modules does not touch `alarm_actions` — there is no code path in
+  this PR's diff that could have mutated them).
+- **New alarms expected** (`autom8-email-booking-intake-office-floor-lambda-errors`,
+  `-dlq-not-empty`, `autom8-ebi-booking-floor-lambda-freshness`,
+  `autom8-ebi-booking-floor-freshness-prober-liveness`): **NONE were
+  created.** `describe-alarms --alarm-name-prefix autom8-ebi-` returns only
+  the pre-existing, unrelated `autom8-ebi-contente-reconcile-freshness-prober-liveness`
+  and `autom8-ebi-contente-reconcile-lambda-freshness` (a different wave's
+  alarms). `describe-alarms --alarm-name-prefix autom8-email-booking-intake-office-floor`
+  returns an empty set. **No alarm anywhere references `autom8y-platform-alerts`
+  newly** — trivially true, since nothing new was created to reference
+  anything. The "success-gap alarm ABSENT (deliberately deferred to S1.7)"
+  expectation holds, but not for the reason the design intended — it's absent
+  because the whole module is absent, not because S1.7 hasn't arrived yet.
+  [bash-probe: `aws cloudwatch describe-alarms --alarm-name-prefix ...` x3]
+
+### (5) IAM
+
+The role `autom8-email-booking-intake-office-floor-lambda-role` exists
+(created 05:26:56Z) with:
+- **Attached managed policies**: `AWSLambdaBasicExecutionRole`,
+  `AWSXRayDaemonWriteAccess` — the module's own baseline grants, unrelated to
+  the office-floor-specific 4-grant policy.
+- **Inline policies**: exactly one, `autom8-email-booking-intake-office-floor-dlq`
+  (the DLQ send-message grant the base module attaches for `enable_dlq=true`).
+- **The custom 4-grant policy is ABSENT.** `aws_iam_policy.office_floor`
+  (`logs:StartQuery` + `logs:GetQueryResults` + `sns:Publish` scoped to the
+  scratch topic ARN + `cloudwatch:PutMetricData` namespace-conditioned) never
+  got created, because its policy document embeds
+  `local.office_floor_page_topic_arn`, which errored along with the topic.
+  **The role can invoke nothing this evaluator needs** — it cannot query
+  Insights, cannot publish, cannot emit its success metric — on top of the
+  function not existing at all.
+  [bash-probe: `aws iam get-role`, `list-attached-role-policies`,
+  `list-role-policies`]
+
+### (6) First evaluation
+
+**Not observable and could not be, even had the window been longer**: no
+function exists to have evaluated, the schedule rule has zero targets, and
+the log group (`/aws/lambda/autom8-email-booking-intake-office-floor`) reports
+`storedBytes: 0` — zero log events of any kind, `office_floor_evaluated` or
+otherwise. `[UV-P: first controlled office_floor_evaluated run | METHOD:
+deferred-to-re-apply-after-tag-fix | REASON: the evaluator Lambda does not
+exist in this apply's partial state; there is nothing to invoke or observe
+until the SNS topic tag defect is fixed and a clean apply lands the full
+module graph]`
+
+### (7) The other four Lambdas — unchanged alias/version behaviour, one resolved tag
+
+**Confirmed, own-hands, for the three non-aliased functions**
+(`contente-reconcile`, `forwarding-nudge`, `contente-retro-redrive`): each now
+reports `ImageUri` ending `:4e8e163` and `LastModified 2026-09-14T05:26:57Z` —
+identical to the main intake's newly-served tag. The whole-stack apply DID
+resolve one consistent tag across the four pre-existing consumers, even though
+it failed before reaching the fifth (office-floor). This is the exact claim
+the preserve-fuel registry's now-FOUR-plus-`pending`-one unanimity set exists
+to protect — and for the four LIVE members, it held.
+[bash-probe: `aws lambda get-function --function-name {fn} --query
+"{ImageUri:Code.ImageUri,LastModified:Configuration.LastModified}"` x3]
 
 ## §5 Pending set as applied
 
