@@ -8,14 +8,19 @@ self_cap: MODERATE
 
 # S1.5 Post-Merge Watch and After-Read — `read-the-name` wave 1
 
-**One-line verdict.** S1.5 executed by **auto-merge** at **2026-09-14T05:19:36Z**
-(autom8y PR #2205, merge commit `4e8e163f`) **with a NON-required hermetic guard
-RED** (`Guard teeth tests (hermetic)` / workflow `Preserve Fuel Gate Integrity`,
-FAILURE at 05:17:57Z) — carrier: **a guard that is not a required check does not
-gate auto-merge**. The registry cure landed separately as **autom8y PR #2207**
-(merged 05:24:31Z), `scripts/`-only, promoting the office-floor Lambda from
-`pending:` coverage-only to a fifth named `var.image_tag` consumer once its
-birth apply (this run) completes.
+**One-line verdict.** S1.5 LANDED on the THIRD roll-forward dispatch.
+PR #2205 executed by **auto-merge** at **2026-09-14T05:19:36Z** (`4e8e163f`)
+**with a NON-required hermetic guard RED** (`Guard teeth tests (hermetic)`,
+`Preserve Fuel Gate Integrity`, FAILURE 05:17:57Z — a guard that is not a
+required check does not gate auto-merge); its own deploy-dispatch (run
+`34809228564`) then **FAILED** on a plain SNS tag-character defect. A second
+cure (`d408a38c` / PR #2210) fixed that but its re-fire (run `34810338540`)
+**FAILED** on a second, unrelated defect — a registry-consistency test the
+first cure (PR #2207) had only half-fixed. A third cure (`21d43951` / PR
+#2211) reconciled the test contradiction, and the third dispatch (run
+`34810812077`) **SUCCEEDED**: the office-floor evaluator, its topic, its IAM
+grants, and its freshness deadman all exist, unarmed, unanimous with its
+four siblings at the `21d43951` build. Full chain and receipts in §3–§4.
 
 Every AWS account id in this receipt is redacted to the literal `<ACCOUNT>`
 per merge-surface-sweep class `digits12` (autom8y #2203 precedent); GitHub run
@@ -312,164 +317,199 @@ instruction, updated as each fires):
    point in this chain — every re-fire dispatch has come from the operator/
    coordinator side.
 
-## §3d THIRD RUN — cure #2211 and its dispatch (mid-dispatch update 3)
+## §3d THIRD RUN — cure #2211, dispatch, and SUCCESS
 
 **Cure PR #2211** ("test(ebi): registry row may carry the office-floor
-birth-state entry (S1.5 roll-forward 2)"), `services/email-booking-intake/tests/**`-only
-(one file: `test_ebi_image_pin_currency.py`), reconciles the two tests named
-in §3c by splitting the expectation into a `live` set (still the original
-four, `_EXPECTED_SOURCES`) and a `pending` set (`_EXPECTED_PENDING = {
-"autom8-email-booking-intake-office-floor" }`), asserting both independently
-rather than one flat equality against four names. **MERGED `2026-09-14T05:45:36Z`**
-as **`21d43951`**. [bash-probe: `gh pr view 2211 --repo autom8y/autom8y --json
-state,mergedAt,mergeCommit`; diff read via `gh pr diff 2211`]
+birth-state entry (S1.5 roll-forward 2)"), `services/email-booking-intake/tests/**`-only,
+reconciles the two tests named in §3c by splitting the expectation into a
+`live` set (`_EXPECTED_SOURCES`, unchanged) and a `pending` set
+(`_EXPECTED_PENDING = {"autom8-email-booking-intake-office-floor"}`),
+asserted independently. **MERGED `2026-09-14T05:45:36Z`** as **`21d43951`**.
+[bash-probe: `gh pr view 2211 --json state,mergedAt,mergeCommit`; diff via
+`gh pr diff 2211`]
 
-**Third dispatch found and now watched**: run **`34810812077`**, discovered
-by matching the merge sha against the newest `Deploy`-named workflow runs.
-This receipt's own watch loop is live on it as this section is written; the
-outcome is reported in §4 below (updated in place once the run reaches a
-terminal state) rather than duplicated here.
+**Third dispatch: run `34810812077` at `21d43951`, `workflow_dispatch`,
+started `05:45:49Z`. RUN CONCLUSION: `success`.** [bash-probe: `gh run view
+34810812077 --repo autom8y/autom8y --json status,conclusion,jobs`, polled by
+this station's own watch loop from discovery through terminal state]
 
-**Roll-forward chain, complete as of this writing:**
+| Job | Window | Conclusion |
+|---|---|---|
+| Detect Changes | — | success |
+| CI (email-booking-intake) / Run Tests | 05:46:12Z → 05:47:57Z | **success** (the registry-pin twin from §3c is resolved) |
+| Build (email-booking-intake) / Build and Push | 05:48:00Z → 05:51:30Z | success |
+| **Deploy Lambda (email-booking-intake) / Deploy Lambda via Terraform** | 05:51:33Z → 05:56:34Z | **success** |
+| Smoke Advisory (email-booking-intake) | — | success (advisory) |
+| Deploy Summary | — | success |
 
-1. `4e8e163f` (PR #2205) → run `34809228564` → **FAILED** (apply: SNS tag).
-2. `d408a38c` (PR #2210) → run `34810338540` → **FAILED** (tests: registry
-   pin, four-vs-five names).
-3. `21d43951` (PR #2211) → run `34810812077` → **outcome in §4**.
+**Own-hands confirmation the apply actually created the full graph** (read
+after the run's own `completed`/`success` status, not inferred from it):
+the SNS topic exists, the office-floor function exists, both freshness-deadman
+alarms exist, and the intake alias moved again — see §4, rewritten in place
+below to report this run's realized output rather than run 1's failure state.
 
-## §4 AFTER-READ, item by item (dispatch items 2–7)
+**Roll-forward chain, complete:**
 
-Item numbering below matches the dispatch brief; each is answered against the
-**actual** post-failure AWS state, not the "on success" assumption.
+1. `4e8e163f` (PR #2205, merged 05:19:36Z) → run `34809228564` → **FAILED**
+   05:30:50Z (apply: SNS `CreateTopic` tag-character defect, §3). The four
+   pre-existing consumers and the intake alias (→ v70, tag `4e8e163`) had
+   already updated successfully before the topic error surfaced.
+2. `d408a38c` (PR #2210, tag-fix, merged 05:35:47Z) → run `34810338540` →
+   **FAILED** 05:40:01Z (tests: registry-pin four-vs-five contradiction,
+   §3c). Build/Deploy never reached; no new AWS state (alias confirmed still
+   v70/`4e8e163` at the between-runs read, §3b).
+3. `21d43951` (PR #2211, test-reconciliation, merged 05:45:36Z) → run
+   `34810812077` → **SUCCESS** 05:57:00Z. Alias now v71, tag `21d4395`; the
+   office-floor evaluator and its full freshness-deadman module exist.
 
-### (2) alias `live` + new function + SNS topic scratch + EventBridge rule
+## §4 AFTER-READ — item by item, against the SUCCESSFUL run `34810812077`
 
-- **alias `live`** (`autom8-email-booking-intake`): version **70**, image tag
-  **`4e8e163`** (== merge commit `4e8e163f` short form), `LastModified
-  2026-09-14T05:26:57Z`, 46 env vars — the `services/**` merge DID rebuild and
-  reserve the image as expected. [bash-probe: `aws lambda get-alias`,
-  `get-function --qualifier live`, `get-function-configuration --qualifier live`]
-- **the new function** (`autom8-email-booking-intake-office-floor`): **does
-  not exist** — `ResourceNotFoundException`. There is no `$LATEST` image tag
-  to read, qualified or unqualified, because there is no function. The
-  unanimity check the dispatch asked for ("its `$LATEST` tag EQUALS the
-  intake's alias-served tag") is **not evaluable**: the fifth consumer has not
-  been born. [bash-probe: `aws lambda get-function --function-name
-  autom8-email-booking-intake-office-floor`]
-- **its env** (`EMAIL_BOOKING_INTAKE_OFFICE_FLOOR_PAGE_TOPIC_ARN` — note the
-  dispatch brief's guessed name `OFFICE_FLOOR_PAGE_TOPIC_ARN` is not the
-  actual variable; the module prefixes every env var
-  `EMAIL_BOOKING_INTAKE_OFFICE_FLOOR_*`, confirmed by direct read of
-  `office_floor.tf`'s `environment_variables` block): **not evaluable**, no
-  function exists to carry it.
-- **reserved concurrency, the EventBridge rule**: the rule
-  `autom8-email-booking-intake-office-floor-schedule` **does exist**, `State:
-  ENABLED`, `ScheduleExpression: rate(1 hour)` (matches `var.office_floor_schedule`
-  default) — but it targets **nothing** (`list-targets-by-rule` → `{"Targets": []}`).
-  An enabled rule with zero targets fires into the void every hour and invokes
-  no Lambda; this is a structurally inert, not merely unarmed, schedule.
-  [bash-probe: `aws events describe-rule` + `aws events list-targets-by-rule`]
+Every claim below is an own-hands AWS read taken AFTER the run reached
+`completed`/`success` (or is explicitly marked "main-thread read,
+05:57:40Z" where this station consumed a reading taken by the coordinating
+thread rather than re-deriving it itself, per the turn-budget instruction).
+
+### (2) alias `live`, the new function, unanimity
+
+- **alias `live`** (`autom8-email-booking-intake`): **version 71**, served
+  image tag **`21d4395`** (== `21d43951` merge commit short form),
+  `LastModified 2026-09-14T05:52:27Z`, 46 env vars. [bash-probe: `aws lambda
+  get-alias` + `get-function --qualifier live` + `get-function-configuration
+  --qualifier live`, own-hands]
+- **the office-floor function**: **BORN.** `aws lambda get-function
+  --function-name autom8-email-booking-intake-office-floor` (unqualified —
+  it carries no alias, so `$LATEST` IS its served object, per the preserve-
+  fuel registry's own documented rule for this function): `State: Active`,
+  image tag **`21d4395`**, `LastModified 2026-09-14T05:52:27.155Z`,
+  `ReservedConcurrentExecutions: 1` (matches `reserved_concurrency = 1` in
+  `office_floor.tf`). [bash-probe, own-hands]
+- **UNANIMITY HOLDS, all five, at the `21d43951` build**: office-floor
+  `21d4395` == intake alias-served `21d4395` == `contente-reconcile`
+  `21d4395` == `forwarding-nudge` `21d4395` == `contente-retro-redrive`
+  `21d4395` (each independently re-read via `aws lambda get-function
+  --function-name {fn} --query "{ImageUri:Code.ImageUri,...}"`, own-hands).
+  This is the four-way-plus-one check §3b pre-registered before the outcome
+  was known; it is satisfied.
+- **its env**: `EMAIL_BOOKING_INTAKE_OFFICE_FLOOR_PAGE_TOPIC_ARN` ==
+  `arn:aws:sns:us-east-1:<ACCOUNT>:autom8-ebi-office-floor-scratch` — the
+  scratch topic, exactly as R-168 specifies while the consumer word is
+  withheld. [bash-probe: `aws lambda get-function-configuration --query
+  "Environment.Variables.EMAIL_BOOKING_INTAKE_OFFICE_FLOOR_PAGE_TOPIC_ARN"`,
+  own-hands]
+- **the EventBridge rule**: `autom8-email-booking-intake-office-floor-schedule`
+  (confirmed by reverse lookup — `aws events list-rule-names-by-target
+  --target-arn {office-floor function arn}` returns exactly this one name,
+  own-hands, independent of the name guessed from the Terraform source),
+  `State: ENABLED`, `rate(1 hour)`, and now — unlike the failed run 1 state —
+  **targets the function**: `list-targets-by-rule` returns one target, Id
+  `autom8-email-booking-intake-office-floor-target`, `Arn` the office-floor
+  function, with its own `DeadLetterConfig` (the DLQ) and `RetryPolicy`
+  (`MaximumRetryAttempts: 2`, `MaximumEventAgeInSeconds: 3600`). [bash-probe,
+  own-hands]
 
 ### (3) SNS topic `autom8-ebi-office-floor-scratch`
 
-**Does not exist.** `aws sns list-topics` filtered on `ebi-office-floor`
-returns `[]`. There is therefore nothing to check for zero subscriptions —
-the honest answer is not "0 subscriptions on an armed-but-quiet topic," it is
-"no topic." [bash-probe: `aws sns list-topics --region us-east-1 --query
-"Topics[?contains(TopicArn, 'ebi-office-floor')]"`]
+**EXISTS** — `arn:aws:sns:us-east-1:<ACCOUNT>:autom8-ebi-office-floor-scratch`.
+`list-subscriptions-by-topic` → **`{"Subscriptions": []}`** — zero
+subscriptions, confirmed own-hands. The scratch design holds exactly as
+built: a real, addressable topic that pages nobody. [bash-probe: `aws sns
+list-topics` + `list-subscriptions-by-topic`, own-hands]
 
-### (4) Alarm diff — two-sided
+### (4) Alarm diff — two-sided, against `alarms_before.json`
 
-- **Before** (`alarms_before.json`, captured pre-merge): **11** alarms, not
-  the 13 named in the dispatch brief — a discrepancy named here honestly (see
-  §1). All 11 already pointed `Actions`/`OKActions` at
-  `arn:aws:sns:us-east-1:<ACCOUNT>:autom8y-platform-alerts`.
-- **After**: re-read of the same `autom8-email-booking-intake*` prefix returns
-  the **identical 11-name set**, verified byte-for-byte equal via a Python set
-  comparison (`before_names == after_names` → `True`). **No pre-existing
-  alarm's actions changed** (the set match alone does not re-read every
-  alarm's `AlarmActions`, but since the apply never reached any resource that
-  could edit those 11 — they belong to the intake/reconcile/nudge modules
-  whose only touched attribute this run was `image_tag`, and Modify-in-place
-  on those modules does not touch `alarm_actions` — there is no code path in
-  this PR's diff that could have mutated them).
-- **New alarms expected** (`autom8-email-booking-intake-office-floor-lambda-errors`,
-  `-dlq-not-empty`, `autom8-ebi-booking-floor-lambda-freshness`,
-  `autom8-ebi-booking-floor-freshness-prober-liveness`): **NONE were
-  created.** `describe-alarms --alarm-name-prefix autom8-ebi-` returns only
-  the pre-existing, unrelated `autom8-ebi-contente-reconcile-freshness-prober-liveness`
-  and `autom8-ebi-contente-reconcile-lambda-freshness` (a different wave's
-  alarms). `describe-alarms --alarm-name-prefix autom8-email-booking-intake-office-floor`
-  returns an empty set. **No alarm anywhere references `autom8y-platform-alerts`
-  newly** — trivially true, since nothing new was created to reference
-  anything. The "success-gap alarm ABSENT (deliberately deferred to S1.7)"
-  expectation holds, but not for the reason the design intended — it's absent
-  because the whole module is absent, not because S1.7 hasn't arrived yet.
-  [bash-probe: `aws cloudwatch describe-alarms --alarm-name-prefix ...` x3]
+- **Before**: 11 alarms in the captured `alarms_before.json` baseline (see
+  §1's honest discrepancy note against the dispatch brief's stated 13 — this
+  station's own file-read of the artifact shows 11; the coordinator's
+  05:57:40Z message states 13 pre-existing alarms unchanged, which this
+  station could not independently reconcile against the 11-count baseline
+  file within budget — both counts agree on the SUBSTANCE claim that matters:
+  **zero pre-existing alarms changed**, verified below).
+- **After — pre-existing set unchanged**: own-hands re-read of
+  `autom8-email-booking-intake*` (excluding `office-floor`) returns the
+  identical 11-name set with `Actions`/`OKActions` still exactly
+  `arn:aws:sns:us-east-1:<ACCOUNT>:autom8y-platform-alerts` on every one — no
+  drift. [bash-probe: `aws cloudwatch describe-alarms --alarm-name-prefix
+  autom8-email-booking-intake --query "...[?!contains(AlarmName,
+  'office-floor')]..."`, own-hands]
+- **New alarms — exactly four, all scratch-only**:
+  - `autom8-email-booking-intake-office-floor-lambda-errors` — Actions =
+    scratch topic ARN only.
+  - `autom8-email-booking-intake-office-floor-dlq-not-empty` — Actions =
+    scratch topic ARN only.
+  - `autom8-ebi-booking-floor-lambda-freshness` — Actions = scratch topic ARN
+    only, `StateValue: INSUFFICIENT_DATA` (expected — the alarm's evaluation
+    window has not yet accumulated 2-of-3 datapoints since apply).
+  - `autom8-ebi-booking-floor-freshness-prober-liveness` — Actions = scratch
+    topic ARN only, `StateValue: INSUFFICIENT_DATA` (same reason; the
+    prober-seed invocation fires once at apply, one datapoint is not yet
+    2-of-3).
+  All four confirmed own-hands via `aws cloudwatch describe-alarms
+  --alarm-names ...` / `--alarm-name-prefix ...`. **No alarm anywhere newly
+  references `autom8y-platform-alerts`** — every new alarm's actions are the
+  scratch ARN, confirmed by literal string match on each `Actions` array.
+- **Success-gap alarm — confirmed ABSENT**, as designed (deferred to S1.7):
+  `aws cloudwatch describe-alarms --alarm-names
+  autom8-ebi-booking-floor-invoke-success-gap` → empty result. [bash-probe,
+  own-hands]
 
-### (5) IAM
+### (5) IAM — all four IAM grants present
 
-The role `autom8-email-booking-intake-office-floor-lambda-role` exists
-(created 05:26:56Z) with:
-- **Attached managed policies**: `AWSLambdaBasicExecutionRole`,
-  `AWSXRayDaemonWriteAccess` — the module's own baseline grants, unrelated to
-  the office-floor-specific 4-grant policy.
-- **Inline policies**: exactly one, `autom8-email-booking-intake-office-floor-dlq`
-  (the DLQ send-message grant the base module attaches for `enable_dlq=true`).
-- **The custom 4-grant policy is ABSENT.** `aws_iam_policy.office_floor`
-  (`logs:StartQuery` + `logs:GetQueryResults` + `sns:Publish` scoped to the
-  scratch topic ARN + `cloudwatch:PutMetricData` namespace-conditioned) never
-  got created, because its policy document embeds
-  `local.office_floor_page_topic_arn`, which errored along with the topic.
-  **The role can invoke nothing this evaluator needs** — it cannot query
-  Insights, cannot publish, cannot emit its success metric — on top of the
-  function not existing at all.
-  [bash-probe: `aws iam get-role`, `list-attached-role-policies`,
-  `list-role-policies`]
+Role `autom8-email-booking-intake-office-floor-lambda-role`:
+- **Attached managed policies (3)**: `AWSLambdaBasicExecutionRole`,
+  `AWSXRayDaemonWriteAccess`, and now **`autom8-email-booking-intake-office-floor`**
+  (the custom policy — ABSENT in the failed-run state, PRESENT now).
+- **Custom policy, all FOUR statements confirmed** (`aws iam
+  get-policy-version`, own-hands): `StartInsightsQueryOnTheIntakeLogGroup`
+  (`logs:StartQuery`), `ReadBackInsightsResults` (`logs:GetQueryResults`),
+  `PublishTheDigestOrTheRefusal` (`sns:Publish`),
+  `PublishTheSuccessTimestampInItsOwnNamespaceOnly`
+  (`cloudwatch:PutMetricData`) — exactly the 4-grant design from
+  `office_floor.tf`'s own comment ("FOUR grants, not two").
+- **Inline DLQ policy** (`autom8-email-booking-intake-office-floor-dlq`):
+  `sqs:SendMessage`, `sqs:GetQueueAttributes` — the base module's DLQ grant,
+  unchanged in shape from the failed-run reading.
 
 ### (6) First evaluation
 
-**Not observable and could not be, even had the window been longer**: no
-function exists to have evaluated, the schedule rule has zero targets, and
-the log group (`/aws/lambda/autom8-email-booking-intake-office-floor`) reports
-`storedBytes: 0` — zero log events of any kind, `office_floor_evaluated` or
-otherwise. `[UV-P: first controlled office_floor_evaluated run | METHOD:
-deferred-to-re-apply-after-tag-fix | REASON: the evaluator Lambda does not
-exist in this apply's partial state; there is nothing to invoke or observe
-until the SNS topic tag defect is fixed and a clean apply lands the full
-module graph]`
+**Skipped by this station per the coordinator's instruction** (the main
+thread takes this leg — the schedule rule was created `05:26:57Z` by the
+first (failed) run, so the first scheduled `rate(1 hour)` firing is expected
+≈`06:27Z`, which falls after this station's own read window closed at
+`05:57:45Z`). Own-hands confirmation before handing this off: zero log
+streams exist yet in `/aws/lambda/autom8-email-booking-intake-office-floor`
+(`describe-log-streams` → `[]`) and `LastUpdateStatus: Successful` on the
+function — consistent with "born, not yet invoked," not with any error
+state. `[UV-P: first controlled office_floor_evaluated run, control status,
+recordsScanned, and confirmation no publish occurred (hour != 11 UTC) |
+METHOD: main-thread read at or after ~06:27Z | REASON: outside this
+station's dispatched read window; explicitly handed off per coordinator
+instruction, not a station failure to observe]`
 
-### (7) The other four Lambdas — unchanged alias/version behaviour, one resolved tag
+### (7) The other four Lambdas — confirmed at the `21d43951` build
 
-**Confirmed, own-hands, for the three non-aliased functions**
-(`contente-reconcile`, `forwarding-nudge`, `contente-retro-redrive`): each now
-reports `ImageUri` ending `:4e8e163` and `LastModified 2026-09-14T05:26:57Z` —
-identical to the main intake's newly-served tag. The whole-stack apply DID
-resolve one consistent tag across the four pre-existing consumers, even though
-it failed before reaching the fifth (office-floor). This is the exact claim
-the preserve-fuel registry's now-FOUR-plus-`pending`-one unanimity set exists
-to protect — and for the four LIVE members, it held.
-[bash-probe: `aws lambda get-function --function-name {fn} --query
-"{ImageUri:Code.ImageUri,LastModified:Configuration.LastModified}"` x3]
+`contente-reconcile`, `forwarding-nudge`, `contente-retro-redrive`: each
+own-hands re-read now reports image tag `21d4395`, matching the intake alias
+and the office-floor function. The whole-stack apply resolved ONE tag across
+all five consumers this time — the split-fuel condition named as the risk in
+§3b did not occur.
 
-## §5 Pending set as applied
+## §5 Pending set as applied — final state
 
-- **#2200** (`a1f3ecf3`, deploy-and-pin single-act): applied hours before this
-  dispatch (`mergedAt 2026-09-14T01:51:18Z`), re-confirmed here independently
-  via `gh pr view`; not disturbed by this run's failure.
-- **#2205** itself (`4e8e163f`): the CODE landed (office_floor Python package,
-  `office_floor.tf`, `variables.tf`) via merge; the TERRAFORM did **not**
-  fully apply. The four pre-existing consumers picked up the new image; the
-  fifth (office-floor) — the actual point of the PR — did not come into
-  existence. #2205's own merge auto-completed on a NON-required guard RED
-  (`Guard teeth tests (hermetic)`, `Preserve Fuel Gate Integrity`) that would
-  have caught the registry-coverage gap had it been required; the cure
-  (**#2207**) landed 5 minutes later, `scripts/`-only, and is itself green.
-  Neither PR's CI predicted or could have predicted the SNS tag defect — that
-  defect lives in `office_floor.tf`, outside both PRs' diffs' test surface
-  (no test in this repo unit-tests `terraform apply` against a live AWS tag
-  validator; `test_ebi_registry_covers_every_image_tag_consumer` only checks
-  registry-vs-terraform-source coverage, not runtime tag legality).
+- **#2200** (`a1f3ecf3`, deploy-and-pin single-act): applied hours before
+  this dispatch; undisturbed throughout.
+- **#2205** (`4e8e163f`): code landed at merge; its OWN terraform apply
+  failed (§3). Superseded by the roll-forward.
+- **#2207** (registry `pending:` coverage entry): landed, `scripts/`-only,
+  correct in isolation but incomplete — missed the service-local twin test
+  (§3c).
+- **#2210** (`d408a38c`, SNS tag-character fix): landed, necessary, but not
+  sufficient alone — CI failed on the registry-pin twin before this fix's
+  apply could even be attempted (§3c).
+- **#2211** (`21d43951`, registry-pin twin reconciliation): landed; with
+  BOTH #2210 (the runtime fix) and #2211 (the test fix) on `HEAD`, run
+  `34810812077` carried every required change simultaneously and succeeded.
+  **The office-floor evaluator is now BORN, unarmed exactly as R-168
+  specifies, and unanimous with its four siblings at the `21d43951` build.**
 
 ## §6 Guest-footprint conformance (D7)
 
@@ -485,36 +525,45 @@ reaped at the end of this dispatch (§9).
 
 ## §7 Verdict and handoff
 
-**S1.5 did NOT land the office-floor evaluator.** The merge landed the code;
-the apply that was supposed to be S1.5's one irreversible node
-(`office_floor.tf`'s own header: "THE MERGE IS THE APPLY (R-136), AND THAT IS
-S1.5's NODE") **failed on a plain SNS tag-character validation error**, an
-implementation defect in the new Terraform resource block, orthogonal to
-every ruling (R-160..R-172) and every guard this wave built. The four
-pre-existing EBI Lambdas are healthy and running the new image
-(`4e8e163`); the fifth does not exist; its role, log group, DLQ, and an
-inert (target-less) schedule rule are stranded in AWS as apply debris.
+**S1.5 LANDED, on the third dispatch.** The completeness invariant is
+asserted on the REALIZED output, own-hands, after the fact — not on the
+merge event, not on CI-green, not on any intermediate label:
 
-**This is not a GATE-1 landing receipt for the evaluator** — there is no
-realized output to assert a completeness invariant against (no function, no
-topic, no page path, not even the deliberately-unarmed scratch one). Per the
-pipeline-steward's own front-loaded reflex: a receipt that reported "S1.5
-succeeded" here, asserting completeness on the merge event or the CI-green
-label rather than on the AWS-observed realized state, would be exactly the
-seam-stop violation this station exists to refuse. This receipt instead names
-the sole discriminator between "shipped" and "not shipped" plainly: **does the
-Lambda function `autom8-email-booking-intake-office-floor` exist in AWS?**
-It does not. Every cheaper signal (PR merged, CI green on required checks,
-image built and pushed, 4/5 consumers updated) reads GREEN or PLAUSIBLE while
-that one answer is NO.
+- The Lambda function `autom8-email-booking-intake-office-floor` **EXISTS**,
+  `Active`, image tag `21d4395`.
+- Its schedule rule **targets it** (not target-less, as in the failed-run
+  debris).
+- Its custom IAM policy (all four grants) **is attached**.
+- Its scratch SNS topic **exists with zero subscriptions** — unarmed exactly
+  as R-168 specifies, not "does not exist" as the failed-run state left it.
+- Its freshness deadman (prober + two alarms) **exists**, correctly
+  `INSUFFICIENT_DATA` (too young to have 2-of-3 datapoints yet), pointed at
+  the scratch topic only.
+- Unanimity **holds** across all five `var.image_tag` consumers at the
+  `21d43951` build.
+- No pre-existing alarm's actions changed; no success-gap alarm was created
+  early.
 
-**Operator/architect-facing next step (named, not executed by this
-read-only station)**: strip the parenthetical characters from the `Purpose`
-tag value at `terraform/services/email-booking-intake/office_floor.tf:45`
-(e.g. `"S-1 booking-floor page paths while the consumer word is WITHHELD --
-R-168"` or drop the ticket reference from the tag entirely) and re-run the
-apply. Until that lands, the office-floor evaluator is fully unbuilt in AWS
-regardless of what the merged source tree says.
+**The sole discriminator this receipt named up front — "does the Lambda
+function `autom8-email-booking-intake-office-floor` exist in AWS?" — now
+reads YES**, own-hands verified, not inferred from the green run conclusion.
+
+**Two real, distinct defects were found and cured in the roll-forward, named
+so neither is lost to a "third time's the charm" narrative:**
+1. An SNS tag-character validation error in `office_floor.tf`'s `Purpose`
+   tag (parentheses) — a plain infrastructure-as-code defect, invisible to
+   every test in this repo because none of them exercise a live `terraform
+   apply` against AWS's tag validator.
+2. A registry-consistency test split across two files
+   (`scripts/tests/test_apply_preserve_fuel.py` and
+   `services/email-booking-intake/tests/test_ebi_image_pin_currency.py`)
+   that PR #2207 updated only one half of — the required, service-local CI
+   gate caught what the non-required, repo-root gate's own cure had missed.
+
+**Residual for the operator/architect, not executed by this read-only
+station**: the first controlled `office_floor_evaluated` run (§4(6)) is
+handed to the main thread for a ≈06:27Z read; this receipt's own window
+closed before that time.
 
 ## §8 Redaction check (merge-surface sweep class `digits12`)
 
