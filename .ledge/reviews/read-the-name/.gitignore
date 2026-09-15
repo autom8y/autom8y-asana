@@ -1,0 +1,10 @@
+# Running the observer from this directory writes bytecode beside it, and a
+# `git add -A` in a worktree will commit it -- which is exactly how
+# arm_observe.cpython-312.pyc reached main in 86f6ad0f.
+#
+# Scoped here, inside .ledge/, ON PURPOSE. The root .gitignore is NOT in
+# test.yml's paths-ignore, so editing it would fire Test on main and dispatch
+# the asana service deploy. A nested ignore under .ledge/** does the same job
+# and stays deploy-inert.
+__pycache__/
+*.pyc
