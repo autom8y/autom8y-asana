@@ -606,3 +606,137 @@ true stalls carried a class label that instructed the reader to stand down. An i
 detects correctly and a runbook that routes incorrectly produce the same outcome as no instrument
 at all. That failure was caught by a rite-disjoint critic reading the runbook against a snapshot
 the runbook's author had not joined, which is the whole argument for the critic being disjoint.
+
+---
+
+## §7 AMENDMENT 2026-09-15 — the s1.4 page names no clinic: resolve out of band, check the lead-match share, expect one page a day
+
+> **Appended, not rewritten.** This is P3b of `read-the-name` wave 1 (incident-commander seat, docs PR under the operator's user-grade grant R-A3, critic change-warden). §1–§6 stand as rev 2 wrote them. Where this section narrows one of their instructions, it names the section. Governance reads: autom8y-asana `origin/main 408cbc37` and autom8y `origin/main 0ee1209a`, both via `git show "${REF}:path"`. Live reads 2026-09-15T22:45Z–22:57Z, read-only, own hands, rc unpiped. Every command is committed at `.ledge/reviews/read-the-name/arm_observe.py` (this PR). It lives under `.ledge/` deliberately: `test.yml` ignores `.ledge/**` on push but not `scripts/**`, and a Test run on main dispatches the asana service deploy, so a paper PR carrying it under `scripts/` would roll the service. **This amendment arms nothing.**
+
+### §7.0 What changed on the page
+
+autom8y #2272 (evaluator `s1.4`, deploy run 35031971218, `completed / success` at 22:50:36Z) removed `office_name` from the per-office log line, from the digest row, and from its producer: `FloorVerdict` has no such attribute (autom8y `0ee1209a` `services/email-booking-intake/src/email_booking_intake/office_floor/handler.py:645`, marker `NO ``office_name``: it was populated on 1,526 of 1,526 lines`). **The page now identifies an office by guid8 only.** Read back at 22:52Z via `arm_observe.py F`: all five EBI functions serve `0b5e1c9`, the intake alias `live` points at v72, and the five agree. The 22:27Z run line was still `s1.3`. **DISCHARGED at the 23:27:15Z fire, the first `s1.4` scheduled run:** `evaluator_version="s1.4"`, `control="passed"`, `records_scanned=22322` (in the prior band 21184 / 21631 / 21976), `offices_unclassified=27` present, `page_message_id` **present and null** (the hour is not 11), `booking_attribution_floor_day=2026-09-09`, and a `LastSuccessTimestamp` sample in the 23:00Z bucket. The `office_name` proof is two-sided on one query: **50 of 50 office lines carried it at 22:00Z (s1.3) and 0 of 50 at 23:00Z (s1.4)**. No fence token differs, so the soak does not reset and the arm stays 09-22. The floor day reading exactly `2026-09-09` is the guid-stamping boundary — residual **E-2** as declared, not a surprise.
+
+The standing fence requires this: no raw clinic name and no office phone on any paging surface. It also re-opens coordination hazard **H-5**. A page that names nothing a human can act on is, in this wave's own north, *"a signal nobody can act on is still silence."* §7.1 is the cure.
+
+### §7.1 guid8 → clinic: the out-of-band lookup (narrows DW-9)
+
+**The lookup exists and a reader can run it; it was proven today. The reader needs AWS read access.**
+
+| | |
+|---|---|
+| **where** | CloudWatch Logs Insights, us-east-1, log group `/aws/lambda/autom8-email-booking-intake`. The source is the intake's own `office_resolved` line: ws-join ADR J3 (`ADR-ws-join-office-naming-path-2026-09-08.md` §1.2, `resolve_office.py:259-265` at autom8y `e292b616`), which carries the redacted guid (first 8 hex), the business name and the raw office phone **on one line** |
+| **the command** | `python3 .ledge/reviews/read-the-name/arm_observe.py lookup <guid8> --print-name` from an autom8y-asana checkout, or the console query below |
+| **who can run it** | any AWS principal with `logs:StartQuery` + `logs:GetQueryResults` on that log group. Today that is the operator's SSO session. `[UV-P: whether any human other than the operator holds AWS read in this account | METHOD: IAM Identity Center assignment listing for the reader the operator names | REASON: not read at P3b; the named reader's access is an arming-receipt cell]` |
+| **what it returns** | one row per distinct `office_name` seen for that guid8 over 30 days, with a line count and `last_seen`. **Exactly one row means resolved.** Zero rows, or two or more, means do not guess: ask the operator (DW-9's original route) |
+| **measured 2026-09-15** | **7 of 7** named offices resolve to **exactly one** name over 30 days, counted with `count_distinct` and never printed (recordsScanned 612,948): `8a9b1a84`, `e63bbbe0`, `40f86e73`, `ccb52f4c`, `5a19f1ad`, `87bd31d7`, `6b93fb76`. That includes `5a19f1ad`, which §1.2 records as having "no resolvable `office_name`" on the arrival lines; the `office_resolved` line resolves it. The committed `lookup` re-ran on `8a9b1a84` with the name withheld: 1 distinct name, 311 lines, last seen 2026-09-14 23:47Z |
+| **cost** | one Insights query over ≈ 610k records, about 20–40 s |
+
+The console query, verbatim:
+
+```
+fields @timestamp
+| filter @message like /office_resolved/
+| parse @message /"guid":\s*"(?<g>[0-9a-fA-F]{8})/
+| parse @message /"office_name":\s*"(?<office_name>[^"]+)"/
+| filter g = "<guid8>" and ispresent(office_name)
+| stats count(*) as lines, max(@timestamp) as last_seen by office_name
+```
+
+**⚠ The phone rides the same line.** Every `office_resolved` line read for the 7 offices also carried a non-empty `office_phone`: 100 %, counted by pattern, never printed. The query above projects `office_name` only. **Never** run `display @message`, never add `office_phone` to the projection, never screenshot the raw event.
+
+**The resolved name stays out of band.** `autom8y-platform-alerts` delivers to email **and** to Slack `#platform-alerts` (§7.4). Do not type a clinic name into a reply on either, or into a ticket, a PR or a ledge record: each of those is a surface the fence protects. Write the **guid8** on the page thread and keep the name off it. (This narrows §4.2 step 2's "record the answer on the page thread": the answer is recorded, the name is not.)
+
+**What DW-9 still lacks.** The lookup resolves *guid8 → clinic*. It does not resolve *clinic → the human who owns the relationship*; that hop still ends at the operator. A reader without AWS read gets no lookup at all and routes everything through the operator. **DW-9 is narrowed, not closed.**
+
+**Secondary path, not proven today.** The 2026-09-11 sizing read resolved guid8 against the `Company ID` custom field on Asana Business tasks, using `by_prefix()` (`READ-offer-activity-sizing-2026-09-11.md` §1 "Join of record"). That resolver was a session-scratch script over API dumps. It was never committed, and it needs an Asana PAT. `[UV-P: the Asana UI search finds a Business task from a Company ID prefix | METHOD: the operator runs one UI search for a known guid8 | REASON: not exercised at P3b; the log-plane lookup above is the proven path]`
+
+### §7.2 Before anyone contacts a clinic about a ZERO-floor office: find out WHY it is zero (narrows §1.1)
+
+> **CORRECTED 2026-09-15T23:35Z, before this amendment ever reached `main`.** The first draft of this
+> section said: *"arrivals dominated by `LeadMatchError` sharing one From domain ⇒ the zero is our
+> matcher, not the clinic."* **That rule is wrong, and it is wrong in the direction that costs most:**
+> it would have had the reader report our own product, working exactly as ruled, as a defect of ours.
+> The EBI lane stopped it with a specific counter-measurement, and the correction below is the result.
+> Recorded rather than quietly replaced, because the wrong version is the instructive half.
+
+§1.1 already says *never contact a client from the page*. This narrows the **client half** of every
+`FLOOR-ZERO` cell — the part that routes toward the office's owner through DW-9.
+
+```
+python3 .ledge/reviews/read-the-name/arm_observe.py C <guid8>
+```
+
+**The discriminator is READ COMPLETENESS, not the sender.** The lead pool is read in two disjoint
+status legs whose union is the true open-lead set. Two cases look identical from the floor — an
+office at zero, its arrivals dominated by match failures, all from one sender — and they are opposite
+facts about the system:
+
+| what happened | what it means | what the reader does |
+|---|---|---|
+| the read lost a leg and we scored only the survivors (**PARTIAL**) | **ours.** We declined over a candidate set we never saw whole | do not call; route to the platform owner as a lead-match defect |
+| the read was **COMPLETE** and found nothing to bind | **not ours.** No ad-originated lead exists for these patients: they never came from our funnel. The ratified rule books only what our funnel originated | do not call about a booking gap, and **do not report it as our bug** |
+
+Measured 2026-09-15T23:27Z over 72 h. Failures are counted as **distinct traces**, not lines — the
+`match_lead` stage emits two lines per failure (one carrying `error_type`, one not), and summing
+lines put the share at 178 %:
+
+| guid8 | arrivals | bookings | match_lead failure traces | share | partial-read traces | verdict |
+|---|---|---|---|---|---|---|
+| `8a9b1a84` | 9 | 0 | 8 | 89 % | **0 of 8** | **NOT AD-ORIGINATED** — complete reads, one sender |
+| `e63bbbe0` | 3 | 0 | 3 | 100 % | **0 of 3** | **NOT AD-ORIGINATED** — complete reads, one sender |
+| `79be1b75` | 4 | 0 | 4 | 100 % | **4 of 4** | **OURS** — every failure on a partial read |
+| `ccb52f4c` | 135 | 6 | 3 | 2 % | **2 of 3** | **OURS** — the founding office is affected |
+| `40f86e73` | 3 | 0 | 0 | 0 % | 0 of 0 | genuine office-side zero (the control) |
+
+**The two zero-floor offices are NOT our defect.** Their reads were complete: 0 of 8 and 0 of 3.
+Corroborated two ways — my own trace join above, on the log plane, and the EBI lane's read of the
+lead database (*zero ad-attributed leads in 90 days, in any status or phone format*), which is
+**theirs, not re-derived here, and carried as theirs**.
+
+**Three cautions.**
+
+1. **Key on `stage`, never on the error name.** Every match failure carries `stage="match_lead"` /
+   `event="stage_exception"`; the `error_type` on it is a name, and autom8y #2290 renames it to
+   `PartialReadNotOrganicError` for the partial subset. A filter on the name drops silently to zero
+   at that deploy and reads as *no misattribution*. The observer groups **by** `error_type` under the
+   stage, so the rename appears as a new label instead of a silence. `failure_kind` is not on the
+   line at all (measured: absent on 25 of 25), so `stage` + `error_type` is all a reader has.
+2. **Two event names, one condition.** Partial reads are marked by `name_evidence_read_partial`
+   **and** `activation_lead_leg_failed`; the EBI diagnosis enumerated the defect partly through the
+   second. Over 72 h each name returns the same 6 traces — intersection 6, union 6, neither
+   exclusive — which is exactly the coincidence that would have hidden the gap. The observer takes
+   the union.
+3. **The 50 % cut is a seat heuristic, not an operator ruling.** `[PLATFORM-HEURISTIC:
+   LEAD_MATCH_SHARE = 0.5]` Today's shares are 0 %, 2 %, 89 % and 100 %, so nothing measured depends
+   on where it sits. If a live office lands near 50 %, ask the operator.
+
+**Where to look first:** the ZERO-floor ∩ `class=unknown` intersection that `arm_observe.py E`
+prints. The `offices_unclassified` counter is not that signal: it counts every office missing from
+the snapshot and read **27** on the 23:27Z `s1.4` line.
+
+`[UV-P: that the partial-read hop stays readable after autom8y #2290 deploys | METHOD: re-run
+`arm_observe.py C` on ccb52f4c and 79be1b75 after the deploy; the by-error_type breakdown should
+show PartialReadNotOrganicError appearing under stage=match_lead | REASON: the code is still under
+adversary attack and has not shipped]`
+
+### §7.3 The cadence: one page a day, and the founding office will be on most of them
+
+- **One digest per UTC day**, published by the 11:27Z scheduled evaluation (the page gate is `hour == 11`). The other 23 hourly runs evaluate and emit `LastSuccessTimestamp` but publish nothing. R-172's at-most-one-publish rule is best-effort (handoff §5 UV-P-B), so a duplicate digest is possible but not expected.
+- **The founding office `ccb52f4c` hovers at the RATE floor. It is not on it every hour.** Measured over the 48 h to 22:56Z: **27 of 43** hourly evaluations placed it on `rate` (booking rate 0.8 %–2.4 %). The other **16** were `quiet` at 3.0 %–3.8 %, just above `r = 2.5 %`, and `day_n` never exceeded **2** because each rise above the floor resets it. Expect it on **most** daily pages. When it appears it is ACTIONABLE, as the chartered shape (§1.1 `FLOOR-RATE` × active). When it is absent for a day, that is one window's arithmetic, not a recovery (§4.1: *"`N` resetting is never a resolution receipt"*). Do not ask for it to be filtered, and do not re-tune `r` to quiet it (ADR D1.7). *(The coordination seat's premise was "recurs daily". The measurement narrows that to "most days, and never read as fixed when absent".)*
+- **No digest by about 12:00Z is `DEADMAN-liveness` territory (§1.1), not a quiet day.** The freshness deadman goes red only at roughly the fourth missed hourly fire (handoff §4), so a missing 11:27Z digest may be the **first** sign, hours before any alarm.
+
+### §7.4 What else lands on `autom8y-platform-alerts`: the page is one message among about 30 a day
+
+Read at 22:5xZ with `arm_observe.py D`:
+
+- **Subscriptions: 2.** One **email** (confirmed) and one **Lambda**, `autom8-slack-alert` (confirmed, 0 errors in 24 h), which posts to Slack `#platform-alerts`. **No SMS.**
+- **Readers: one human of record.** Both legs resolve to the operator (autom8y `OWNERSHIP-instrument-readers-of-record-2026-08-23.md` §2, handles R-MAIL-1 and R-SLACK). Slack membership beyond the operator cannot be enumerated from AWS.
+- **Volume:** **347 of the account's 427 alarms** route to the topic. At the read, **46 were in ALARM**, 288 OK and 13 INSUFFICIENT_DATA. It published **28–35 messages a day** over 2026-09-11..14, and 229 on 09-08.
+- **The S-1 digest adds one message a day** to that stream.
+
+`[UV-P: autom8-slack-alert renders a plain-text evaluator digest as a readable Slack post, rather than dropping or garbling a message that is not a CloudWatch alarm JSON | METHOD: after the re-point, read autom8-slack-alert Errors for hour 11 and the Slack post itself on day 1 | REASON: every message this Lambda has handled on this topic is alarm-shaped; no evaluator digest has ever reached it]`
+
+### §7.5 Fences held in this amendment
+
+guid8 only. No clinic name, no phone digit, no full GUID and no account id. The lookup withholds the name by default and prints it only under an explicit flag, at the reader's own terminal. Nothing was re-pointed, merged or armed.

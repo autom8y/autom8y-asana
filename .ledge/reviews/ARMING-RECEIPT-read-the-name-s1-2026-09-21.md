@@ -1,0 +1,126 @@
+---
+type: review
+artifact_kind: arming-receipt
+initiative: read-the-name
+sprint: S1.7
+rite: sre
+station: incident-commander (skeleton, P3b); the arming seat fills it
+created: 2026-09-15
+fill_on: 2026-09-21 (pre-arm read) and 2026-09-22 (the arm and its post-arm read)
+status: SKELETON — every OBSERVED cell is blank until the arming seat fills it with its own hands; the REHEARSAL column is 2026-09-15 and is NOT the receipt
+arming_state: NOT ARMED
+observer: .ledge/reviews/read-the-name/arm_observe.py   # committed in this PR; durable home of the session-scratch arm_observe.py (hazard H-6)
+governing: .ledge/reviews/RUNBOOK-read-the-name-s1-2026-09-14.md (§2.2 receipts A/B, §5 DW rows, §7 amendment) · .ledge/handoffs/HANDOFF-read-the-name-wave1-seam-2026-09-14.md (§4, §5, §7) · .ledge/reviews/SOAK-read-the-name-s1-2026-09-14.md (§3) · .ledge/decisions/ADR-read-the-name-s1-implementation-2026-09-14.md · .ledge/decisions/RULING-read-the-name-t2-15caa02c-class-2026-09-14.md (R-2)
+refs_read: autom8y-asana origin/main 408cbc37 · autom8y origin/main 0ee1209a
+evidence_grade: MODERATE
+---
+
+# ARMING RECEIPT — read-the-name S-1 · the per-office booking floor → `autom8y-platform-alerts`
+
+> **A skeleton, not a receipt.** It declares what the arm must be observed to have done and names the exact command that observes each declaration. The **REHEARSAL** column records that the command emitted on 2026-09-15 (own hands, read-only, rc unpiped). The **OBSERVED** column is blank: it belongs to the seat that arms, on the day. **An observer that prints `UNTAKEN` (exit 2) may not be written into an OBSERVED cell.** Nothing here arms anything.
+
+## §0 Authority, and the gates that must stand before any cell is filled
+
+**The arming authority is the operator's, on the record.** The record is `.ledge/decisions/RULING-pythia-read-the-name-grant-adjudication-2026-09-15.md` (asana #459, merged 2026-09-15T23:01:22Z; read at `origin/main 06cb4cdc`). It quotes the operator in the room where he spoke and rules option (a): *"Name the reader now; arm on 2026-09-22 when the soak closes"*, paired with the condition that `office_name` comes off the page first — landed by #2272 (declaration F). **That record is SELF-ATTESTED by its own frontmatter**: *"no seat other than the one the operator spoke to can verify his exact words."* It is cited here as the record, never as corroboration.
+
+**It does not by itself authorise the arm.** The same ruling classes the S1.7 **re-point to `platform_alerts` as class (C)** — *needs a specific operator word the grant does not supply* — while the scratch-topic half (the success-gap alarm, the deadman proven both ways) is class (A). It leaves **W-1** open, verbatim: *"For the 09-22 arm: the reader of S-1 pages on `autom8y-platform-alerts` is ___; the smoke-lead convention from then on is ___; disarm to scratch on a misfire is pre-authorised: yes/no."* **Those three blanks are the arming gate.** G-0 is filled only when they are answered on the record.
+
+| gate | source | status at P3b | OBSERVED (arming seat) |
+|---|---|---|---|
+| G-0 the ruling, cited at a ledge path, with the named reader and a start date (runbook §3's four parts) | runbook §3 · `RULING-pythia-read-the-name-grant-adjudication-2026-09-15.md` §2 row 4, §3 W-1 | **cited and read at `origin/main 06cb4cdc`, SELF-ATTESTED. W-1's three blanks are unanswered and the re-point is class (C), so the gate is OPEN** | |
+| G-1 soak: seven complete consecutive rows meeting SOAK §3 | `SOAK-read-the-name-s1-2026-09-14.md` §3 | in soak; the clock closes 2026-09-22T00:00Z | |
+| G-2 every runbook §5 row marked *blocks arming: YES* is discharged, or explicitly waived by the operator on the record: DW-2, **DW-3 (the R-169 smoke-lead convention, both floors — this is W-1's second blank)**, DW-4, DW-5, DW-8, DW-10 | runbook §5 | not re-read row by row at P3b | |
+| G-3 the named reader holds AWS read on `/aws/lambda/autom8-email-booking-intake` (the guid8 lookup, runbook §7.1), **or** the ruling says every lookup routes through the operator | runbook §7.1 | lookup proven for the operator's session; reader unnamed | |
+| G-4 the evaluator serving at the arm is `s1.4` or later (name-less), and **not** `21d4395` | declaration F | `0b5e1c9` on all five, 22:52Z | |
+
+## §1 Declarations — command, rehearsal, observed
+
+Run from an autom8y-asana checkout at the merge of this PR, in us-east-1, with an AWS read session. Each command is read-only.
+
+### (A) The evaluator STOPS
+
+| | |
+|---|---|
+| **declaration** | The arm does not stop the evaluator. After the arm, every S-1 alarm's actions point at `autom8y-platform-alerts`. The stop-detection latency is stated in words, not implied. |
+| **command** | `python3 .ledge/reviews/read-the-name/arm_observe.py A` |
+| **what it observes** | the run-line count over 6 h from `office_floor_evaluated`, where healthy is 6 and 0 means stopped · the schedule rule's `State` and `ScheduleExpression`, found by `events list-rule-names-by-target` on the function · every alarm under the prefixes `autom8-ebi-booking-floor` and `autom8-email-booking-intake-office-floor`, with state, period, evaluation periods, datapoints-to-alarm, and action topic names |
+| **latency, stated** | `…-lambda-freshness` (P3600, 2 of 3, > 7200 s) goes red at roughly the **fourth** missed hourly fire, so one to three missed fires are invisible to it (handoff §4, line 99). `…-dlq-not-empty` and `…-lambda-errors` (P300, 1 of 1) are the **faster floor**, but only for a **crashing** evaluator. A **disabled rule** raises no error and no DLQ message; only freshness catches it (at about 4 h), and the missing 11:27Z digest may be the first sign. |
+| **REHEARSAL 2026-09-15T22:52Z** | 6 run lines in 6 h (last 22:27:15Z; recordsScanned 326). Rule `autom8-email-booking-intake-office-floor-schedule` ENABLED `rate(1 hour)`. Four alarms, all OK, **all actions = `autom8-ebi-office-floor-scratch`**: prober-liveness P86400 / 2 · lambda-freshness P3600 / 3 / dta 2 · dlq-not-empty P300 / 1 · lambda-errors P300 / 1. |
+| **OBSERVED pre-arm (09-21)** | |
+| **OBSERVED post-arm (09-22)** | *(expect: the same four alarms plus `autom8-ebi-booking-floor-invoke-success-gap`, every action = `autom8y-platform-alerts`)* |
+
+### (B) The evaluator RUNS but REFUSES
+
+| | |
+|---|---|
+| **declaration** | A refusal is observable: `control: failed` is counted, and the `LastSuccessTimestamp` hourly census shows a refusal as a **missing bucket**. Until the success-gap alarm exists, a refusal pages **nothing**. |
+| **command** | `python3 .ledge/reviews/read-the-name/arm_observe.py B` |
+| **what it observes** | runs / passed / refused over 24 h (the `"control": "passed" \| "failed"` key on the run line; `control_status` also rides it, lower-case) · `Autom8y/EbiOfficeFloor LastSuccessTimestamp` SampleCount over 24 complete hourly buckets, with the missing UTC hours listed |
+| **REHEARSAL 2026-09-15T22:54Z** | 24 runs, 24 passed, 0 refused (recordsScanned 1,229). `LastSuccessTimestamp`: 24 of 24 buckets, none missing. The success-gap alarm does not exist (`describe-alarms --alarm-name-prefix autom8-ebi-booking-floor-invoke-success-gap` → 0), as intended until S1.7. |
+| **⚠ caught in rehearsal** | The first draft of this observer reported **4 missing buckets (18Z–21Z) that did not exist**. The AWS CLI renders metric `Timestamp` in the **local offset** (`-04:00`). Slicing the string compared local hours to UTC hours and manufactured the gap. A second read at 5-minute resolution showed one sample every hour at :27, 18Z–22Z. Cure: `utc_hour()` normalises to UTC before bucketing. It is committed, and the re-run printed 24 of 24. **Any hand-rolled census must do the same.** The SOAK §2 commands use a 86,400 s period and are unaffected. **That bug is NOT, however, the day-0 soak mismatch** (20 controlled runs against 19 samples), which this receipt first offered as the likely cause. **Re-derived 2026-09-15T23:14Z with UTC normalisation, and the hypothesis is disproven:** for 2026-09-14 the naive local-offset slice and the UTC-normalised count give the **same 19**, so no day boundary moved. The real reconciliation is arithmetic and was already on the soak table's own row 0: 21 runs = 3 manual + 18 scheduled; **20 controlled = 21 - 1 refusal (leg B)**; **19 samples = 20 controlled - 1, because leg C was a dry-run and a dry-run emits no `LastSuccessTimestamp`**. The hourly census confirms it: the 06Z bucket carries **2** samples and 07Z-23Z carry 1 each, 19 in 18 buckets (recordsScanned 943). **Nothing was lost; UV-P DISCHARGED.** The general caution stands on its own: normalise before bucketing. |
+| **OBSERVED pre-arm (09-21)** | |
+| **OBSERVED post-arm (09-22)** | *(expect: the success-gap alarm exists, actions = `autom8y-platform-alerts`, created after the soak so `treat_missing_data=breaching` does not self-page at apply — runbook §2.1 C-4)* |
+
+### (C) The MIRROR half — a true page about the wrong thing
+
+| | |
+|---|---|
+| **declaration** | For every office on a ZERO page, the reader can observe **why** it is zero before any client contact. **The discriminator is READ COMPLETENESS, not the sender** (runbook §7.2, corrected 2026-09-15): failures on a **partial** lead read are ours; failures on **complete** reads mean no ad-originated lead exists, which is the ruled product and must not be reported as our defect. |
+| **command** | `python3 .ledge/reviews/read-the-name/arm_observe.py C <guid8> [<guid8> …]` (the default offices when none are given: `8a9b1a84 e63bbbe0 40f86e73`) |
+| **what it observes** | over 72 h on `/aws/lambda/autom8-email-booking-intake`: arrival-event lines, booking lines and `stage="match_lead"` failure lines for the guid8, counted as **distinct traces** and broken down **by `error_type`** so autom8y #2290's rename appears as a new label rather than a silent zero; then a second hop joining those traces to the union of `name_evidence_read_partial` and `activation_lead_leg_failed` — the partial-read marks, which carry `trace_id` but no `chiropractor_guid`. The `trace_id`s of those errors are joined to the From domain recorded on the sender-observation line (`sender_auth_observed.from_domain`), chosen for **coverage**: it is present on every message of every class since 2026-09-05. `intake_classified.from_domain` exists only on unrecognised lines, and only since v69 (2026-09-14T00:55Z). The value is the **parsed header From**, not an authenticated identity. Domains are masked as sha256[:8]. The verdict uses a 50 % cut, a seat heuristic (runbook §7.2). |
+| **REHEARSAL 2026-09-15T23:30Z, re-keyed** | `8a9b1a84` 9 / 0 / 8 traces → 89 %, **0 of 8 partial** → **NOT AD-ORIGINATED** · `e63bbbe0` 3 / 0 / 3 → 100 %, **0 of 3 partial** → **NOT AD-ORIGINATED** · `79be1b75` 4 / 0 / 4 → 100 %, **4 of 4 partial** → **OURS** · `ccb52f4c` 135 / 6 / 3 → 2 %, **2 of 3 partial** → **OURS (the founding office is affected)** · `40f86e73` 3 / 0 / 0 → genuine zero (control). recordsScanned 22,322. **The 22:53Z rehearsal read 89 % / 100 % as "our matcher" for the first two — that was the wrong verdict and is corrected here.** |
+| **OBSERVED pre-arm (09-21)** | *(run on every office in the ZERO-floor ∩ `class=unknown` intersection that (E) prints that day)* |
+| **OBSERVED on the first page (09-22)** | |
+
+### (D) The DELIVERY half — what the page reaches, and what nothing observes
+
+| | |
+|---|---|
+| **declaration** | `autom8y-platform-alerts` has one email subscription and one Lambda subscription, and no SMS. The email is **one human endpoint**. The Lambda `autom8-slack-alert` posts to Slack `#platform-alerts`, and both legs resolve to the operator of record (autom8y `OWNERSHIP-instrument-readers-of-record-2026-08-23.md` §2). **An unread inbox is silent and recorded nowhere.** |
+| **command** | `python3 .ledge/reviews/read-the-name/arm_observe.py D` |
+| **what it observes** | the topic's subscriptions (protocol · Lambda name · email masked · confirmed or pending) · the **digest path**: the evaluator env var `EMAIL_BOOKING_INTAKE_OFFICE_FLOOR_PAGE_TOPIC_ARN`, as a topic name · the **alarm path**: every S-1 alarm's action topic · scratch topic subscriptions · `NumberOfMessagesPublished` per day on the topic over 7 d · `autom8-slack-alert` Errors over 24 h · alarms routed to the topic, by state |
+| **REHEARSAL 2026-09-15T22:52Z** | 2 subscriptions: `lambda autom8-slack-alert` (confirmed), `email` masked (confirmed); **0 SMS**. The digest path points at `autom8-ebi-office-floor-scratch`, as do all four alarm paths. The scratch topic has 0 subscriptions. The topic published 229 / 169 / 105 / 33 / 28 / 35 / 30 messages over 09-08..09-14. `autom8-slack-alert` had 0 errors in 24 h. 347 alarms route to the topic (46 ALARM · 288 OK · 13 INSUFFICIENT_DATA). |
+| **the two re-point receipts** (runbook §2.2, unchanged) | **Receipt A, alarm path:** an SNS `MessageId` on `autom8y-platform-alerts` for a `set-alarm-state` probe on `…-freshness-prober-liveness`, ALARM then OK. **Receipt B, digest path:** the first 11:27Z `FLOOR-DIGEST` run line's `page_message_id` (the field #2272 added; DEFECT-1 cured), with `NumberOfMessagesPublished` = 1 on the topic for hour 11. **Negative pole:** before the re-point, the same probe yields a `MessageId` on scratch and `NumberOfMessagesPublished` = 0 on `autom8y-platform-alerts`. |
+| **the volume finding, stated plainly** | The digest arrives **once a day into a stream of about 30 messages a day**, fed by **347 alarms**, of which **46 were in ALARM** at the read. That is a silence risk of the second kind: not absence, but **dilution**. A signal nobody can pick out of the stream is still silence. This receipt therefore requires **either** a subject line the reader can filter on, recorded here once seen, **or** the reader's explicit statement that they read every message on this channel. |
+| **the READ observer — declare one or label it** | **UNOBSERVED** unless the named reader posts a dated acknowledgement on the day-1 page thread (guid8 only, no clinic name). Nothing in AWS can observe a human reading. |
+| `[UV-P]` | `[UV-P: autom8-slack-alert renders a plain-text evaluator digest as a readable Slack post | METHOD: autom8-slack-alert Errors for hour 11 on 09-22 plus the Slack post itself | REASON: every message this Lambda has handled on this topic is alarm-shaped]` |
+| **OBSERVED pre-arm (09-21)** | |
+| **OBSERVED post-arm (09-22)** | receipt A: · receipt B: · negative pole: · READ observer: |
+
+### (E) Known residuals — declared, not hidden
+
+| id | residual | anchor (autom8y `0ee1209a`) | what observes it | REHEARSAL 2026-09-15 |
+|---|---|---|---|---|
+| **E-1** | The lookback control **reuses the primary query's booking result**. `_lookback_control` returns `offices_with_bookings=primary.offices_with_bookings` and never tests whether the widened lookback itself found bookings. A lookback that scans at least as many records as the primary but finds **no** bookings still passes and **still stamps `LastSuccessTimestamp`**. | `services/email-booking-intake/src/email_booking_intake/office_floor/handler.py:310`, marker `offices_with_bookings=primary.offices_with_bookings,` | nothing on the plane can separate *no booking* from *a lookback that missed them*. Declared, and carried with handoff §5 UV-P-A (the five `day_n_*` predicates have zero live exercise). | declared |
+| **E-2** | The attribution floor reports the **oldest** attributed booking day in the lookback. If guid stamping regresses today, the oldest day does not move until it ages out of the window, so the floor **cannot detect a stamping regression**. This is narrower than pythia R-2's stated intent (*"if guid stamping lapses, a computed floor moves"*). | `…/office_floor/floors.py:383-384`, marker `The oldest day bin in the lookback carrying an ATTRIBUTED booking.` | `arm_observe.py E` prints `booking_attribution_floor_day`, which exists from `s1.4` | **OBSERVED 23:27:15Z: the field is present and reads `2026-09-09`** — exactly the date guid stamping began, so on day one the floor is pinned to the edge of the data rather than to a moving watermark. That is E-2 exactly: it will not move until an attributed booking ages past it |
+| **E-3** | The **misattribution signal** is the ZERO-floor ∩ `class=unknown` intersection, **not** `offices_unclassified`. That counter counts every office missing from the snapshot and reads ≥ 19 on today's traffic (#2272 body: 48 evaluated against a 29-row snapshot). | runbook §7.2 | `arm_observe.py E`, then C on each member | intersection at 22:5xZ = `8a9b1a84` (lead-match, do not call) and `2786b72d` (genuine zero) |
+| **E-4** | The guid8 lookup's source line carries the raw office phone beside the name on 100 % of the lines read. The lookup projects only the name; a careless console query would expose the phone. | ws-join ADR J3; runbook §7.1 | `arm_observe.py lookup` never parses `office_phone` | 7 of 7 offices, 1 name each, phone present on every line (counted, not printed) |
+| **E-5** | The founding office `ccb52f4c` **oscillates** at the RATE floor. It was on it in 27 of 43 hourly evaluations over 48 h, at rate 0.8 %–2.4 %, and quiet at 3.0 %–3.8 % otherwise, with `day_n` ≤ 2. It will be absent from some daily pages, and that absence is not a recovery. | runbook §7.3 | office-line `floor_class` for `ccb52f4c` | as stated |
+
+### (F) The recovery floor
+
+| | |
+|---|---|
+| **declaration** | **No CI rollback button exists.** An exact-tag rollback is a **hand-roll of all five EBI functions**: `update-function-code` on each; a new published version on the intake; `update-alias live` on the intake. The office-floor has **no alias**, so it has no version-pin lever (handoff §4, line 96). The **safe failure response is roll-forward only**: a new merge and dispatch. **After the arm, image `21d4395` must never be rolled back to.** It is evaluator `s1.3`, and it puts clinic names back on the page. |
+| **why a rollback to `21d4395` would stick** | The five functions share ONE `var.image_tag`, and the preserve-fuel resolver "probes ALL FIVE and requires unanimity" (autom8y `scripts/apply-preserve-fuel-registry.tsv:236-244`). A **partial** hand-roll therefore makes the next gated apply refuse. A **complete** hand-roll to `21d4395` is unanimous, so every later apply **preserves** it, and the names stay on the page until a roll-forward. |
+| **command** | `python3 .ledge/reviews/read-the-name/arm_observe.py F` · and `git -C <autom8y> grep -l -i rollback origin/main -- .github/workflows` to confirm there is still no EBI rollback workflow |
+| **what it observes** | the served image per EBI function: the intake through its `live` alias, the others unqualified (unqualified IS served when there is no alias); a warning on `21d4395`; unanimity |
+| **REHEARSAL 2026-09-15T22:52Z** | all five serve **`0b5e1c9`**; the intake `live` alias is at v72; unanimous. autom8y `0ee1209a`: `rollback` appears in three workflows (`auth-defense-3-migration-gate`, `fleet-deploy-orchestrator`, `seal-proof-bypass-reason-floor-gate`), none of them an EBI rollback. |
+| **OBSERVED pre-arm (09-21)** | |
+| **OBSERVED post-arm (09-22)** | |
+
+## §2 The guid8 lookup (H-5), as a gate input
+
+| | |
+|---|---|
+| **exists?** | **Yes, for an AWS-credentialed reader.** `python3 .ledge/reviews/read-the-name/arm_observe.py lookup <guid8> [--print-name]` reads the intake's `office_resolved` lines (30 d). |
+| **REHEARSAL 2026-09-15** | 7 of 7 named offices resolve to exactly one name (count_distinct, recordsScanned 612,948). The committed command on `8a9b1a84`, name withheld: 1 distinct name, 311 lines, last seen 2026-09-14 23:47Z. |
+| **not covered** | clinic → owning human (DW-9 residue, the operator) · any reader without AWS read |
+| **OBSERVED (09-21): the named reader ran it once on a guid8 of their choice, without printing the name to any shared surface** | |
+
+## §3 Fill rules
+
+- Every OBSERVED cell carries the UTC instant, the command as run, the exit code read unpiped, and `recordsScanned` for every Insights read.
+- guid8 only. No clinic name, no phone digit, no full GUID. Write the account id as `<ACCOUNT>` (the merge-surface sweep rejects 12-digit tokens).
+- A cell that cannot be filled says **UNOBSERVED** and why. It is never left looking filled.
+- Filling this receipt does not arm S-1. The arm is the operator's word plus the one-variable re-point (runbook §2.1), performed by the S1.7 seat under its own critic.
