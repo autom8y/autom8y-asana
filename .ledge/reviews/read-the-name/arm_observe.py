@@ -69,6 +69,24 @@ GUID8 = re.compile(r"^[0-9a-f]{8}$")
 LEAD_MATCH_SHARE = (
     0.5  # PLATFORM-HEURISTIC (seat-authored, not operator-ruled); see the runbook s1.4 amendment
 )
+# ★ KEY ON THE STAGE, NEVER ON THE ERROR NAME. Every match-lead failure carries
+#   stage="match_lead" / event="stage_exception"; the error_type on it is a NAME, and
+#   autom8y #2290 renames it (LeadMatchError -> PartialReadNotOrganicError) for the
+#   partial-read subset. A filter on the name would silently drop to zero at that deploy
+#   and read as "no misattribution"; a filter on the stage keeps counting and shows the
+#   rename as a NEW LABEL in the by-error_type breakdown below. F-2: the instrument has to
+#   say what its own silent half looks like.
+MATCH_STAGE = "match_lead"
+#: The lines that mark a lead read that lost one of its two status legs. **TWO NAMES, ONE
+#: CONDITION** -- the EBI lane's own diagnosis enumerated this defect partly through
+#: ``activation_lead_leg_failed``, so a single name does not enumerate it and the observer
+#: takes the UNION. Measured 2026-09-15 over 72 h: each name returns the same 6 traces,
+#: intersection 6, union 6, neither exclusive -- so in THIS window either name would have
+#: done, and that is exactly the coincidence that would have hidden the gap. They carry
+#: trace_id but NOT chiropractor_guid, so the office costs a second hop (6 partial traces
+#: against 397 resolvable traces). EBI is adding chiropractor_guid to these lines on the
+#: same deploy as autom8y #2290; when it lands, hop 2 can go.
+READ_PARTIAL_EVENTS = ("name_evidence_read_partial", "activation_lead_leg_failed")
 
 
 class Untaken(Exception):
@@ -259,7 +277,7 @@ def _masked(domain: str | None) -> str:
 
 def observe_c(guids: list[str]) -> None:
     emit(
-        "== (C) the MIRROR half -- a TRUE page about the WRONG THING: lead-match share of the office =="
+        "== (C) the MIRROR half -- a TRUE page about the WRONG THING: why is this office at zero? =="
     )
     for g in guids:
         if not GUID8.match(g):
@@ -269,6 +287,7 @@ def observe_c(guids: list[str]) -> None:
         'fields @message | parse @message /"chiropractor_guid":\\s*"(?<g>[0-9a-fA-F]{8})/ '
         '| parse @message /"event":\\s*"(?<ev>[a-z_]+)"/ '
         '| parse @message /"error_type":\\s*"(?<et>[A-Za-z]+)"/ '
+        '| parse @message /"stage":\\s*"(?<st>[a-z_]+)"/ '
         '| parse @message /"trace_id":\\s*"(?<tid>[^"]+)"/ '
     )
     counts = {
@@ -277,19 +296,51 @@ def observe_c(guids: list[str]) -> None:
             INTAKE_LG,
             base + f"| filter g in [{gl}] "
             f"| stats sum(ev in {ARRIVALS}) as arrivals, sum(ev in {BOOKINGS}) as bookings, "
-            'sum(et="LeadMatchError") as lme by g',
+            f'sum(st="{MATCH_STAGE}") as mlf by g',
             72,
         )
     }
+    # The rename canary: whatever error_type names live under the match_lead stage today.
+    emit(
+        "   match_lead failures by error_type (a NEW name here is autom8y #2290 landing, not a cure):"
+    )
+    for r in insights(
+        INTAKE_LG,
+        base + f'| filter st="{MATCH_STAGE}" and g in [{gl}] | stats count(*) as n by g, et',
+        72,
+    ):
+        emit(f"      {r.get('g')}  error_type={r.get('et')!r}  n={int(float(r.get('n') or 0))}")
+
+    # ★ COUNT TRACES, NOT LINES. The match_lead stage emits TWO lines per failure -- one
+    #   carrying error_type and one not (measured: 8a9b1a84 shows n=8 with the name and n=8
+    #   without, for 8 real failures). Summing lines put the share at 178 %. The unit is a
+    #   trace: one mail, one failure.
     pairs = [
         (r.get("g"), r.get("tid"))
         for r in insights(
             INTAKE_LG,
-            base + f'| filter et="LeadMatchError" and g in [{gl}] | display g, tid | limit 400',
+            base + f'| filter st="{MATCH_STAGE}" and g in [{gl}] | display g, tid | limit 400',
             72,
         )
         if r.get("tid")
     ]
+    # ★ THE PARTIAL-READ HOP. This is the discriminator, and it is the whole verdict:
+    #   a complete read that found nothing is the product working as ruled (no ad-originated
+    #   lead exists); a PARTIAL read that found nothing is OUR matcher scoring survivors of a
+    #   set it never saw whole. Both look identical from the floor. Corroborated with the EBI
+    #   lane 2026-09-15: of 6 partial traces in 72 h, 0 belong to 8a9b1a84 or e63bbbe0.
+    partial: set[str] = set()
+    for _ev in READ_PARTIAL_EVENTS:
+        partial |= {
+            r["tid"]
+            for r in insights(
+                INTAKE_LG,
+                f"fields @message | filter @message like /{_ev}/ "
+                '| parse @message /"trace_id":\\s*"(?<tid>[^"]+)"/ | display tid | limit 400',
+                72,
+            )
+            if r.get("tid")
+        }
     tids = sorted({t for _, t in pairs})
     dom: dict[str, str] = {}
     for i in range(0, len(tids), 100):  # Insights query-length ceiling: join in chunks
@@ -310,21 +361,43 @@ def observe_c(guids: list[str]) -> None:
     ok = True
     for g in guids:
         c = counts.get(g, {})
-        arr, bk, lme = (int(float(c.get(k) or 0)) for k in ("arrivals", "bookings", "lme"))
-        senders = Counter(_masked(dom.get(t)) for gg, t in pairs if gg == g)
+        arr, bk = (int(float(c.get(k) or 0)) for k in ("arrivals", "bookings"))
+        gt = {t for gg, t in pairs if gg == g}
+        mlf = len(gt)
+        n_partial = len(gt & partial)
+        senders = Counter(_masked(dom.get(t)) for t in gt)
         top, top_n = (senders.most_common(1) or [("<none>", 0)])[0]
-        share = lme / arr if arr else 0.0
+        share = mlf / arr if arr else 0.0
         if not arr:
             verdict, ok = "UNTAKEN -- no arrivals seen for this guid8 in 72 h", False
-        elif share >= LEAD_MATCH_SHARE and lme and top_n / lme >= LEAD_MATCH_SHARE:
-            verdict = "LEAD-MATCH-DOMINATED, ONE FROM DOMAIN -- DO NOT CALL THE CLINIC; route to the platform owner"
+        elif mlf and n_partial / mlf >= LEAD_MATCH_SHARE:
+            verdict = (
+                f"OUR MATCHER -- {n_partial} of {mlf} failure traces sat on a PARTIAL lead read "
+                "(one status leg lost, survivors scored). DO NOT CALL THE CLINIC; route to the platform owner"
+            )
+        elif n_partial:
+            verdict = (
+                f"MIXED -- {n_partial} of {mlf} failure traces sat on a PARTIAL read, the rest were complete. "
+                "Part of this zero is ours and part is not; do not call the clinic until the platform owner "
+                "has split it"
+            )
+        elif share >= LEAD_MATCH_SHARE and mlf and top_n / mlf >= LEAD_MATCH_SHARE:
+            verdict = (
+                "NOT AD-ORIGINATED -- failures dominated by one sender and EVERY read was COMPLETE, so no "
+                "ad-originated lead exists for these patients. This is the ruled product, not a defect. "
+                "DO NOT CALL THE CLINIC about a booking gap, and do not report it as our bug"
+            )
         elif share >= LEAD_MATCH_SHARE:
-            verdict = "LEAD-MATCH-DOMINATED, several From domains -- do not call; route to the platform owner"
+            verdict = (
+                "match-lead-dominated, several From domains, all reads COMPLETE -- do not call; "
+                "hand to the platform owner to classify"
+            )
         else:
             verdict = "office-side -- a genuine not-booking signal; work the runbook s1.1 cell"
         emit(
-            f"   office {g}: arrivals={arr} bookings={bk} lead_match_errors={lme} share={share:.0%} "
-            f"top_from_domain={top} x{top_n} (of {lme}; joined {sum(1 for gg, t in pairs if gg == g and t in dom)})"
+            f"   office {g}: arrivals={arr} bookings={bk} match_lead_failure_traces={mlf} share={share:.0%} "
+            f"partial_read_traces={n_partial} of {mlf}  "
+            f"top_from_domain={top} x{top_n} (joined {sum(1 for t in gt if t in dom)} of {mlf})"
         )
         emit(f"      -> {verdict}")
     if not ok:

@@ -615,7 +615,7 @@ the runbook's author had not joined, which is the whole argument for the critic 
 
 ### §7.0 What changed on the page
 
-autom8y #2272 (evaluator `s1.4`, deploy run 35031971218, `completed / success` at 22:50:36Z) removed `office_name` from the per-office log line, from the digest row, and from its producer: `FloorVerdict` has no such attribute (autom8y `0ee1209a` `services/email-booking-intake/src/email_booking_intake/office_floor/handler.py:645`, marker `NO ``office_name``: it was populated on 1,526 of 1,526 lines`). **The page now identifies an office by guid8 only.** Read back at 22:52Z via `arm_observe.py F`: all five EBI functions serve `0b5e1c9`, the intake alias `live` points at v72, and the five agree. The 22:27Z run line was still `s1.3`. `[UV-P: the first s1.4 run line carries evaluator_version "s1.4", offices_unclassified, booking_attribution_floor_day and page_message_id | METHOD: arm_observe.py E after 23:27Z | REASON: the new image was served after the last run P3b could read]`
+autom8y #2272 (evaluator `s1.4`, deploy run 35031971218, `completed / success` at 22:50:36Z) removed `office_name` from the per-office log line, from the digest row, and from its producer: `FloorVerdict` has no such attribute (autom8y `0ee1209a` `services/email-booking-intake/src/email_booking_intake/office_floor/handler.py:645`, marker `NO ``office_name``: it was populated on 1,526 of 1,526 lines`). **The page now identifies an office by guid8 only.** Read back at 22:52Z via `arm_observe.py F`: all five EBI functions serve `0b5e1c9`, the intake alias `live` points at v72, and the five agree. The 22:27Z run line was still `s1.3`. **DISCHARGED at the 23:27:15Z fire, the first `s1.4` scheduled run:** `evaluator_version="s1.4"`, `control="passed"`, `records_scanned=22322` (in the prior band 21184 / 21631 / 21976), `offices_unclassified=27` present, `page_message_id` **present and null** (the hour is not 11), `booking_attribution_floor_day=2026-09-09`, and a `LastSuccessTimestamp` sample in the 23:00Z bucket. The `office_name` proof is two-sided on one query: **50 of 50 office lines carried it at 22:00Z (s1.3) and 0 of 50 at 23:00Z (s1.4)**. No fence token differs, so the soak does not reset and the arm stays 09-22. The floor day reading exactly `2026-09-09` is the guid-stamping boundary — residual **E-2** as declared, not a surprise.
 
 The standing fence requires this: no raw clinic name and no office phone on any paging surface. It also re-opens coordination hazard **H-5**. A page that names nothing a human can act on is, in this wave's own north, *"a signal nobody can act on is still silence."* §7.1 is the cure.
 
@@ -651,34 +651,74 @@ fields @timestamp
 
 **Secondary path, not proven today.** The 2026-09-11 sizing read resolved guid8 against the `Company ID` custom field on Asana Business tasks, using `by_prefix()` (`READ-offer-activity-sizing-2026-09-11.md` §1 "Join of record"). That resolver was a session-scratch script over API dumps. It was never committed, and it needs an Asana PAT. `[UV-P: the Asana UI search finds a Business task from a Company ID prefix | METHOD: the operator runs one UI search for a known guid8 | REASON: not exercised at P3b; the log-plane lookup above is the proven path]`
 
-### §7.2 Before anyone contacts a clinic about a ZERO-floor office: check the lead-match share (narrows §1.1)
+### §7.2 Before anyone contacts a clinic about a ZERO-floor office: find out WHY it is zero (narrows §1.1)
 
-§1.1 already says *never contact a client from the page*. This narrows the **client half** of every `FLOOR-ZERO` cell, the part that routes towards the office's owner through DW-9. **Before anyone contacts a clinic about a ZERO-floor page, run:**
+> **CORRECTED 2026-09-15T23:35Z, before this amendment ever reached `main`.** The first draft of this
+> section said: *"arrivals dominated by `LeadMatchError` sharing one From domain ⇒ the zero is our
+> matcher, not the clinic."* **That rule is wrong, and it is wrong in the direction that costs most:**
+> it would have had the reader report our own product, working exactly as ruled, as a defect of ours.
+> The EBI lane stopped it with a specific counter-measurement, and the correction below is the result.
+> Recorded rather than quietly replaced, because the wrong version is the instructive half.
+
+§1.1 already says *never contact a client from the page*. This narrows the **client half** of every
+`FLOOR-ZERO` cell — the part that routes toward the office's owner through DW-9.
 
 ```
 python3 .ledge/reviews/read-the-name/arm_observe.py C <guid8>
 ```
 
-**The rule.** Suppose the office's arrivals are dominated by `LeadMatchError`, and those errors share **one From domain**. Then the zero is **our matcher failing on one source's mail**, not the clinic failing to book. **Do not call the clinic.** Route it to the platform owner as a lead-match defect. An office is a genuine not-booking signal, to be worked per §1.1, only when its lead-match share is low.
+**The discriminator is READ COMPLETENESS, not the sender.** The lead pool is read in two disjoint
+status legs whose union is the true open-lead set. Two cases look identical from the floor — an
+office at zero, its arrivals dominated by match failures, all from one sender — and they are opposite
+facts about the system:
 
-Measured 2026-09-15T22:53Z over 72 h. The share is `LeadMatchError` lines ÷ arrival-event lines. Each error is joined by `trace_id` to the From domain recorded on the sender-observation line (`sender_auth_observed.from_domain`), masked as sha256[:8]. That field is the **parsed header From**, which a sender controls; it is **not** an authenticated identity, despite the event's name:
+| what happened | what it means | what the reader does |
+|---|---|---|
+| the read lost a leg and we scored only the survivors (**PARTIAL**) | **ours.** We declined over a candidate set we never saw whole | do not call; route to the platform owner as a lead-match defect |
+| the read was **COMPLETE** and found nothing to bind | **not ours.** No ad-originated lead exists for these patients: they never came from our funnel. The ratified rule books only what our funnel originated | do not call about a booking gap, and **do not report it as our bug** |
 
-| guid8 | arrivals | bookings | `LeadMatchError` | share | top From domain (masked) | verdict |
+Measured 2026-09-15T23:27Z over 72 h. Failures are counted as **distinct traces**, not lines — the
+`match_lead` stage emits two lines per failure (one carrying `error_type`, one not), and summing
+lines put the share at 178 %:
+
+| guid8 | arrivals | bookings | match_lead failure traces | share | partial-read traces | verdict |
 |---|---|---|---|---|---|---|
-| `8a9b1a84` | 9 | 0 | 8 | 89 % | `<c549721d>` × 8 of 8 | **lead-match, one From domain: do not call** |
-| `e63bbbe0` | 3 | 0 | 3 | 100 % | `<c549721d>` × 3 of 3 | **lead-match, one From domain: do not call** |
-| `40f86e73` | 3 | 0 | 0 | 0 % | — | office-side, a genuine zero (the control) |
-| `2786b72d` | 5 | 0 | 0 | 0 % | — | office-side, a genuine zero |
+| `8a9b1a84` | 9 | 0 | 8 | 89 % | **0 of 8** | **NOT AD-ORIGINATED** — complete reads, one sender |
+| `e63bbbe0` | 3 | 0 | 3 | 100 % | **0 of 3** | **NOT AD-ORIGINATED** — complete reads, one sender |
+| `79be1b75` | 4 | 0 | 4 | 100 % | **4 of 4** | **OURS** — every failure on a partial read |
+| `ccb52f4c` | 135 | 6 | 3 | 2 % | **2 of 3** | **OURS** — the founding office is affected |
+| `40f86e73` | 3 | 0 | 0 | 0 % | 0 of 0 | genuine office-side zero (the control) |
 
-The coordination seat earlier counted the control `40f86e73` at 0 of 6; the 72-hour window slid between the two reads, and both give a 0 % share. The two misattributed offices' lead-match failures, **11 of 11**, share one provider-shaped From domain.
+**The two zero-floor offices are NOT our defect.** Their reads were complete: 0 of 8 and 0 of 3.
+Corroborated two ways — my own trace join above, on the log plane, and the EBI lane's read of the
+lead database (*zero ad-attributed leads in 90 days, in any status or phone format*), which is
+**theirs, not re-derived here, and carried as theirs**.
 
 **Three cautions.**
 
-1. **Join on `sender_auth_observed`, not on `intake_classified`. The reason is coverage.** `sender_auth_observed.from_domain` is present on every message of every class since 2026-09-05. `intake_classified.from_domain` exists only on unrecognised lines, and only since the v69 deploy (2026-09-14T00:55Z): 0 of 759 unrecognised lines carried it before, and 131 of 131 after. Either way the value is a parsed header, not proof of who sent the mail. Treat the share as a strong hint that our matcher is failing, not as an attribution of the sender.
-2. **This count is event lines, not the evaluator's U-3 arrival unit.** It will not equal the page's `arrivals` cell. The share is the number that matters, not the count.
-3. **The 50 % cut is a seat heuristic, not an operator ruling.** `[PLATFORM-HEURISTIC: LEAD_MATCH_SHARE = 0.5 in the observer. Today's shares are 0 %, 89 % and 100 %, so nothing measured today depends on where the cut sits]` If a live office lands near 50 %, ask the operator.
+1. **Key on `stage`, never on the error name.** Every match failure carries `stage="match_lead"` /
+   `event="stage_exception"`; the `error_type` on it is a name, and autom8y #2290 renames it to
+   `PartialReadNotOrganicError` for the partial subset. A filter on the name drops silently to zero
+   at that deploy and reads as *no misattribution*. The observer groups **by** `error_type` under the
+   stage, so the rename appears as a new label instead of a silence. `failure_kind` is not on the
+   line at all (measured: absent on 25 of 25), so `stage` + `error_type` is all a reader has.
+2. **Two event names, one condition.** Partial reads are marked by `name_evidence_read_partial`
+   **and** `activation_lead_leg_failed`; the EBI diagnosis enumerated the defect partly through the
+   second. Over 72 h each name returns the same 6 traces — intersection 6, union 6, neither
+   exclusive — which is exactly the coincidence that would have hidden the gap. The observer takes
+   the union.
+3. **The 50 % cut is a seat heuristic, not an operator ruling.** `[PLATFORM-HEURISTIC:
+   LEAD_MATCH_SHARE = 0.5]` Today's shares are 0 %, 2 %, 89 % and 100 %, so nothing measured depends
+   on where it sits. If a live office lands near 50 %, ask the operator.
 
-**Where to look first:** the ZERO-floor ∩ `class=unknown` intersection, which `arm_observe.py E` prints (at 22:5xZ: `8a9b1a84` and `2786b72d`, with one of each verdict). That intersection is the misattribution signal. The `offices_unclassified` counter is not: it counts every office missing from the snapshot and reads ≥ 19 on today's traffic.
+**Where to look first:** the ZERO-floor ∩ `class=unknown` intersection that `arm_observe.py E`
+prints. The `offices_unclassified` counter is not that signal: it counts every office missing from
+the snapshot and read **27** on the 23:27Z `s1.4` line.
+
+`[UV-P: that the partial-read hop stays readable after autom8y #2290 deploys | METHOD: re-run
+`arm_observe.py C` on ccb52f4c and 79be1b75 after the deploy; the by-error_type breakdown should
+show PartialReadNotOrganicError appearing under stage=match_lead | REASON: the code is still under
+adversary attack and has not shipped]`
 
 ### §7.3 The cadence: one page a day, and the founding office will be on most of them
 

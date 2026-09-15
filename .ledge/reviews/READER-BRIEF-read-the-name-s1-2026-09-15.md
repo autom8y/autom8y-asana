@@ -41,16 +41,22 @@ python3 .ledge/reviews/read-the-name/arm_observe.py lookup <guid8> --print-name
 
 Keep the name off the email thread, Slack, tickets and PRs, and write the guid8 there instead. The raw log line behind this lookup also carries the clinic's phone number. The command never shows it; do not go and look.
 
-**Step 2 — for a ZERO row, check the lead-match share *before anyone contacts the clinic*.**
+**Step 2 — for a ZERO row, find out *why* it is zero, before anyone contacts the clinic.**
 
 ```
 python3 .ledge/reviews/read-the-name/arm_observe.py C <guid8>
 ```
 
-If most of the office's arrivals failed with `LeadMatchError` and the failures share **one From domain** (a parsed email header, not a verified sender), the zero is our matcher failing, not the clinic. **Do not call the clinic**; route it to the platform owner.
+It prints one of four verdicts. Two of them look the same from the page and mean opposite things, which is the whole reason this step exists:
 
-- Measured today: `8a9b1a84` failed 8 of 9 and `e63bbbe0` failed 3 of 3, both sharing the same From domain, so do not call either.
-- `40f86e73` and `2786b72d` had no lead-match failures: they are genuine zeros.
+- **OUR MATCHER** — the office's failures sat on a **partial lead read**: one of the two status legs was lost and we scored only the survivors, so we never saw the candidate set whole. This one is our defect. **Do not call the clinic**; route it to the platform owner.
+- **NOT AD-ORIGINATED** — the failures are dominated by one sender and **every read was complete**. We saw the whole set and there was no ad-originated lead to bind, because these patients never came from our funnel. This is the product working as ruled. **Do not call the clinic** about a booking gap either — and **do not report it as our bug**, because it is not one.
+- **MIXED** — some traces partial, some complete. Part of this zero is ours and part is not. Do not call until the platform owner has split it.
+- **office-side** — few or no match failures. This is a genuine not-booking signal. Work the runbook §1.1 cell.
+
+Measured 2026-09-15, and note that the two zero-floor offices land in the *second* group, not the first: `8a9b1a84` (8 of 9 arrivals failed) and `e63bbbe0` (3 of 3) are **NOT AD-ORIGINATED** — one sender, and **0 of their 8 and 0 of their 3 failure traces sat on a partial read**. Meanwhile `79be1b75` (4 of 4 partial) and the founding office `ccb52f4c` (2 of 3 partial) **are** ours. `40f86e73` is a genuine zero.
+
+**Why the distinction is worth a command.** A sentence that said "arrivals dominated by one sender means our matcher is failing" would be wrong for both of the offices you are most likely to see, and it would have you report our product working correctly as a defect. Read completeness is the discriminator, and nothing on the page shows it.
 
 One more check: a `day 1` ZERO row with only 5–7 arrivals may come from a single unmarked test lead (runbook §4.2). Ask the operator whether a smoke test ran.
 
