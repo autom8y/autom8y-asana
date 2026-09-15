@@ -611,7 +611,7 @@ the runbook's author had not joined, which is the whole argument for the critic 
 
 ## §7 AMENDMENT 2026-09-15 — the s1.4 page names no clinic: resolve out of band, check the lead-match share, expect one page a day
 
-> **Appended, not rewritten.** This is P3b of `read-the-name` wave 1 (incident-commander seat, docs PR under the operator's user-grade grant R-A3, critic change-warden). §1–§6 stand as rev 2 wrote them. Where this section narrows one of their instructions, it names the section. Governance reads: autom8y-asana `origin/main 408cbc37` and autom8y `origin/main 0ee1209a`, both via `git show "${REF}:path"`. Live reads 2026-09-15T22:45Z–22:57Z, read-only, own hands, rc unpiped. Every command is committed at `scripts/read_the_name/arm_observe.py` (this PR). **This amendment arms nothing.**
+> **Appended, not rewritten.** This is P3b of `read-the-name` wave 1 (incident-commander seat, docs PR under the operator's user-grade grant R-A3, critic change-warden). §1–§6 stand as rev 2 wrote them. Where this section narrows one of their instructions, it names the section. Governance reads: autom8y-asana `origin/main 408cbc37` and autom8y `origin/main 0ee1209a`, both via `git show "${REF}:path"`. Live reads 2026-09-15T22:45Z–22:57Z, read-only, own hands, rc unpiped. Every command is committed at `.ledge/reviews/read-the-name/arm_observe.py` (this PR). It lives under `.ledge/` deliberately: `test.yml` ignores `.ledge/**` on push but not `scripts/**`, and a Test run on main dispatches the asana service deploy, so a paper PR carrying it under `scripts/` would roll the service. **This amendment arms nothing.**
 
 ### §7.0 What changed on the page
 
@@ -626,7 +626,7 @@ The standing fence requires this: no raw clinic name and no office phone on any 
 | | |
 |---|---|
 | **where** | CloudWatch Logs Insights, us-east-1, log group `/aws/lambda/autom8-email-booking-intake`. The source is the intake's own `office_resolved` line: ws-join ADR J3 (`ADR-ws-join-office-naming-path-2026-09-08.md` §1.2, `resolve_office.py:259-265` at autom8y `e292b616`), which carries the redacted guid (first 8 hex), the business name and the raw office phone **on one line** |
-| **the command** | `python3 scripts/read_the_name/arm_observe.py lookup <guid8> --print-name` from an autom8y-asana checkout, or the console query below |
+| **the command** | `python3 .ledge/reviews/read-the-name/arm_observe.py lookup <guid8> --print-name` from an autom8y-asana checkout, or the console query below |
 | **who can run it** | any AWS principal with `logs:StartQuery` + `logs:GetQueryResults` on that log group. Today that is the operator's SSO session. `[UV-P: whether any human other than the operator holds AWS read in this account | METHOD: IAM Identity Center assignment listing for the reader the operator names | REASON: not read at P3b; the named reader's access is an arming-receipt cell]` |
 | **what it returns** | one row per distinct `office_name` seen for that guid8 over 30 days, with a line count and `last_seen`. **Exactly one row means resolved.** Zero rows, or two or more, means do not guess: ask the operator (DW-9's original route) |
 | **measured 2026-09-15** | **7 of 7** named offices resolve to **exactly one** name over 30 days, counted with `count_distinct` and never printed (recordsScanned 612,948): `8a9b1a84`, `e63bbbe0`, `40f86e73`, `ccb52f4c`, `5a19f1ad`, `87bd31d7`, `6b93fb76`. That includes `5a19f1ad`, which §1.2 records as having "no resolvable `office_name`" on the arrival lines; the `office_resolved` line resolves it. The committed `lookup` re-ran on `8a9b1a84` with the name withheld: 1 distinct name, 311 lines, last seen 2026-09-14 23:47Z |
@@ -656,7 +656,7 @@ fields @timestamp
 §1.1 already says *never contact a client from the page*. This narrows the **client half** of every `FLOOR-ZERO` cell, the part that routes towards the office's owner through DW-9. **Before anyone contacts a clinic about a ZERO-floor page, run:**
 
 ```
-python3 scripts/read_the_name/arm_observe.py C <guid8>
+python3 .ledge/reviews/read-the-name/arm_observe.py C <guid8>
 ```
 
 **The rule.** Suppose the office's arrivals are dominated by `LeadMatchError`, and those errors share **one From domain**. Then the zero is **our matcher failing on one source's mail**, not the clinic failing to book. **Do not call the clinic.** Route it to the platform owner as a lead-match defect. An office is a genuine not-booking signal, to be worked per §1.1, only when its lead-match share is low.

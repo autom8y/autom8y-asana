@@ -10,11 +10,17 @@ read prints recordsScanned (an Insights zero without a scan count is UNTAKEN, no
 READ-ONLY. Every call is a Describe / Get / List or a CloudWatch Logs Insights query. Nothing is
 invoked, published, applied, re-pointed or armed.
 
+HOME, ON PURPOSE. This file lives under ``.ledge/`` and not under ``scripts/``. ``test.yml``'s push
+trigger carries ``paths-ignore`` for ``.ledge/**`` but NOT for ``scripts/**``, and
+``satellite-dispatch.yml`` fires on ``workflow_run`` of "Test" on main, which dispatches the asana
+service deploy. A paper PR carrying this file under ``scripts/`` would therefore roll the service --
+an admin-grade act. Do not 'tidy' it into ``scripts/``.
+
 usage (us-east-1; an AWS session with read on logs, cloudwatch, sns, lambda, events):
-  python3 scripts/read_the_name/arm_observe.py all
-  python3 scripts/read_the_name/arm_observe.py A | B | D | E | F
-  python3 scripts/read_the_name/arm_observe.py C <guid8> [<guid8> ...]
-  python3 scripts/read_the_name/arm_observe.py lookup <guid8> [--print-name]
+  python3 .ledge/reviews/read-the-name/arm_observe.py all
+  python3 .ledge/reviews/read-the-name/arm_observe.py A | B | D | E | F
+  python3 .ledge/reviews/read-the-name/arm_observe.py C <guid8> [<guid8> ...]
+  python3 .ledge/reviews/read-the-name/arm_observe.py lookup <guid8> [--print-name]
 
 exit: 0 every requested observer emitted | 2 an observer did not emit (UNTAKEN) | 1 AWS failure
 

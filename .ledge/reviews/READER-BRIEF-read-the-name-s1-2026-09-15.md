@@ -32,7 +32,7 @@ Each row also carries:
 **Step 1 — find out which clinic it is, off the page.** From an autom8y-asana checkout, with an AWS session:
 
 ```
-python3 scripts/read_the_name/arm_observe.py lookup <guid8> --print-name
+python3 .ledge/reviews/read-the-name/arm_observe.py lookup <guid8> --print-name
 ```
 
 - One name returned means it is resolved.
@@ -44,7 +44,7 @@ Keep the name off the email thread, Slack, tickets and PRs, and write the guid8 
 **Step 2 — for a ZERO row, check the lead-match share *before anyone contacts the clinic*.**
 
 ```
-python3 scripts/read_the_name/arm_observe.py C <guid8>
+python3 .ledge/reviews/read-the-name/arm_observe.py C <guid8>
 ```
 
 If most of the office's arrivals failed with `LeadMatchError` and the failures share **one From domain** (a parsed email header, not a verified sender), the zero is our matcher failing, not the clinic. **Do not call the clinic**; route it to the platform owner.
