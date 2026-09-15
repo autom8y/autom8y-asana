@@ -1,8 +1,33 @@
 name: Satellite Dispatch
 
+# S02-C1 (2026-09-02): a single autom8y-core SDK publish caused 10 unrequested
+# satellite builds, 4 terraform applies and 6 ECS deploys with ZERO operator
+# words. Two independent legs of this workflow were the cause:
+#
+#   1. `sdk-publish-v2.yml`'s consumer-gate fires this satellite's `test.yml`
+#      via workflow_dispatch on `main` and polls it, blocking publish on
+#      failure. The resulting `Test` completion arrives here as a workflow_run
+#      on main with conclusion=success -- under the old `if:` indistinguishable
+#      from a real merge. A gate-VALIDATION run must never deploy.
+#   2. `sdk-publish-v2.yml`'s `Notify Satellite Repos` job sends
+#      `repository_dispatch: sdk-published`, which this workflow also accepted
+#      and turned into a deploy -- of the satellite's UNCHANGED main, because
+#      the lockfile bump it announces is still an unmerged PR. A pure no-op
+#      roll with real blast radius.
+#
+# Fix per R-26 (.ledge/decisions/RATIFICATION-shared-front-sitting-2026-09-03.md):
+#   (i)   the workflow_run leg fires ONLY when the completed Test run was
+#         itself triggered by a push to main;
+#   (ii)  the `sdk-published` repository_dispatch trigger is REMOVED. It had no
+#         behaviour beyond dispatching the deploy: the lockfile bump it
+#         announces is opened as a PR by the MONOREPO's own lockfile-propagator
+#         (sdk-publish-v2.yml, "Propagate lockfile bumps to satellites"), not by
+#         anything here. That PR lands as a normal push to main and deploys via
+#         leg (i) -- when the bump is actually IN the tree. Nothing is lost.
+#   (iii) `triggered_by` is READ from the real event instead of falling through
+#         an `else: push` that mislabelled gate dispatches as pushes.
+
 on:
-  repository_dispatch:
-    types: [sdk-published]
   workflow_run:
     workflows: ["Test"]
     types: [completed]
@@ -24,10 +49,18 @@ concurrency:
 jobs:
   dispatch:
     timeout-minutes: 5
+    # Deploy on exactly two events:
+    #   - a PUSH-triggered Test success on main (a real merge), or
+    #   - an explicit manual workflow_dispatch of THIS workflow.
+    # Every other completed Test run -- consumer-gate workflow_dispatch,
+    # schedule, pull_request, re-run -- is refused. `workflow_run.event` is the
+    # TRIGGERING run's own event and is the discriminator the old gate lacked.
     if: >-
-      github.event_name == 'repository_dispatch' ||
       github.event_name == 'workflow_dispatch' ||
-      github.event.workflow_run.conclusion == 'success'
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     steps:
       - name: Generate GitHub App token
@@ -41,14 +74,27 @@ jobs:
 
       - name: Determine trigger type
         id: trigger
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          UPSTREAM_EVENT: ${{ github.event.workflow_run.event }}
         run: |
-          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
-            echo "triggered_by=sdk-published" >> $GITHUB_OUTPUT
-          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "triggered_by=workflow_dispatch" >> $GITHUB_OUTPUT
-          else
-            echo "triggered_by=push" >> $GITHUB_OUTPUT
-          fi
+          case "${EVENT_NAME}" in
+            workflow_run)
+              # Emit the UPSTREAM run's own event VERBATIM. The `if:` above
+              # admits only 'push', so this reads "push" today -- but it is
+              # read, never asserted, so the provenance label can no longer
+              # claim a push that did not happen (the S02-C1 mislabel).
+              echo "triggered_by=${UPSTREAM_EVENT}" >> "$GITHUB_OUTPUT"
+              ;;
+            workflow_dispatch)
+              echo "triggered_by=workflow_dispatch" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              # Unreachable under the `on:` block above. Surface the real event
+              # loudly rather than inheriting a false label.
+              echo "triggered_by=unknown-${EVENT_NAME}" >> "$GITHUB_OUTPUT"
+              ;;
+          esac
 
       - name: Dispatch to autom8y
         uses: peter-evans/repository-dispatch@ff45666b9427631e3450c54a1bcbee4d9ff4d7c0 # v3
