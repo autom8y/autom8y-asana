@@ -62,7 +62,26 @@ on:
         default: ''
 
 concurrency:
-  group: test-${{ github.ref }}
+  # PUB-001 (autom8y sdk-publish-v2.yml:584-595, 2026-08-11) is ONE DIRECTION of a
+  # two-directional defect. This key is the other direction, and it had no cure.
+  #
+  # `workflow_dispatch:` above lets autom8y's SDK consumer gate dispatch THIS workflow
+  # at --ref main (tools/consumer-gate/src/consumer_gate/dispatch.py:5; the gate matrix
+  # includes autom8y-asana), so a gate dispatch and a push to main both resolved to
+  # `test-refs/heads/main` and cancel-in-progress made them cancel each other.
+  #   * Gate's run dies -> the publish cell FAILS LOUD. Cured gate-side at
+  #     sdk-publish-v2.yml:595, CONSUMER_GATE_CANCELLED_RETRIES: "1".
+  #   * Push's run dies -> NOTHING re-runs a push, and satellite-dispatch.yml fires on
+  #     `workflow_run` "Test" behind a `conclusion == 'success'` predicate (:27-30), so
+  #     the merge lands UNDEPLOYED with no red anywhere. A cure scoped to the loud arm
+  #     had made the defect manifest only silently.
+  #
+  # Keep the discriminator. A bare `github.event_name` split fixes push-vs-dispatch but
+  # still lets two gate dispatches cancel each other, which the gate's correlation-UUID
+  # poll reads as infrastructure noise (observed 4x at one sha, 2026-08-10T08:09:5xZ).
+  # Giving each dispatch its own group removes both collisions; push/PR supersede
+  # exactly as before.
+  group: test-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || 'ci' }}
   cancel-in-progress: true
 
 jobs:
