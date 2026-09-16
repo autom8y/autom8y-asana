@@ -39,6 +39,20 @@ One fact for the first blank, measured 2026-09-15: **the guid8 → clinic lookup
 that access can be paged but cannot resolve the code on the page. That is a property of the choice,
 not an objection to it.
 
+
+**Added 2026-09-16T17:50Z, bearing on the first blank and on what the page means.** The founding office
+`ccb52f4c` — the office this wave's north was written around — is confirmed a **relay sink**: two seats,
+two keys, reconciled to the digit; **130 of 130 of its arrivals in 72 h are `unknown_loud`**, mail the
+classifier could not recognise as any intake shape, arrived by relay from ~25 senders. Its RATE-floor
+reading (21 of 40 runs, 1–4 %) is *native bookings ÷ a forwarded inbox* — entirely a plumbing shape. The
+floor is not miscomputed; U-3 counts what it was ruled to count. The reader brief's line for this office
+is rewritten (arming receipt **E-6**). Whoever is named in the first blank should know the page's founding
+example does not describe a clinic.
+
+> **The word, post-arm (F-D, same shape as F-C):** *"Exclude `unknown_loud` parks from the arrival unit
+> U-3 — yes / no / only ___."* This is a pinned-query change and resets the soak by construction, so it is
+> asked for **after** the arm, not during the soak. **The meaning of a running instrument can be corrected
+> on the receipt; its definition cannot be corrected while it runs.**
 ---
 
 ## §2 NEW — the arm date is no longer 2026-09-22, and the choice is yours
