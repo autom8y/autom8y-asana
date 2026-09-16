@@ -56,9 +56,20 @@ longest actual consecutive pass run is 15 days (08-27 … 09-10).** A clean seve
 twice inside the last month. **The arm needs seven days without a burst, not the upstream defect
 gone** — a probability over a date, not a wall.
 
-> **The word:** *"On the residual breach — (a) wait for seven consecutive clean rows, earliest close
-> ≈ 09-25; or (b) a breached row annotates rather than resets, and the arm holds its date; or
-> (c) ___."*
+> **The word:** *"On the residual breach — (a) wait for seven consecutive clean rows; or (b) a
+> breached row annotates rather than resets, and the arm holds its date; or (c) ___."*
+
+**CORRECTED 2026-09-16T16:15Z — "earliest close ≈ 09-25" is withdrawn.** That date assumed the 09-15
+burst was a one-off that would age out of the 3-day window at ≈ 09-18T19:00Z. Day 2 shows it is not:
+the residual climbed monotonically through all 16 runs read (0.1136 → 0.1390, `high` on every one; 20
+consecutive run lines over 10 % since 20:27Z 09-15), fed by a 3-hourly re-delivery tail of the same
+rejected batch (8 lines at 00Z/03Z/06Z/09Z/12Z) **and a fresh batch of 14 at 15Z**. 09-15 and 09-16 are
+consecutive active days — consistent with the 30-day record, which shows the class arriving in
+**multi-day runs** (09-01..06, 09-08..11), not weekly spikes. **The soak is inside a run, and the run's
+end cannot be dated from this plane.** The arm under option (a) is *the end of the current run, plus
+three days for the window to clear, plus seven clean rows* — a shape, not a date. The 25-of-31 /
+15-day reconstruction stands: the criterion is achievable between runs; what is unknowable is when this
+run ends. Option (b) is unchanged and is now the only option with a date on it.
 
 **What this seat will not do, and did not do:** raise `RESIDUAL_SHARE_TRIPWIRE`, re-point the
 residual, or apply the §3a denominator guard retroactively. The tripwire reported that attribution
