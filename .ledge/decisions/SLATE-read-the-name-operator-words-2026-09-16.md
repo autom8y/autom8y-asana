@@ -56,15 +56,36 @@ longest actual consecutive pass run is 15 days (08-27 … 09-10).** A clean seve
 twice inside the last month. **The arm needs seven days without a burst, not the upstream defect
 gone** — a probability over a date, not a wall.
 
-> **The word:** *"On the residual breach — (a) wait for seven consecutive clean rows, earliest close
-> ≈ 09-25; or (b) a breached row annotates rather than resets, and the arm holds its date; or
-> (c) ___."*
+> **The word:** *"On the residual breach — (a) wait for seven consecutive clean rows; or (b) a
+> breached row annotates rather than resets, and the arm holds its date; or (c) ___."*
 
-**What this seat will not do, and did not do:** raise `RESIDUAL_SHARE_TRIPWIRE`, re-point the
-residual, or apply the §3a denominator guard retroactively. The tripwire reported that attribution
-was degrading, which is what it was built for. A row made green by moving the line it failed is the
-F-2 failure written out in full.
+**CORRECTED 2026-09-16T16:15Z, AND CORRECTED AGAIN 16:40Z — the date stands after all; what was wrong
+was this seat's second reading, not its first.** At 16:15Z this entry withdrew "≈ 09-25" and wrote *"the
+soak is inside a multi-day run"*, on a reading that the residual's monotonic climb through day 2 (0.1136
+→ 0.1390, high on 16 of 16 runs) was fed by a fresh no-body batch of 14 at 15Z. The EBI lane stopped it,
+and splitting the `***` lines by `(stage, error_type)` per hour over 36 h shows they were right:
 
+```
+no-body (parse/WebhookValidationError), *** lines per hour:
+  09-15 19Z  28    20Z  8    21Z  4
+  09-16 00Z   4    03Z  4    06Z  4    09Z  4    12Z  4    15Z  4        total 64
+```
+
+**One batch, on SendGrid's redelivery schedule — deterministic failure, new trace id each pass — and
+nothing new has entered the class since 19Z on 09-15.** The "14 at 15Z" was 4 retries + 2
+`OfficeResolutionError` + their 8 paired fault/decline lines, an hourly `***` count mistaken for a
+fresh arrival. The day-2 climb is **window arithmetic**: the 19Z burst and its flat tail accumulate
+inside the 3-day window while the quieter hours before it age out. **The no-body batch ages out ≈
+2026-09-18T19:00Z as first dated**, and option (a)'s earliest close remains **≈ 09-25**, *if no new batch
+lands* — a probability over a date, exactly as §2 already says. The small steady second feeder is
+`OfficeResolutionError` (15 `***` lines in 36 h), not anything new.
+
+One claim from the correcting lane does **not** hold on this plane and is recorded so it is not carried
+by inheritance: that `FieldExtractionError` feeds the residual. It feeds **zero** `***` lines in 36 h —
+those failures occur after office resolution and carry a guid, so they are attributed. Their split was of
+*all* stage exceptions (190 in 36 h); this seat's residual is of *unattributable* lines (64 + 15). Two
+instruments, two populations, and each of us read one as the other for an hour. Same family as every
+other error tonight.
 ---
 
 ## §3 NEW — the silent-loss class, which outranks everything else on this page
