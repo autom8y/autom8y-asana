@@ -100,6 +100,43 @@ those failures occur after office resolution and carry a guid, so they are attri
 *all* stage exceptions (190 in 36 h); this seat's residual is of *unattributable* lines (64 + 15). Two
 instruments, two populations, and each of us read one as the other for an hour. Same family as every
 other error tonight.
+
+**Added 2026-09-16T22:55Z — the fork now has a concrete, dated cause, and it changes the arithmetic of (a).**
+The EBI change set (autom8y #2324, bound to land ≤ 09-19) carries the no-body parse fix live at the apply,
+outside any lever. **`booking_intake_fault` is a member of the S-1 arrival unit** (`query.py:67-74`), and the
+handler logs it on every non-200 invocation — so a failing mail is counted **once per SendGrid redelivery**.
+The fix turns that retry chain into one parked 200. **Independently re-derived on this seat's plane** (current
+3-day window, the pinned query's population, the 72 no-body traces' 144 lines removed, all `***`):
+
+```
+TODAY                      lines 1676   *** 231   share 13.78%   -> residual tripwire HIGH
+WITHOUT the no-body ladder lines 1532   ***  87   share  5.68%   -> residual tripwire off
+```
+
+The EBI lane's own analysis read 13.86% → ~6%; the two agree. **At the apply, the residual criterion that has
+breached since 09-15 stops breaching.**
+
+**This seat's ruling on its own instrument (made, not deferred):** the change is **acceptable as measurement
+and truer** — it removes the retry over-count this slate's SOAK §3b names. It **does not violate the rule that
+keeps §3b unapplied**: §3b would re-grade *recorded* rows leniently; the deploy changes *future traffic*, so rows
+1–2 stay breached as recorded and the criterion stays exactly as strict. Two binding conditions: every row
+spanning the apply records the population change on its face; and **the post-apply "off" is never recorded as
+§3b vindicated or as the old criterion passing** — 13.78 % and ~5.7 % measure different populations.
+
+**What stays the operator's, and is now sharper:** whether rows spanning that population change count as
+*consecutive*. Under **(a)** the clock restarts at the apply on the new definition — and because the residual
+clears at source rather than waiting on an unpredictable next batch, a clean run could start at the apply. Under
+**(b)** the breached rows annotate and the date holds.
+
+> **HELD 2026-09-16T23:0xZ — #2324 will not land this wave, and the date above is withdrawn.** The operator
+> held the change set on the design of its LLM-failure narrowing: it parks on any HTTP 400, and the provider
+> returns 400 when an organisation hits a self-set spend limit, so a hit limit would have **parked the fleet's
+> inbound** instead of retrying it. Redesign with provider redundancy before anything lands. **So nothing in
+> this wave moves the arrival unit, and the residual keeps breaching on the same redelivery over-count.** The
+> ruling above stands for whenever #2324 does land. **Option (a) returns to this morning's arithmetic:** the
+> 09-15 no-body batch ages out of the window on its own at ≈ 09-18T19:00Z, and a clean seven-row run closes
+> ≈ 09-25 *if no new batch lands* — a probability over a date, as before. "The deploy makes (a) more
+> attractive" is **not** true this wave and is struck.
 ---
 
 ## §3 NEW — the silent-loss class, which outranks everything else on this page
