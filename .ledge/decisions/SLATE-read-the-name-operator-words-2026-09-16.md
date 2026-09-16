@@ -125,9 +125,18 @@ spanning the apply records the population change on its face; and **the post-app
 
 **What stays the operator's, and is now sharper:** whether rows spanning that population change count as
 *consecutive*. Under **(a)** the clock restarts at the apply on the new definition — and because the residual
-clears at source rather than waiting on an unpredictable next batch, a clean run could plausibly start ≈ 09-19
-and close ≈ 09-26. Under **(b)** the breached rows annotate and the date holds. **The deploy makes (a) more
-attractive than it was this morning.**
+clears at source rather than waiting on an unpredictable next batch, a clean run could start at the apply. Under
+**(b)** the breached rows annotate and the date holds.
+
+> **HELD 2026-09-16T23:0xZ — #2324 will not land this wave, and the date above is withdrawn.** The operator
+> held the change set on the design of its LLM-failure narrowing: it parks on any HTTP 400, and the provider
+> returns 400 when an organisation hits a self-set spend limit, so a hit limit would have **parked the fleet's
+> inbound** instead of retrying it. Redesign with provider redundancy before anything lands. **So nothing in
+> this wave moves the arrival unit, and the residual keeps breaching on the same redelivery over-count.** The
+> ruling above stands for whenever #2324 does land. **Option (a) returns to this morning's arithmetic:** the
+> 09-15 no-body batch ages out of the window on its own at ≈ 09-18T19:00Z, and a clean seven-row run closes
+> ≈ 09-25 *if no new batch lands* — a probability over a date, as before. "The deploy makes (a) more
+> attractive" is **not** true this wave and is struck.
 ---
 
 ## §3 NEW — the silent-loss class, which outranks everything else on this page
