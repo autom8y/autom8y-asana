@@ -125,6 +125,52 @@ a broken pattern. **Nothing to drop.**
 | **S-2** | **The `autom8y-asana-story-warm-dead` mute is undeclared in its own IaC.** `actions_enabled` is absent from `terraform/services/asana/story_warm_dead_alarm.tf` while the live alarm is `ActionsEnabled=False`. Narrower than it first looks — that tree has **no wired apply pipeline** and the live resource was never imported, so the revert would come from a human re-applying by hand, not a pipeline. It routes to live SMS. | *"Declare the mute in the HCL / retire the alarm / leave it."* |
 | **S-3** | **`[DO NOT MERGE]` reads like a gate and is not one.** Three commits carry the marker on `origin/main` since 2026-08-01 — `c91189b6` (#2071), `002316ca` (#2105), `5ca5642c` (#1601) — all merged through PRs, and **no workflow in `.github/` references the marker.** The uncomfortable part: `c91189b6` ignored it and was **right** — it is the commit that cured the silent-drop class. A gate whose only violations produce good outcomes is the least likely ever to be wired. | *"Wire the marker as a required check / retire it."* Wiring it changes branch protection, so it is operator-only either way. |
 
+
+### §6a AMENDED 2026-09-16T02:30Z — S-3 is not one item, it is a CLASS, and a third instance sits on this wave's own deploy path
+
+A peer lane reported a new binding tonight: *never set `vars.A8_VERSION` below `v1.4.1-patch.2`*, because
+20 of the 21 a8 tags from v1.3.4 write a credential literal their cure just removed. That measurement is
+theirs and is carried as theirs. **What this seat measured is whether the floor is enforced. It is not.**
+
+On `autom8y origin/main`: `v1.4.1-patch.2` is named as "the floor" in **seven** workflow files —
+`a8-pin-guard.yml`, `fleet-deploy-orchestrator.yml`, `reconcile-drift-detection.yml`,
+`satellite-receiver.yml`, `service-deploy-critical.yml`, `service-deploy-dispatch.yml`,
+`service-deploy-lambda.yml`. The F2(c) guard meant to hold it is, in full:
+
+```
+pin="${A8_VERSION:-}"
+if [ -z "${pin//[[:space:]]/}" ]; then
+  echo "::error::vars.A8_VERSION is unset or empty; ... Set ... to v1.4.1-patch.2 (the floor) ..."
+  exit 1
+fi
+```
+
+**The only occurrence of the floor in that file is inside the error string.** The test is emptiness.
+There is no version comparison anywhere in the tree. So `A8_VERSION=v1.3.4` passes every guard cleanly.
+The current value is `v1.4.1-patch.2`, updated 2026-09-14T04:44:30Z — **exactly at the floor, with no
+margin**. **This is on this wave's own deploy path:** `service-deploy-lambda.yml` is what an EBI deploy
+runs through.
+
+**The class, with three measured instances:**
+
+| thing | reads as | is |
+|---|---|---|
+| `[DO NOT MERGE]` in a commit subject | a merge gate | prose; no workflow references it; three such commits are on main |
+| `v1.4.1-patch.2` "the floor" | a version floor | a string in an error message; only emptiness is checked |
+| the EBI redaction alarm | armed paging coverage | reads a metric nothing writes, `notBreaching`, un-fireable for 109 days |
+
+**Something reads as enforcement while the mechanism does something narrower, or nothing.** It is the
+governance-layer form of the instrument law this wave banked the same night: *the instrument answered a
+narrower question than the one asked, and the narrow answer was well-formed.* A guard that fails closed
+on empty is a real guard — it is simply not the guard its own error message claims to be, and the
+message is what the next reader will believe.
+
+> **The word, replacing S-3's:** *"Gates that are prose — wire them, or retire the wording that claims
+> they bite: (a) the `[DO NOT MERGE]` marker, (b) the `A8_VERSION` floor, (c) ___."* Wiring either
+> changes branch protection or a deploy workflow, so both are operator-only.
+
+**Not taken by this seat.** The pin is outside this wave and is not this seat's to change; the peer lane
+has been told, and told that this entry exists so neither of us assumes the other is carrying it.
 ---
 
 ## §7 One item this seat is NOT taking, recorded so it is not lost
