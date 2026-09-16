@@ -144,3 +144,41 @@ its face, beside §3a. The threshold is not raised and the residual is not re-po
 contributes **zero**: `extract_fields` runs after `resolve_office`, so those lines carry a guid and are
 attributed. A neighbouring lane's split of *all* stage exceptions is a different population from this
 residual's *unattributable* lines; the two agree on the no-body class and must not be summed.
+
+### 3c · The deadman criterion passed VACUOUSLY on an empty set — APPLIED, because it can only tighten
+
+§3 requires *"both deadman alarms OK with actions = scratch only"*. That is an **all-quantifier with no
+cardinality assertion**, and `all(...)` over an empty set is **true**. Measured 2026-09-16T18:2xZ against a
+deliberately mistyped prefix:
+
+```
+real prefix  -> 2 alarms   'all actions are scratch-only' = True
+typo prefix  -> 0 alarms   'all actions are scratch-only' = True     <- VACUOUSLY TRUE
+```
+
+**So a DELETED or RENAMED S-1 alarm passed this criterion silently** — and an alarm's *absence* is precisely
+the failure a deadman exists to catch. The instrument could not see the one thing it is for.
+
+**Cure, applied:** name the expected set and assert its cardinality **before** grading it —
+`…-freshness-prober-liveness`, `…-lambda-freshness`, `…-office-floor-dlq-not-empty`,
+`…-office-floor-lambda-errors`. The row now prints `N of 4 present`, the missing and unexpected names, the
+off-scratch actions and the not-OK states, and a missing alarm is a **BREACH**, not a silent pass.
+
+**Proven two-sided rather than by presence:** real set → 4 of 4, missing none, PASS; the same check with one
+alarm removed → 3 of 4, missing named, **FAIL, the guard bit**.
+
+**Why this one is APPLIED while §3a and §3b are not.** The asymmetry is the whole of it. §3a and §3b would
+**loosen** the criterion — de-duplicated, the failing rows pass — so applying either while the soak is failing
+would be the amendment rescuing the rows it was written against, and that decision is the operator's. §3c can
+only **tighten**: it turns passes into failures and can never rescue a failing row. A strictly conservative
+change to what the instrument *checks*, with no change to the pinned query, the arrival unit, or any
+threshold, does not reset the soak and does not need a word to be honest.
+
+**Rows already read:** row 1 named all four alarms explicitly with their actions, so it re-verifies under the
+stricter form on its own recorded text. Row 0 named the two that existed at its instant. The stricter form
+binds from row 2 forward.
+
+**Provenance:** found by turning the identity lane's own S12 self-criticism on this instrument. They measured
+six `all`-style predicates in their grader passing over an empty population and printing HOLDS, and flipped
+each to VACUOUS. The same question asked here found this. **A predicate that examined nothing cannot support a
+pass — and the emptier the set, the more confident the `all`.**
