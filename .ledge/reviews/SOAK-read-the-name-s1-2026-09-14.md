@@ -112,3 +112,35 @@ needs **seven days without a burst**, not the upstream defect gone. The honest s
 probability over a date, not a wall. **The threshold is not to be raised, and the residual is not to be re-pointed:
 the tripwire reported that attribution was degrading, which is exactly what it was built for, and a row made green by
 moving the line it failed is the F-2 failure written out in full.**
+
+
+### 3b · The residual counts REDELIVERIES as new lines — a false rate, PROPOSED and DELIBERATELY NOT APPLIED
+
+Found 2026-09-16T16:40Z, after the EBI lane pointed at the mechanism. Split by `(stage, error_type)` per
+hour over 36 h, the no-body class (`parse/WebhookValidationError`) reads:
+
+```
+09-15 19Z  28    20Z  8    21Z  4
+09-16 00Z   4    03Z  4    06Z  4    09Z  4    12Z  4    15Z  4        = 64 *** lines
+```
+
+That is **one rejected batch** — ~28 first deliveries — re-delivered by SendGrid on a 3-hour, 72-hour
+ladder, each pass a new trace id and a new `***` line. The criterion is line-based, so it counts every
+redelivery of the same email as fresh unattributable traffic, and a single arrival inflates the share for
+three days. **Not a false zero and not a false confirmation: a correct count with a wrong denominator in
+time — a false rate.** The day-2 climb (0.1136 → 0.1390 across 16 runs with nothing new arriving) is this
+ladder accumulating inside the 3-day window while quieter hours age out.
+
+**Proposed de-dup:** count first deliveries, not lines — collapse the class to one arrival per 3-hour
+bucket. The ladder is deterministic enough that no message id is needed (the lines carry none).
+
+**NOT APPLIED, on purpose, and here is the number that is the reason:** de-duplicated, row 1's day-max
+residual falls **well under 10 %** and rows 1–2 pass. A criterion amended while it is failing must never be
+the thing that makes the failing rows pass, and this one would. It goes to the operator with that fact on
+its face, beside §3a. The threshold is not raised and the residual is not re-pointed.
+
+**Population note, so nobody inherits it wrong:** the residual has exactly two feeders in 36 h —
+`parse/WebhookValidationError` 64 and `resolve_office/OfficeResolutionError` 15. `FieldExtractionError`
+contributes **zero**: `extract_fields` runs after `resolve_office`, so those lines carry a guid and are
+attributed. A neighbouring lane's split of *all* stage exceptions is a different population from this
+residual's *unattributable* lines; the two agree on the no-body class and must not be summed.
