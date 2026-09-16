@@ -130,7 +130,20 @@ def aws(*args: str) -> dict:
     return json.loads(r.stdout) if r.stdout.strip() else {}
 
 
-def insights(log_group: str, query: str, hours: float) -> list[dict]:
+def insights(log_group: str, query: str, hours: float, top_n: bool = False) -> list[dict]:
+    """Run an Insights query and REFUSE a truncated result.
+
+    ★ A ``| limit N`` that is HIT returns a short set with a healthy-looking status line, and
+      every verdict computed from it is silently partial. That direction is not symmetric here:
+      a truncated partial-read set makes ``partial_read_traces`` too SMALL, which flips an
+      office from OURS to NOT AD-ORIGINATED -- the reading that sends a human to call a clinic
+      about our own defect. So the cap is checked, not trusted.
+
+      ``top_n=True`` marks a limit that is a DELIBERATE selection (``| sort ... | limit 1``)
+      rather than a safety cap, and is exempt. Everything else must come back under its cap.
+      Measured 2026-09-16: the three capped queries returned 36, 6 and 18 rows against caps of
+      400, 400 and 1000, so nothing has truncated -- but nothing was checking.
+    """
     end = int(time.time())
     start = int(end - hours * 3600)
     qid = aws(
@@ -160,6 +173,17 @@ def insights(log_group: str, query: str, hours: float) -> list[dict]:
     )
     if res.get("status") != "Complete":
         raise Untaken(f"query status {res.get('status')}")
+    cap = re.search(r"\|\s*limit\s+(\d+)\s*$", query.strip())
+    if cap and not top_n:
+        n_cap, n_rows = int(cap.group(1)), len(res.get("results", []))
+        emit(
+            f"   [completeness] rows={n_rows} cap={n_cap} -> {'TRUNCATED' if n_rows >= n_cap else 'complete'}"
+        )
+        if n_rows >= n_cap:
+            raise Untaken(
+                f"query returned {n_rows} rows against its own cap of {n_cap}: the result is "
+                "TRUNCATED and every verdict computed from it would be partial"
+            )
     if not st.get("recordsScanned"):
         raise Untaken("recordsScanned is zero -- an UNTAKEN zero, not a reading")
     return [
@@ -522,6 +546,7 @@ def observe_e() -> None:
         '| parse @message /"booking_attribution_floor_age_days":\\s*(?<aa>[0-9]+)/ '
         "| sort @timestamp desc | limit 1 | display @timestamp, ev, ou, af, aa",
         3,
+        top_n=True,  # a deliberate newest-row selection, not a safety cap
     )
     r = rows[0] if rows else {}
     emit(
