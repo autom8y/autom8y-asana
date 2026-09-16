@@ -17,6 +17,7 @@ Every row is one UTC day, read own-hands the following day with the commands in 
 | day | UTC date | evaluations (`office_floor_evaluated` lines) | controlled (`"control": "passed"` — `status==Complete ∧ records_scanned≥500 ∧ offices_with_bookings≥5` on both queries) | refused (`"control": "failed"`) | `LastSuccessTimestamp` datapoints (`Autom8y/EbiOfficeFloor`) | prober gauge datapoints (`Autom8y/Freshness` `age_since_last_invocation_seconds`, max s) | deadman alarm states 23:59Z (`…-lambda-freshness` / `…-freshness-prober-liveness`) | pages to scratch (`NumberOfMessagesPublished` on `autom8-ebi-office-floor-scratch`) | page-class distribution (ZERO / RATE / none) | `***` residual > 10 % tripwire | notes |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | 0 | 2026-09-14 (partial, read 06:41Z) | 4 (3 S1.4b controlled invokes 06:00:27 / 06:00:48 / 06:01:07Z + the first SCHEDULED fire 06:27:15Z; `filter-log-events` one page) | 3 (A, C-dry-run, D; scheduled D: `records_scanned` 13979, offices_with_bookings 31) | 1 (leg B, 10-min window, `records_scanned_below_floor`; timestamp withheld) | 2 (06:00Z, 06:27Z — A and D only; B refused and C dry-run emitted nothing) | 8 samples since 05:52Z, min 200 s, max 2000.6 s (< 7200) | both OK (`…-lambda-freshness` OK 06:04:56Z; `…-freshness-prober-liveness` OK 06:27:14Z) | 4 — ALL four are alarm `INSUFFICIENT_DATA → OK` OK-action notifications (05:53:09 / 05:53:48 / 06:04:56 / 06:27:14Z), 0 from the evaluator (`paged:false` on all four run lines); subscriptions 0 | from the 06:27:15Z run line: `zero_floor_count: 3`, `rate_floor_count: 0`, 39 evaluated → 36 quiet; office lines `floor_class` quiet 108 / zero 9 over the four runs (Gate C's own read); `ccb52f4c` quiet at 3.23 % (93 arrivals / 3 bookings) | `residual_share: 0.0746`, `residual_share_high: false` on the 06:27:15Z run line (own-hands 07:05Z; the earlier "needs the 11:27Z digest" was untrue — the field is on every run line) | born 05:52:27Z by run 34810812077; first scheduled fire OBSERVED 06:27:15Z; day-1 read must add the 11:27Z digest (`MessageId`, `sns:Publish` proven), the `***` share, and the full-day sums |
+| 1 | 2026-09-15 (complete, read 2026-09-16T00:06Z) | 24 | 24 (`control: passed` on every run line) | 0 | 24 (one per hour, 00Z–23Z, UTC-normalised) | 288 samples, Maximum 3803.16 s (< 7200) | all four OK, `AlarmActions` **and** `OKActions` = `autom8-ebi-office-floor-scratch` only (`…-freshness-prober-liveness`, `…-lambda-freshness`, `…-office-floor-dlq-not-empty`, `…-office-floor-lambda-errors`) | **1** — the 11:27Z digest, and nothing else all day; subscriptions still **0** | office lines 1091: quiet 1016 / zero 54 / rate 21; run-line `zero_floor_count` 2–3, `rate_floor_count` 0–1 | **BREACH — day max `residual_share` 0.1141, `residual_share_high: true` on 4 of 24 run lines** | **ROW FAILS §3 on the `***` residual alone; the other seven criteria pass.** The step is datable to the **20:27Z run** (19:27Z 0.0480 → 20:27Z 0.1038 → 0.1073 → 0.1134 → 0.1141, still climbing at 23:27Z) and it happened on **s1.3**, two hours BEFORE the s1.4 deploy, so it is not #2272. Cause measured at source: the **19:00Z hour** carried 110 office-bearing lines of which **65 were `***` (59.1 %)**, decaying to 0 % by 00Z — 46 distinct traces / 98 lines, **40 × `WebhookValidationError` at `stage=parse`** (each also emitting a `booking_intake_fault`, which IS in the arrival unit) + 6 × `OfficeResolutionError`. These fail before office resolution, so `redact_uuid` renders `***` and they are unattributable **by construction**. W = 3 d rolling, so the burst stays in the denominator until ≈ 2026-09-18T19:00Z. **Also in this row:** the evaluator switched s1.3 → s1.4 at 22:52Z and PT-08(a) passed every fence token at the 23:27:15Z fire, with `office_name` two-sided on one query (50 of 50 named at 22:00Z, **0 of 50 at 23:00Z**); and EBI deployed autom8y #2290 as image `c95c59b` at **2026-09-16T00:06:08Z**, five functions unanimous, `office_floor/` tree untouched by source diff. |
 
 ## 2 · Daily own-hands commands (region us-east-1; rc read unpiped)
 
@@ -70,3 +71,36 @@ The fleet's booking lines carry `chiropractor_guid` only from **2026-09-09**; th
 ## 3 · What closes the soak
 
 Seven consecutive complete rows with: evaluations ≥ 20/day, controlled ≥ 20/day, zero `FLOOR-REFUSED` on a healthy plane (or each refusal explained), `LastSuccessTimestamp` SampleCount ≥ 20/day, prober gauge SampleCount ≥ 280/day (`rate(5 minutes)`) with Maximum < 7200 s (cadence 3600 × buffer 2), both deadman alarms OK with actions = scratch only, exactly one page/day to scratch at 11:00Z (day count incrementing), `***` residual ≤ 10 %.
+
+### 3a · The residual criterion has no floor under its denominator — PROPOSED, and DELIBERATELY NOT APPLIED
+
+`***` residual ≤ 10 % is a **share**, and §3 puts no minimum on `window_lines`. Reconstructing the criterion across the
+30 days to 2026-09-16 (rolling W = 3 d, the pinned query's own population: every line where
+`coalesce(chiropractor_guid, office.chiropractor_guid)` is present; residual = the rows whose value is the literal `***`):
+
+| | |
+|---|---|
+| days that would have **passed** ≤ 10 % | **25 of 31** |
+| days that would have **breached** | **6** |
+| longest actual **consecutive pass run** | **15 days — 2026-08-27 … 2026-09-10** |
+
+Two of the six breaches are not attribution signals at all. **2026-08-25 read 25.3 % on 79 lines; 2026-08-26 read
+92.6 % on 27 lines** — quiet weekend days where a handful of unattributable lines blew the ratio. 92.6 % on 27 lines is
+a signal about Sunday, not about attribution. **This is the UNTAKEN-ZERO discipline applied to a ratio instead of a
+count, and the soak design missed it.**
+
+**Proposed guard:** the residual criterion is evaluated only when the day's `window_lines` clears a floor; below it the
+cell reads `UNTAKEN (denominator N < floor)` and neither passes nor fails. The floor itself wants the operator's word,
+because it sets how quiet a day may be before the instrument declines to judge.
+
+**NOT APPLIED, on purpose, and it does not rescue row 1.** Row 1 breached on **1,306 window lines** — a real denominator,
+a real burst, a true reading. A guard written while failing a criterion must never be the thing that makes the failing
+row pass, and it does not here. Recorded now so the correction and the failure it was discovered by stay in the same
+place.
+
+**What this measurement does change** is the shape of the blocker, and the change runs the *hopeful* way: on the
+evidence, seven consecutive clean rows are not merely possible but have happened twice inside the last month. The arm
+needs **seven days without a burst**, not the upstream defect gone. The honest statement to the operator is a
+probability over a date, not a wall. **The threshold is not to be raised, and the residual is not to be re-pointed:
+the tripwire reported that attribution was degrading, which is exactly what it was built for, and a row made green by
+moving the line it failed is the F-2 failure written out in full.**
