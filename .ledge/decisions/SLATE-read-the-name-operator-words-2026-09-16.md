@@ -100,6 +100,34 @@ those failures occur after office resolution and carry a guid, so they are attri
 *all* stage exceptions (190 in 36 h); this seat's residual is of *unattributable* lines (64 + 15). Two
 instruments, two populations, and each of us read one as the other for an hour. Same family as every
 other error tonight.
+
+**Added 2026-09-16T22:55Z — the fork now has a concrete, dated cause, and it changes the arithmetic of (a).**
+The EBI change set (autom8y #2324, bound to land ≤ 09-19) carries the no-body parse fix live at the apply,
+outside any lever. **`booking_intake_fault` is a member of the S-1 arrival unit** (`query.py:67-74`), and the
+handler logs it on every non-200 invocation — so a failing mail is counted **once per SendGrid redelivery**.
+The fix turns that retry chain into one parked 200. **Independently re-derived on this seat's plane** (current
+3-day window, the pinned query's population, the 72 no-body traces' 144 lines removed, all `***`):
+
+```
+TODAY                      lines 1676   *** 231   share 13.78%   -> residual tripwire HIGH
+WITHOUT the no-body ladder lines 1532   ***  87   share  5.68%   -> residual tripwire off
+```
+
+The EBI lane's own analysis read 13.86% → ~6%; the two agree. **At the apply, the residual criterion that has
+breached since 09-15 stops breaching.**
+
+**This seat's ruling on its own instrument (made, not deferred):** the change is **acceptable as measurement
+and truer** — it removes the retry over-count this slate's SOAK §3b names. It **does not violate the rule that
+keeps §3b unapplied**: §3b would re-grade *recorded* rows leniently; the deploy changes *future traffic*, so rows
+1–2 stay breached as recorded and the criterion stays exactly as strict. Two binding conditions: every row
+spanning the apply records the population change on its face; and **the post-apply "off" is never recorded as
+§3b vindicated or as the old criterion passing** — 13.78 % and ~5.7 % measure different populations.
+
+**What stays the operator's, and is now sharper:** whether rows spanning that population change count as
+*consecutive*. Under **(a)** the clock restarts at the apply on the new definition — and because the residual
+clears at source rather than waiting on an unpredictable next batch, a clean run could plausibly start ≈ 09-19
+and close ≈ 09-26. Under **(b)** the breached rows annotate and the date holds. **The deploy makes (a) more
+attractive than it was this morning.**
 ---
 
 ## §3 NEW — the silent-loss class, which outranks everything else on this page
