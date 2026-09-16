@@ -49,7 +49,15 @@ aws cloudwatch describe-alarms --alarm-name-prefix autom8-ebi-booking-floor --ou
 aws cloudwatch get-metric-statistics --namespace AWS/SNS --metric-name NumberOfMessagesPublished \
   --dimensions Name=TopicName,Value=autom8-ebi-office-floor-scratch \
   --start-time "$(date -u -r $S +%FT%TZ)" --end-time "$(date -u -r $E +%FT%TZ)" --period 86400 --statistics Sum --output json
-aws sns list-subscriptions-by-topic --topic-arn "arn:aws:sns:us-east-1:<ACCOUNT>:autom8-ebi-office-floor-scratch" --output json --query 'length(Subscriptions)'
+# NEVER count with --query 'length(...)'. The AWS CLI applies a JMESPath --query to EACH PAGE
+# separately and prints one result per page, so a paginated count read as a single number
+# UNDERCOUNTS. (Found on the EBI plane 2026-09-16: `describe-alarms --query 'length(...)'
+# --output text` printed "38" then "3" -- 38 read as the answer, 41 the truth.) A plain
+# --output json read is auto-paginated AND MERGED by the CLI, so counting the merged object is
+# safe. `NextToken` is printed as the proof that the read was complete: a subscription count is
+# the R-168 fence, and "0" from page 1 of 2 is exactly the shape of a silent failure.
+aws sns list-subscriptions-by-topic --topic-arn "arn:aws:sns:us-east-1:<ACCOUNT>:autom8-ebi-office-floor-scratch" --output json \
+  | python3 -c 'import json,sys; d=json.load(sys.stdin); print("subscriptions=", len(d.get("Subscriptions",[])), "NextToken=", d.get("NextToken"))'
 
 # page-class distribution — the per-office lines carry `floor_class` (lowercase: quiet | zero | rate); `page_class` exists ONLY on the run line (Gate C F-1)
 QID=$(aws logs start-query --log-group-name "$LG" --start-time "$S" --end-time "$E" \
