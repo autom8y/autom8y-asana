@@ -126,51 +126,70 @@ a broken pattern. **Nothing to drop.**
 | **S-3** | **`[DO NOT MERGE]` reads like a gate and is not one.** Three commits carry the marker on `origin/main` since 2026-08-01 — `c91189b6` (#2071), `002316ca` (#2105), `5ca5642c` (#1601) — all merged through PRs, and **no workflow in `.github/` references the marker.** The uncomfortable part: `c91189b6` ignored it and was **right** — it is the commit that cured the silent-drop class. A gate whose only violations produce good outcomes is the least likely ever to be wired. | *"Wire the marker as a required check / retire it."* Wiring it changes branch protection, so it is operator-only either way. |
 
 
-### §6a AMENDED 2026-09-16T02:30Z — S-3 is not one item, it is a CLASS, and a third instance sits on this wave's own deploy path
+### §6a AMENDED 2026-09-16T02:30Z, CORRECTED 02:45Z — the prose-gate class is real, and this seat got one instance wrong
 
-A peer lane reported a new binding tonight: *never set `vars.A8_VERSION` below `v1.4.1-patch.2`*, because
-20 of the 21 a8 tags from v1.3.4 write a credential literal their cure just removed. That measurement is
-theirs and is carried as theirs. **What this seat measured is whether the floor is enforced. It is not.**
+A peer lane reported a binding: *never set `vars.A8_VERSION` below `v1.4.1-patch.2`*, because 20 of the
+21 a8 tags from v1.3.4 write a credential literal their cure removed. That tag measurement is theirs and
+is carried as theirs.
 
-On `autom8y origin/main`: `v1.4.1-patch.2` is named as "the floor" in **seven** workflow files —
-`a8-pin-guard.yml`, `fleet-deploy-orchestrator.yml`, `reconcile-drift-detection.yml`,
-`satellite-receiver.yml`, `service-deploy-critical.yml`, `service-deploy-dispatch.yml`,
-`service-deploy-lambda.yml`. The F2(c) guard meant to hold it is, in full:
+**This seat first wrote that the floor is "named in seven workflows and enforced in none". That is
+WRONG on the path that matters, and the error is this night's own law turned on its author.** I searched
+for a *version comparison*, found none, and read the absence of the mechanism I expected as the absence
+of enforcement. **I asked a narrower question than the one I answered, and the narrow answer was
+well-formed.**
 
-```
-pin="${A8_VERSION:-}"
-if [ -z "${pin//[[:space:]]/}" ]; then
-  echo "::error::vars.A8_VERSION is unset or empty; ... Set ... to v1.4.1-patch.2 (the floor) ..."
-  exit 1
-fi
-```
+**What is actually true, re-measured after the peer's correction:**
 
-**The only occurrence of the floor in that file is inside the error string.** The test is emptiness.
-There is no version comparison anywhere in the tree. So `A8_VERSION=v1.3.4` passes every guard cleanly.
-The current value is `v1.4.1-patch.2`, updated 2026-09-14T04:44:30Z — **exactly at the floor, with no
-margin**. **This is on this wave's own deploy path:** `service-deploy-lambda.yml` is what an EBI deploy
-runs through.
+- **Data's cure IS enforced, by a property guard rather than a version test.**
+  `satellite-receiver.yml` runs `scripts/a8-data-floor-guard.sh` in its **validate** job, **with no
+  `if:` — deliberately, so the step is visible in every run** ("the script decides applicability"), and
+  every other job `needs: validate`. It refuses a data deploy when the manifest actually checked out at
+  the pinned ref names data's `SERVICE_CLIENT_ID`. It carries its own positive control: the same parse
+  must find the key in asana's block, and fails **loudly** if it does not — a parse that finds nothing
+  never certifies.
+- **There is no version-floor enforcement for any NON-data service**, and the two guards on the
+  service-deploy path (`service-deploy-dispatch.yml`, `service-deploy-lambda.yml`) emit `::warning::`
+  and say in their own text that the deploy is not gated on them. Those are advisory and honest about it.
+- **The absence of a version comparison is the design, not the gap** — and the reason is worth recording
+  precisely, because one step of the peer's account does not survive checking. They said semver ranks
+  `v1.4.1-patch.2` *below* `v1.4.1`, so a `pin >= floor` test would reject the only safe tag. **Under
+  strict semver that is right** (a pre-release ranks below its release). **Under `sort -V` it is not** —
+  measured here: `sort -V` orders `v1.3.4 < v1.4.1 < v1.4.1-patch.2`, ranking the safe tag *above*. So
+  the hazard's direction depends on which comparator you reach for, which is itself the argument: **the
+  property is the thing that matters (does this manifest name the key?), and any version test is a proxy
+  for it.** The guard checks the thing, not the proxy.
 
-**The class, with three measured instances:**
+**What survives, and it is still slate-worthy:** no version floor exists for any non-data service; two
+guards are advisory and say so; and **a8 #126's merged commit body still instructs a rollback to
+`v1.4.1`, with nothing marking it superseded.** The peer notes their own receipt was an instance of the
+class too — they wrote "the floor is now live" when what is live is a property guard on one service's
+path.
+
+**One scheduled collision, reported by the peer and carried here because it is dated, not hypothetical:**
+the guard's positive control depends on asana's environment block being non-empty, and the a8
+single-writer release empties it **by design**. When that release lands the control breaks and the guard
+refuses **every** data deploy — correct behaviour, and it will block. **It must be re-anchored before
+that release, not after.** The peer is telling the auth lane directly; it is named here so it is not
+lost between three seats.
+
+**The class, with its instances corrected:**
 
 | thing | reads as | is |
 |---|---|---|
 | `[DO NOT MERGE]` in a commit subject | a merge gate | prose; no workflow references it; three such commits are on main |
-| `v1.4.1-patch.2` "the floor" | a version floor | a string in an error message; only emptiness is checked |
-| the EBI redaction alarm | armed paging coverage | reads a metric nothing writes, `notBreaching`, un-fireable for 109 days |
-
-**Something reads as enforcement while the mechanism does something narrower, or nothing.** It is the
-governance-layer form of the instrument law this wave banked the same night: *the instrument answered a
-narrower question than the one asked, and the narrow answer was well-formed.* A guard that fails closed
-on empty is a real guard — it is simply not the guard its own error message claims to be, and the
-message is what the next reader will believe.
+| a8 #126's commit body | a live rollback instruction | superseded, and nothing marks it so |
+| `A8_VERSION` "the floor", on non-data paths | a version floor | advisory warnings that say so, plus error-string text |
+| the EBI redaction alarm | armed paging coverage | `notBreaching` on an unwritten metric; un-fireable for 109 days |
+| **this seat's own first reading of the a8 floor** | **a measured absence of enforcement** | **a measured absence of one mechanism, mistaken for the absence of all of them** |
 
 > **The word, replacing S-3's:** *"Gates that are prose — wire them, or retire the wording that claims
-> they bite: (a) the `[DO NOT MERGE]` marker, (b) the `A8_VERSION` floor, (c) ___."* Wiring either
-> changes branch protection or a deploy workflow, so both are operator-only.
+> they bite: (a) the `[DO NOT MERGE]` marker, (b) the non-data `A8_VERSION` wording, (c) a8 #126's
+> superseded rollback instruction, (d) ___."* Wiring any of them changes branch protection or a deploy
+> workflow, so they are operator-only.
 
-**Not taken by this seat.** The pin is outside this wave and is not this seat's to change; the peer lane
-has been told, and told that this entry exists so neither of us assumes the other is carrying it.
+**Not taken by this seat.** The pin is outside this wave. The peer lane has been told, and told that
+this entry exists, so neither of us assumes the other is carrying it.
+
 ---
 
 ## §7 One item this seat is NOT taking, recorded so it is not lost
