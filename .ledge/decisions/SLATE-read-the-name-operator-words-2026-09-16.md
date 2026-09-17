@@ -108,9 +108,15 @@ handler logs it on every non-200 invocation — so a failing mail is counted **o
 The fix turns that retry chain into one parked 200. **Independently re-derived on this seat's plane** (current
 3-day window, the pinned query's population, the 72 no-body traces' 144 lines removed, all `***`):
 
+> **⛔ FALSIFIED 2026-09-17T04:25Z — DO NOT ACT ON THE TABLE BELOW.** It is kept for the record, not as a
+> live figure. The deploy landed and removed **none** of those lines; measured either side of the boundary,
+> `***` lines per no-body trace went **2.00 → 3.00**, so the deploy made the residual **worse** per arrival,
+> not 59 % better. **The sign is wrong, not just the size.** The full correction is in the OVERTAKEN block
+> below, and the measurement is SOAK §3e / §3e-i.
+
 ```
-TODAY                      lines 1676   *** 231   share 13.78%   -> residual tripwire HIGH
-WITHOUT the no-body ladder lines 1532   ***  87   share  5.68%   -> residual tripwire off
+TODAY                      lines 1676   *** 231   share 13.78%   -> residual tripwire HIGH   [FALSIFIED]
+WITHOUT the no-body ladder lines 1532   ***  87   share  5.68%   -> residual tripwire off    [FALSIFIED]
 ```
 
 The EBI lane's own analysis read 13.86% → ~6%; the two agree. **At the apply, the residual criterion that has
@@ -303,6 +309,47 @@ lost between three seats.
 this entry exists, so neither of us assumes the other is carrying it.
 
 ---
+
+## §8 NEW — a word this seat cannot take: TWO LANES, TWO IDENTIFIER BASES for the same offices
+
+Added 2026-09-17T04:55Z. **This is a small word with a large failure mode, and it nearly fired tonight.**
+
+**The facts, both verified.** This lane's governing text requires **bare `guid8`** in every artifact — arming
+receipt §158, *"guid8 only. No clinic name, no phone digit, no full GUID"*, and the implementation ADR,
+*"`office_name` in full on the plane and on the page; guid8 only in every `.ledge` artifact."* The EBI client
+lane's own fence requires the opposite on its surfaces: **hashed handles, `sha256(guid8)[:8]`, never a bare
+guid prefix.** **Both lanes are correctly following their own rule. Neither is at fault.**
+
+**The failure mode, which is not hypothetical.** Two artifacts about **the same offices**, one in each basis,
+**intersect at face value to the EMPTY SET** — and an empty intersection reads as *"no overlap, non-event,
+nothing to see"*. It does not read as *"you compared two different alphabets"*. **Tonight this shape appeared
+three times:** a face-value intersection of eleven bare guid8s against twelve hashed handles (escaped only by
+hashing this seat's own first); a population test that returned **NONE on both declared bases** and read as
+*"not a real office"* when the office was real; and a peer citing fence **"F2"** at this seat, where **F2 in
+this lane's register is the CADENCE ruling** and means something else entirely. **Fence identifiers are
+lane-local too.**
+
+**Why it is not this seat's to settle.** Either resolution changes a governing rule in a lane. **Adopting
+hashed handles here would move this lane's artifacts away from what its own record mandates**; asking the
+other lane to publish bare guids would do the reverse to theirs. **A seat may not amend another lane's fence,
+and it may not amend its own to match a peer's request.**
+
+**The two shapes, stated without a recommendation:**
+
+1. **One basis fleet-wide.** Simple to check, and it makes cross-lane intersection safe by default. Costs a
+   rule change in whichever lane loses, and re-bases every existing artifact in that lane.
+2. **Keep both bases, require every artifact to DECLARE its basis on its face.** Costs nothing already
+   written; makes the hazard visible rather than absent; and leaves a face-value intersection still wrong,
+   only now detectably wrong.
+
+**What this seat HAS done in the meantime, so the word is not urgent:** every cross-lane comparison made
+tonight was performed **after** converting to a single declared basis, the transform `sha256(guid8)[:8]` is
+recorded in SOAK §3e with the note that **the arming receipt already stated it at E-6**, and the reader brief
+now instructs a reader to ask **which field** a number was counted on before acting.
+
+**The residual risk if no word is given:** a future seat intersects two lanes' artifacts at face value, gets
+the empty set, and records a non-event. **That is the shape that clears a merge.**
+
 
 ## §7 One item this seat is NOT taking, recorded so it is not lost
 
