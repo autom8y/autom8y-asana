@@ -108,9 +108,15 @@ handler logs it on every non-200 invocation — so a failing mail is counted **o
 The fix turns that retry chain into one parked 200. **Independently re-derived on this seat's plane** (current
 3-day window, the pinned query's population, the 72 no-body traces' 144 lines removed, all `***`):
 
+> **⛔ FALSIFIED 2026-09-17T04:25Z — DO NOT ACT ON THE TABLE BELOW.** It is kept for the record, not as a
+> live figure. The deploy landed and removed **none** of those lines; measured either side of the boundary,
+> `***` lines per no-body trace went **2.00 → 3.00**, so the deploy made the residual **worse** per arrival,
+> not 59 % better. **The sign is wrong, not just the size.** The full correction is in the OVERTAKEN block
+> below, and the measurement is SOAK §3e / §3e-i.
+
 ```
-TODAY                      lines 1676   *** 231   share 13.78%   -> residual tripwire HIGH
-WITHOUT the no-body ladder lines 1532   ***  87   share  5.68%   -> residual tripwire off
+TODAY                      lines 1676   *** 231   share 13.78%   -> residual tripwire HIGH   [FALSIFIED]
+WITHOUT the no-body ladder lines 1532   ***  87   share  5.68%   -> residual tripwire off    [FALSIFIED]
 ```
 
 The EBI lane's own analysis read 13.86% → ~6%; the two agree. **At the apply, the residual criterion that has
