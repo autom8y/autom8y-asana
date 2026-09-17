@@ -172,6 +172,64 @@ offices holding at its pre-boot level.
 what both running tasks report. So a rollback to `:651` by revision number would carry whatever `769522f` names
 at that later instant, exactly as `:648` would have. **On this family a revision number is a config floor, never
 a bytes floor**, and that is now confirmed on two separate deploys rather than one.
+### 3d-i · The three realization reads §3d demanded, taken — and why one of them can never be taken
+
+Read 2026-09-17T04:15Z, 3.67 h after the autom8y-data #472 boot. §3d set three recording conditions for rows
+3–5 and owed three reads. All three are taken here; **two return a reading and the third returns a reason.**
+
+**Read 1 — the named escape of condition (iii) has NOT fired.** Terminal-class mix for both affected offices,
+each window matched to the 3.67 h elapsed since the boot, **with the same clock hours 24 h earlier as a
+diurnal control** so a busier evening cannot read as an effect:
+
+| window | `terminal_decline` | `ad_lead_gate_refused` | `booking_completed` | **`booking_intake_fault`** |
+|---|---|---|---|---|
+| POST-boot | 9 | 0 | 0 | **0** |
+| PRE-boot | 17 | 0 | 0 | **0** |
+| −24 h control (post-slot) | 6 | 0 | 0 | **0** |
+| −24 h control (pre-slot) | 8 | 2 | 2 | **0** |
+
+`booking_intake_fault` is **0 in all four windows**. The escape §3d named — mails proceeding into booking
+stages they never reached, a downstream non-200 re-entering the per-redelivery fan-out, arrivals inflated and
+a rate driven down — **has not fired.** The 17 → 9 fall in declines is matched in shape by the control's 8 → 6,
+so it is diurnal and not the boot.
+
+**Read 2 — and the structural finding, which matters more than read 1.** Every `ccb52f4c` decline in every
+window is class `no_appt_dt`. **The lead-search class #472 addresses is absent on both sides**, and absence
+here is not evidence:
+
+```
+#472 target class for ccb52f4c        13 events / 30 d   (SOAK §3d)
+observed window                        3.67 h
+EXPECTED count of the target class     0.066
+expected count over the soak's own W = 3 d               1.3
+hours to expect 3 of them             166 h  =  6.9 d
+```
+
+**Rows 3–5 span the boot and cannot evidence the conversion.** A criterion whose window is 3 days cannot
+detect a class arriving 13 times in 30 days; to expect three of them takes 6.9 days, more than twice the
+window. **This is not "untaken for now" — it is undetectable at the instrument's own window size**, and no
+number of clean rows will change that. It belongs beside B-2: a thing whose rate is below the criterion's
+resolution cannot be evidenced by that criterion, and a row that passes says nothing about it either way.
+**Rows 3–5 must therefore not be read as confirming #472's realization**, and §3d's condition (iii) is
+discharged as *escape did not fire*, never as *conversion observed*.
+
+**Read 3 — condition (ii) cannot be graded at all, and the zero is controlled.** `79be1b75` reads 0 in all
+four windows. That zero is only meaningful against a control, so: the office emits **99 lines across 6 days in
+30 d, last emission 2026-09-14** — silent for three days before the boot. So it has not "left the ZERO floor";
+**it is not on the page at all**, and with 0 arrivals it cannot meet `arrivals >= 5` either. Condition (ii) is
+recorded UNGRADEABLE on this plane rather than passed.
+
+**The probe after-window, re-read wide.** The 02:51:48Z read was untaken on too narrow a window. Re-read
+02:51:40Z → 04:11:04Z: **1 `terminal_decline` at `ccb52f4c`**, against a control of **204 lines on the intake
+plane** in the same window. The window is live, so the 1 is a reading and no longer an untaken zero.
+
+**A filter-agreement check run before any of these numbers were written down.** Two scripts used two different
+office filters — `@message like /ccb52f4c/` and a parsed `chiropractor_guid` equality. Tonight already
+produced one number that was about a different object than it named (§3e's hash basis), so both filters were
+run over identical windows: **9 and 9 post-boot, 1 and 1 post-probe — exact agreement, every event class.**
+The numbers above do not depend on which filter produced them.
+
+
 ### 3c · The deadman criterion passed VACUOUSLY on an empty set — APPLIED, because it can only tighten
 
 §3 requires *"both deadman alarms OK with actions = scratch only"*. That is an **all-quantifier with no
