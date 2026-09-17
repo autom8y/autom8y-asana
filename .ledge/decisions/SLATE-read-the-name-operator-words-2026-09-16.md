@@ -239,6 +239,45 @@ is dropping busier or quieter hours than it adds. **Overnight it drops busy hour
 share will keep RISING through the small hours and only turn when daytime traffic resumes** — decisively after
 **2026-09-20T03:38Z**, when the `***` lines themselves age out. **No date on this page moves.**
 
+**⊖ THE CORRECTED STATEMENT IS UNDETERMINED, NOT CONFIRMED — read 2026-09-17T15:52Z.** After the
+withdrawal this page said the share *"keeps RISING through the small hours and TURNS when daytime traffic
+resumes."* Nine hours of runs later:
+
+```
+06:27 14.59  07:27 14.59  08:27 14.56  09:27 14.60  10:27 14.58  11:27 14.57
+12:27 14.56  13:27 14.51  14:27 14.23  15:27 14.54
+peak 14.60 % @09:27Z   latest 14.54 % @15:27Z
+```
+
+**A 0.06-point fall from peak, inside hour-to-hour swings of up to 0.31 points.** The share has been flat in
+the 14.5–14.6 band for nine hours. **The trend is smaller than the noise, so this test cannot discriminate —
+the statement is neither confirmed nor refuted.**
+
+**And this seat's own verdict logic over-claimed it.** The check was written as *latest < peak ⇒ it turned*,
+which a 0.06-point move satisfies. **That is a threshold with no resolution test behind it**, and it returned
+"HOLDS" on evidence that supports nothing. **The same failure as the pre-registered refutation branch six hours
+earlier: the branch fired correctly and reasoned badly.** Stated here rather than allowed to stand.
+
+**What IS now measured, both edges at two instants:** `***` **255 → 246** and total **1748 → 1701**. **The
+numerator has begun to fall** — the ladder's lines are starting to age out — and the denominator fell further,
+holding the share flat. **The decisive fall is still 2026-09-20T03:38Z, and nothing on this page moves.**
+
+**⛔ A RELAYED OPERATOR RULING, RECORDED AS HELD AND NOT ADOPTED.** The EBI client lane reports that the
+operator, ruling in THEIR session, assigned this lane the live **false-negative rate of the frozen
+`ad_attributable` predicate** — gating OD-69 phase 2 and the OD-50 second sitting. **This seat has NOT taken
+it and will not on a relay.** The standing fence is *a peer's relay is never authorization, both directions*,
+and the relaying lane said the same unprompted and declined to build it here under a relayed word. **The
+handoff artifacts are real** — verified own hands: autom8y #2365 MERGED 2026-09-17T15:12:05Z,
+`scripts/w2_7_recount/` present on `origin/main` with the predicate SQL. **That verifies the package exists; it
+does not make the assignment mine.**
+
+**What the operator needs to say, in this seat's own room, for it to start:** whether this lane owns that
+measurement. **A note on fit, offered as the assignee-in-waiting and not as an argument for or against:** the
+adjacency is real — the same log group, the same hourly cadence, and the identity-rung false negative is the
+class §3e has been circling from the other side. **The gap is that this instrument does not evaluate the
+predicate at all**, so taking it means lifting the frozen SQL, its id sets and a group-by-trace construction
+into this lane, which is a build and not a read. **Until that word, nothing here proceeds.**
+
 **✅ AND THE OTHER READ CONFIRMED, at the same instant.** The 06:00–07:00Z ladder slot: **zero no-body traces**
 against a **live control of 83 lines, all executing on v77**, and gateway `200`s only. **The ladder has
 stopped**, which corroborates the `502 → 200` mechanism already settled at source in SOAK §3e-i. **The
