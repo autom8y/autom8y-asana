@@ -172,6 +172,41 @@ offices holding at its pre-boot level.
 what both running tasks report. So a rollback to `:651` by revision number would carry whatever `769522f` names
 at that later instant, exactly as `:648` would have. **On this family a revision number is a config floor, never
 a bytes floor**, and that is now confirmed on two separate deploys rather than one.
+### 3d-ii · Two MORE deploy instants inside rows 3–5, and what they do to §3e-i
+
+Recorded 2026-09-17T04:40Z, verified own hands on the version plane rather than taken on a neighbouring
+lane's report. **Rows 3–5 now span five instants, not three.**
+
+| # | instant | what | version / sha |
+|---|---|---|---|
+| 1 | 2026-09-17T00:30Z | autom8y-data #472 boot | task def `:651` |
+| 2 | 2026-09-17T01:05:49Z | autom8y #2324 (split) | **v74** `36a8ee38d1c9` |
+| 3 | 2026-09-17T03:46:06Z | autom8y #2350 | **v75** `6c763b679732` |
+| 4 | **2026-09-17T04:24:01Z** | **the main-is-red fix, whose own change was a test and a docstring** | **v76** `e7ec666179d3`, alias `live` → v76 |
+| 5 | **2026-09-17T04:24:19Z** | autom8y-data `6700c517`, gate-contract server half, boot ≈ 04:47Z | endpoint only ACCEPTS a caller-resolved lead; its client is behind a flag defaulting off |
+
+**Instant 4 also applied log retention 365 to all six `autom8-email-booking-intake*` groups, including this
+instrument's own `-office-floor` group.** Verified own read, `nextToken` absent so the listing is complete.
+**Inert for the soak:** retention governs how long lines persist, 365 days exceeds both W = 3 d and the 30-day
+booking lookback, and it touches no threshold, no pinned query and no namespace. **It does not reset the soak.**
+
+**What instant 4 DOES change is the meaning of the §3e-i confirmation, and this is the point of recording it.**
+§3e-i measured `502 → 200` on **v73 versus v74**. The ≈ 06:35Z ladder slot will execute on **v76**. If v76
+altered the parse path, that read confirms v76's behaviour and not v74's. **The neighbouring lane reports
+instant 4's own commit carried only a test and a docstring, which would make v76 behaviourally identical to
+v75 — but that is their report, not this seat's measurement, and the sha did change.** So the 06:35Z read
+**records the executing qualifier from the log-stream name on its face**, and any verdict it produces is scoped
+to the version it actually ran on.
+
+**A general instance worth keeping, in the neighbouring lane's own framing and confirmed here: a merged
+terraform change and an APPLIED one are different states, and nothing marks the gap.** Instant 4's deploy
+carried what its own commit contained, not a change merged eight minutes later; a census change believed to
+have landed with it had not, and its allowlist parameter still read the prior version. **A plan that merges is
+not a plan that applies** — the same sentence this wave already learned on alarms, arriving by a different
+route. **Consequence for this file: every instant above is recorded from the version/alias plane or the log
+stream, never from a report that a merge happened.**
+
+
 ### 3d-i · The three realization reads §3d demanded, taken — and why one of them can never be taken
 
 Read 2026-09-17T04:15Z, 3.67 h after the autom8y-data #472 boot. §3d set three recording conditions for rows
@@ -255,6 +290,26 @@ POST (v74)  03:35:00-03:39:00Z   POST /webhooks/sendgrid   200 x4   responseLeng
 The post window is **alive at 12 successful requests**, so the zero is a reading. It is also only three hours,
 i.e. **one ladder period**, so the aggregate alone would be weak — **the load-bearing evidence is the paired
 cluster above**, the same class measured one period apart, not the aggregate.
+
+**SCOPE CORRECTION, and it changes a word that mattered.** The EBI client lane reproduced the paired cluster
+own-hands and then caught that the control window above starts at **02:00Z**, which excludes the deploy hour.
+Measured from the deploy instant itself, `01:05:49Z → now`, the distribution is **200 × 23 and 502 × 1**. The
+single 502 is at **01:07:29Z**, one minute forty after the deploy, latency **22,264 ms**, and the lambda lines
+in that minute carry **`booking_intake_fault`** — not the no-body class.
+
+**So the correct sentence is "the 502s for THIS CLASS are gone", never "there are no 502s".** The stronger
+version would have been a **defect report, not a success**: `booking_intake_fault` returning 502 is the RIGHT
+behaviour for a transient failure, because a transient failure must stay retryable. **A wholesale
+disappearance of 502 would mean transients were being swallowed too**, which is precisely what removing the
+LLM narrowing was meant to avoid. The class moved; the mechanism did not.
+
+**And the two neighbouring accounts were never opposed — this seat was wrong to frame it as one winning.**
+Their rule was *never convert a loud 4xx into a SILENT 2xx*. What shipped returns 200 **and** emits
+`terminal_decline` with `class = no_body_field` plus a durable `terminal_decline_parked` carrying its own
+`park_key`. **The 2xx is not a swallow precisely because the park is loud and durable.** "One parked 200" and
+"do not swallow the 4xx" describe the same shipped object from two sides. What the access-log read settles is
+something neither account contained: **the caller now receives a terminal answer, so the retry driver is
+removed at the source.**
 
 **This resolves the conflict between the two neighbouring accounts of the fix's emission shape.** One lane said
 it turns the retry chain into *"one parked 200"*; the other said it *"must attach the park at the raise and not
