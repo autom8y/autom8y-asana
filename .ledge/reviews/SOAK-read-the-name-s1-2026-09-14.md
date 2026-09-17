@@ -209,3 +209,90 @@ binds from row 2 forward.
 six `all`-style predicates in their grader passing over an empty population and printing HOLDS, and flipped
 each to VACUOUS. The same question asked here found this. **A predicate that examined nothing cannot support a
 pass — and the emptier the set, the more confident the `all`.**
+
+### 3e · The residual reads `chiropractor_guid`; the attribution now lands in `office_handle` — PROPOSED, DELIBERATELY NOT APPLIED
+
+Found 2026-09-17T04:10Z, reading whether autom8y #2324 (merged, deployed **2026-09-17T01:05:49Z**) removed the
+no-body class from the `***` residual. It did not, but not for the reason either neighbouring lane gave, and
+not for the reason this seat first published.
+
+**Anchored at the qualifier, not at the deploy time.** This function carries an alias (`live`), so a
+no-qualifier config read attests `$LATEST` and not what served — the standing wrong-object hazard. The log
+stream name carries the executing version, so the lines settle it themselves: the pre-deploy no-body lines ran
+on **v73**, the 03:35–03:38Z lines on **v74**. Those redeliveries genuinely executed #2324's code. The window
+after the 03:46:06Z deploy is **17 minutes against a 3-hour ladder**, so its zero is UNTAKEN and is not read here.
+
+**What #2324 changed, measured two-sided across the boundary on this seat's own connection:**
+
+```
+v73 (pre) : 12 no-body traces -> 12 booking_intake_fault,  0 terminal_decline, 0 parked
+v74 (post):  4 no-body traces ->  0 booking_intake_fault,  4 terminal_decline, 4 parked
+pipeline_completed.status : "failed" (v73) -> "declined" (v74)
+```
+
+**U-3 is unaffected, and that is the leg only this seat could check.** `booking_intake_fault` and
+`terminal_decline` are both in the arrival unit and `terminal_decline_parked` is excluded by design, so the
+class move is arrival-neutral: **1.00 counted lines per trace on both sides**. FACT-1 was re-asked because
+`terminal_decline` is the one event carrying `message_id` and a redelivery ladder is exactly what would make
+the de-dup branch live — `count(message_id) = 13`, `count_distinct = 13` over the window. **The branch stays
+inert and U-3 still means "count terminal-outcome lines."**
+
+**The new field, and why the criterion cannot see it.** The post-deploy lines carry `office_handle = 75c2be4e`
+on **4 of 4**, `office_handle_source = routing_guid` — while `chiropractor_guid` is still `***` on 4 of 4. The
+residual is defined on `coalesce(chiropractor_guid, office.chiropractor_guid)`. **So the class is now
+attributable on the line and the criterion keeps counting it as unattributable, because it reads the other
+field.** That is a defect in this instrument, not in the fix.
+
+**A false negative this section nearly carried, recorded because the next reader will hit it.** Tested
+`75c2be4e` against the 74-office graded population on both declared bases — raw `guid8` and `sha256(guid)[:8]`
+— and got **NONE on both**, which reads as "not a real office" and would have corroborated a neighbouring
+lane's conclusion that this class can never attribute. It is wrong. Asking instead whether the token appears
+anywhere else at all found it a second time with `office_handle_source = chiropractor_guid`. Lines carrying
+**both** fields give the mapping by observation:
+
+| office_handle | chiropractor_guid |
+|---|---|
+| **75c2be4e** | **ccb52f4c** |
+| f5c07c30 | d167d635 |
+| fc1df111 | 7a1e83fd |
+| bea49103 | 8a9b1a84 |
+
+**The transform is NOT recovered** — nine candidates (raw prefix, suffix, sha256/sha1/md5/blake2s prefixes,
+case- and separator-variants) reproduce none of these pairs. **The mapping above is observed, not derived**,
+and `office_handle` declares no basis on the line. This is the handle-without-a-declared-basis hazard for the
+third time on this wave, and on this occasion it bit: the face-value miss was the answer that agreed with the
+neighbouring lane.
+
+**So the no-body class is the founding office's mail.** `ccb52f4c` is the confirmed relay sink of receipt E-6
+(130 of 130 arrivals `unknown_loud`). The `***` residual and E-6 are **one phenomenon seen from two sides**,
+which this seat did not know when §3a and §3b were written.
+
+**Why this is NOT APPLIED, and the second reason is the load-bearing one.**
+
+1. It **loosens**: re-pointing the residual at `office_handle` clears the breach on the rows it was written
+   against. Same disposition as §3a and §3b, same rule — a criterion amended while it is failing must never be
+   the thing that makes the failing rows pass.
+2. **It would move those arrivals onto `ccb52f4c`'s count**, and on a relay-sink shape that is a live route to
+   firing a ZERO or RATE floor on the founding office for something that is plumbing. **Trading a residual
+   breach for a probable false floor firing on the founding office is a worse instrument, not a better one**,
+   and the choice is the operator's.
+3. **It cannot be applied to rows 1–3 in any case.** `office_handle` did not exist before 01:05:49Z, so for
+   most of those windows there is nothing to re-point at. Any retrospective application would be reading a
+   field into a period that never emitted it.
+
+**A dated, falsifiable prediction this section commits to.** `failed → declined` should mean SendGrid receives
+a terminal response and stops the 3-hourly ladder. **The next slot is ~06:35Z on 2026-09-17.** Zero no-body
+traces in that hour means the ladder has stopped and §3b's false rate stops accumulating **without the
+criterion being amended at all** — the clean outcome. Four traces means the response is still being retried.
+The park lines carry `newly_recorded: true` and a per-message `park_key`, which separates "ladder stopped"
+from "ladder fired and was recognised as a repeat."
+
+**Correction owed and made here.** This seat told the EBI client lane that at the apply *"the residual
+criterion that has breached since 09-15 stops breaching."* **That sentence is withdrawn.** It was stated
+before the deploy could be measured, and the measurement does not support it: the residual is unchanged,
+because the criterion reads a field the fix does not populate. Whether it stops breaching now rests on the
+06:35Z ladder read, not on the apply.
+
+**Evidence limitation, stated on its face.** `office_handle` has existed for under three hours, so the mapping
+table above rests on **four pairs**. It is what exists; it is not a census, and a collision in an 8-hex handle
+space is not excluded by four observations.
