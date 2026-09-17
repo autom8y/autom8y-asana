@@ -342,6 +342,119 @@ about what another party will do, measure the thing that party sees, not the thi
 and here that was available the whole time, two hours before the clock this seat had armed.
 
 
+### 3f · A FALSE ALARM on the arrival unit's de-dup branch, caught before publishing — and the exact scale at which `count_distinct` stops being exact
+
+Found 2026-09-17T04:40Z. **This section exists because the claim it nearly made would have been a defect
+report against U-3's core, and it was wrong.** Recorded in full because the next reader will reach for the
+same query and get the same wrong answer.
+
+**What this seat nearly published.** Re-asking FACT-1 over 30 days instead of the 2.7 h of §3e:
+
+```
+count(message_id) = 2517 ,  count_distinct(message_id) = 2118   ->  "399 DUPLICATES"
+```
+
+The reading would have been: FACT-1 is falsified, the de-dup branch is LIVE, `arr_id` is not additive across
+day bins, the day-N fold is inexact, and U-3 no longer means what §3e says it means. **All of that is false,
+and it fails for two compounding reasons, each sufficient on its own.**
+
+**Cause 1 — `count_distinct` is APPROXIMATE, and here is the scale at which it starts.** Measured against an
+exact enumeration of the same rows:
+
+| window | id-bearing lines | `count_distinct` | EXACT distinct | delta |
+|---|---|---|---|---|
+| 1 d | 111 | 111 | 111 | 0 |
+| 3 d | 308 | 307 | 307 | 0 |
+| 7 d | 516 | 515 | 515 | 0 |
+| 14 d | 1000 | 999 | 999 | 0 |
+| **30 d** | **2517** | **2118** | **2384** | **−266 (11 %)** |
+
+**So 399 of the "duplicates" were an artefact of an approximate aggregate. The real number is 133.**
+
+**Cause 2 — the population. All 133 real duplicates are a second line the evaluator already excludes.**
+Classified individually:
+
+| shape | count |
+|---|---|
+| `quarantine_capture_written` + `terminal_decline` sharing one id | 132 |
+| `park_body_retained` + `terminal_decline` sharing one id | 1 |
+| **same office, BOTH lines terminal and office-bearing** | **0** |
+
+Every one is **one mail emitting a second, NON-office-bearing line**. The pinned query's first clause is
+`filter ispresent(office_guid)`, so those lines are not in its population at all. **Not one duplicate is a
+redelivery counted twice.**
+
+**Therefore the instrument is right and this seat was wrong.** The evaluator publishes `dedup_inert` on every
+run as its own tripwire for exactly this: **73 of 73 runs over 14 d report `dedup_inert = 1`, and that is
+CORRECT.** FACT-1 holds inside the population U-3 is computed over.
+
+**And `count_distinct` is exact everywhere it is actually used.** It appears twice, in `PINNED_QUERY` at
+**W = 3 d** and in `DAILY_QUERY` binned **per UTC day** — both measured exact above. The 30-day booking
+lookback issues **no** 30-day aggregate: `last_booking_ages` folds the same per-day bins and only tests
+`bk_id + bk_noid > 0` per bin. **So `arr_id` and `bk_id` are exact where they are read, and the approximation
+cannot reach a page.**
+
+**The standing hazard, which is the part worth keeping.** Anyone AUDITING this instrument over a 30-day window
+with `count_distinct` will get an 11 % undercount **and will read it as duplicates that do not exist**. That is
+precisely what happened here. **Above roughly 1,000 distinct values on this log group, `count_distinct` must be
+checked against an enumeration before any conclusion rests on it.**
+
+**How it was caught, because the method is the transferable part.** Two of this seat's own numbers disagreed
+over the same window — an aggregate saying 2118 and an enumeration saying 2384. **The choice was to find out
+which was right rather than to pick the one that made a finding.** The first would have read as a defect in the
+arrival unit on the night before an arm decision. **A disagreement between two of your own instruments is the
+finding; it is never a number to choose between.**
+
+
+### 3g · The caller's plane — what U-3 structurally cannot see, now BOUNDED rather than unmeasurable
+
+The API Gateway access log (`/aws/apigateway/autom8-email-booking-intake`, retention 365 d) records requests
+**the handler never ran**. Those are arrivals U-3 cannot count by construction, not by defect. **B-2's shape
+was "a hole whose defining property is emitting nothing cannot be measured on the plane it blinds" — and this
+is that hole measured, by changing planes.**
+
+**The gateway-rejected class is BOUNDED and negligible.**
+
+| status | 30 d | per day | handler ran? | visible to U-3? |
+|---|---|---|---|---|
+| `413` payload too large | **2** | **0.07** | **no** — 0 lambda lines within ±3 s on both | **no, invisible** |
+| `503` gateway timeout | 96 | 3.20 | **yes** — lambda lines present on 5 of 5 sampled | see below |
+
+**Positive control, so the "no lambda lines" reading is a measurement and not a failed query:** the identical
+method over three `200`s finds lambda lines on **3 of 3**. The method can detect a handler run; it did not
+detect one for either `413`. **So U-3's structural blindness to gateway rejections is bounded at ~0.07
+arrivals/day — negligible against A = 5, and now a number instead of an unknown.**
+
+**The `503` class is a timeout, and its consequence for U-3 is NOT proven here.** All 96 carry
+`integrationLatency` of 30,000–30,001 ms, i.e. exactly the gateway's 30-second ceiling, and lambda `Duration`
+values above 30 s coincide in 6 of 8 sampled instants (33.3 s, 33.9 s, 37.6 s, 39.6 s, 41.5 s, 42.1 s). **The
+coherent mechanism is: the handler runs past the gateway's ceiling, the gateway answers 503, SendGrid retries,
+and the mail arrives again.**
+
+**What is NOT established, stated plainly: this seat looked for terminal lines within ±180 s of each 503, not
+for lines belonging to the SAME invocation.** Other mail flows concurrently, so those lines may belong to other
+requests. **The "terminal present on 8 of 8" reading does not support any claim about the 503's own
+invocation.** Proving it needs the access-log `requestId` correlated to the lambda `REPORT RequestId`, then a
+later invocation carrying the same `message_id`.
+
+**But §3f bounds the harm without needing that proof, and this is the useful part.** A 503-driven redelivery
+produces a second terminal line for the same mail. **If that line carries a `message_id`, `count_distinct`
+collapses the pair and the mail counts ONCE — the de-dup branch is exactly the protection against this.** If it
+does NOT carry one, it lands in `arr_noid`, which is a per-line sum, and the mail counts TWICE.
+
+**Which is precisely why the no-body class inflated the residual before #2324.** On v73 that class emitted
+`booking_intake_fault`, which carries **no** `message_id` (measured: present on none of the 12 pre-deploy
+traces), so every redelivery counted afresh. On v74 it emits `terminal_decline`, which **does** carry one.
+**§3b's false rate, §3e's field defect and §3f's de-dup branch are three views of one mechanism: whether a
+terminal line carries the identity that lets a redelivery be recognised as the same mail.**
+
+**A population warning on this log group, because the obvious 30-day read is misleading.** Of 17,388 `502`s in
+30 days, **15,297 (88 %) fall in four days, 2026-08-24 to 08-27**, during which successful requests collapsed
+to 38–48/day against up to 5,032 failures — a multi-day outage, not a rate. Outside that burst the class runs
+8–155/day. **It is outside W = 3 d and outside every soak row recorded so far, so no row is affected** — but
+any 30-day baseline computed for this endpoint is quoting the outage, and must not be used to size anything.
+
+
 ### 3c · The deadman criterion passed VACUOUSLY on an empty set — APPLIED, because it can only tighten
 
 §3 requires *"both deadman alarms OK with actions = scratch only"*. That is an **all-quantifier with no
