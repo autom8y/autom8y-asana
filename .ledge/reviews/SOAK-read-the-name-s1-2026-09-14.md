@@ -259,7 +259,15 @@ anywhere else at all found it a second time with `office_handle_source = chiropr
 
 **The transform is `sha256(guid8 ASCII)[:8]`** — verified own hands, reproducing all four pairs and mapping
 distinct guids to distinct handles. It was recovered only after the EBI client lane named it; nine candidates
-tried here first reproduced none of the pairs. **The reason they missed is the finding, not a footnote: the
+tried here first reproduced none of the pairs.
+
+**And the worse fact, found while checking whether the arming receipt needed the same correction: the basis was
+already written in this seat's own record.** Receipt E-6 states *"Identity confirmed two ways: `sha256(guid8)`
+and the full-guid hash both resolve to this office, from two seats."* **The transform was declared, in the
+governing document of this very wave, and this seat re-derived instead of reading it.** So the lesson is not
+"the handle declares no basis on the line" — though it does not. It is that **a declared basis was available
+and was not consulted**, and nine wrong candidates were generated in its place. The line-level complaint stands
+for future readers; the error here was not the line's. **The reason they missed is the finding, not a footnote: the
 log field holds the REDACTED full guid `ccb52f4c-***`, and this seat hashed that, while the basis is the bare
 8-character prefix.**
 
@@ -313,6 +321,15 @@ the 3.04 h since the deploy, every `***` line in the window:
 derived transform). **It does not clear the breach; it reduces the residual by a third and creates floor risk
 on the founding office to do it.** That is a materially worse trade than it appeared when this section was
 first drafted, and it is recorded here rather than argued: the decision is still the operator's.
+
+**A structural objection to this criterion, from the EBI client lane, recorded because it is the strongest
+argument against the instrument and it is not this seat's to rule.** *A residual criterion that counts
+unattributed LINES charges the system for making a loss loud.* Every improvement that adds a durable record —
+a park intent, a receipt, a named decline — adds a line to the unattributed bucket and worsens the number. On
+this criterion **the best-scoring system is the one that emits least**, which is the condition this whole arc
+exists to end. #2324 is the first instance measured: it made the class loud and the criterion scored it 50 %
+worse. **The criterion is not wrong so much as pre-dated** — it was written before the thing it now measures
+existed. Recorded here in the neighbouring lane's framing, unamended, and left to the operator.
 
 **A dated, falsifiable prediction this section commits to.** `failed → declined` should mean SendGrid receives
 a terminal response and stops the 3-hourly ladder. **The next slot is ~06:35Z on 2026-09-17.** Zero no-body
