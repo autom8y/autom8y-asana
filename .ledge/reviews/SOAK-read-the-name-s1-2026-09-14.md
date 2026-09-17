@@ -81,6 +81,40 @@ The fleet's booking lines carry `chiropractor_guid` only from **2026-09-09**; th
 
 Seven consecutive complete rows with: evaluations ≥ 20/day, controlled ≥ 20/day, zero `FLOOR-REFUSED` on a healthy plane (or each refusal explained), `LastSuccessTimestamp` SampleCount ≥ 20/day, prober gauge SampleCount ≥ 280/day (`rate(5 minutes)`) with Maximum < 7200 s (cadence 3600 × buffer 2), both deadman alarms OK with actions = scratch only, exactly one page/day to scratch at 11:00Z (day count incrementing), `***` residual ≤ 10 %.
 
+### 3·0 · INDEX AND DISPOSITIONS — read this before any section below
+
+This section grew from four entries to eleven on 2026-09-16/17. **The single thing a reader must not get wrong
+is which of them CHANGED the criterion.** Exactly one did.
+
+| § | what it is | **disposition** |
+|---|---|---|
+| **3c** | the deadman criterion passed vacuously on an empty set | **APPLIED** — the only section that changes what the instrument checks. Applied because it can **only tighten**: it turns passes into failures and can never rescue a failing row. |
+| 3a | the residual criterion has no floor under its denominator | **PROPOSED, NOT APPLIED** |
+| 3b | the residual counts redeliveries as new lines — a false rate | **PROPOSED, NOT APPLIED** |
+| 3e | the residual reads `chiropractor_guid` while attribution lands in `office_handle` | **PROPOSED, NOT APPLIED** |
+| 3d | deploy instants bounding rows 3–5 | record only |
+| 3d-i | the three realization reads §3d demanded, one of them untakeable | record only |
+| 3d-ii | two further deploy instants, and v76's inertness measured | record only |
+| 3e-i | §3e's dated prediction, settled at the source before its instant | record only |
+| 3f | a FALSE ALARM this seat raised against the arrival unit, and withdrew | record only — **no criterion changed; the instrument was right** |
+| 3g | the caller's plane: what U-3 structurally cannot see, now bounded | record only |
+| 3h | the allowlist retirement inside rows 3–5, and the calibration subject's 0.26-point margin | record only |
+
+**The rule that produces this asymmetry, and it is the whole of it.** §3a, §3b and §3e would each **loosen** the
+criterion — under any of them the rows that have already breached would pass. **A criterion amended while it
+is failing must never be the thing that makes the failing rows pass**, so all three go to the operator with
+that fact on their face, and the threshold, the pinned query, the arrival unit and the namespace are all
+untouched. §3c can only tighten, so it needed no word.
+
+**Three consequences a reader should carry away.**
+
+1. **The `***` residual has NOT been re-pointed, re-scoped or re-thresholded.** Rows 1 and 2 stand as breached.
+2. **Nothing in §3f changed the instrument.** It records a defect this seat reported against U-3 and then
+   withdrew; `dedup_inert` was correct throughout.
+3. **Rows 3–5 span five deploy instants and must not be read as confirming any of them** — see §3d-i for the
+   one whose effect is undetectable at this instrument's own window size.
+
+
 ### 3a · The residual criterion has no floor under its denominator — PROPOSED, and DELIBERATELY NOT APPLIED
 
 `***` residual ≤ 10 % is a **share**, and §3 puts no minimum on `window_lines`. Reconstructing the criterion across the
