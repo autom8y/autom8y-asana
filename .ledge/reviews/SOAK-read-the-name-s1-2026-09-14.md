@@ -18,6 +18,7 @@ Every row is one UTC day, read own-hands the following day with the commands in 
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | 0 | 2026-09-14 (partial, read 06:41Z) | 4 (3 S1.4b controlled invokes 06:00:27 / 06:00:48 / 06:01:07Z + the first SCHEDULED fire 06:27:15Z; `filter-log-events` one page) | 3 (A, C-dry-run, D; scheduled D: `records_scanned` 13979, offices_with_bookings 31) | 1 (leg B, 10-min window, `records_scanned_below_floor`; timestamp withheld) | 2 (06:00Z, 06:27Z — A and D only; B refused and C dry-run emitted nothing) | 8 samples since 05:52Z, min 200 s, max 2000.6 s (< 7200) | both OK (`…-lambda-freshness` OK 06:04:56Z; `…-freshness-prober-liveness` OK 06:27:14Z) | 4 — ALL four are alarm `INSUFFICIENT_DATA → OK` OK-action notifications (05:53:09 / 05:53:48 / 06:04:56 / 06:27:14Z), 0 from the evaluator (`paged:false` on all four run lines); subscriptions 0 | from the 06:27:15Z run line: `zero_floor_count: 3`, `rate_floor_count: 0`, 39 evaluated → 36 quiet; office lines `floor_class` quiet 108 / zero 9 over the four runs (Gate C's own read); `ccb52f4c` quiet at 3.23 % (93 arrivals / 3 bookings) | `residual_share: 0.0746`, `residual_share_high: false` on the 06:27:15Z run line (own-hands 07:05Z; the earlier "needs the 11:27Z digest" was untrue — the field is on every run line) | born 05:52:27Z by run 34810812077; first scheduled fire OBSERVED 06:27:15Z; day-1 read must add the 11:27Z digest (`MessageId`, `sns:Publish` proven), the `***` share, and the full-day sums |
 | 1 | 2026-09-15 (complete, read 2026-09-16T00:06Z) | 24 | 24 (`control: passed` on every run line) | 0 | 24 (one per hour, 00Z–23Z, UTC-normalised) | 288 samples, Maximum 3803.16 s (< 7200) | all four OK, `AlarmActions` **and** `OKActions` = `autom8-ebi-office-floor-scratch` only (`…-freshness-prober-liveness`, `…-lambda-freshness`, `…-office-floor-dlq-not-empty`, `…-office-floor-lambda-errors`) | **1** — the 11:27Z digest, and nothing else all day; subscriptions still **0** | office lines 1091: quiet 1016 / zero 54 / rate 21; run-line `zero_floor_count` 2–3, `rate_floor_count` 0–1 | **BREACH — day max `residual_share` 0.1141, `residual_share_high: true` on 4 of 24 run lines** | **ROW FAILS §3 on the `***` residual alone; the other seven criteria pass.** The step is datable to the **20:27Z run** (19:27Z 0.0480 → 20:27Z 0.1038 → 0.1073 → 0.1134 → 0.1141, still climbing at 23:27Z) and it happened on **s1.3**, two hours BEFORE the s1.4 deploy, so it is not #2272. Cause measured at source: the **19:00Z hour** carried 110 office-bearing lines of which **65 were `***` (59.1 %)**, decaying to 0 % by 00Z — 46 distinct traces / 98 lines, **40 × `WebhookValidationError` at `stage=parse`** (each also emitting a `booking_intake_fault`, which IS in the arrival unit) + 6 × `OfficeResolutionError`. These fail before office resolution, so `redact_uuid` renders `***` and they are unattributable **by construction**. W = 3 d rolling, so the burst stays in the denominator until ≈ 2026-09-18T19:00Z. **Also in this row:** the evaluator switched s1.3 → s1.4 at 22:52Z and PT-08(a) passed every fence token at the 23:27:15Z fire, with `office_name` two-sided on one query (50 of 50 named at 22:00Z, **0 of 50 at 23:00Z**); and EBI deployed autom8y #2290 as image `c95c59b` at **2026-09-16T00:06:08Z**, five functions unanimous, `office_floor/` tree untouched by source diff. |
+| 2 | 2026-09-16 (complete, read 2026-09-17T00:38Z) | 24 | 24 | 0 | 24 | 288 samples, Maximum 3802.85 s (< 7200) | **4 of 4 expected present**, none missing, none unexpected, all OK, `AlarmActions` **and** `OKActions` = `autom8-ebi-office-floor-scratch` only — the first row graded under §3c, which asserts cardinality **before** grading; under the old form this cell could have passed on a deleted alarm | **1** — the 11:27Z digest and nothing else; subscriptions still **0** | office lines 1279: quiet 1224 / zero 55 / **rate 0**; run-line `zero_floor_count` 2–3, `rate_floor_count` **0** | **BREACH — day max `residual_share` 0.1414, `residual_share_high: true` on 24 of 24 run lines** | **ROW FAILS §3 on the `***` residual alone; the other seven criteria pass.** Same cause as row 1 and no new arrival: the 09-15T19Z no-body batch's 3-hourly SendGrid redelivery tail accumulating inside the 3-day window while quieter hours age out (SOAK §3b). Composition of the residual over this window, by `error_type` × `stage` on `***` lines: `WebhookValidationError`/`parse` 74 · `OfficeResolutionError`/`resolve_office` 32 · their paired fault/decline/parked lines 136. **`ccb52f4c` off the RATE floor all day** (`rate_floor_count` 0 on every run), consistent with E-6: its arrivals are relayed `unknown_loud`, and it books by its native path. **Deploys inside this row: none.** autom8y-data #472 merged `769522ff` at 2026-09-17T00:08:37Z and booted at 00:30-00:32Z — **both after this row closed**; autom8y #2324 was HELD, then split (head `8149625d`) and had not merged. |
 
 ## 2 · Daily own-hands commands (region us-east-1; rc read unpiped)
 
@@ -145,6 +146,32 @@ contributes **zero**: `extract_fields` runs after `resolve_office`, so those lin
 attributed. A neighbouring lane's split of *all* stage exceptions is a different population from this
 residual's *unattributable* lines; the two agree on the no-body class and must not be summed.
 
+
+### 3d · Deploy instants bounding rows 3–5, recorded before those rows are read
+
+**autom8y-data #472 (the lead-search 400 fix)** — merge `769522ff` **2026-09-17T00:08:37Z**; task definition
+`autom8y-data-service:651` registered **00:30:43Z**; tasks created 00:30:56Z / 00:31:27Z, running 00:31:52Z /
+00:32:21Z; rollout COMPLETED, 2 of 2. **Verified own hands 00:41:32Z**, not taken on report. Merge-to-running
+**23m 15s**. It affects two offices on this page — `ccb52f4c` (13 of 17 lead-search 400s in 30 d) and
+`79be1b75` (4 of 17) — by changing the **terminal class** (a decline becoming a possible booking), **not the
+arrival count**: `terminal_decline` and `booking_completed` are both in the arrival unit, so a converted mail
+stays one arrival and gains a booking. **Rows 3–5 span it** (W = 3 d from ~00:30Z 09-17).
+
+**Recording conditions for those rows.** (i) Each records the boot instant on its face. (ii) **If `79be1b75`
+leaves the ZERO floor after the boot, that is our own lead-search dependency starting to work — not the clinic
+starting to book.** The E-6 shape: a plumbing change wearing a behaviour's clothes, and it must never read as a
+recovery. (iii) The claim that the fix *can remove a floor firing but never create one* holds for the
+decline→booking conversion, with one escape: those 17 mails now proceed past `match_lead` into booking stages
+they never reached, and any downstream non-200 re-enters the `booking_intake_fault` per-redelivery fan-out,
+which **inflates arrivals and drives a rate down**. Small at 17 per 30 d, unmeasurable before the boot, and the
+only path by which the monotonicity fails — so the realization read includes `booking_intake_fault` on those two
+offices holding at its pre-boot level.
+
+**A second instance of the S10 tag-versus-digest finding, measured here.** `:651` references its image by the
+**mutable tag** `data:769522f`, not by digest — ECR resolves that tag to `6cf2cd0e…` (pushed 00:24:25Z), which is
+what both running tasks report. So a rollback to `:651` by revision number would carry whatever `769522f` names
+at that later instant, exactly as `:648` would have. **On this family a revision number is a config floor, never
+a bytes floor**, and that is now confirmed on two separate deploys rather than one.
 ### 3c · The deadman criterion passed VACUOUSLY on an empty set — APPLIED, because it can only tighten
 
 §3 requires *"both deadman alarms OK with actions = scratch only"*. That is an **all-quantifier with no
