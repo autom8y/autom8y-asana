@@ -230,6 +230,48 @@ run over identical windows: **9 and 9 post-boot, 1 and 1 post-probe — exact ag
 The numbers above do not depend on which filter produced them.
 
 
+### 3e-i · The §3e prediction, SETTLED AT THE SOURCE two hours before its instant
+
+§3e committed to a dated prediction: that `pipeline_completed.status` moving `failed → declined` means
+SendGrid receives a terminal response and stops the 3-hourly ladder, testable at the ≈ 06:35Z slot. **That was
+a proxy.** The thing itself — the HTTP status SendGrid actually received — is recorded in the API Gateway
+access log for this route, which has `$context.status` in its format. Read directly, 2026-09-17T04:35Z:
+
+```
+PRE  (v73)  00:35:00-00:39:00Z   POST /webhooks/sendgrid   502 x4   responseLength 167
+POST (v74)  03:35:00-03:39:00Z   POST /webhooks/sendgrid   200 x4   responseLength 196
+```
+
+**The same four-request cluster, one ladder period apart, on the same route: 502 before, 200 after.** The
+`502` is a Bad Gateway from the handler raising, and **it is the retry driver**. It is gone.
+
+**Control, so the zero is taken and not untaken.** Status by hour on that route across the deploy:
+
+| window | 200 | 502 |
+|---|---|---|
+| 09-15 22:00Z → 09-17 01:00Z (pre) | 246 | 60, in a 3-hourly pattern of 4 |
+| 09-17 02:00Z → 04:00Z (post) | **12** | **0** |
+
+The post window is **alive at 12 successful requests**, so the zero is a reading. It is also only three hours,
+i.e. **one ladder period**, so the aggregate alone would be weak — **the load-bearing evidence is the paired
+cluster above**, the same class measured one period apart, not the aggregate.
+
+**This resolves the conflict between the two neighbouring accounts of the fix's emission shape.** One lane said
+it turns the retry chain into *"one parked 200"*; the other said it *"must attach the park at the raise and not
+swallow the 4xx into a 2xx"*. **What shipped returns 200.** The first account describes the deployed behaviour.
+
+**What this does and does not establish.** It establishes that the retry DRIVER is removed at the source: a 200
+is what tells SendGrid to stop. It does **not** by itself observe SendGrid stopping — that is the 06:35Z slot,
+which is now a **confirmation rather than the decider**, and is still owed either way. **If 06:35Z fires at 4
+despite a 200, the finding is about SendGrid's retry semantics and not about this fix**, which would be a
+different and more interesting result than the one predicted.
+
+**Method note, because it is the transferable part.** §3e's prediction was built on `pipeline_completed.status`,
+a field the service writes about itself. The access log records what the *caller* received. **When a claim is
+about what another party will do, measure the thing that party sees, not the thing we say about ourselves** —
+and here that was available the whole time, two hours before the clock this seat had armed.
+
+
 ### 3c · The deadman criterion passed VACUOUSLY on an empty set — APPLIED, because it can only tighten
 
 §3 requires *"both deadman alarms OK with actions = scratch only"*. That is an **all-quantifier with no
