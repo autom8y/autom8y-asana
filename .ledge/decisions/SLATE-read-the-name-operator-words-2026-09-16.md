@@ -144,6 +144,71 @@ clears at source rather than waiting on an unpredictable next batch, a clean run
 > ≈ 09-25 *if no new batch lands* — a probability over a date, as before. "The deploy makes (a) more
 > attractive" is **not** true this wave and is struck.
 
+**★ DATE CORRECTION 2026-09-17T05:50Z — ≈ 09-18T19:00Z IS THE WRONG CLOCK, and the right one is later.**
+Two different clocks were conflated above:
+
+1. **SendGrid's 72-hour retry ladder** would have ended ≈ 09-18T19:00Z, 72 h after the batch's first delivery.
+2. **The residual's own W = 3 d rolling window** clears a line **three days after that line was WRITTEN**.
+
+**The ladder in fact stopped EARLY — at 03:38:31Z on 09-17, about 39 h before its 72 h would have expired —
+because the deploy made the endpoint answer 200 instead of 502** (SOAK §3e-i). That is the good news. **But the
+lines it already wrote stay in the window until 2026-09-20T03:38Z**, which is **≈ 33 h LATER than the date
+above.** Stopping the ladder early does not remove what it already wrote.
+
+```
+last no-body line measured      2026-09-17 03:38:31Z
+W = 3 d rolling -> clears at    2026-09-20 03:38Z      (the slate above said ≈ 09-18 19:00Z)
+first possible fully-clean day  >= 2026-09-21
+seven consecutive clean rows    close no earlier than ≈ 2026-09-27, not ≈ 09-25
+```
+
+**Corroborated by the instrument's own published number rather than by this arithmetic alone: `residual_share`
+is still RISING** — 13.72 % at 00:27Z to **14.53 % at 05:27Z**, `residual_share_high = 1` on every run, against
+a 10 % threshold. **It is rising while NO new no-body lines are arriving**, because quieter hours age out of the
+rolling window while the ladder's lines remain, and because §3e measured that the deploy made those lines
+**denser** — 3.00 per trace instead of 2.00. **Row 3 will breach.**
+
+**Shape of the class, checked before this was written so §3b is not misquoted.** No-body lines per day over
+6 d: 09-11 **16** · 09-15 **40** · 09-16 **32** · 09-17 **8**, and nothing on 09-12–14. **Two separate episodes,
+and §3b's "one batch on a 3-hourly ladder" correctly describes the 09-15 one**, which is the one still in the
+window. The 09-11 episode has already aged out.
+
+**★ READ THIS BEFORE THE TRIPWIRE FIRES, not after — the coming breach will LOOK like the fix having
+failed, and it is not.** Put here at the EBI client lane's request, because an alarm at 08:00Z read without
+this page in front of it will reach for the most recent change, and the most recent change is the fix that
+**stopped** the thing being counted.
+
+**The mechanism, corrected from the one first offered and measured here rather than reasoned.** The
+neighbouring lane's version was *"the numerator is frozen and the denominator is moving."* **Historically that
+is not what happened** — over the last 18 h the numerator ROSE, 193 → 212 → 231 → 243 → 255, faster than the
+denominator's 1402 → 1745. The share rose because **the rolling window slid ONTO the ladder episode** while
+the quiet pre-ladder days of 09-12 to 09-14 dropped out of it. **Nothing new was arriving; the window was
+moving over what had already arrived.**
+
+**What IS true, and it is true from now rather than historically:**
+
+```
+since 03:38:40Z : office-bearing lines 15 , across 5 distinct offices , of which *** = 0
+                  -> the window is LIVE, so the zero is TAKEN, not untaken
+```
+
+**The numerator is frozen AS OF NOW. The denominator is live.** So:
+
+> **PREDICTION, falsifiable at the next hourly run: `residual_share` must FALL from its 14.53 % at 05:27Z.
+> If the next runs keep RISING, a feeder exists that this read did not find, and this whole explanation is
+> WRONG.** It is recorded that way on purpose — the operator should be able to catch this seat out with one
+> glance at the next digest.
+
+**And the breach still happens regardless**, because the ladder's already-written lines do not leave the
+W = 3 d window until **2026-09-20T03:38Z**. **A falling share and a breaching row are compatible**: the row
+records the day's MAXIMUM, and the maximum for 09-17 is already above 10 %. **Row 3 will breach, and that
+breach is not evidence about the fix in either direction.**
+
+**What this does NOT say.** It bounds the **ladder's** contribution only. The residual has other feeders
+(`OfficeResolutionError` and the paired lines), so **a clean row is not guaranteed even after 09-20T03:38Z** —
+this moves the earliest possible date, not the expected one. **No recommendation on the fork is implied or
+changed; only a date this seat had given you is corrected.**
+
 **OVERTAKEN 2026-09-17T04:25Z — #2324 did land, and the arithmetic above is wrong in both directions.**
 Read before anything else on this page, because the hold note immediately above is now false on its face.
 
