@@ -418,7 +418,7 @@ is that hole measured, by changing planes.**
 | status | 30 d | per day | handler ran? | visible to U-3? |
 |---|---|---|---|---|
 | `413` payload too large | **2** | **0.07** | **no** — 0 lambda lines within ±3 s on both | **no, invisible** |
-| `503` gateway timeout | 96 | 3.20 | **yes** — lambda lines present on 5 of 5 sampled | see below |
+| `503` gateway timeout | 96 in 30 d | **0.33–0.43 steady-state, NOT 3.20** — see the correction below | **yes** — lambda lines present on 5 of 5 sampled | see below |
 
 **Positive control, so the "no lambda lines" reading is a measurement and not a failed query:** the identical
 method over three `200`s finds lambda lines on **3 of 3**. The method can detect a handler run; it did not
@@ -448,11 +448,101 @@ traces), so every redelivery counted afresh. On v74 it emits `terminal_decline`,
 **§3b's false rate, §3e's field defect and §3f's de-dup branch are three views of one mechanism: whether a
 terminal line carries the identity that lets a redelivery be recognised as the same mail.**
 
+**★ CORRECTION TO THIS SECTION'S OWN `503` RATE, and the way it was caught is the point.** The EBI client
+lane applied **this section's own outage-versus-rate warning to this section's own number**, one class over.
+Verified on this seat's instrument:
+
+| window | total requests | `503` | `503`/day |
+|---|---|---|---|
+| 1 d | 264 | 0 | 0.00 |
+| 3 d | 751 | 1 | 0.33 |
+| 7 d | 1,354 | 3 | 0.43 |
+| 14 d | 2,861 | 13 | 0.93 |
+| **30 d** | **22,397** | **96** | **3.20** |
+
+**The 30-day window holds 22,397 requests against 2,861 in the last 14** — roughly 19,500 of them in the same
+tail the `502` burst occupies. **So 3.20/day is the outage; the steady state is 0.33–0.43/day, an order of
+magnitude lower.** The warning against a 30-day baseline was written in this very section and then not applied
+to the line above it. **Recorded as this seat's error, corrected by the neighbouring lane using this seat's own
+rule.**
+
+**And the defect does NOT retire with the rate, because it is a config mismatch rather than a frequency.**
+Measured on the serving qualifier: **the Lambda's `Timeout` is 60 s while the gateway gives up at ~30 s** (all
+96 carry `integrationLatency` 30,000–30,001 ms). **So the handler may keep running for ~30 s after SendGrid
+has been told the delivery failed.** That is true at any rate; the rate only sizes how often it bites — about
+one mail every two to three days at steady state. **The harm has a direction:** the caller believes it failed
+and retries, so the mail may be processed twice while the first pass was still succeeding, which is the
+duplicate-write class the v75 guard exists for. **Neither lane has proven the handler completes in the 30–60 s
+band, nor that SendGrid retries on a 503** — both are inferences from config and timing, and are recorded as
+such, not as findings.
+
+**A denominator warning while this plane is in use:** `/aws/lambda/autom8-email-booking-intake-ebi` is an
+**orphaned log group** — retention 365, `storedBytes` 0, and **no function of that name exists**. It is one of
+the six groups the 04:24:01Z retention change touched. Harmless, but it must never enter a denominator of
+groups or functions.
+
 **A population warning on this log group, because the obvious 30-day read is misleading.** Of 17,388 `502`s in
 30 days, **15,297 (88 %) fall in four days, 2026-08-24 to 08-27**, during which successful requests collapsed
 to 38–48/day against up to 5,032 failures — a multi-day outage, not a rate. Outside that burst the class runs
 8–155/day. **It is outside W = 3 d and outside every soak row recorded so far, so no row is affected** — but
 any 30-day baseline computed for this endpoint is quoting the outage, and must not be used to size anything.
+
+
+### 3h · The contente allowlist retirement landed INSIDE rows 3–5, it targets 12 of 12 offices on this page, and it fires no floor — but the calibration subject is 0.26 points from one
+
+**Instant 6, verified own hands on both planes.** SSM parameter
+`/autom8y/email-booking-intake/contente-booking-census` went **v7 → v8 at 2026-09-17T04:33:07.738Z**; the
+alias moved to **v77 at 04:33:08Z**, one second later. Live parameter read by this seat: **33 distinct
+office guid8**, and **`ccb52f4c` is ABSENT — retired.**
+
+**★ THE MECHANISM THAT MATTERS MORE THAN THE INSTANT, from the EBI client lane and adopted here: writing the
+parameter does not retire an office — a COLD START does.** `_census.py` resolves the parameter at cold start
+and then sets env vars `ServiceConfig` reads. A warm execution environment keeps the allowlist it resolved when
+it started, for as long as it lives. **So the retirement is fleet-effective at 04:33:08Z because the v77 deploy
+forced every environment to cold-start, not because the parameter was written.**
+
+**Standing hazard for this file, and the reason it is recorded here rather than in a neighbour's:** *a soak row
+spanning a census parameter write WITHOUT an accompanying deploy has had its subject changed at an instant
+nobody recorded, and possibly PER CONTAINER rather than fleet-wide.* A per-container change is not an instant
+at all; it is a smear whose width is the container lifetime. **Any future row must record whether a census
+write was accompanied by a deploy, and if it was not, the row cannot claim a clean before/after.**
+
+**The intersection is total, which this seat did not expect.** Hashing the whole graded population through the
+recovered transform: **all 12 retired handles are offices on this page in W = 3 d.** Not a sample of the fleet
+— every retired office is one this instrument grades.
+
+**Floor impact, measured rather than assumed.** Only **3 of 12** had any contente booking at all in W = 3 d, and
+removing them crosses nothing:
+
+| guid8 | arrivals | bookings | contente | native | rate now | rate after | floor after |
+|---|---|---|---|---|---|---|---|
+| `03859024` | 14 | 6 | 1 | 5 | 42.86 % | 35.71 % | clear |
+| `800f9fe1` | 6 | 3 | 1 | 2 | 50.00 % | 33.33 % | clear |
+| `d167d635` | 63 | 16 | 1 | 15 | 25.40 % | 23.81 % | clear |
+| the other nine | — | — | **0** | — | unchanged | unchanged | clear |
+
+**No retired office crosses either floor.** E-6's reading that the founding office "books by its native path"
+is confirmed on the booking-event mix: `ccb52f4c` has **0 contente bookings and 10 native in 30 d**, so the
+retirement does not touch its booking count at all.
+
+**★ BUT THE CALIBRATION SUBJECT IS 0.26 POINTS FROM THE RATE FLOOR, AND THAT IS THE FINDING.**
+
+```
+ccb52f4c, W = 3 d : arrivals 181 · bookings 5 · rate 2.76 %   RATE floor = 2.50 %
+losing ONE booking   -> 4/181 = 2.21 %   FLOOR FIRES
+gaining 19 arrivals  -> 5/200 = 2.50 %   FLOOR FIRES
+```
+
+**One booking decides whether the founding office is on the page.** E-5 recorded that it "oscillates at the
+RATE floor"; this is that oscillation quantified, and the margin is one event wide. **Every row 3–5 must
+record this margin on its face**, because a floor firing on this office in the next three days is far more
+likely to be a one-booking fluctuation than a change in the clinic's behaviour — and per E-6 its RATE reading
+is a plumbing shape to begin with.
+
+**Correction carried, since two figures for this instant are circulating.** A recount seat reported the
+retirement at **04:16:36Z**. That is wrong and this seat verified why: at 04:16:36Z the live alias was still
+v75 and the parameter still v7. **Both independent instruments — SSM parameter history and the Lambda version
+list — put it at 04:33:07.738Z / 04:33:08Z.**
 
 
 ### 3c · The deadman criterion passed VACUOUSLY on an empty set — APPLIED, because it can only tighten
