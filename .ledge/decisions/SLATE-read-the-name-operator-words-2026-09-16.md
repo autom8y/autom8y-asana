@@ -137,6 +137,46 @@ clears at source rather than waiting on an unpredictable next batch, a clean run
 > 09-15 no-body batch ages out of the window on its own at ≈ 09-18T19:00Z, and a clean seven-row run closes
 > ≈ 09-25 *if no new batch lands* — a probability over a date, as before. "The deploy makes (a) more
 > attractive" is **not** true this wave and is struck.
+
+**OVERTAKEN 2026-09-17T04:25Z — #2324 did land, and the arithmetic above is wrong in both directions.**
+Read before anything else on this page, because the hold note immediately above is now false on its face.
+
+**1. The hold was overtaken, not lifted.** #2324 was **split**: the LLM-failure narrowing the operator held it
+on — park on any HTTP 400, so a provider spend-limit 400 would have parked the fleet's inbound — is **not** in
+what landed. The remainder merged and deployed at **2026-09-17T01:05:49Z**, publishing **v74**. Confirmed at
+the executing version rather than the deploy time: this function carries an alias, so a no-qualifier config
+read attests `$LATEST` and not what served. The log-stream qualifier shows the pre-deploy lines on v73 and the
+03:35–03:38Z lines on **v74**. **The operator's objection was met by removal, and this seat records that
+without treating it as the operator's word on anything else.**
+
+**2. "At the apply, the residual criterion that has breached since 09-15 stops breaching" is WITHDRAWN.**
+It has not. The residual reads `chiropractor_guid`, which is still `***`; the attribution #2324 produces lands
+in a different field, `office_handle`. **The criterion cannot see the fix.** Full measurement in SOAK §3e.
+
+**3. The counterfactual table above is unrealized, and its DIRECTION is wrong.** It assumed the deploy removes
+the class's 144 lines. It removes none of them. Measured on identical queries either side of the boundary:
+
+```
+v73 (pre) : 12 no-body traces -> 24 *** lines   = 2.00 *** residual lines per trace
+v74 (post):  4 no-body traces -> 12 *** lines   = 3.00 *** residual lines per trace
+```
+
+The fix swapped `booking_intake_fault` for `terminal_decline` **and added `terminal_decline_parked`**, which is
+a third `***` line where there were two. **Per arrival, the deploy made the residual 50 % worse, not 59 %
+better.** The `13.78 % → 5.68 %` row should be read as falsified, not pending.
+
+**4. So exactly one route to a falling residual remains, and it is not attribution.** `pipeline_completed.status`
+moved **`failed` → `declined`**, which should mean SendGrid receives a terminal response and **stops the
+3-hourly ladder**. Fewer traces, not fewer lines per trace, is the only mechanism left. **Dated and falsifiable:
+the next ladder slot is ≈ 06:35Z on 2026-09-17.** Zero no-body traces in that hour means the class stops feeding
+the residual **now** rather than at the 09-18T19:00Z age-out, with no criterion amendment at all. Four traces
+means the response is still retried, and the residual is **worse** than this page records.
+
+**5. What this does and does not do to the fork.** Rows 1–2 stay breached as recorded, under both branches —
+nothing here re-grades a recorded row. Option (a)'s backstop is unchanged: the batch ages out ≈ 09-18T19:00Z
+regardless. What changes is only whether it stops sooner. **This seat is not moving the fork and has no new
+recommendation on it** — it is removing a false premise that was sitting under option (a), and the 06:35Z read
+will be recorded here either way, including if it refutes the prediction above.
 ---
 
 ## §3 NEW — the silent-loss class, which outranks everything else on this page
