@@ -173,6 +173,37 @@ rolling window while the ladder's lines remain, and because §3e measured that t
 and §3b's "one batch on a 3-hourly ladder" correctly describes the 09-15 one**, which is the one still in the
 window. The 09-11 episode has already aged out.
 
+**★ READ THIS BEFORE THE TRIPWIRE FIRES, not after — the coming breach will LOOK like the fix having
+failed, and it is not.** Put here at the EBI client lane's request, because an alarm at 08:00Z read without
+this page in front of it will reach for the most recent change, and the most recent change is the fix that
+**stopped** the thing being counted.
+
+**The mechanism, corrected from the one first offered and measured here rather than reasoned.** The
+neighbouring lane's version was *"the numerator is frozen and the denominator is moving."* **Historically that
+is not what happened** — over the last 18 h the numerator ROSE, 193 → 212 → 231 → 243 → 255, faster than the
+denominator's 1402 → 1745. The share rose because **the rolling window slid ONTO the ladder episode** while
+the quiet pre-ladder days of 09-12 to 09-14 dropped out of it. **Nothing new was arriving; the window was
+moving over what had already arrived.**
+
+**What IS true, and it is true from now rather than historically:**
+
+```
+since 03:38:40Z : office-bearing lines 15 , across 5 distinct offices , of which *** = 0
+                  -> the window is LIVE, so the zero is TAKEN, not untaken
+```
+
+**The numerator is frozen AS OF NOW. The denominator is live.** So:
+
+> **PREDICTION, falsifiable at the next hourly run: `residual_share` must FALL from its 14.53 % at 05:27Z.
+> If the next runs keep RISING, a feeder exists that this read did not find, and this whole explanation is
+> WRONG.** It is recorded that way on purpose — the operator should be able to catch this seat out with one
+> glance at the next digest.
+
+**And the breach still happens regardless**, because the ladder's already-written lines do not leave the
+W = 3 d window until **2026-09-20T03:38Z**. **A falling share and a breaching row are compatible**: the row
+records the day's MAXIMUM, and the maximum for 09-17 is already above 10 %. **Row 3 will breach, and that
+breach is not evidence about the fix in either direction.**
+
 **What this does NOT say.** It bounds the **ladder's** contribution only. The residual has other feeders
 (`OfficeResolutionError` and the paired lines), so **a clean row is not guaranteed even after 09-20T03:38Z** —
 this moves the earliest possible date, not the expected one. **No recommendation on the fork is implied or
