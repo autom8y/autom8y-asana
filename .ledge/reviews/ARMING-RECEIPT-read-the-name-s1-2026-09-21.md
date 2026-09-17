@@ -99,6 +99,38 @@ Run from an autom8y-asana checkout at the merge of this PR, in us-east-1, with a
 | **E-5** | The founding office `ccb52f4c` **oscillates** at the RATE floor. It was on it in 27 of 43 hourly evaluations over 48 h, at rate 0.8 %–2.4 %, and quiet at 3.0 %–3.8 % otherwise, with `day_n` ≤ 2. It will be absent from some daily pages, and that absence is not a recovery. | runbook §7.3 | office-line `floor_class` for `ccb52f4c` | as stated |
 | **E-6 — CONFIRMED 2026-09-16T17:40Z, two seats, reconciled to the digit** | **The founding office's arrivals are not partly its own — in the measured window, none of them are.** Proxy from this plane (17:21Z, From-domain key): 130 arrival traces in 72 h from 25 sender domains, top-1 58.5 %. Confirmed by the EBI locus on the office key (`chiropractor_guid` on terminal lines, trace-level join, no truncation, printed control): **arrival traces 130 (matches), distinct senders 25 (matches), `intake_class = unknown_loud` on 130 of 130** — mail the classifier could not recognise as any intake shape, arrived by relay. Identity confirmed two ways: `sha256(guid8)` and the full-guid hash both resolve to this office, from two seats. Per day: 09-13 8 · 09-14 61 · 09-15 44 · 09-16 17, all 100 % `unknown_loud`. **Controls on the same instrument:** the next two offices by arrivals (34 and 30) are 100 % book-class, one sender each, 18 and 13 booked. **Population note, this seat's:** `booking_completed` *is* in the terminal set (query.py `TERMINAL_OUTCOME_EVENTS`), so the office's 6 bookings **are** in the evaluator's denominator — its arrivals read 137–143, not 130, and the rate is 6 ÷ ~137 ≈ 4.4 %, not 6 ÷ 130. The conclusion is unchanged; the population is stated. **What this means:** the RATE floor for this office has been computed as *native bookings ÷ relayed unrecognised parks*. Its 21-of-40 runs on the floor at 1–4 % are **entirely** a plumbing shape. The floor is not miscomputed — U-3 counts what it was ruled to count — but `unknown_loud` is not a lead and was never an intent, so it is not a non-booking either; whether it belongs in a booking-rate denominator is a **ruling on U-3**, i.e. a pinned-query change, i.e. a post-arm follow-up (same shape as F-C), never a mid-soak re-tune. **The reader brief's line for this office ("when it appears it needs action") describes the volume of a forwarded inbox, not the clinic's front door, and is amended.** | the confirming read is EBI's; the standing observer is `arm_observe.py C ccb52f4c` (top From domain and share); the office field on terminal lines is **`chiropractor_guid`**, not `office` — `office` exists only on the eleven name-evidence lines #2290 added, which have never fired | **THE PARK RULE'S EMISSION SHAPE DECIDES THE ARM'S SUBJECT — RULED 2026-09-16 (**now a MAIN read, verified by this seat 2026-09-16T19:05Z**: `git merge-base --is-ancestor bcbdcee8 origin/main` → exit 0, `origin/main` = `7a14bbac`, and the ratification file is **byte-identical** between the two — sha256 `34debd44b4a734cd…` both sides, so the text read at the branch ref is the text on main. Verified by ancestry and content hash, not by PR state; the PR was merged with a merge commit deliberately so the sha read earlier stays reachable. That ratification authorises the EBI lanes' execution, not this seat's.).** **R-8b: re-park now with an explicit reason (e.g. `relay_sink`), STILL emitting `terminal_decline`** — the mail leaves the unrecognised class; **the S-1 arrival count for this office is IMMOVABLE through the soak; the spanning soak row records a reason change only.** **D-5: suppression (no terminal line) is DEFERRED to a second operator word after the arm** — the calibration subject stays on the page through the soak. Build charge, binding: the rule's spec states its emission shape explicitly beside the match predicate, and the predicate reaches this seat before enable. The measured-fact half of the question stands as written below.  Today the flood mail already emits `terminal_decline` (130 of 130 are `unknown_loud` parks), so a rule that **re-parks** with a different reason leaves the count immovable. A rule that **suppresses before the park** — a `suppress_noise` class that emits no terminal line — removes ~43 arrivals/day from this office at the deploy; its denominator collapses to ~6 and **the founding office leaves the RATE floor by measurement, not behaviour** — the arm's calibration subject vanishes from the page at the deploy instant. The builder is asked for the emission shape explicitly, not inferred from the classifier branch. The 58 % domain `<09ac7d07>` matches rank 1 of EBI's unrecognised-sender census (241 traces / 11 days, SPF softfail 119/120, DKIM unparsed 59/60); whether it is the office's own domain or one heavy external sender is undetermined and is the first thing the masked read on the park rule should look at. |
 
+
+**E-6 ADDENDUM — 2026-09-17T04:30Z. There is now a THIRD office field on terminal lines, and E-6's
+field sentence is incomplete as written.** E-6 tells the reader *"the office field on terminal lines is
+`chiropractor_guid`, not `office`"*. Since autom8y #2324 deployed at 2026-09-17T01:05:49Z (v74) that is no
+longer the whole surface. Measured since the deploy:
+
+| field | events carrying it | note |
+|---|---|---|
+| `chiropractor_guid` | `terminal_decline` 21 · `stage_exception` 16 · `terminal_decline_parked` 15 · `ad_lead_gate_refused` 6 · `booking_completed` 6 · `booking_intake_fault` 1 | unchanged; still the field S-1's residual reads |
+| **`office_handle`** | **`terminal_decline` ONLY**, 11 lines — 7 with `office_handle_source = chiropractor_guid`, 4 with `routing_guid` | **NEW at #2324** |
+| `office.chiropractor_guid` | **0 lines in 30 d** | E-6's statement stands, re-verified: it has still never fired |
+
+**Three things a reader must carry, because each one misled a seat tonight.**
+
+1. **`office_handle` is NOT on every terminal line — 11 of 21 `terminal_decline` lines in the window.** A
+   reader keying on it alone silently drops the other ten.
+2. **Its basis is `sha256(guid8 ASCII)[:8]`, which E-6 above already states** (*"Identity confirmed two ways:
+   `sha256(guid8)` …"*). **Nothing on the line declares it.** This seat failed to recover it from four observed
+   pairs, generated nine wrong candidates, and published a confident negative — with the answer in this very
+   document. **Read E-6 before deriving it again.** The near-miss is that hashing the field verbatim fails: the
+   field holds the redacted `ccb52f4c-***`, and `sha256("ccb52f4c-***") != sha256("ccb52f4c")`.
+3. **`office_identity_kind` reads `absent` on lines where `office_handle` is populated.** The kind field
+   describes the `chiropractor_guid` resolution, not the handle, and nothing says so. Two honest readers of one
+   line reach opposite conclusions — which is exactly what happened between this seat and the EBI client lane,
+   and is the reason E-6's own no-body population was briefly reported as permanently unattributable when it is
+   not.
+
+**Bearing on E-6 itself:** the no-body class resolves through `routing_guid` to handle `75c2be4e` = **`ccb52f4c`**,
+so that class is the founding office's mail. **The `***` residual and E-6 are one phenomenon seen from two
+sides.** This does not change E-6's conclusion, its counts, or the ruling on U-3; it names a second face of it.
+The residual's own disposition is SOAK §3e, which is NOT APPLIED.
+
 ### (F) The recovery floor
 
 | | |
