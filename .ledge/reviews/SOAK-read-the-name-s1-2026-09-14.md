@@ -192,11 +192,26 @@ booking lookback, and it touches no threshold, no pinned query and no namespace.
 
 **What instant 4 DOES change is the meaning of the §3e-i confirmation, and this is the point of recording it.**
 §3e-i measured `502 → 200` on **v73 versus v74**. The ≈ 06:35Z ladder slot will execute on **v76**. If v76
-altered the parse path, that read confirms v76's behaviour and not v74's. **The neighbouring lane reports
-instant 4's own commit carried only a test and a docstring, which would make v76 behaviourally identical to
-v75 — but that is their report, not this seat's measurement, and the sha did change.** So the 06:35Z read
-**records the executing qualifier from the log-stream name on its face**, and any verdict it produces is scoped
-to the version it actually ran on.
+altered the parse path, that read confirms v76's behaviour and not v74's. **RESOLVED by measurement, not by report.** The neighbouring lane
+first said instant 4's commit carried "a test and a docstring"; pressed, they corrected that a **source** file
+changed too and offered an AST proof. **Reproduced own-hands here against the merge's first parent:**
+
+```
+files changed by the merge : name_evidence_counts.py (+25/-?) and its test -- 2 files
+bytes identical            : False   (25,908 -> 26,947)
+AST equal WITH docstrings   : False
+AST equal WITHOUT docstrings: True
+```
+
+**Every difference is docstring text; the executable AST is identical.** So **v75 → v76 changes no executable
+code in this service**, and the ≈ 06:35Z read on v76 is behaviourally comparable to the v73/v74 pair. The read
+still **records the executing qualifier from the log-stream name on its face**, and its verdict stays scoped to
+the version it actually ran on — comparable is not the same as identical.
+
+**Note on how the retention change arrived, because it is the merged-versus-applied gap in one object.** That
+merge's own diff contains **no terraform at all**. The retention change was merged separately and earlier, and
+was applied by **this** deploy's terraform run. **A deploy applied a change that was not in the commit that
+triggered it.**
 
 **A general instance worth keeping, in the neighbouring lane's own framing and confirmed here: a merged
 terraform change and an APPLIED one are different states, and nothing marks the gap.** Instant 4's deploy
