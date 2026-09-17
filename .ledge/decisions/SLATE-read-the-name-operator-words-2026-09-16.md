@@ -144,6 +144,40 @@ clears at source rather than waiting on an unpredictable next batch, a clean run
 > ≈ 09-25 *if no new batch lands* — a probability over a date, as before. "The deploy makes (a) more
 > attractive" is **not** true this wave and is struck.
 
+**★ DATE CORRECTION 2026-09-17T05:50Z — ≈ 09-18T19:00Z IS THE WRONG CLOCK, and the right one is later.**
+Two different clocks were conflated above:
+
+1. **SendGrid's 72-hour retry ladder** would have ended ≈ 09-18T19:00Z, 72 h after the batch's first delivery.
+2. **The residual's own W = 3 d rolling window** clears a line **three days after that line was WRITTEN**.
+
+**The ladder in fact stopped EARLY — at 03:38:31Z on 09-17, about 39 h before its 72 h would have expired —
+because the deploy made the endpoint answer 200 instead of 502** (SOAK §3e-i). That is the good news. **But the
+lines it already wrote stay in the window until 2026-09-20T03:38Z**, which is **≈ 33 h LATER than the date
+above.** Stopping the ladder early does not remove what it already wrote.
+
+```
+last no-body line measured      2026-09-17 03:38:31Z
+W = 3 d rolling -> clears at    2026-09-20 03:38Z      (the slate above said ≈ 09-18 19:00Z)
+first possible fully-clean day  >= 2026-09-21
+seven consecutive clean rows    close no earlier than ≈ 2026-09-27, not ≈ 09-25
+```
+
+**Corroborated by the instrument's own published number rather than by this arithmetic alone: `residual_share`
+is still RISING** — 13.72 % at 00:27Z to **14.53 % at 05:27Z**, `residual_share_high = 1` on every run, against
+a 10 % threshold. **It is rising while NO new no-body lines are arriving**, because quieter hours age out of the
+rolling window while the ladder's lines remain, and because §3e measured that the deploy made those lines
+**denser** — 3.00 per trace instead of 2.00. **Row 3 will breach.**
+
+**Shape of the class, checked before this was written so §3b is not misquoted.** No-body lines per day over
+6 d: 09-11 **16** · 09-15 **40** · 09-16 **32** · 09-17 **8**, and nothing on 09-12–14. **Two separate episodes,
+and §3b's "one batch on a 3-hourly ladder" correctly describes the 09-15 one**, which is the one still in the
+window. The 09-11 episode has already aged out.
+
+**What this does NOT say.** It bounds the **ladder's** contribution only. The residual has other feeders
+(`OfficeResolutionError` and the paired lines), so **a clean row is not guaranteed even after 09-20T03:38Z** —
+this moves the earliest possible date, not the expected one. **No recommendation on the fork is implied or
+changed; only a date this seat had given you is corrected.**
+
 **OVERTAKEN 2026-09-17T04:25Z — #2324 did land, and the arithmetic above is wrong in both directions.**
 Read before anything else on this page, because the hold note immediately above is now false on its face.
 
