@@ -199,6 +199,51 @@ since 03:38:40Z : office-bearing lines 15 , across 5 distinct offices , of which
 > WRONG.** It is recorded that way on purpose — the operator should be able to catch this seat out with one
 > glance at the next digest.
 
+**⛔ REFUTED AT 06:27Z, BY ITS OWN TERMS. The prediction above is WITHDRAWN.** `residual_share` **ROSE**,
+14.53 % → **14.59 %**. The page said a rise means the explanation is wrong. It is wrong, and here is the true
+cause, measured at the two run instants exactly as the rule requires:
+
+| run window | `***` | total | share |
+|---|---|---|---|
+| 05:27:15Z | 255 | 1755 | 14.53 % |
+| 06:27:15Z | **255** | **1748** | **14.59 %** |
+| delta | **+0** | **−7** | |
+
+**There is NO hidden feeder.** Zero new `***` lines since 03:38:40Z, confirmed against a live window. **The
+numerator really is frozen at 255. The DENOMINATOR FELL.**
+
+```
+trailing edge DROPPED  09-14 05:27-06:27Z :  13 lines , *** = 0
+leading  edge ADDED    09-17 05:27-06:27Z :   6 lines , *** = 0
+net: total −7 , *** unchanged  ->  share RISES on a frozen numerator
+```
+
+**The error was in this seat's reasoning, not in the data.** The prediction read *"frozen numerator + LIVE
+denominator ⇒ the share must fall."* **It silently took "live" to mean "growing."** It fell, because the window
+dropped a busy daytime hour and added a thin overnight one. **"Nothing new is arriving" constrains the LEADING
+edge only; the TRAILING edge keeps dropping hours, and dropping a `***`-poor hour RAISES the share with zero
+arrivals.**
+
+**That is the exact rule this seat recorded one hour before writing the prediction** — *in a rolling window,
+"nothing new is arriving" does not bound the share; only both ends measured at two instants do* — **and then
+violated in the prediction itself.** Recorded plainly rather than quietly repaired.
+
+**A second, smaller finding worth keeping: the pre-registered refutation branch was RIGHT that the prediction
+failed and WRONG about why.** It was written to say *"a feeder exists that this read did not find"*, and no
+feeder exists. **A falsification branch can correctly detect that you are wrong and still misdiagnose the
+cause** — so a refutation triggers a fresh measurement, never the branch's own stated reason.
+
+**The corrected statement, which is what the operator should carry.** With the numerator frozen, the share
+moves **inversely with the denominator**, and the denominator's direction depends on whether the sliding window
+is dropping busier or quieter hours than it adds. **Overnight it drops busy hours and adds thin ones, so the
+share will keep RISING through the small hours and only turn when daytime traffic resumes** — decisively after
+**2026-09-20T03:38Z**, when the `***` lines themselves age out. **No date on this page moves.**
+
+**✅ AND THE OTHER READ CONFIRMED, at the same instant.** The 06:00–07:00Z ladder slot: **zero no-body traces**
+against a **live control of 83 lines, all executing on v77**, and gateway `200`s only. **The ladder has
+stopped**, which corroborates the `502 → 200` mechanism already settled at source in SOAK §3e-i. **The
+instrument's bad news and the fix's good news arrived in the same minute and are unrelated.**
+
 **And the breach still happens regardless**, because the ladder's already-written lines do not leave the
 W = 3 d window until **2026-09-20T03:38Z**. **A falling share and a breaching row are compatible**: the row
 records the day's MAXIMUM, and the maximum for 09-17 is already above 10 %. **Row 3 will breach, and that
