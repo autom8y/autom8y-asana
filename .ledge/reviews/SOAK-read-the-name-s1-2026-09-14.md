@@ -257,11 +257,30 @@ anywhere else at all found it a second time with `office_handle_source = chiropr
 | fc1df111 | 7a1e83fd |
 | bea49103 | 8a9b1a84 |
 
-**The transform is NOT recovered** — nine candidates (raw prefix, suffix, sha256/sha1/md5/blake2s prefixes,
-case- and separator-variants) reproduce none of these pairs. **The mapping above is observed, not derived**,
-and `office_handle` declares no basis on the line. This is the handle-without-a-declared-basis hazard for the
-third time on this wave, and on this occasion it bit: the face-value miss was the answer that agreed with the
-neighbouring lane.
+**The transform is `sha256(guid8 ASCII)[:8]`** — verified own hands, reproducing all four pairs and mapping
+distinct guids to distinct handles. It was recovered only after the EBI client lane named it; nine candidates
+tried here first reproduced none of the pairs. **The reason they missed is the finding, not a footnote: the
+log field holds the REDACTED full guid `ccb52f4c-***`, and this seat hashed that, while the basis is the bare
+8-character prefix.**
+
+```
+sha256("ccb52f4c-***")[:8] = afbd20cf   <- what the test computed
+sha256("ccb52f4c")[:8]     = 75c2be4e   <- the actual basis, and the handle on the line
+```
+
+The slice to `guid8` was applied for DISPLAY and not to the hashed input. **A test written to catch
+undeclared-basis errors carried one itself**, and it returned NONE on both bases — a confident negative that
+agreed with a neighbouring lane's wrong conclusion. This is the handle-without-a-declared-basis hazard for the
+third time on this wave, and the first time it bit rather than being caught. The mapping is now **derived and
+computable for the whole page**, not merely observed on four lines.
+
+**The defect that produced the divergence, which someone should own.** On these lines
+`office_identity_kind` reads `absent` while `office_handle` is populated. The kind field describes the
+`chiropractor_guid` resolution, not the handle, and **nothing on the line says so**. A reader keying on kind
+concludes there is no identity; a reader keying on the handle finds one. Two honest readers of the same line
+reach opposite conclusions, and that is exactly what happened between this seat and the EBI client lane — they
+read `stage_exception`, which carries no handle at all, and concluded the attach produced nothing. **The
+attach surfaces on `terminal_decline`, not on the exception line.**
 
 **So the no-body class is the founding office's mail.** `ccb52f4c` is the confirmed relay sink of receipt E-6
 (130 of 130 arrivals `unknown_loud`). The `***` residual and E-6 are **one phenomenon seen from two sides**,
@@ -293,6 +312,14 @@ before the deploy could be measured, and the measurement does not support it: th
 because the criterion reads a field the fix does not populate. Whether it stops breaching now rests on the
 06:35Z ladder read, not on the apply.
 
-**Evidence limitation, stated on its face.** `office_handle` has existed for under three hours, so the mapping
-table above rests on **four pairs**. It is what exists; it is not a census, and a collision in an 8-hex handle
-space is not excluded by four observations.
+**Evidence limitation, stated on its face.** `office_handle` has existed for under three hours, so the
+transform is verified on **four pairs**. Being a declared hash rather than an observed table, it now maps the
+whole page — but four pairs do not exclude a collision in an 8-hex space, and nothing on the line declares the
+basis, so a future reader must re-verify rather than inherit it.
+
+**One ground strengthened by the EBI client lane's own reading of the source: the attach is PROSPECTIVE
+ONLY.** Mail that faulted before 01:05:49Z carries no office field of any kind and stays permanently
+unattributable — their 596-trace census measured that population and is not contradicted by anything here.
+So re-pointing the residual would clear forward mail only, while rows 1–3 and the historical backlog remain
+exactly as unattributable as they are now. **The amendment would not even repair the rows it would appear to
+rescue**, which is ground 3 stated at full strength.
