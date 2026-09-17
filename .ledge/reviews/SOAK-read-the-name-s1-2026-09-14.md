@@ -209,3 +209,149 @@ binds from row 2 forward.
 six `all`-style predicates in their grader passing over an empty population and printing HOLDS, and flipped
 each to VACUOUS. The same question asked here found this. **A predicate that examined nothing cannot support a
 pass — and the emptier the set, the more confident the `all`.**
+
+### 3e · The residual reads `chiropractor_guid`; the attribution now lands in `office_handle` — PROPOSED, DELIBERATELY NOT APPLIED
+
+Found 2026-09-17T04:10Z, reading whether autom8y #2324 (merged, deployed **2026-09-17T01:05:49Z**) removed the
+no-body class from the `***` residual. It did not, but not for the reason either neighbouring lane gave, and
+not for the reason this seat first published.
+
+**Anchored at the qualifier, not at the deploy time.** This function carries an alias (`live`), so a
+no-qualifier config read attests `$LATEST` and not what served — the standing wrong-object hazard. The log
+stream name carries the executing version, so the lines settle it themselves: the pre-deploy no-body lines ran
+on **v73**, the 03:35–03:38Z lines on **v74**. Those redeliveries genuinely executed #2324's code. The window
+after the 03:46:06Z deploy is **17 minutes against a 3-hour ladder**, so its zero is UNTAKEN and is not read here.
+
+**What #2324 changed, measured two-sided across the boundary on this seat's own connection:**
+
+```
+v73 (pre) : 12 no-body traces -> 12 booking_intake_fault,  0 terminal_decline, 0 parked
+v74 (post):  4 no-body traces ->  0 booking_intake_fault,  4 terminal_decline, 4 parked
+pipeline_completed.status : "failed" (v73) -> "declined" (v74)
+```
+
+**U-3 is unaffected, and that is the leg only this seat could check.** `booking_intake_fault` and
+`terminal_decline` are both in the arrival unit and `terminal_decline_parked` is excluded by design, so the
+class move is arrival-neutral: **1.00 counted lines per trace on both sides**. FACT-1 was re-asked because
+`terminal_decline` is the one event carrying `message_id` and a redelivery ladder is exactly what would make
+the de-dup branch live — `count(message_id) = 13`, `count_distinct = 13` over the window. **The branch stays
+inert and U-3 still means "count terminal-outcome lines."**
+
+**The new field, and why the criterion cannot see it.** The post-deploy lines carry `office_handle = 75c2be4e`
+on **4 of 4**, `office_handle_source = routing_guid` — while `chiropractor_guid` is still `***` on 4 of 4. The
+residual is defined on `coalesce(chiropractor_guid, office.chiropractor_guid)`. **So the class is now
+attributable on the line and the criterion keeps counting it as unattributable, because it reads the other
+field.** That is a defect in this instrument, not in the fix.
+
+**A false negative this section nearly carried, recorded because the next reader will hit it.** Tested
+`75c2be4e` against the 74-office graded population on both declared bases — raw `guid8` and `sha256(guid)[:8]`
+— and got **NONE on both**, which reads as "not a real office" and would have corroborated a neighbouring
+lane's conclusion that this class can never attribute. It is wrong. Asking instead whether the token appears
+anywhere else at all found it a second time with `office_handle_source = chiropractor_guid`. Lines carrying
+**both** fields give the mapping by observation:
+
+| office_handle | chiropractor_guid |
+|---|---|
+| **75c2be4e** | **ccb52f4c** |
+| f5c07c30 | d167d635 |
+| fc1df111 | 7a1e83fd |
+| bea49103 | 8a9b1a84 |
+
+**The transform is `sha256(guid8 ASCII)[:8]`** — verified own hands, reproducing all four pairs and mapping
+distinct guids to distinct handles. It was recovered only after the EBI client lane named it; nine candidates
+tried here first reproduced none of the pairs.
+
+**And the worse fact, found while checking whether the arming receipt needed the same correction: the basis was
+already written in this seat's own record.** Receipt E-6 states *"Identity confirmed two ways: `sha256(guid8)`
+and the full-guid hash both resolve to this office, from two seats."* **The transform was declared, in the
+governing document of this very wave, and this seat re-derived instead of reading it.** So the lesson is not
+"the handle declares no basis on the line" — though it does not. It is that **a declared basis was available
+and was not consulted**, and nine wrong candidates were generated in its place. The line-level complaint stands
+for future readers; the error here was not the line's. **The reason they missed is the finding, not a footnote: the
+log field holds the REDACTED full guid `ccb52f4c-***`, and this seat hashed that, while the basis is the bare
+8-character prefix.**
+
+```
+sha256("ccb52f4c-***")[:8] = afbd20cf   <- what the test computed
+sha256("ccb52f4c")[:8]     = 75c2be4e   <- the actual basis, and the handle on the line
+```
+
+The slice to `guid8` was applied for DISPLAY and not to the hashed input. **A test written to catch
+undeclared-basis errors carried one itself**, and it returned NONE on both bases — a confident negative that
+agreed with a neighbouring lane's wrong conclusion. This is the handle-without-a-declared-basis hazard for the
+third time on this wave, and the first time it bit rather than being caught. The mapping is now **derived and
+computable for the whole page**, not merely observed on four lines.
+
+**The defect that produced the divergence, which someone should own.** On these lines
+`office_identity_kind` reads `absent` while `office_handle` is populated. The kind field describes the
+`chiropractor_guid` resolution, not the handle, and **nothing on the line says so**. A reader keying on kind
+concludes there is no identity; a reader keying on the handle finds one. Two honest readers of the same line
+reach opposite conclusions, and that is exactly what happened between this seat and the EBI client lane — they
+read `stage_exception`, which carries no handle at all, and concluded the attach produced nothing. **The
+attach surfaces on `terminal_decline`, not on the exception line.**
+
+**So the no-body class is the founding office's mail.** `ccb52f4c` is the confirmed relay sink of receipt E-6
+(130 of 130 arrivals `unknown_loud`). The `***` residual and E-6 are **one phenomenon seen from two sides**,
+which this seat did not know when §3a and §3b were written.
+
+**Why this is NOT APPLIED, and the second reason is the load-bearing one.**
+
+1. It **loosens**: re-pointing the residual at `office_handle` clears the breach on the rows it was written
+   against. Same disposition as §3a and §3b, same rule — a criterion amended while it is failing must never be
+   the thing that makes the failing rows pass.
+2. **It would move those arrivals onto `ccb52f4c`'s count**, and on a relay-sink shape that is a live route to
+   firing a ZERO or RATE floor on the founding office for something that is plumbing. **Trading a residual
+   breach for a probable false floor firing on the founding office is a worse instrument, not a better one**,
+   and the choice is the operator's.
+3. **It cannot be applied to rows 1–3 in any case.** `office_handle` did not exist before 01:05:49Z, so for
+   most of those windows there is nothing to re-point at. Any retrospective application would be reading a
+   field into a period that never emitted it.
+
+**The size of the trade, so the operator chooses between numbers and not between adjectives.** Measured over
+the 3.04 h since the deploy, every `***` line in the window:
+
+| event | class | handle | lines |
+|---|---|---|---|
+| `stage_exception` | — | none | 4 |
+| `terminal_decline` | `no_body_field` | **75c2be4e** | 4 |
+| `terminal_decline_parked` | `no_body_field` | none | 4 |
+
+**One no-body trace emits three `***` lines and only one of them gains a handle.** So a re-point clears
+**4 of 12 — 33.3 %** — and leaves 8 unattributable, while moving those 4 onto `ccb52f4c` (resolved through the
+derived transform). **It does not clear the breach; it reduces the residual by a third and creates floor risk
+on the founding office to do it.** That is a materially worse trade than it appeared when this section was
+first drafted, and it is recorded here rather than argued: the decision is still the operator's.
+
+**A structural objection to this criterion, from the EBI client lane, recorded because it is the strongest
+argument against the instrument and it is not this seat's to rule.** *A residual criterion that counts
+unattributed LINES charges the system for making a loss loud.* Every improvement that adds a durable record —
+a park intent, a receipt, a named decline — adds a line to the unattributed bucket and worsens the number. On
+this criterion **the best-scoring system is the one that emits least**, which is the condition this whole arc
+exists to end. #2324 is the first instance measured: it made the class loud and the criterion scored it 50 %
+worse. **The criterion is not wrong so much as pre-dated** — it was written before the thing it now measures
+existed. Recorded here in the neighbouring lane's framing, unamended, and left to the operator.
+
+**A dated, falsifiable prediction this section commits to.** `failed → declined` should mean SendGrid receives
+a terminal response and stops the 3-hourly ladder. **The next slot is ~06:35Z on 2026-09-17.** Zero no-body
+traces in that hour means the ladder has stopped and §3b's false rate stops accumulating **without the
+criterion being amended at all** — the clean outcome. Four traces means the response is still being retried.
+The park lines carry `newly_recorded: true` and a per-message `park_key`, which separates "ladder stopped"
+from "ladder fired and was recognised as a repeat."
+
+**Correction owed and made here.** This seat told the EBI client lane that at the apply *"the residual
+criterion that has breached since 09-15 stops breaching."* **That sentence is withdrawn.** It was stated
+before the deploy could be measured, and the measurement does not support it: the residual is unchanged,
+because the criterion reads a field the fix does not populate. Whether it stops breaching now rests on the
+06:35Z ladder read, not on the apply.
+
+**Evidence limitation, stated on its face.** `office_handle` has existed for under three hours, so the
+transform is verified on **four pairs**. Being a declared hash rather than an observed table, it now maps the
+whole page — but four pairs do not exclude a collision in an 8-hex space, and nothing on the line declares the
+basis, so a future reader must re-verify rather than inherit it.
+
+**One ground strengthened by the EBI client lane's own reading of the source: the attach is PROSPECTIVE
+ONLY.** Mail that faulted before 01:05:49Z carries no office field of any kind and stays permanently
+unattributable — their 596-trace census measured that population and is not contradicted by anything here.
+So re-pointing the residual would clear forward mail only, while rows 1–3 and the historical backlog remain
+exactly as unattributable as they are now. **The amendment would not even repair the rows it would appear to
+rescue**, which is ground 3 stated at full strength.
