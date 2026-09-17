@@ -64,6 +64,43 @@ One more check: a `day 1` ZERO row with only 5–7 arrivals may come from a sing
 
 **Cadence.** One digest a day. The founding office `ccb52f4c` sits right at the RATE floor — on it in 21 of 40 hourly checks over 40 hours, just above it in the rest — **and, corrected 2026-09-16, that reading is a plumbing shape, not the clinic's behaviour.** Every one of its ~130 arrivals over 3 days was `unknown_loud`: mail the classifier could not recognise as any intake shape, arriving by relay from ~25 senders. Its real activity is ~6 bookings by its native path, and its "rate" is those 6 ÷ a forwarded inbox. **When this office appears on the page, do not treat it as a clinic that stopped booking.** Do not call it about a booking gap. Route it to the platform owner as the known relay-sink case (arming receipt E-6), and note that an EBI park rule for exactly this mail is scheduled; depending on that rule's emission shape the office may leave the RATE floor entirely at the deploy, which is a measurement change and not a recovery. A day it is missing is arithmetic, not a fix.
 
+**How fragile that reading is, measured 2026-09-17T04:45Z — read this before acting on a firing.** In the
+live 3-day window the founding office sits at **arrivals 181 · bookings 5 · rate 2.76 %**, against a RATE floor
+of **2.50 %**. **The margin is 0.26 percentage points, which is one event wide:**
+
+```
+lose ONE booking      4 / 181 = 2.21 %   -> the floor FIRES
+gain 19 arrivals      5 / 200 = 2.50 %   -> the floor FIRES
+```
+
+**So a firing on this office is more likely a one-booking fluctuation than anything about the clinic.** Do not
+read a firing as deterioration and do not read an absence as recovery; at this margin both are noise until
+something else corroborates them. Two specific things can move it without the clinic changing at all:
+a change that alters how its mail is parked shifts the **arrivals**, and its bookings are **native** (measured
+2026-09-17: 0 on the contente path, 10 native over 30 days), so anything touching the contente path moves the
+**rate's numerator not at all** — if someone tells you a contente change explains a firing here, it does not.
+
+**A live case, 2026-09-17T04:50Z, showing how the margin can APPEAR to move when it has not.** A neighbouring
+lane measured four new parks carrying this office's handle and reported the arrivals as 181 → 185, the rate as
+2.76 % → 2.70 %, and the margin as 0.26 → 0.20 points. **Checked against the evaluator's own projection, the
+margin did not move at all:**
+
+```
+4 lines  park_kind=ops     -> evaluator office_guid = ***            NOT this office's count
+2 lines  park_kind=review  -> evaluator office_guid = ccb52f4c-***   counted
+ccb52f4c: arrivals 181 · bookings 5 · rate 2.76 % · margin +0.26  -- UNCHANGED
+```
+
+**Both readings are honest and they disagree because they are about different things.** Those four mails really
+are this office's — the neighbouring lane read the handle correctly. **But the evaluator counts on a different
+field, so they land in the unattributed residual instead** (SOAK §3e). **When someone tells you this office's
+arrivals moved, ask which field they counted on before you act.**
+
+**One more trap on this office specifically.** Its allowlist membership is resolved at **cold start**, not per
+request, so a configuration change with no accompanying deploy takes effect **per container** as environments
+recycle — there is no single instant to point at. If a firing coincides with such a change, the before and
+after are not clean, and the page should say so rather than pick a time.
+
 **No digest by about 12:00 UTC is a signal, not a quiet day.** The evaluator may have stopped. Its own alarm goes red only at roughly the fourth missed hourly run, so you may be the first to notice. Tell the operator.
 
 **What else is on this channel.** You are joining a busy stream: about 30 messages a day (28–35 a day over 09-11..09-14), from 347 alarms across the whole platform. 46 of those alarms were in ALARM at the time of writing; they are standing conditions, and most are not yours.
