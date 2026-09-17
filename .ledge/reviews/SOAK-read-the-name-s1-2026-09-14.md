@@ -172,6 +172,176 @@ offices holding at its pre-boot level.
 what both running tasks report. So a rollback to `:651` by revision number would carry whatever `769522f` names
 at that later instant, exactly as `:648` would have. **On this family a revision number is a config floor, never
 a bytes floor**, and that is now confirmed on two separate deploys rather than one.
+### 3d-ii · Two MORE deploy instants inside rows 3–5, and what they do to §3e-i
+
+Recorded 2026-09-17T04:40Z, verified own hands on the version plane rather than taken on a neighbouring
+lane's report. **Rows 3–5 now span five instants, not three.**
+
+| # | instant | what | version / sha |
+|---|---|---|---|
+| 1 | 2026-09-17T00:30Z | autom8y-data #472 boot | task def `:651` |
+| 2 | 2026-09-17T01:05:49Z | autom8y #2324 (split) | **v74** `36a8ee38d1c9` |
+| 3 | 2026-09-17T03:46:06Z | autom8y #2350 | **v75** `6c763b679732` |
+| 4 | **2026-09-17T04:24:01Z** | **the main-is-red fix, whose own change was a test and a docstring** | **v76** `e7ec666179d3`, alias `live` → v76 |
+| 5 | **2026-09-17T04:24:19Z** | autom8y-data `6700c517`, gate-contract server half, boot ≈ 04:47Z | endpoint only ACCEPTS a caller-resolved lead; its client is behind a flag defaulting off |
+
+**Instant 4 also applied log retention 365 to all six `autom8-email-booking-intake*` groups, including this
+instrument's own `-office-floor` group.** Verified own read, `nextToken` absent so the listing is complete.
+**Inert for the soak:** retention governs how long lines persist, 365 days exceeds both W = 3 d and the 30-day
+booking lookback, and it touches no threshold, no pinned query and no namespace. **It does not reset the soak.**
+
+**What instant 4 DOES change is the meaning of the §3e-i confirmation, and this is the point of recording it.**
+§3e-i measured `502 → 200` on **v73 versus v74**. The ≈ 06:35Z ladder slot will execute on **v76**. If v76
+altered the parse path, that read confirms v76's behaviour and not v74's. **RESOLVED by measurement, not by report.** The neighbouring lane
+first said instant 4's commit carried "a test and a docstring"; pressed, they corrected that a **source** file
+changed too and offered an AST proof. **Reproduced own-hands here against the merge's first parent:**
+
+```
+files changed by the merge : name_evidence_counts.py (+25/-?) and its test -- 2 files
+bytes identical            : False   (25,908 -> 26,947)
+AST equal WITH docstrings   : False
+AST equal WITHOUT docstrings: True
+```
+
+**Every difference is docstring text; the executable AST is identical.** So **v75 → v76 changes no executable
+code in this service**, and the ≈ 06:35Z read on v76 is behaviourally comparable to the v73/v74 pair. The read
+still **records the executing qualifier from the log-stream name on its face**, and its verdict stays scoped to
+the version it actually ran on — comparable is not the same as identical.
+
+**Note on how the retention change arrived, because it is the merged-versus-applied gap in one object.** That
+merge's own diff contains **no terraform at all**. The retention change was merged separately and earlier, and
+was applied by **this** deploy's terraform run. **A deploy applied a change that was not in the commit that
+triggered it.**
+
+**A general instance worth keeping, in the neighbouring lane's own framing and confirmed here: a merged
+terraform change and an APPLIED one are different states, and nothing marks the gap.** Instant 4's deploy
+carried what its own commit contained, not a change merged eight minutes later; a census change believed to
+have landed with it had not, and its allowlist parameter still read the prior version. **A plan that merges is
+not a plan that applies** — the same sentence this wave already learned on alarms, arriving by a different
+route. **Consequence for this file: every instant above is recorded from the version/alias plane or the log
+stream, never from a report that a merge happened.**
+
+
+### 3d-i · The three realization reads §3d demanded, taken — and why one of them can never be taken
+
+Read 2026-09-17T04:15Z, 3.67 h after the autom8y-data #472 boot. §3d set three recording conditions for rows
+3–5 and owed three reads. All three are taken here; **two return a reading and the third returns a reason.**
+
+**Read 1 — the named escape of condition (iii) has NOT fired.** Terminal-class mix for both affected offices,
+each window matched to the 3.67 h elapsed since the boot, **with the same clock hours 24 h earlier as a
+diurnal control** so a busier evening cannot read as an effect:
+
+| window | `terminal_decline` | `ad_lead_gate_refused` | `booking_completed` | **`booking_intake_fault`** |
+|---|---|---|---|---|
+| POST-boot | 9 | 0 | 0 | **0** |
+| PRE-boot | 17 | 0 | 0 | **0** |
+| −24 h control (post-slot) | 6 | 0 | 0 | **0** |
+| −24 h control (pre-slot) | 8 | 2 | 2 | **0** |
+
+`booking_intake_fault` is **0 in all four windows**. The escape §3d named — mails proceeding into booking
+stages they never reached, a downstream non-200 re-entering the per-redelivery fan-out, arrivals inflated and
+a rate driven down — **has not fired.** The 17 → 9 fall in declines is matched in shape by the control's 8 → 6,
+so it is diurnal and not the boot.
+
+**Read 2 — and the structural finding, which matters more than read 1.** Every `ccb52f4c` decline in every
+window is class `no_appt_dt`. **The lead-search class #472 addresses is absent on both sides**, and absence
+here is not evidence:
+
+```
+#472 target class for ccb52f4c        13 events / 30 d   (SOAK §3d)
+observed window                        3.67 h
+EXPECTED count of the target class     0.066
+expected count over the soak's own W = 3 d               1.3
+hours to expect 3 of them             166 h  =  6.9 d
+```
+
+**Rows 3–5 span the boot and cannot evidence the conversion.** A criterion whose window is 3 days cannot
+detect a class arriving 13 times in 30 days; to expect three of them takes 6.9 days, more than twice the
+window. **This is not "untaken for now" — it is undetectable at the instrument's own window size**, and no
+number of clean rows will change that. It belongs beside B-2: a thing whose rate is below the criterion's
+resolution cannot be evidenced by that criterion, and a row that passes says nothing about it either way.
+**Rows 3–5 must therefore not be read as confirming #472's realization**, and §3d's condition (iii) is
+discharged as *escape did not fire*, never as *conversion observed*.
+
+**Read 3 — condition (ii) cannot be graded at all, and the zero is controlled.** `79be1b75` reads 0 in all
+four windows. That zero is only meaningful against a control, so: the office emits **99 lines across 6 days in
+30 d, last emission 2026-09-14** — silent for three days before the boot. So it has not "left the ZERO floor";
+**it is not on the page at all**, and with 0 arrivals it cannot meet `arrivals >= 5` either. Condition (ii) is
+recorded UNGRADEABLE on this plane rather than passed.
+
+**The probe after-window, re-read wide.** The 02:51:48Z read was untaken on too narrow a window. Re-read
+02:51:40Z → 04:11:04Z: **1 `terminal_decline` at `ccb52f4c`**, against a control of **204 lines on the intake
+plane** in the same window. The window is live, so the 1 is a reading and no longer an untaken zero.
+
+**A filter-agreement check run before any of these numbers were written down.** Two scripts used two different
+office filters — `@message like /ccb52f4c/` and a parsed `chiropractor_guid` equality. Tonight already
+produced one number that was about a different object than it named (§3e's hash basis), so both filters were
+run over identical windows: **9 and 9 post-boot, 1 and 1 post-probe — exact agreement, every event class.**
+The numbers above do not depend on which filter produced them.
+
+
+### 3e-i · The §3e prediction, SETTLED AT THE SOURCE two hours before its instant
+
+§3e committed to a dated prediction: that `pipeline_completed.status` moving `failed → declined` means
+SendGrid receives a terminal response and stops the 3-hourly ladder, testable at the ≈ 06:35Z slot. **That was
+a proxy.** The thing itself — the HTTP status SendGrid actually received — is recorded in the API Gateway
+access log for this route, which has `$context.status` in its format. Read directly, 2026-09-17T04:35Z:
+
+```
+PRE  (v73)  00:35:00-00:39:00Z   POST /webhooks/sendgrid   502 x4   responseLength 167
+POST (v74)  03:35:00-03:39:00Z   POST /webhooks/sendgrid   200 x4   responseLength 196
+```
+
+**The same four-request cluster, one ladder period apart, on the same route: 502 before, 200 after.** The
+`502` is a Bad Gateway from the handler raising, and **it is the retry driver**. It is gone.
+
+**Control, so the zero is taken and not untaken.** Status by hour on that route across the deploy:
+
+| window | 200 | 502 |
+|---|---|---|
+| 09-15 22:00Z → 09-17 01:00Z (pre) | 246 | 60, in a 3-hourly pattern of 4 |
+| 09-17 02:00Z → 04:00Z (post) | **12** | **0** |
+
+The post window is **alive at 12 successful requests**, so the zero is a reading. It is also only three hours,
+i.e. **one ladder period**, so the aggregate alone would be weak — **the load-bearing evidence is the paired
+cluster above**, the same class measured one period apart, not the aggregate.
+
+**SCOPE CORRECTION, and it changes a word that mattered.** The EBI client lane reproduced the paired cluster
+own-hands and then caught that the control window above starts at **02:00Z**, which excludes the deploy hour.
+Measured from the deploy instant itself, `01:05:49Z → now`, the distribution is **200 × 23 and 502 × 1**. The
+single 502 is at **01:07:29Z**, one minute forty after the deploy, latency **22,264 ms**, and the lambda lines
+in that minute carry **`booking_intake_fault`** — not the no-body class.
+
+**So the correct sentence is "the 502s for THIS CLASS are gone", never "there are no 502s".** The stronger
+version would have been a **defect report, not a success**: `booking_intake_fault` returning 502 is the RIGHT
+behaviour for a transient failure, because a transient failure must stay retryable. **A wholesale
+disappearance of 502 would mean transients were being swallowed too**, which is precisely what removing the
+LLM narrowing was meant to avoid. The class moved; the mechanism did not.
+
+**And the two neighbouring accounts were never opposed — this seat was wrong to frame it as one winning.**
+Their rule was *never convert a loud 4xx into a SILENT 2xx*. What shipped returns 200 **and** emits
+`terminal_decline` with `class = no_body_field` plus a durable `terminal_decline_parked` carrying its own
+`park_key`. **The 2xx is not a swallow precisely because the park is loud and durable.** "One parked 200" and
+"do not swallow the 4xx" describe the same shipped object from two sides. What the access-log read settles is
+something neither account contained: **the caller now receives a terminal answer, so the retry driver is
+removed at the source.**
+
+**This resolves the conflict between the two neighbouring accounts of the fix's emission shape.** One lane said
+it turns the retry chain into *"one parked 200"*; the other said it *"must attach the park at the raise and not
+swallow the 4xx into a 2xx"*. **What shipped returns 200.** The first account describes the deployed behaviour.
+
+**What this does and does not establish.** It establishes that the retry DRIVER is removed at the source: a 200
+is what tells SendGrid to stop. It does **not** by itself observe SendGrid stopping — that is the 06:35Z slot,
+which is now a **confirmation rather than the decider**, and is still owed either way. **If 06:35Z fires at 4
+despite a 200, the finding is about SendGrid's retry semantics and not about this fix**, which would be a
+different and more interesting result than the one predicted.
+
+**Method note, because it is the transferable part.** §3e's prediction was built on `pipeline_completed.status`,
+a field the service writes about itself. The access log records what the *caller* received. **When a claim is
+about what another party will do, measure the thing that party sees, not the thing we say about ourselves** —
+and here that was available the whole time, two hours before the clock this seat had armed.
+
+
 ### 3c · The deadman criterion passed VACUOUSLY on an empty set — APPLIED, because it can only tighten
 
 §3 requires *"both deadman alarms OK with actions = scratch only"*. That is an **all-quantifier with no
