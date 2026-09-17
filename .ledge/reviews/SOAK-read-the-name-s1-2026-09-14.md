@@ -299,6 +299,21 @@ which this seat did not know when §3a and §3b were written.
    most of those windows there is nothing to re-point at. Any retrospective application would be reading a
    field into a period that never emitted it.
 
+**The size of the trade, so the operator chooses between numbers and not between adjectives.** Measured over
+the 3.04 h since the deploy, every `***` line in the window:
+
+| event | class | handle | lines |
+|---|---|---|---|
+| `stage_exception` | — | none | 4 |
+| `terminal_decline` | `no_body_field` | **75c2be4e** | 4 |
+| `terminal_decline_parked` | `no_body_field` | none | 4 |
+
+**One no-body trace emits three `***` lines and only one of them gains a handle.** So a re-point clears
+**4 of 12 — 33.3 %** — and leaves 8 unattributable, while moving those 4 onto `ccb52f4c` (resolved through the
+derived transform). **It does not clear the breach; it reduces the residual by a third and creates floor risk
+on the founding office to do it.** That is a materially worse trade than it appeared when this section was
+first drafted, and it is recorded here rather than argued: the decision is still the operator's.
+
 **A dated, falsifiable prediction this section commits to.** `failed → declined` should mean SendGrid receives
 a terminal response and stops the 3-hourly ladder. **The next slot is ~06:35Z on 2026-09-17.** Zero no-body
 traces in that hour means the ladder has stopped and §3b's false rate stops accumulating **without the
