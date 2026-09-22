@@ -35,6 +35,20 @@ S7-GATE-FIDELITY content-binding (Project arm only):
   on the disaggregated honest-EMF/cause signal + the PQ-5 section_gid
   guard-or-seed decision (OQ-3), NOT on column content.
 
+Section-arm selector (PQ-5 guard-or-seed, OQ-3 resolved 2026-06-11):
+  The section arm sends the live `section` NAME selector (RowsRequest.section,
+  query/models.py:283; consumed at query.py:512 — `section_gid` is INERT on the
+  /rows path). Without it, the receiver's PQ-5 guard fail-closes every section
+  call with HTTP 400 [MISSING_SECTION_SELECTOR] (query.py:524-534); a 400 is a
+  client error excluded from the mirror-SLI denominator, so the section arm's
+  success_rate denominator is 0 and the gate reads a spurious 0.0 STATUS:FAIL
+  even when the serve path is perfect (the 2026-06-11 iris smoke). The selector
+  defaults to "Active" (the canonical fleet section name; --section-name to
+  override for a project whose sections differ). The deliberate degenerate
+  no-selector case is preserved as its OWN explicit refusal-contract probe
+  (_probe_section_selector_contract) that asserts the 400 as a PASS of the
+  fail-closed contract — NOT as a denominator member of the steady-state load.
+
 Authentication:
   * If RECEIVER_DEPLOY_GATE_TOKEN is set in the environment, used verbatim.
   * Else if Config.from_env() succeeds (reads AUTOM8Y_DATA_SERVICE_CLIENT_ID
@@ -470,7 +484,9 @@ def _make_token_provider() -> _TokenProvider:
     """
     env_token = os.environ.get("RECEIVER_DEPLOY_GATE_TOKEN")
     if env_token:
-        print(f"[auth] Using RECEIVER_DEPLOY_GATE_TOKEN (len={len(env_token)}); static (no refresh)")
+        print(
+            f"[auth] Using RECEIVER_DEPLOY_GATE_TOKEN (len={len(env_token)}); static (no refresh)"
+        )
         return _TokenProvider(lambda: env_token, static=True)
 
     try:
@@ -543,7 +559,9 @@ def _make_token_provider() -> _TokenProvider:
     # Mint once up front so a pre-flight auth failure exits(2) BEFORE load starts.
     first = provider.get()
     exp = _jwt_exp(first)
-    ttl_note = f"exp in ~{int(exp - time.time())}s" if exp is not None else f"assumed {_ASSUMED_TTL_S}s"
+    ttl_note = (
+        f"exp in ~{int(exp - time.time())}s" if exp is not None else f"assumed {_ASSUMED_TTL_S}s"
+    )
     print(
         f"[auth] JWT acquired via TokenManager (len={len(first)}); "
         f"auto-refresh armed (skew={_TOKEN_REFRESH_SKEW_S}s, {ttl_note})"
@@ -565,6 +583,7 @@ async def _one_call(
     *,
     limit: int,
     parse_body: bool,
+    section_name: str | None = None,
 ) -> tuple[int, float, dict[str, Any] | None]:
     """Issue one POST /v1/query/{arm}/rows call.
 
@@ -572,19 +591,36 @@ async def _one_call(
     decoded JSON envelope when ``parse_body`` is True and the response is a 2xx
     with a JSON body; otherwise None. Content-binding (Project arm) needs the
     body to assert the column contract; the Section arm passes parse_body=False.
+
+    ``section_name`` (Section arm): the live section NAME selector the receiver
+    consumes (RowsRequest.section, query/models.py:283; query.py:512). The
+    receiver's PQ-5 guard fail-closes a section-entity request that omits this
+    selector with a 400 [MISSING_SECTION_SELECTOR] (query.py:524-534) — that 400
+    is a CLIENT error, excluded from the success-rate denominator, so a section
+    arm with no selector drives the section denominator to 0 and the gate reads
+    a spurious success_rate=0.0 STATUS:FAIL even when the serve path is perfect.
+    Passing a valid section name reaches the engine (2xx) and lights the section
+    arm's mirror-SLI denominator. `section_gid` is INERT on this path (declared
+    on RowsRequest but never read by the engine post the S3-MAP fix; the receiver
+    requires `section` the NAME, not the gid) — so we send `section`, not
+    `section_gid`. The deliberate degenerate-no-selector case is now its own
+    explicit refusal-contract probe (see `_probe_section_selector_contract`),
+    NOT a denominator member of the steady-state load.
     """
     url = f"{base_url.rstrip('/')}/v1/query/{arm}/rows"
     # Body for body-parameterized entities: project_gid + limit. ``limit`` is
     # raised above 1 on the content-bound (Project) arm so a real frame is
     # actually returned to inspect — a limit=1 read can still surface the
     # contract, but a slightly wider page makes a partial/wrong frame visible.
-    # 'section' arm requires a section identifier; we pass project_gid as the
-    # parameterizing entity — section_gid is deliberately absent (the PQ-5
-    # degenerate-unfiltered case), and the Section arm is content-EXEMPT here.
     body: dict[str, Any] = {
         "project_gid": project_gid,
         "limit": limit,
     }
+    # Section arm: supply the live `section` NAME selector so the receiver scopes
+    # the query instead of fail-closing with its honest 400. Omitted on the
+    # project arm (a project-wide read is legitimate without a section).
+    if arm == "section" and section_name is not None:
+        body["section"] = section_name
     headers = {
         "Authorization": f"Bearer {token_provider.get()}",
         "Content-Type": "application/json",
@@ -624,6 +660,7 @@ async def _run_arm(
     *,
     assert_column_contract: bool,
     content_limit: int,
+    section_name: str | None = None,
 ) -> ArmResults:
     """Run sustained load against one arm for the configured duration.
 
@@ -637,6 +674,13 @@ async def _run_arm(
     content VIOLATION (empty/wrong frame on a 2xx) is recorded but does NOT alter
     the HTTP-derived success_rate — it surfaces independently in the gate so the
     liveness-masquerade is defeated without conflating the two failure modes.
+
+    ``section_name`` (Section arm): the live `section` NAME selector threaded
+    into every section-arm call so the receiver scopes the query (2xx) instead
+    of fail-closing with its honest 400 [MISSING_SECTION_SELECTOR] — which, as a
+    client error excluded from the denominator, would otherwise zero the section
+    arm's success-rate and force a spurious STATUS:FAIL. Ignored on the project
+    arm.
     """
     results = ArmResults(arm=arm)
     interval_s = 60.0 / max(target_rpm, 1)
@@ -655,6 +699,7 @@ async def _run_arm(
             token_provider,
             limit=per_call_limit,
             parse_body=assert_column_contract,
+            section_name=section_name,
         )
         results.total_calls += 1
         results.durations_ms.append(ms)
@@ -681,6 +726,58 @@ async def _run_arm(
             await asyncio.sleep(slack)
 
     return results
+
+
+# ---------------------------------------------------------------------------
+# Section-selector refusal-contract probe (PQ-5 degenerate case)
+# ---------------------------------------------------------------------------
+
+
+async def _probe_section_selector_contract(
+    client: httpx.AsyncClient,
+    base_url: str,
+    project_gid: str,
+    token_provider: _TokenProvider,
+) -> tuple[bool, str]:
+    """Assert the receiver's PQ-5 fail-closed refusal contract — as a PASS.
+
+    Sends ONE section-entity request that deliberately omits the `section`
+    selector (carries only project_gid) and asserts the receiver REFUSES it with
+    HTTP 400 + [MISSING_SECTION_SELECTOR] (query.py:524-534). This is the
+    degenerate case the steady-state section arm used to send on every call —
+    here it is isolated into a single explicit contract check so it proves the
+    refusal works WITHOUT polluting the section arm's success-rate denominator
+    (a 400 is a client error; mixed into the load it zeros the section arm).
+
+    Returns (passed, detail). A 400 carrying the MISSING_SECTION_SELECTOR marker
+    is the PASS (the refusal contract holds); anything else is a FAIL (the guard
+    silently degenerated, or returned an unexpected status).
+    """
+    url = f"{base_url.rstrip('/')}/v1/query/section/rows"
+    headers = {
+        "Authorization": f"Bearer {token_provider.get()}",
+        "Content-Type": "application/json",
+    }
+    # Deliberately NO `section` selector — exercise the fail-closed guard.
+    body = {"project_gid": project_gid, "limit": 1}
+    try:
+        resp = await client.post(url, json=body, headers=headers, timeout=30.0)
+    except httpx.RequestError as e:
+        return (False, f"network error probing the refusal contract: {e}")
+
+    if resp.status_code != 400:
+        return (
+            False,
+            f"expected 400 fail-closed refusal for a section query missing its "
+            f"`section` selector, got {resp.status_code}: {resp.text[:200]}",
+        )
+    if "MISSING_SECTION_SELECTOR" not in resp.text:
+        return (
+            False,
+            f"got a 400 but without the MISSING_SECTION_SELECTOR marker; the "
+            f"refusal contract is not the expected one: {resp.text[:200]}",
+        )
+    return (True, "400 [MISSING_SECTION_SELECTOR] — refusal contract holds")
 
 
 # ---------------------------------------------------------------------------
@@ -780,14 +877,26 @@ async def _main_async(args: argparse.Namespace) -> int:
 
     print(
         f"[probe] base_url={args.base_url} project_gid={args.project_gid} "
+        f"section_name={args.section_name!r} "
         f"duration={args.duration_minutes}m target_rpm={args.target_rpm} "
         f"success_threshold={args.success_threshold:.2f}"
     )
 
     async with httpx.AsyncClient(http2=False) as client:
+        # Pre-flight: assert the section-selector REFUSAL contract as a PASS
+        # (PQ-5 degenerate case). Isolated from the steady-state load so the
+        # 400 it deliberately provokes does NOT pollute the section arm's
+        # success-rate denominator. A failed refusal contract fails the gate.
+        refusal_ok, refusal_detail = await _probe_section_selector_contract(
+            client, args.base_url, args.project_gid, token_provider
+        )
+        print(f"[probe] section-selector refusal contract: {refusal_detail}")
+
         # Run both arms concurrently — matches the consumer's fan-out shape.
         # PROJECT arm: content-bound (assert the office_phone/vertical/gid
-        # Contract-B columns). SECTION arm: column-contract-EXEMPT.
+        # Contract-B columns). SECTION arm: column-contract-EXEMPT but now sends
+        # the live `section` NAME selector so it scopes (2xx) and lights its
+        # mirror-SLI denominator, instead of fail-closing on every call.
         project_task = asyncio.create_task(
             _run_arm(
                 client,
@@ -812,6 +921,7 @@ async def _main_async(args: argparse.Namespace) -> int:
                 duration_seconds,
                 assert_column_contract=False,
                 content_limit=args.content_limit,
+                section_name=args.section_name,
             )
         )
         project_result, section_result = await asyncio.gather(project_task, section_task)
@@ -819,8 +929,17 @@ async def _main_async(args: argparse.Namespace) -> int:
     print("\n=== Results ===")
     _print_arm_report(project_result, content_bound=True)
     _print_arm_report(section_result, content_bound=False)
+    print("\n=== Section-selector refusal contract (PQ-5 degenerate case) ===")
+    print(f"  refusal_contract = {'PASS' if refusal_ok else 'FAIL'} ({refusal_detail})")
 
     passed, failures = _evaluate_gate(project_result, section_result, args.success_threshold)
+    if not refusal_ok:
+        failures.append(
+            f"section-selector refusal contract FAILED: {refusal_detail} "
+            "(the receiver did not fail-closed on a section query missing its "
+            "`section` selector — PQ-5 guard regression)"
+        )
+        passed = False
 
     print("\n=== Deploy-gate decision ===")
     if passed:
@@ -855,6 +974,17 @@ def main() -> None:
         "--project-gid",
         required=True,
         help="Asana project GID to query against (body-parameterized arm input)",
+    )
+    parser.add_argument(
+        "--section-name",
+        default="Active",
+        help=(
+            "Section NAME selector for the section arm (RowsRequest.section; the "
+            "receiver consumes the name, not section_gid). Must be a section that "
+            "exists in --project-gid so the section arm scopes (2xx) instead of "
+            "fail-closing 400 [MISSING_SECTION_SELECTOR]. Default 'Active' (the "
+            "canonical fleet section name); override to match the target project."
+        ),
     )
     parser.add_argument(
         "--duration-minutes",
