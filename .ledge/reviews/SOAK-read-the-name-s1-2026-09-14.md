@@ -110,6 +110,7 @@ is which of them CHANGED what the instrument checks.** Two did, **and both only 
 | 3f | a FALSE ALARM this seat raised against the arrival unit, and withdrew | record only — **no criterion changed; the instrument was right** |
 | 3g | the caller's plane: what U-3 structurally cannot see, now bounded | record only |
 | 3h | the allowlist retirement inside rows 3–5, and the calibration subject's 0.26-point margin | record only |
+| 3d-iii | instant 7: the 09-17 whole-stack redeploy that moved the evaluator; the executed-query hash is not on the run line | record only |
 | **3i** | rows 3–7 read late; the first clean rows; a date this seat gave is falsified; the §2 alarm command tightened | **§2 command tightened — APPLIED** (it can only tighten, same rule as 3c); the rest record only |
 
 **The rule that produces this asymmetry, and it is the whole of it.** §3a, §3b and §3e would each **loosen** the
@@ -266,6 +267,39 @@ have landed with it had not, and its allowlist parameter still read the prior ve
 not a plan that applies** — the same sentence this wave already learned on alarms, arriving by a different
 route. **Consequence for this file: every instant above is recorded from the version/alias plane or the log
 stream, never from a report that a merge happened.**
+
+
+### 3d-iii · Instant 7, missed on row 3's face and recorded now — a whole-stack redeploy that moved the evaluator itself
+
+Found 2026-09-22T20:0xZ while answering a neighbouring lane's question. **Row 3 (09-17) spans one more deploy than
+§3d and §3d-ii recorded, and it is the only one that touched this instrument's own function.**
+
+| # | instant | what | evidence |
+|---|---|---|---|
+| 7 | **2026-09-17T15:16:06Z** | whole EBI stack redeployed: intake alias `live` → **v78**; the **office-floor evaluator** and the contente reconciler moved in the same instant | all three functions show `LastModified` 15:16:06Z and the **same image `93ff422a9b86`**; nearest `services/` merge before it is autom8y #2357 at 15:09:05Z (resolved-lead client, flag default off) — **nearest, not cause; the deploy run was not read** |
+
+**Why this does not reset the soak, established from the code rather than asserted.** The evaluator has no alias, so
+`$LATEST` is its served object and it did change at 15:16:06Z. **But the only commit to
+`services/email-booking-intake/src/email_booking_intake/office_floor/` since the soak began is `0b5e1c9e3` on
+09-15** — the page-shape change already recorded as not resetting. So the 15:16:06Z image carried **unchanged
+evaluator code**: `PINNED_QUERY_SHA256` is still `4b9d3534…c3`, and `ZERO_FLOOR_MIN_ARRIVALS` 5,
+`RATE_FLOOR_MIN_ARRIVALS` 20, `RATE_FLOOR_MAX_RATE` 0.025, `RESIDUAL_SHARE_TRIPWIRE` 0.10 and
+`BOOKING_LOOKBACK_DAYS` 30 are all unchanged. The CI pinning test turns red on any byte of the query.
+
+**An instrument gap this exposed, recorded as a gap and not fixed here.** **The run line does not carry the
+hash of the query it actually executed** — `query_sha256` is absent on all 209 run lines 09-14 → 09-22. So
+*served-query identity* rests on code history plus the CI pin, **not on a reading from the plane**. That is the
+"tag that names bytes it does not carry" shape. Emitting the executed hash on the run line would make it
+readable; it is a `services/**` change that deploys, and is **proposed, not made** from this seat.
+
+**Two instrument boundaries established tonight, so no one re-derives them.**
+
+1. **S-1 reads exactly one source group:** the served configuration sets
+   `EMAIL_BOOKING_INTAKE_OFFICE_FLOOR_LOG_GROUP` explicitly to `/aws/lambda/autom8-email-booking-intake`.
+2. **It therefore does NOT count calendly-intake bookings.** Over 14 d that group carries 672
+   `booking_completed` and 42 `contente_booking_booked`, **none mentioning calendly**, and **no calendly trace
+   at all** across 113,852 records — with the same pattern matching **12,233** lines on calendly-intake's own
+   group as the positive control. **A calendly-intake deploy or revert cannot move a row.**
 
 
 ### 3d-i · The three realization reads §3d demanded, taken — and why one of them can never be taken
