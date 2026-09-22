@@ -19,6 +19,11 @@ Every row is one UTC day, read own-hands the following day with the commands in 
 | 0 | 2026-09-14 (partial, read 06:41Z) | 4 (3 S1.4b controlled invokes 06:00:27 / 06:00:48 / 06:01:07Z + the first SCHEDULED fire 06:27:15Z; `filter-log-events` one page) | 3 (A, C-dry-run, D; scheduled D: `records_scanned` 13979, offices_with_bookings 31) | 1 (leg B, 10-min window, `records_scanned_below_floor`; timestamp withheld) | 2 (06:00Z, 06:27Z — A and D only; B refused and C dry-run emitted nothing) | 8 samples since 05:52Z, min 200 s, max 2000.6 s (< 7200) | both OK (`…-lambda-freshness` OK 06:04:56Z; `…-freshness-prober-liveness` OK 06:27:14Z) | 4 — ALL four are alarm `INSUFFICIENT_DATA → OK` OK-action notifications (05:53:09 / 05:53:48 / 06:04:56 / 06:27:14Z), 0 from the evaluator (`paged:false` on all four run lines); subscriptions 0 | from the 06:27:15Z run line: `zero_floor_count: 3`, `rate_floor_count: 0`, 39 evaluated → 36 quiet; office lines `floor_class` quiet 108 / zero 9 over the four runs (Gate C's own read); `ccb52f4c` quiet at 3.23 % (93 arrivals / 3 bookings) | `residual_share: 0.0746`, `residual_share_high: false` on the 06:27:15Z run line (own-hands 07:05Z; the earlier "needs the 11:27Z digest" was untrue — the field is on every run line) | born 05:52:27Z by run 34810812077; first scheduled fire OBSERVED 06:27:15Z; day-1 read must add the 11:27Z digest (`MessageId`, `sns:Publish` proven), the `***` share, and the full-day sums |
 | 1 | 2026-09-15 (complete, read 2026-09-16T00:06Z) | 24 | 24 (`control: passed` on every run line) | 0 | 24 (one per hour, 00Z–23Z, UTC-normalised) | 288 samples, Maximum 3803.16 s (< 7200) | all four OK, `AlarmActions` **and** `OKActions` = `autom8-ebi-office-floor-scratch` only (`…-freshness-prober-liveness`, `…-lambda-freshness`, `…-office-floor-dlq-not-empty`, `…-office-floor-lambda-errors`) | **1** — the 11:27Z digest, and nothing else all day; subscriptions still **0** | office lines 1091: quiet 1016 / zero 54 / rate 21; run-line `zero_floor_count` 2–3, `rate_floor_count` 0–1 | **BREACH — day max `residual_share` 0.1141, `residual_share_high: true` on 4 of 24 run lines** | **ROW FAILS §3 on the `***` residual alone; the other seven criteria pass.** The step is datable to the **20:27Z run** (19:27Z 0.0480 → 20:27Z 0.1038 → 0.1073 → 0.1134 → 0.1141, still climbing at 23:27Z) and it happened on **s1.3**, two hours BEFORE the s1.4 deploy, so it is not #2272. Cause measured at source: the **19:00Z hour** carried 110 office-bearing lines of which **65 were `***` (59.1 %)**, decaying to 0 % by 00Z — 46 distinct traces / 98 lines, **40 × `WebhookValidationError` at `stage=parse`** (each also emitting a `booking_intake_fault`, which IS in the arrival unit) + 6 × `OfficeResolutionError`. These fail before office resolution, so `redact_uuid` renders `***` and they are unattributable **by construction**. W = 3 d rolling, so the burst stays in the denominator until ≈ 2026-09-18T19:00Z. **Also in this row:** the evaluator switched s1.3 → s1.4 at 22:52Z and PT-08(a) passed every fence token at the 23:27:15Z fire, with `office_name` two-sided on one query (50 of 50 named at 22:00Z, **0 of 50 at 23:00Z**); and EBI deployed autom8y #2290 as image `c95c59b` at **2026-09-16T00:06:08Z**, five functions unanimous, `office_floor/` tree untouched by source diff. |
 | 2 | 2026-09-16 (complete, read 2026-09-17T00:38Z) | 24 | 24 | 0 | 24 | 288 samples, Maximum 3802.85 s (< 7200) | **4 of 4 expected present**, none missing, none unexpected, all OK, `AlarmActions` **and** `OKActions` = `autom8-ebi-office-floor-scratch` only — the first row graded under §3c, which asserts cardinality **before** grading; under the old form this cell could have passed on a deleted alarm | **1** — the 11:27Z digest and nothing else; subscriptions still **0** | office lines 1279: quiet 1224 / zero 55 / **rate 0**; run-line `zero_floor_count` 2–3, `rate_floor_count` **0** | **BREACH — day max `residual_share` 0.1414, `residual_share_high: true` on 24 of 24 run lines** | **ROW FAILS §3 on the `***` residual alone; the other seven criteria pass.** Same cause as row 1 and no new arrival: the 09-15T19Z no-body batch's 3-hourly SendGrid redelivery tail accumulating inside the 3-day window while quieter hours age out (SOAK §3b). Composition of the residual over this window, by `error_type` × `stage` on `***` lines: `WebhookValidationError`/`parse` 74 · `OfficeResolutionError`/`resolve_office` 32 · their paired fault/decline/parked lines 136. **`ccb52f4c` off the RATE floor all day** (`rate_floor_count` 0 on every run), consistent with E-6: its arrivals are relayed `unknown_loud`, and it books by its native path. **Deploys inside this row: none.** autom8y-data #472 merged `769522ff` at 2026-09-17T00:08:37Z and booted at 00:30-00:32Z — **both after this row closed**; autom8y #2324 was HELD, then split (head `8149625d`) and had not merged. |
+| 3 | 2026-09-17 (complete, read 2026-09-22T19:1xZ, **five days late** — no row was written 09-17→09-21; the evidence is durable and was read retrospectively) | 24 | 24 | 0 | 24 | 288 samples, Maximum 3802.86 s (< 7200) | **4 of 4 expected present** (the two deadmen + `office-floor-dlq-not-empty` + `office-floor-lambda-errors`), all OK, **no state transition 09-16→09-22** (alarm-history control: the same query returns 100+ transitions account-wide, so NONE is a reading), `AlarmActions` and `OKActions` = scratch topic only | **1** — the 11:27:17Z digest and nothing else; subscriptions **0** (read 09-22, `NextToken` none) | office lines 1320: quiet 1238 / zero 82 / **rate 0**; run-line `zero_floor_count` 3–4, `rate_floor_count` **0** | **BREACH — day max `residual_share` 0.1524, `high` on 24 of 24 runs** | **ROW FAILS §3 on the `***` residual alone; the other criteria pass.** The day of five deploy instants (§3d, §3d-ii, §3h) and of the ladder's stop at 03:38:31Z; the share rose through the day as the window slid onto the 09-15 episode (slate §2). **Founding office `ccb52f4c` (§3h margin, required on this face): arrivals 156–185, bookings 5–6, booking_rate 2.76–3.37 %, on the RATE floor in 0 of 24 runs — the 0.26-point margin held all day.** `79be1b75`: present in 9 runs, on the ZERO floor in 0 — §3d condition (ii) cannot fire because it was never on that floor. |
+| 4 | 2026-09-18 (complete, read 2026-09-22T19:1xZ, **five days late** — no row was written 09-17→09-21; the evidence is durable and was read retrospectively) | 24 | 24 | 0 | 24 | 288 samples, Maximum 3803.01 s (< 7200) | **4 of 4 expected present** (the two deadmen + `office-floor-dlq-not-empty` + `office-floor-lambda-errors`), all OK, **no state transition 09-16→09-22** (alarm-history control: the same query returns 100+ transitions account-wide, so NONE is a reading), `AlarmActions` and `OKActions` = scratch topic only | **1** — the 11:27:17Z digest and nothing else; subscriptions **0** (read 09-22, `NextToken` none) | office lines 1206: quiet 1112 / zero 91 / **rate 3**; `zero_floor_count` 3–4, `rate_floor_count` 0–1 | **BREACH — day max 0.1648, `high` on 24 of 24** | **ROW FAILS on the residual alone.** **`ccb52f4c` CROSSED onto the RATE floor in 3 runs** — bookings fell to **1**, booking_rate min **0.75 %**, arrivals 134–154. **This is the one-booking flip §3h and the reader brief predicted**, not a change in the clinic: per E-6 its RATE reading is a plumbing shape, and the three `rate` office lines this day are all this office. `79be1b75` absent from every run. |
+| 5 | 2026-09-19 (complete, read 2026-09-22T19:1xZ, **five days late** — no row was written 09-17→09-21; the evidence is durable and was read retrospectively) | 24 | 24 | 0 | 24 | 288 samples, Maximum 3802.59 s (< 7200) | **4 of 4 expected present** (the two deadmen + `office-floor-dlq-not-empty` + `office-floor-lambda-errors`), all OK, **no state transition 09-16→09-22** (alarm-history control: the same query returns 100+ transitions account-wide, so NONE is a reading), `AlarmActions` and `OKActions` = scratch topic only | **1** — the 11:27:17Z digest and nothing else; subscriptions **0** (read 09-22, `NextToken` none) | office lines 1038: quiet 950 / zero 64 / **rate 24**; `zero_floor_count` 2–3, `rate_floor_count` 1 | **BREACH — day max 0.1122, `high` on 5 of 24** (the first day the tripwire cleared mid-day) | **ROW FAILS on the residual alone, and only just**: the share fell below 10 % after the fifth run. **`ccb52f4c` on the RATE floor in 24 of 24 runs** — bookings 1–2, arrivals 93–136, rate 0.74–2.15 %; **all 24 `rate` lines this day are this office.** `79be1b75` absent. |
+| 6 | 2026-09-20 (complete, read 2026-09-22T19:1xZ, **five days late** — no row was written 09-17→09-21; the evidence is durable and was read retrospectively) | 24 | 24 | 0 | 24 | 288 samples, Maximum 3803.28 s (< 7200) | **4 of 4 expected present** (the two deadmen + `office-floor-dlq-not-empty` + `office-floor-lambda-errors`), all OK, **no state transition 09-16→09-22** (alarm-history control: the same query returns 100+ transitions account-wide, so NONE is a reading), `AlarmActions` and `OKActions` = scratch topic only | **1** — the 11:27:17Z digest and nothing else; subscriptions **0** (read 09-22, `NextToken` none) | office lines 989: quiet 929 / zero 48 / **rate 12**; `zero_floor_count` 2, `rate_floor_count` 0–1 | **clear — day max 0.0743, `high` on 0 of 24** | **FIRST CLEAN ROW OF THE SOAK — every §3 criterion passes.** The residual is below 10 % on every run, **a day earlier than the “earliest possible 09-21” this seat put on the slate** (see §3i). `ccb52f4c` on RATE in 12 of 24 runs (bookings 2, arrivals 61–89) — **all 12 `rate` lines this day are this office**. `79be1b75` absent. |
+| 7 | 2026-09-21 (complete, read 2026-09-22T19:1xZ, **five days late** — no row was written 09-17→09-21; the evidence is durable and was read retrospectively) | 24 | 24 | 0 | 24 | 288 samples, Maximum 3802.84 s (< 7200) | **4 of 4 expected present** (the two deadmen + `office-floor-dlq-not-empty` + `office-floor-lambda-errors`), all OK, **no state transition 09-16→09-22** (alarm-history control: the same query returns 100+ transitions account-wide, so NONE is a reading), `AlarmActions` and `OKActions` = scratch topic only | **1** — the 11:27:17Z digest and nothing else; subscriptions **0** (read 09-22, `NextToken` none) | office lines 982: quiet 923 / zero 45 / **rate 14**; `zero_floor_count` 1–2, `rate_floor_count` 0–1 | **clear — day max 0.0479, `high` on 0 of 24** | **SECOND CONSECUTIVE CLEAN ROW — every §3 criterion passes.** `ccb52f4c` on RATE in 14 of 24 runs; arrivals **54–202** and bookings **1–7** within one day — a swing recorded, not interpreted. **All 14 `rate` lines this day are this office.** `79be1b75` absent. |
 
 ## 2 · Daily own-hands commands (region us-east-1; rc read unpiped)
 
@@ -43,8 +48,14 @@ aws cloudwatch get-metric-statistics --namespace Autom8y/Freshness --metric-name
   --start-time "$(date -u -r $S +%FT%TZ)" --end-time "$(date -u -r $E +%FT%TZ)" --period 86400 --statistics SampleCount Maximum --output json
 
 # deadman alarm states + their actions (must be the scratch topic ARN only)
-aws cloudwatch describe-alarms --alarm-name-prefix autom8-ebi-booking-floor --output json \
-  --query 'MetricAlarms[].{n:AlarmName,s:StateValue,a:AlarmActions,ok:OKActions}'
+# ENUMERATE the four expected names (§3c, §3i). A prefix read finds only TWO: the dlq and
+# lambda-errors alarms are named under the function's full name, not autom8-ebi-booking-floor.
+aws cloudwatch describe-alarms --output json --alarm-names \
+  autom8-ebi-booking-floor-freshness-prober-liveness autom8-ebi-booking-floor-lambda-freshness \
+  autom8-email-booking-intake-office-floor-dlq-not-empty autom8-email-booking-intake-office-floor-lambda-errors \
+  --query 'MetricAlarms[].{n:AlarmName,s:StateValue,a:AlarmActions,ok:OKActions}'   # must print FOUR
+# a row read after the day: state at 23:59Z comes from describe-alarm-history (StateUpdate), with an
+# account-wide history read as the positive control -- current state alone does not attest a past day
 
 # pages that reached the scratch topic (subscriptions must still be zero)
 aws cloudwatch get-metric-statistics --namespace AWS/SNS --metric-name NumberOfMessagesPublished \
@@ -84,7 +95,7 @@ Seven consecutive complete rows with: evaluations ≥ 20/day, controlled ≥ 20/
 ### 3·0 · INDEX AND DISPOSITIONS — read this before any section below
 
 This section grew from four entries to eleven on 2026-09-16/17. **The single thing a reader must not get wrong
-is which of them CHANGED the criterion.** Exactly one did.
+is which of them CHANGED what the instrument checks.** Two did, **and both only tighten** (§3c, and §3i's fix to the §2 alarm command). **None changed the pinned query, the arrival unit, the namespace or any threshold, and none loosened anything.**
 
 | § | what it is | **disposition** |
 |---|---|---|
@@ -99,6 +110,7 @@ is which of them CHANGED the criterion.** Exactly one did.
 | 3f | a FALSE ALARM this seat raised against the arrival unit, and withdrew | record only — **no criterion changed; the instrument was right** |
 | 3g | the caller's plane: what U-3 structurally cannot see, now bounded | record only |
 | 3h | the allowlist retirement inside rows 3–5, and the calibration subject's 0.26-point margin | record only |
+| **3i** | rows 3–7 read late; the first clean rows; a date this seat gave is falsified; the §2 alarm command tightened | **§2 command tightened — APPLIED** (it can only tighten, same rule as 3c); the rest record only |
 
 **The rule that produces this asymmetry, and it is the whole of it.** §3a, §3b and §3e would each **loosen** the
 criterion — under any of them the rows that have already breached would pass. **A criterion amended while it
@@ -108,7 +120,7 @@ untouched. §3c can only tighten, so it needed no word.
 
 **Three consequences a reader should carry away.**
 
-1. **The `***` residual has NOT been re-pointed, re-scoped or re-thresholded.** Rows 1 and 2 stand as breached.
+1. **The `***` residual has NOT been re-pointed, re-scoped or re-thresholded.** Rows 1–5 stand as breached; rows 6–7 are clean under the unchanged criterion.
 2. **Nothing in §3f changed the instrument.** It records a defect this seat reported against U-3 and then
    withdrew; `dedup_inert` was correct throughout.
 3. **Rows 3–5 span five deploy instants and must not be read as confirming any of them** — see §3d-i for the
@@ -577,6 +589,67 @@ is a plumbing shape to begin with.
 retirement at **04:16:36Z**. That is wrong and this seat verified why: at 04:16:36Z the live alias was still
 v75 and the parameter still v7. **Both independent instruments — SSM parameter history and the Lambda version
 list — put it at 04:33:07.738Z / 04:33:08Z.**
+
+
+### 3i · Rows 3–7, read five days late — the first two clean rows, a date this seat gave falsified, and the §2 alarm command tightened
+
+Read 2026-09-22T19:1xZ. **No row was written between 2026-09-17 and 2026-09-21.** Every cell above was read
+retrospectively from durable sources (Insights over the evaluator's own log group with `recordsScanned`
+printed, CloudWatch metric statistics, alarm history), which is permitted — the rows are about complete UTC
+days — **but the lateness is recorded on the face of each row rather than hidden.**
+
+**What the five rows say, in one line each:**
+
+| row | day | residual day-max | verdict |
+|---|---|---|---|
+| 3 | 09-17 | 15.24 % (24/24 runs high) | **BREACH** |
+| 4 | 09-18 | 16.48 % (24/24) | **BREACH** |
+| 5 | 09-19 | 11.22 % (5/24) | **BREACH**, by the smallest margin of the soak |
+| 6 | 09-20 | 7.43 % (0/24) | **CLEAN — the first clean row** |
+| 7 | 09-21 | 4.79 % (0/24) | **CLEAN** |
+
+**Every other §3 criterion passed on every one of the five days**: 24 evaluations, 24 controlled, 0 refused,
+24 `LastSuccessTimestamp` datapoints, 288 prober samples with maximum 3803 s against 7200, **four of four**
+deadman-class alarms OK with no transition and scratch-only actions, and **exactly one page per day, the
+11:27:17Z digest**, with the scratch topic still at zero subscriptions. **The residual was the only failing
+criterion, as it was for rows 1 and 2.**
+
+**Consecutive clean rows: TWO (09-20, 09-21). Five more are needed.** If 09-22 through 09-26 are all clean, the
+seventh clean row is readable at **2026-09-27T00:05Z**. S1.7 stays BLOCKED on the consumer word (R-168) regardless.
+
+**⛔ A date this seat put on the operator's slate is FALSIFIED by these rows, and the direction matters.** The
+slate said the *"first possible fully-clean day >= 2026-09-21."* **09-20 was clean.** That was offered as a
+lower bound and reality beat it, so it was not a lower bound. **The error:** it computed when the ladder's
+lines would have *fully* left the window (09-20T03:38Z) and treated that as the earliest the criterion could
+pass. **But the criterion is a threshold, not an emptiness test** — the share only has to fall below 10 %, and it
+did so while ladder lines were still in the window, as the 09-15 episode progressively aged out from
+09-18 onward. **"When the cause is gone" and "when the reading crosses the line" are different instants**, and
+only the second is the criterion. Same family as the two-clocks error on the slate: a correct date for the
+wrong event.
+
+**⛔ AND A §3c FAILURE THIS SEAT NEARLY REPEATED, which is why §2 is tightened.** The first read of these rows
+discovered alarms by prefix and found **two**. Row 2 had graded **four**. Grading the two found would have been
+exactly the vacuous shape §3c was written against — a check passing over the set it happened to find rather
+than the set it was supposed to check. **All four exist**; the missing two are named under the function's full
+name (`autom8-email-booking-intake-office-floor-dlq-not-empty`, `…-lambda-errors`), which the short prefix
+cannot reach. **§2's own command used that same prefix**, so it could only ever have found two of the four
+§3c grades. **It now enumerates the four names and must print four.** Applied under the same asymmetry as
+§3c: a change to what the instrument *checks* that can only turn passes into failures, with no change to the
+pinned query, the arrival unit or any threshold, **does not reset the soak and does not need a word.**
+
+**The founding office, on the face of rows 3–5 as §3h required, and after.** Its 0.26-point margin **held all of
+09-17** (on the RATE floor in 0 of 24 runs). On **09-18 its bookings fell to one and it crossed onto the floor
+in 3 runs**; on 09-19 it was on the floor in **24 of 24**, then 12 and 14 of 24 on the two clean days. **Every
+`rate` office line in rows 3–7 is this office — no other office touched the RATE floor in five days.** That
+is the one-booking flip §3h and the reader brief predicted, and per E-6 it is a plumbing shape. **It paged
+nothing** — every page went to the scratch topic, and the topic has no subscribers.
+
+**Two things this read could not grade, stated rather than filled in.** (1) §3's *"day count incrementing"* on the
+page: the run line carries no `day_n`, so the digest's day number is not readable from it; one page per day
+at 11:27:17Z is graded, the counter is not. (2) Subscription count is read **now**, 09-22; the topic's
+subscriptions on each past day are not recoverable from any history this seat can read, so the zero is
+asserted for the reading instant only. **Neither changes a verdict above; both are recorded so a reader does
+not assume they were checked.**
 
 
 ### 3c · The deadman criterion passed VACUOUSLY on an empty set — APPLIED, because it can only tighten
