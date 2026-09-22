@@ -158,9 +158,15 @@ above.** Stopping the ladder early does not remove what it already wrote.
 ```
 last no-body line measured      2026-09-17 03:38:31Z
 W = 3 d rolling -> clears at    2026-09-20 03:38Z      (the slate above said ≈ 09-18 19:00Z)
-first possible fully-clean day  >= 2026-09-21
+first possible fully-clean day  >= 2026-09-21    [FALSIFIED 09-22: 09-20 WAS CLEAN -- SOAK row 6, §3i]
 seven consecutive clean rows    close no earlier than ≈ 2026-09-27, not ≈ 09-25
 ```
+
+> **⛔ FALSIFIED BY THE ROWS, 2026-09-22.** The “first possible fully-clean day >= 09-21” above was offered as
+> a lower bound and **09-20 was clean** (SOAK row 6, residual day-max 7.43 %). It computed when the ladder's lines
+> would *fully* leave the window, **but the criterion is a threshold, not an emptiness test** — the share crossed
+> below 10 % while ladder lines were still inside it. **The close date is unaffected in practice:** two clean rows
+> (09-20, 09-21) are recorded, and if 09-22 to 09-26 are clean the seventh is readable **2026-09-27T00:05Z**. SOAK §3i.
 
 **Corroborated by the instrument's own published number rather than by this arithmetic alone: `residual_share`
 is still RISING** — 13.72 % at 00:27Z to **14.53 % at 05:27Z**, `residual_share_high = 1` on every run, against
