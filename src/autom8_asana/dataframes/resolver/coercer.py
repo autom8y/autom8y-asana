@@ -19,6 +19,11 @@ __all__ = ["TypeCoercer", "coerce_value"]
 
 logger = get_logger(__name__)
 
+# Leading currency symbols recognized when normalizing decorated numeric display
+# values (e.g. "$4,500"). Kept conservative -- only single-char prefixes that
+# unambiguously decorate a numeric magnitude.
+_CURRENCY_PREFIXES: frozenset[str] = frozenset({"$", "£", "€", "¥"})
+
 
 class TypeCoercer:
     """Stateless type coercion for custom field values.
@@ -161,6 +166,66 @@ class TypeCoercer:
         """
         return [value]
 
+    @staticmethod
+    def _normalize_numeric_string(value: str) -> str | None:
+        """Strip currency/locale decoration from a *decorated* numeric string.
+
+        ADDITIVE by design: this only transforms strings that carry an explicit
+        decoration -- a trailing percent sign ("10%"), a leading currency symbol
+        ("$4,500"), or a comma thousands-separator ("4,500"). Any string WITHOUT
+        such decoration is returned UNCHANGED so the caller's ``Decimal``/``float``
+        constructor handles it exactly as before (this preserves the pre-existing
+        contract for "Infinity"/"NaN"/scientific-notation like "1E+10"/"1.23e10",
+        which are valid Decimal/float literals and must not be intercepted).
+
+        When a decoration IS present, the residue must be *cleanly numeric*
+        (optional sign, digits, at most one decimal point) or ``None`` is returned
+        -- this never invents a value: a decorated-but-non-numeric string ("N/A%",
+        "$1.2.3") yields ``None`` so the caller drops to null rather than
+        fabricating a magnitude.
+
+        Args:
+            value: Raw string value (e.g. an Asana display_value).
+
+        Returns:
+            - The original string UNCHANGED if it carries no currency/percent/
+              comma decoration (delegating to the caller's numeric constructor).
+            - A bare numeric residue if decorated AND cleanly numeric.
+            - ``None`` if decorated but not cleanly numeric after stripping.
+        """
+        stripped = value.strip()
+
+        has_percent = stripped.endswith("%")
+        has_currency = stripped[:1] in _CURRENCY_PREFIXES
+        has_comma = "," in stripped
+
+        # Undecorated: pass through verbatim. Preserves Infinity/NaN/scientific
+        # notation and the existing reject-on-garbage behavior of Decimal/float.
+        if not (has_percent or has_currency or has_comma):
+            return value
+
+        # Decorated: strip decoration, then require a cleanly-numeric residue.
+        if has_percent:
+            stripped = stripped[:-1].strip()
+        if stripped[:1] in _CURRENCY_PREFIXES:
+            stripped = stripped[1:].strip()
+        candidate = stripped.replace(",", "")
+
+        if not candidate:
+            return None
+
+        # Cleanly-numeric guard: optional leading sign, digits, optional single
+        # decimal point. Rejects anything else (e.g. "N/A", "1.2.3", "ab12").
+        body = candidate[1:] if candidate[:1] in {"+", "-"} else candidate
+        if not body:
+            return None
+        if body.count(".") > 1:
+            return None
+        if not body.replace(".", "", 1).isdigit():
+            return None
+
+        return candidate
+
     def _to_numeric(self, value: Any, target_dtype: str) -> Decimal | float | int | None:
         """Convert value to numeric type.
 
@@ -170,9 +235,28 @@ class TypeCoercer:
 
         Returns:
             Converted numeric value, or None on failure
+
+        Note:
+            String inputs are normalized via :meth:`_normalize_numeric_string`
+            before conversion so that locale/currency-decorated display values
+            ("10%", "$4,500", "4,500") parse to their numeric magnitude. This
+            converges resolver-path coercion with the builder-path coercion in
+            ``builders/fields._coerce_value`` (the two had diverged: only the
+            builder path stripped "%"/currency, so the resolver path silently
+            dropped percentage/currency display values to None). Normalization
+            only succeeds when the residue is *cleanly numeric* -- a non-numeric
+            string still falls through to None, never an invented value.
         """
         if value is None:
             return None
+
+        # Normalize currency/locale-decorated strings to a bare numeric residue
+        # before attempting conversion. Returns None when not cleanly numeric.
+        if isinstance(value, str):
+            normalized = self._normalize_numeric_string(value)
+            if normalized is None:
+                return None
+            value = normalized
 
         try:
             if target_dtype == "Decimal":

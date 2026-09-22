@@ -44,7 +44,8 @@ def unit_task_data(base_task_data: dict[str, Any]) -> dict[str, Any]:
         "weekly_ad_spend": Decimal("500.00"),
         "products": ["ProductA", "ProductB"],
         "languages": ["English", "Spanish"],
-        "discount": Decimal("10.5"),
+        # Discount is an Asana enum string ("0%", "10%"), not a number.
+        "discount": "10%",
         "office": "New York",
         "office_phone": "+15550001230",
         "vertical": "Healthcare",
@@ -222,7 +223,7 @@ class TestUnitRowCreation:
         assert row.weekly_ad_spend == Decimal("500.00")
         assert row.products == ["ProductA", "ProductB"]
         assert row.languages == ["English", "Spanish"]
-        assert row.discount == Decimal("10.5")
+        assert row.discount == "10%"
         assert row.office == "New York"
         assert row.office_phone == "+15550001230"
         assert row.vertical == "Healthcare"
@@ -432,16 +433,20 @@ class TestModelDumpCompatibility:
     def test_to_dict_handles_nested_decimal_in_subclass(
         self, base_task_data: dict[str, Any]
     ) -> None:
-        """Test to_dict converts nested Decimal values."""
+        """Test to_dict converts nested Decimal values.
+
+        Uses the two remaining Decimal fields (mrr, weekly_ad_spend); discount
+        is now an enum string, not a Decimal -- see UnitRow contract note.
+        """
         data = {
             **base_task_data,
             "type": "Unit",
             "mrr": Decimal("100.50"),
-            "discount": Decimal("5.25"),
+            "weekly_ad_spend": Decimal("5.25"),
         }
         row = UnitRow(**data)
         result = row.to_dict()
 
         # Both Decimal fields should be converted
         assert isinstance(result["mrr"], float)
-        assert isinstance(result["discount"], float)
+        assert isinstance(result["weekly_ad_spend"], float)

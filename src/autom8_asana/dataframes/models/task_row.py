@@ -116,7 +116,12 @@ class UnitRow(TaskRow):
     weekly_ad_spend: Decimal | None = None
     products: list[str] = Field(default_factory=list)
     languages: list[str] = Field(default_factory=list)
-    discount: Decimal | None = None
+    # Discount is an Asana ENUM (e.g. "0%", "10%", "None"), not a number --
+    # proven against live unit project 1201081073731555 stored task dicts
+    # (resource_subtype="enum"). The model declares EnumField()
+    # (models/business/unit.py), authoritative for runtime shape. Carry the
+    # honest enum string; UNIT_SCHEMA discount dtype is Utf8 to match.
+    discount: str | None = None
 
     # Cascade/derived fields (4)
     office: str | None = None

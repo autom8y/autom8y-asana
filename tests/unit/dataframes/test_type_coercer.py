@@ -864,20 +864,35 @@ class TestAdversarialNumericBoundaries:
         assert result == 123
 
     def test_string_with_comma(self, coercer: TypeCoercer) -> None:
-        """Test numeric string with comma formatting (should fail)."""
+        """Test numeric string with comma thousands-separator.
+
+        CONTRACT CHANGE (SEAM-2 coercer convergence): the resolver coercer now
+        normalizes comma-grouped numbers, converging with
+        ``builders/fields._coerce_value``. Previously returned None.
+        """
         result = coercer.coerce("1,234", "Int64")
-        # float("1,234") raises ValueError
-        assert result is None
+        assert result == 1234
 
     def test_string_with_currency_symbol(self, coercer: TypeCoercer) -> None:
-        """Test numeric string with currency symbol (should fail)."""
+        """Test numeric string with currency symbol.
+
+        CONTRACT CHANGE (SEAM-2 coercer convergence): the resolver coercer now
+        strips a leading currency symbol and parses the magnitude. Previously
+        returned None.
+        """
         result = coercer.coerce("$100", "Decimal")
-        assert result is None
+        assert result == Decimal("100")
 
     def test_string_with_percent(self, coercer: TypeCoercer) -> None:
-        """Test numeric string with percent symbol (should fail)."""
+        """Test numeric string with percent symbol.
+
+        CONTRACT CHANGE (SEAM-2 coercer convergence): the resolver coercer now
+        strips a trailing percent sign and parses the magnitude, converging with
+        ``builders/fields._coerce_value`` (which already did). Previously
+        returned None.
+        """
         result = coercer.coerce("50%", "Float64")
-        assert result is None
+        assert result == 50.0
 
 
 class TestAdversarialUnknownDtypes:
