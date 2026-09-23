@@ -26,6 +26,8 @@ Every row is one UTC day, read own-hands the following day with the commands in 
 | 7 | 2026-09-21 (complete, read 2026-09-22T19:1xZ, **five days late** — no row was written 09-17→09-21; the evidence is durable and was read retrospectively) | 24 | 24 | 0 | 24 | 288 samples, Maximum 3802.84 s (< 7200) | **4 of 4 expected present** (the two deadmen + `office-floor-dlq-not-empty` + `office-floor-lambda-errors`), all OK, **no state transition 09-16→09-22** (alarm-history control: the same query returns 100+ transitions account-wide, so NONE is a reading), `AlarmActions` and `OKActions` = scratch topic only | **1** — the 11:27:17Z digest and nothing else; subscriptions **0** (read 09-22, `NextToken` none) | office lines 982: quiet 923 / zero 45 / **rate 14**; `zero_floor_count` 1–2, `rate_floor_count` 0–1 | **clear — day max 0.0479, `high` on 0 of 24** | **SECOND CONSECUTIVE CLEAN ROW — every §3 criterion passes.** `ccb52f4c` on RATE in 14 of 24 runs; arrivals **54–202** and bookings **1–7** within one day — a swing recorded, not interpreted. **All 14 `rate` lines this day are this office.** `79be1b75` absent. |
 | 8 | 2026-09-22 (complete, read 2026-09-23T00:4xZ, on time) | 24 | 24 | 0 | 24 | 288 samples, Maximum 3802.91 s (< 7200) | **4 of 4 expected present, enumerated by name** (the §3i-tightened §2 command), all OK, no state transition in the day, `AlarmActions` and `OKActions` = scratch topic only | **1** — the 11:27Z digest and nothing else; subscriptions **0** (`NextToken` none) | office lines 1131: quiet 1065 / zero 66 / **rate 0**; `zero_floor_count` 2–4, `rate_floor_count` **0** | **clear — day max 0.0320, `high` on 0 of 24** | **THIRD CONSECUTIVE CLEAN ROW — every §3 criterion passes.** **No EBI deploy in the day**: intake and evaluator both still `LastModified` 2026-09-17T15:16:06Z (instant 7). The auth-service apply of 20:30–22:00Z is outside this plane; asana's G5b identity redeploy landed 09-23T00:27Z, after this row and on a plane S-1 does not read. **`ccb52f4c` OFF the RATE floor in all 24 runs** — booking_rate 3.37–4.60 %, bookings 7–15, arrivals 207–333. **Recorded, not read as a recovery**: per E-6 its readings are a plumbing shape, and a day off the floor is arithmetic, not a fix. **No RATE-floor line from any office this day.** `79be1b75` absent. |
 
+> **⟂ EPOCH BOUNDARY — 2026-09-23T19:27:18.878Z (OD-90, operator-ruled).** Rows 0–8 above are the **old epoch**, on pinned query `4b9d3534`; it closed at that instant with rows 6–8 as three consecutive clean rows. Those rows are kept as written, not erased or re-graded, and **they do not count toward the new epoch's seven**. The **OD-90 epoch**, on pinned query `2aee74e3` (`evaluator_version` s1.5), opened at the same instant. Its first complete day is **09-24**, and its seventh clean row can be read **2026-10-01T00:05Z at the earliest** (09-30, which is serving day + 7). **09-23 is a split day**, s1.4 until 19:27Z and s1.5 after it; its row is recorded for the record and counts toward neither epoch. Full record: **§3j**.
+
 ## 2 · Daily own-hands commands (region us-east-1; rc read unpiped)
 
 ```bash
@@ -113,6 +115,7 @@ is which of them CHANGED what the instrument checks.** Two did, **and both only 
 | 3h | the allowlist retirement inside rows 3–5, and the calibration subject's 0.26-point margin | record only |
 | 3d-iii | instant 7: the 09-17 whole-stack redeploy that moved the evaluator; the executed-query hash is not on the run line | record only |
 | **3i** | rows 3–7 read late; the first clean rows; a date this seat gave is falsified; the §2 alarm command tightened | **§2 command tightened — APPLIED** (it can only tighten, same rule as 3c); the rest record only |
+| **3j** | **the epoch boundary: the old epoch CLOSES and the OD-90 epoch OPENS at 2026-09-23T19:27:18.878Z** — pinned query `4b9d3534` → `2aee74e3`, `s1.4` → `s1.5` | **OPERATOR-RULED (OD-90)**: a new pinned query, **not a criterion this seat amended**. The §3 thresholds are unchanged. Rows 0–8 are kept on the old definition. |
 
 **The rule that produces this asymmetry, and it is the whole of it.** §3a, §3b and §3e would each **loosen** the
 criterion — under any of them the rows that have already breached would pass. **A criterion amended while it
@@ -686,6 +689,59 @@ subscriptions on each past day are not recoverable from any history this seat ca
 asserted for the reading instant only. **Neither changes a verdict above; both are recorded so a reader does
 not assume they were checked.**
 
+
+### 3j · EPOCH BOUNDARY: the old epoch CLOSES and the OD-90 epoch OPENS at 2026-09-23T19:27:18.878Z. Operator-ruled, not a loosened criterion
+
+**The ruling.** OD-90 is on autom8y main at `4d5c48947`, `.ledge/decisions/RATIFICATION-ebi-client-remediation-2026-09-16.md:624`, which I read myself at 16:53Z:
+- **Path 1:** *"the fleet switch-on AND the OD-88 S-1 query change land NOW; the S-1 soak clock RESTARTS at the S1b serving instant, as operator-ruled."* It supersedes OD-88's "Post-arm; does not block S1".
+- **The old epoch:** it *"closes at S1b's serving instant with its 3 clean rows (09-20/21/22) kept on the old definition, neither erased nor re-graded"*.
+- **The new epoch:** it opens at that instant, with its earliest close at serving day + 7.
+
+OD-92 (`1d37ef2a6`, line 626, read myself) narrows the evidence. A `match_call_rejected` park carries no `decline_class` and is **not** floor evidence. The purpose is that a broken pipe should make the floor go loud, not silence it. OD-92 departs from ADR D1.2 deliberately.
+
+**This is a new pinned query, not an amended criterion.** The §3 thresholds are untouched: the residual tripwire is still 0.10 and every row criterion is the same. The rule in §3·0, that a criterion amended while it is failing must never be what makes the failing rows pass, is not engaged. The old epoch's last three rows were already clean, and they stay clean on their own definition.
+
+**What changed in the instrument.** S1b is autom8y #2467, squashed as `36b835b1` at 2026-09-23T18:43:15Z. It changed four things:
+- **The pinned query**, from `4b9d3534` (1,624 chars) to `2aee74e3` (2,061 chars). It adds a **parked-evidence term**: `event = "terminal_decline_parked"` AND `decline_class` IN {`no_lead_parked`, `intake_minted_lead_parked`}, matched by exact equality on the `decline_class` field only, and deduplicated by `count_distinct(park_key)`. A line carrying the key-less fallback `park_noid` counts once.
+- **What each reading uses.** The floor and the in-run control now read written + parked. Credit, last-booking age and attribution still read written only.
+- **The evaluator version**, from `s1.4` to `s1.5`.
+- **The run line**, which gains `offices_with_written`, `offices_with_parked` and `parked_total`.
+
+**The serving instant, shown by three links.** The evaluator Lambda has **no alias** (I read `list-aliases`: empty), so `$LATEST` is what serves. The run line carries no query digest (§3d-iii), so no single field proves which query is serving. These three links do it together:
+
+| link | reading (own read) |
+|---|---|
+| 1 · first `s1.5` run line | `office_floor_evaluated` at **2026-09-23T19:27:18.878Z**, on stream `[$LATEST]`. **The `s1.5`-only fields are present**: `offices_with_written` 37, `offices_with_parked` 0, `parked_total` 0. Also: control pass, `offices_evaluated` 46, `offices_with_bookings` 37, `zero_floor_count` 4, `rate_floor_count` 0, `residual_share` 0.0295, `paged` 0. The last `s1.4` line was at 18:27:15.445Z. |
+| 2 · `$LATEST` code moved | It moved from CodeSha256 `93ff422a9b86`, LastModified 2026-09-17T15:16:06Z (instant 7, §3d-iii), to **`c0e56437014d`, LastModified 2026-09-23T18:51:31Z**. |
+| 3 · the image is S1b | The ImageUri tag is `email-booking-intake:36b835b`, which resolves to `sha256:c0e56437014d…`, the same value as link 2. In `36b835b1`, `office_floor/query.py` digests to **`2aee74e3`**: I computed that myself, it matches the constant, and it is byte-equal to the text the pre-flip legs ran. `office_floor/` is unchanged between the graded head `d4f91072` and the merge. |
+
+**Pre-flip legs.** I took all of these myself, against head `f7c79f40`. I re-verified the pinned text byte-identical at `d4f91072` and again at the merge. The old and new queries ran over one fixed window, 09-20T15:00Z–09-23T15:00Z, and each scanned 34,652 records. I re-ran the legs after autom8y-data #489 over 09-20T17:00Z–09-23T17:00Z, with the same result.
+
+| leg | result |
+|---|---|
+| 1 · new == old on today's plane | **PASS.** Both have 57 groups with identical sets, and 0 of 10 shared cells differ. Folded through each ref's own `floors.py`: 46 offices, with 0 differing on arrivals, written or floor class; control 37 vs 37; residual identical (62 lines, 20 mails, 21 arrivals, share 0.0316). |
+| 2 · `no_body_field` parks contribute 0 | **PASS.** There are 4 in 30 days, none in the window, and none carries `decline_class`. |
+| 3 · `class` without `decline_class` contributes 0 | **PASS.** Across 9 classes in 30 days, 0 of about 2,400 park lines carry `decline_class`. |
+| 4 · arrivals unchanged | **PASS.** 0 offices differ. |
+| teeth for legs 2 and 3, which are otherwise vacuous | I swapped the `decline_class` term for `class = "no_appt_dt"`, a value that exists, and left the rest of the new text as is. It gave **210 distinct parks from 215 lines across 3 offices**, matching an independent `count_distinct(park_key)` tally office for office; the 5 redeliveries collapsed. **Every park line in the window carries the office guid and `park_key`, and none carries `message_id`**, so a qualifying park lands in an office group and survives `ispresent(office_guid)`. The sentinel is not counted: `park_id` and `bk_id` are 0 in all 57 groups. |
+
+These three can only be shown by fixtures until real parks exist, and **they are owed on the first real parks after the flip**:
+- (a) a real qualifying park counts exactly once;
+- (b) a 5xx redelivery of the same mail does not count twice;
+- (c) the emitter writes `decline_class` with exactly the two matched values.
+
+S1 (#2469) sets those values at head `c8d5f3cb`, and I verified them there: `NO_LEAD_STOP_CLASSES` is exactly the pair. `match_call_rejected` is outside that pair and has a two-sided absence test.
+
+**Traffic events at the same instant, recorded so no one reads them as instrument events.**
+- **Intake `live` moved from v78 to v79 at about 18:51:31Z.** v78 ran image `a8360db`; v79 runs `36b835b`, because the image is shared. Between `a8360db` and `36b835b1`, `services/email-booking-intake/src` changes **only under `office_floor/`** (`f7c79f40`, `d4f91072`), so intake behaves exactly as before. S1 is not in it.
+- **autom8y-data #489**, the no-mint mode on the intake-create route, merged as `611e66c2` at 18:05:03Z. It serves on task definition `:663` (`data:611e66c`).
+  - The production listener rule weighted it 100 by 18:37Z; I read the weight, not the moment it shifted. The rollout COMPLETED at 18:38:24Z.
+  - It stays **inert while EBI sends no mint parameter**. I observed a dark mint on the plane: a `lead_created` line with `created=1` at **18:59:14.842Z**, served by intake v79.
+  - `decline_class` appears on 0 lines anywhere.
+
+**Not yet happened when this was written:** the fleet switch-on. It will be an intake `live` alias move to a version published by the flag or list change, after S1 (#2469) merges dark. It is a traffic event inside the new epoch. I will record it against the version that change publishes, not against whichever alias move comes next.
+- **What it will do to S-1.** Under OD-88 the floor reads written + parked. Moving bookings from written to parked, which is what OD-93's split does, therefore changes credit and **not** the floor. The one thing that can move the floor is a booking leaving the evidence altogether: a `match_call_rejected` park (excluded deliberately, OD-92), a fault path, or a drop.
+- **The check that proves it.** Over the first complete 3-day window after the flip, I will run a **conservation check** per office: written + qualifying parked + `match_call_rejected` + faults after the flip, against bookings before it, with arrivals held equal.
 
 ### 3c · The deadman criterion passed VACUOUSLY on an empty set — APPLIED, because it can only tighten
 
