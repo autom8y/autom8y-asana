@@ -508,7 +508,7 @@ the empty set, and records a non-event. **That is the shape that clears a merge.
 
 ## §9 NEW — EBI wave 6, fleet-at-once, can BLIND S-1: a consequence of rulings made in another session, measured here
 
-Added 2026-09-23T01:3xZ. **The operator's wave-6 rulings were made in the EBI wave's session and reached this seat
+Added 2026-09-23T16:29Z (commit time; an earlier draft carried a guessed 01:3xZ, wrong by about fifteen hours). **The operator's wave-6 rulings were made in the EBI wave's session and reached this seat
 by report.** They authorize nothing here, and this seat takes no act on them. **What follows is the measured
 consequence for S-1, so the rulings can be weighed against it.**
 
