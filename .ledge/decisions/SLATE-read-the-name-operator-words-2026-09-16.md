@@ -565,6 +565,29 @@ pass. **The realistic expectation is intermittent refusals**, and each one fails
    Matched-to-intake-minted confirmations are largely reschedules of leads we minted, and are **very likely real
    appointments**. Parking them hides real bookings from S-1.
 
+**✅ UPDATE 2026-09-23T16:3xZ (time read) — W7 IS RULED: OD-88** (autom8y #2466, verified on main, merged 16:30:06Z).
+*"For the S-1 floor, a parked confirmation is counted under a separate 'arrived, parked' label. The floor reads
+written + parked; credit reads written only."* **Point 2 above is therefore answered.** What remains is
+implementation and timing:
+
+- **S-1 does NOT count the park line today.** `terminal_decline_parked` is deliberately outside the booking set, and no
+  existing event can be reused without putting parks into credit. **Honouring OD-88 is a pinned-query change.**
+  The spec was sent to the EBI lane: key on the park's class field with exact values, **never on the event alone, or
+  no-body parks count as bookings**; de-duplicate on `park_key` or `newly_recorded`, because parked lines carry no
+  `message_id` (30 days: 2,414 lines, none with one); keep a separate `parked` counter; **and the control must count
+  parked too, or the 96 % park still blinds it.**
+- **Field-name trap, measured:** today's parked lines carry `class` on all 2,414 and `decline_class` on none, but the
+  builder's plan names `decline_class`. **An evaluator keyed on one while the emitter writes the other silently
+  counts zero parked evidence, with every test green.** The builder was asked to state and assert the field.
+- **A pinned-query change changes what the soak certified**, so the seven-clean-row count restarts at its deploy.
+  The paths put to the operator: **(1)** implement OD-88 now, restarting the soak clock; **(2)** hold the query change
+  and the fleet flip until after 2026-09-27T00:05Z; **(3, the EBI lane's)** flip office M only now, then land the
+  query change and the fleet flip after 09-27. **Path 3 does not blind S-1**, since 36 other offices keep the control
+  above 5. **But under W1 + W2 office M drops from 30 bookings to 0 and goes to the ZERO floor**, not RATE as a
+  W1-only figure said. That is recorded as the change, not the clinic.
+- **A whole-stack containment deploy that leaves the evaluator's package untouched does not reset the soak** (the
+  §3d-iii precedent). This seat verifies that after it serves, not on report.
+
 **Correction on the record:** this seat first told the EBI lane that *"no soak row is threatened, even
 fleet-wide."* That was measured under W1 alone and offered as an upper bound. **W2 reversed it**, and the lane was
 told so before any flip instant was set.
