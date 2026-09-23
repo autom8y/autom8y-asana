@@ -506,6 +506,70 @@ now instructs a reader to ask **which field** a number was counted on before act
 the empty set, and records a non-event. **That is the shape that clears a merge.**
 
 
+## §9 NEW — EBI wave 6, fleet-at-once, can BLIND S-1: a consequence of rulings made in another session, measured here
+
+Added 2026-09-23T01:3xZ. **The operator's wave-6 rulings were made in the EBI wave's session and reached this seat
+by report.** They authorize nothing here, and this seat takes no act on them. **What follows is the measured
+consequence for S-1, so the rulings can be weighed against it.**
+
+**The change:** a forwarded confirmation that matches no existing lead is **parked** instead of minting a lead and
+appointment (W1). **W2: a matched lead whose `lead_origin` is the intake mark also parks.** **W3: fleet at once**,
+behind the OD-53 kill switch. The park emits a counted `terminal_decline` after `resolve_office`, with
+`chiropractor_guid`, so arrivals are unchanged and the residual is unaffected. **Bookings fall.**
+
+**Measured on the live 3-day window.** `lead_origin` is not on this log group, so the W2 leg is proxied: a matched
+booking whose `lead_id` intake earlier minted (`created: true`, logs back to 07-17).
+
+```
+bookings in W=3d                                  208
+removed: newly minted (W1)                        102
+removed: matched to an intake-minted lead (W2)     98
+REMOVED                                        >= 200   (96.2 %, a LOWER bound)
+surviving                                          8 bookings in 7 offices -- ALL matched to a lead
+                                                   whose origin predates the log horizon
+```
+
+**The control is the problem.** The evaluator refuses any run with **fewer than 5 offices booking**
+(`CONTROL_MIN_OFFICES_WITH_BOOKINGS = 5`, handler.py:135). The refusal evaluates **no** floors, **publishes a
+refusal page**, and names its reason, `offices_with_bookings_below_floor`. **After a fleet flip, between 0 and 7
+offices keep a booking as pre-flip bookings age out over about 3 days.** If fewer than 5, then:
+
+- **Every run refuses.** Every row fails "zero FLOOR-REFUSED" **and** "exactly one page per day". **The soak cannot
+  close while the switch is on.**
+- **S-1 goes blind fleet-wide, and stays blind after the arm.** A control built to detect a broken query plane
+  correctly reads the deliberate change as one.
+
+**Even at 7 offices, 26 change floor class**: 25 go to ZERO, including the founding office, which drops from 30
+bookings to 0, and 1 goes to RATE.
+
+**The deciding read was made by the EBI client lane against the data service (read-only), and it reproduces
+this seat's figures exactly.** 209 intake-written appointments across 37 offices: **201 are on phones whose only leads
+are intake-minted, so they park under W2. 8 are on phones with non-intake leads only (7 legacy-unattributed, 1
+NULL), so they survive. None is mixed. The 8 sit at 7 offices.** S-1 counts only intake-written bookings on this
+log group; calendly-intake is not counted (§3d-iii), so there is no other booking source to widen the margin.
+
+**So the control holds, at 7 against a floor of 5. But "holds" overstates it.** Across the whole window, those 7
+surviving offices carry **1, 1, 1, 1, 1, 1 and 2** bookings. **The control would need at least 5 of 7 offices, each
+booking about once every three days, to all have a booking inside every rolling 3-day window.** That is not a stable
+pass. **The realistic expectation is intermittent refusals**, and each one fails a row and publishes a refusal page.
+
+**What this seat asks the operator to weigh. These are constraints, not vetoes:**
+
+1. **Instant.** A fleet flip after **2026-09-27T00:05Z** cannot fail a soak row. One before about 09-24 very likely
+   fails at least one.
+2. **W7, the "parked confirmations may be real bookings" question, is no longer "after the arm, not blocking S1".**
+   Under W2 it is a **precondition**. Either the park keeps emitting booking evidence for these confirmations, or
+   S-1's booking predicate **and** its control floor need a ruling **before** the switch goes fleet-wide.
+   Otherwise the instrument refuses from about three days after the flip.
+3. **ADR D1.2** ruled that *"any evidence of a booking silences the floor; a false page is the expensive error."*
+   Matched-to-intake-minted confirmations are largely reschedules of leads we minted, and are **very likely real
+   appointments**. Parking them hides real bookings from S-1.
+
+**Correction on the record:** this seat first told the EBI lane that *"no soak row is threatened, even
+fleet-wide."* That was measured under W1 alone and offered as an upper bound. **W2 reversed it**, and the lane was
+told so before any flip instant was set.
+
+
 ## §7 One item this seat is NOT taking, recorded so it is not lost
 
 The EBI lane's redaction alarm is **armed, paging to live SMS, and structurally incapable of
