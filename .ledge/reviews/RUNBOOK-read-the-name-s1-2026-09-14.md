@@ -740,3 +740,18 @@ Read at 22:5xZ with `arm_observe.py D`:
 ### §7.5 Fences held in this amendment
 
 guid8 only. No clinic name, no phone digit, no full GUID and no account id. The lookup withholds the name by default and prints it only under an explicit flag, at the reader's own terminal. Nothing was re-pointed, merged or armed.
+
+## §8 AMENDMENT 2026-09-24: the smoke-lead convention, codified (closes DW-3)
+
+**Source:** the operator's word of 2026-09-24, applied per precedence. See `SLATE-read-the-name-operator-words-2026-09-16.md` §10.1.
+
+**The convention, from the arm onward:**
+1. **No smoke or test lead is sent through a real office while S-1 is armed.**
+2. **A run that has to use a real office is announced on the S-1 page thread before it starts.** The announcement names the office by guid8 only, gives the UTC window, and states the expected number of synthetic arrivals.
+3. **§4.2 step 2 becomes answerable from the record.** "Did anyone run a smoke test through this office in the window?" is answered by the thread. No announcement means the answer is no.
+
+**The durable form** is a reserved test office excluded from U-3 (F5-4). It is a pinned-query change, so it lands in the post-arm bundle (slate §10.3), never during a soak.
+
+**What this does not do.** It does not make an unannounced smoke lead detectable. Nothing on the plane marks one. The convention turns an unknowable question into a recorded one, and §4.2's ±1 fragility on `FLOOR-ZERO` still applies to any violation.
+
+**DW-3 status: DISCHARGED by codification** (watch-trigger: *"the operator names the convention and it is codified in a ref-resolvable place"*).
