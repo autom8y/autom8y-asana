@@ -24,12 +24,71 @@ concurrency:
 jobs:
   dispatch:
     timeout-minutes: 5
+    # A workflow_run trigger deploys only a successful push-to-main Test run of
+    # this repository. Test also runs on pull_request, workflow_dispatch and other
+    # events; none of those may deploy through this path.
     if: >-
       github.event_name == 'repository_dispatch' ||
       github.event_name == 'workflow_dispatch' ||
-      github.event.workflow_run.conclusion == 'success'
+      (
+        github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_branch == 'main' &&
+        github.event.workflow_run.head_repository.full_name == github.repository
+      )
     runs-on: ubuntu-latest
     steps:
+      # Event values reach the shell only through env, never through ${{ }}
+      # interpolation inside a run: block.
+      - name: Build dispatch payload
+        id: payload
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RUN_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          RUN_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          REF_NAME: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          case "$EVENT_NAME" in
+            repository_dispatch) triggered_by=sdk-published ;;
+            workflow_dispatch)   triggered_by=workflow_dispatch ;;
+            workflow_run)        triggered_by=push ;;
+            *) echo "::error::unexpected event: $EVENT_NAME"; exit 1 ;;
+          esac
+          if [ "$EVENT_NAME" = "workflow_run" ]; then
+            ref="$RUN_HEAD_BRANCH"
+            sha="$RUN_HEAD_SHA"
+          else
+            ref="$REF_NAME"
+            sha="$SHA"
+          fi
+          # Whole-string matches: a line-oriented grep would accept a value
+          # whose first line matches.
+          if ! [[ "$sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::sha is not a 40-character hex commit id"
+            exit 1
+          fi
+          # ref is written to GITHUB_OUTPUT below; it must be a single line.
+          case "$ref" in
+            *$'\n'* | *$'\r'*)
+              echo "::error::ref contains a line break"
+              exit 1
+              ;;
+          esac
+          payload=$(jq -cn \
+            --arg ref "$ref" \
+            --arg sha "$sha" \
+            --arg triggered_by "$triggered_by" \
+            '{service_name: "asana", satellite_repo: "autom8y-asana", ref: $ref, sha: $sha, triggered_by: $triggered_by}')
+          {
+            echo "json=$payload"
+            echo "ref=$ref"
+            echo "sha=$sha"
+            echo "triggered_by=$triggered_by"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Generate GitHub App token
         id: app-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0 (node24)
@@ -39,37 +98,23 @@ jobs:
           owner: autom8y
           repositories: autom8y
 
-      - name: Determine trigger type
-        id: trigger
-        run: |
-          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
-            echo "triggered_by=sdk-published" >> $GITHUB_OUTPUT
-          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "triggered_by=workflow_dispatch" >> $GITHUB_OUTPUT
-          else
-            echo "triggered_by=push" >> $GITHUB_OUTPUT
-          fi
-
       - name: Dispatch to autom8y
         uses: peter-evans/repository-dispatch@ff45666b9427631e3450c54a1bcbee4d9ff4d7c0 # v3
         with:
           token: ${{ steps.app-token.outputs.token }}
           repository: autom8y/autom8y
           event-type: satellite-deploy
-          client-payload: |
-            {
-              "service_name": "asana",
-              "satellite_repo": "autom8y-asana",
-              "ref": "${{ github.event.workflow_run.head_branch || github.ref_name }}",
-              "sha": "${{ github.event.workflow_run.head_sha || github.sha }}",
-              "triggered_by": "${{ steps.trigger.outputs.triggered_by }}"
-            }
+          client-payload: ${{ steps.payload.outputs.json }}
 
       - name: Log dispatch success
+        env:
+          DISPATCH_REF: ${{ steps.payload.outputs.ref }}
+          DISPATCH_SHA: ${{ steps.payload.outputs.sha }}
+          TRIGGERED_BY: ${{ steps.payload.outputs.triggered_by }}
         run: |
           echo "Successfully dispatched satellite-deploy event to autom8y/autom8y"
           echo "  Service: asana"
           echo "  Repository: autom8y-asana"
-          echo "  Ref: ${{ github.event.workflow_run.head_branch || github.ref_name }}"
-          echo "  SHA: ${{ github.event.workflow_run.head_sha || github.sha }}"
-          echo "  Triggered by: ${{ steps.trigger.outputs.triggered_by }}"
+          echo "  Ref: $DISPATCH_REF"
+          echo "  SHA: $DISPATCH_SHA"
+          echo "  Triggered by: $TRIGGERED_BY"
