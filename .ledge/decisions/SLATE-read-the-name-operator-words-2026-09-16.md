@@ -601,3 +601,73 @@ has not moved in **109 days**. The re-point and the missing-data treatment must 
 same change** — once the alarm reads a live metric, `notBreaching` still converts a stopped writer
 into permanent silence. **That card belongs to the EBI locus and is being carried there**, named here
 only so it is not mistaken for something this seat is holding.
+
+---
+
+## §10 NEW, 2026-09-24T18:2xZ — THE OPERATOR'S WORD ON ALL, applied per precedence
+
+**The words, verbatim, spoken in this seat's own room on 2026-09-24:**
+
+> *"word given on all per precedence with user-grade authority granted and bias towards clean, modern,
+> robust integration with confident landing of hard-earned efforts with coherence across the ecosystem"*
+
+**How this seat read them.** "All" is every word this slate holds open. "Per precedence" is the ranked
+order in the north consult of 2026-09-23 (pythia): W-1 first, then the post-arm bundle, OD-79, §8, and the
+leftovers last. **Each specific answer below is this seat's application of that precedence. It is not a
+sentence the operator dictated, and it is recorded that way so any line can be overturned by a single
+word.** Nothing below reaches the never-grantable floor: no credential execution, nothing customer-visible
+and no identity mint.
+
+**What no word can collapse, and is therefore NOT changed here:**
+- the soak rule, seven clean rows before the arm, earliest **2026-10-01T00:05Z** (SOAK §3j);
+- the runbook §5 rows that block arming, re-read row by row at arm time (G-2);
+- the production act itself, which belongs to the lever-holder (ASR) and is observed by this seat.
+
+### §10.1 W-1: the three blanks, answered
+
+| blank | answer | what it discharges |
+|---|---|---|
+| **the reader of S-1 pages on `autom8y-platform-alerts`** | **The operator (Tom Tenuta)** for the first 14 days after the arm, then reviewed. | G-0's named reader. **G-3 is satisfied**, because the operator holds AWS read on `/aws/lambda/autom8-email-booking-intake`, so every guid8 lookup (runbook §7.1) routes through the reader himself. |
+| **the smoke-lead convention** | **Interim, codified now (runbook §8):** once S-1 is armed, no smoke or test lead goes through a real office. Any run that must use one is announced on the page thread beforehand, naming the guid8 and the window. **The durable form** is a reserved test office excluded from U-3 (F5-4). Because excluding it changes the pinned query, it joins the post-arm bundle (§10.3). | DW-3, by codification in a ref-resolvable place. R-169's gate: "codified before any arming, both floors". |
+| **disarm to scratch on a misfire** | **Pre-authorised: YES.** Any seat that observes a misfire may ask the lever-holder to re-point the page paths to `autom8-ebi-office-floor-scratch`, and reports it here afterwards. | The disarm half of G-0. |
+
+### §10.2 The §3 sentence, and when it takes effect
+
+Runbook §3 requires four parts: a named human, one business day, a start date, and the re-point instruction.
+Under this grant they read:
+
+> *"I will read `platform_alerts` and act on an S-1 page within one business day, starting **the UTC day after
+> the seventh consecutive clean OD-90 soak row is written (earliest 2026-10-01)**; point the page paths at
+> `platform_alerts`."*
+
+**How it is executed.** When the seventh clean row lands and G-2 is re-read clean:
+1. this seat routes the §2.1 re-point to the lever-holder, with a notice to the operator at least 12 hours
+   before, so there is one clean chance to veto;
+2. the lever-holder pulls it;
+3. this seat observes the receipts: receipt A (the alarm path), receipt B (the digest path), and the
+   negative pole. It fills the arming receipt's OBSERVED cells.
+
+**A row that breaches restarts the count. It does not rewrite this sentence.** The reader's own
+acknowledgement on the day-1 page thread stays the only READ observer (arming receipt §1(D)); nothing in
+AWS can supply it.
+
+### §10.3 The post-arm bundle: ONE epoch, not four
+
+**F-D YES:** exclude `unknown_loud` parks from U-3. Also **§3a** (a floor under the residual's denominator),
+**§3b** (collapse redeliveries in the residual), **§3e** (the residual reads `office_handle`), **the
+reserved-test-office exclusion** (§10.1), and **the `pinned_query_sha` field on the run line**. All six are
+ruled **as one change, applied after the arm, opening one new epoch.** None is applied during the soak.
+The rule in SOAK §3·0 still holds: an amendment is never what makes a failing row pass.
+
+### §10.4 The rest, in precedence order
+
+| item | answer |
+|---|---|
+| **OD-79**: an independent re-measurement of the `ad_attributable` false-negative rate | **ACCEPTED, in this lane's room.** It starts after the arm, unless an OD-50 deletion sitting is scheduled first, in which case it runs before that sitting. |
+| **the held relay** (the rate's ownership) | **DISCHARGED.** OD-78 (autom8y RATIFICATION…ebi-client-remediation) gave the rate itself to the wave-2 data seat. This lane holds only OD-79. |
+| **§8**: two identifier bases | **Option 2.** Both bases stay, and every artifact that compares offices across lanes **declares its basis on its face** (bare guid8, or `sha256(guid8)[:8]`). No lane's fence is amended. |
+| **W-2** | **SUPERSEDED.** The production lever is held by the lever-holder session (ASR). This seat merges its own `.ledge`-only documents, each with a before/after/control deploy-inert receipt. |
+| **OD-83's "7 offices"** | Corrected to **26** at the flip instant; routed to the EBI record's owner. |
+| **W-7, §6 (S-1 / S-2 / S-3), §7** | **Held until after the arm**, per precedence. None is on the critical path. |
+
+**Evidence grade:** MODERATE. This is one seat applying a grant, not an independent reading of the words.
