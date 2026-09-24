@@ -64,10 +64,19 @@ jobs:
             ref="$REF_NAME"
             sha="$SHA"
           fi
-          if ! printf '%s' "$sha" | grep -qE '^[0-9a-f]{40}$'; then
+          # Whole-string matches: a line-oriented grep would accept a value
+          # whose first line matches.
+          if ! [[ "$sha" =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::sha is not a 40-character hex commit id"
             exit 1
           fi
+          # ref is written to GITHUB_OUTPUT below; it must be a single line.
+          case "$ref" in
+            *$'\n'* | *$'\r'*)
+              echo "::error::ref contains a line break"
+              exit 1
+              ;;
+          esac
           payload=$(jq -cn \
             --arg ref "$ref" \
             --arg sha "$sha" \
