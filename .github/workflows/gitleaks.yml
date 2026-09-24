@@ -16,4 +16,4 @@ permissions:
 
 jobs:
   gitleaks:
-    uses: autom8y/autom8y-workflows/.github/workflows/security-gitleaks.yml@22c53dfdc05f45f9a1cdd1d83861d3ec3c74be47
+    uses: autom8y/autom8y-workflows/.github/workflows/security-gitleaks.yml@ddee0f50d8a3377d358dc5cd0554ebbee39fdbf0
