@@ -117,6 +117,7 @@ is which of them CHANGED what the instrument checks.** Two did, **and both only 
 | 3d-iii | instant 7: the 09-17 whole-stack redeploy that moved the evaluator; the executed-query hash is not on the run line | record only |
 | **3i** | rows 3–7 read late; the first clean rows; a date this seat gave is falsified; the §2 alarm command tightened | **§2 command tightened — APPLIED** (it can only tighten, same rule as 3c); the rest record only |
 | **3j** | **the epoch boundary: the old epoch CLOSES and the OD-90 epoch OPENS at 2026-09-23T19:27:18.878Z** — pinned query `4b9d3534` → `2aee74e3`, `s1.4` → `s1.5` | **OPERATOR-RULED (OD-90)**: a new pinned query, **not a criterion this seat amended**. The §3 thresholds are unchanged. Rows 0–8 are kept on the old definition. |
+| **3k** | inside the OD-90 epoch: the flip (T0 03:04:04Z), legs (a) and (c) PASS, leg (b) OPEN, the first stop write, and five intake-plane events | record only. Traffic and deploy events, **none of them an instrument event**. |
 
 **The rule that produces this asymmetry, and it is the whole of it.** §3a, §3b and §3e would each **loosen** the
 criterion — under any of them the rows that have already breached would pass. **A criterion amended while it
@@ -743,6 +744,36 @@ S1 (#2469) sets those values at head `c8d5f3cb`, and I verified them there: `NO_
 **Not yet happened when this was written:** the fleet switch-on. It will be an intake `live` alias move to a version published by the flag or list change, after S1 (#2469) merges dark. It is a traffic event inside the new epoch. I will record it against the version that change publishes, not against whichever alias move comes next.
 - **What it will do to S-1.** Under OD-88 the floor reads written + parked. Moving bookings from written to parked, which is what OD-93's split does, therefore changes credit and **not** the floor. The one thing that can move the floor is a booking leaving the evidence altogether: a `match_call_rejected` park (excluded deliberately, OD-92), a fault path, or a drop.
 - **The check that proves it.** Over the first complete 3-day window after the flip, I will run a **conservation check** per office: written + qualifying parked + `match_call_rejected` + faults after the flip, against bookings before it, with arrivals held equal.
+
+### 3k · Inside the OD-90 epoch: the fleet flip, the first real parks, and five intake-plane events — none of them an instrument event
+
+**The flip, T0 = 2026-09-24T03:04:04Z.** Intake `live` moved v81 → v82 (image `e61dd98`, the same code as v81; env `EMAIL_BOOKING_INTAKE_NO_LEAD_STOP_ENABLED` `true`, `GENERATION` `1`; SSM office list `*`).
+- It is a **traffic event** inside the epoch. The evaluator's `$LATEST` did not move.
+- The apply ran as workflow_dispatch run 35944909721. A production gate approval is recorded under the operator's account.
+- The flip merge's own push run (35942561980) planned the change but **skipped** `Apply (production)`. By design, that job fires only on workflow_dispatch. A green push run can therefore be plan-only.
+
+**The legs owed since §3j:**
+
+| leg | result |
+|---|---|
+| (a) a real qualifying park counts once | **PASS.** The first real stop-park came at 03:25:13.618Z (office `40f86e73`, `no_lead_parked`). The 04:27:15Z run reads `parked` 1 and floor class `quiet`, so the park took the office off ZERO, as OD-88 intends. Across the plane at 04:27:10Z: the intake log has 4 qualifying lines with 4 distinct `park_key`, at 3 offices; the evaluator reads `parked_total` 4 at `offices_with_parked` 3. |
+| the 03:27Z miss | **Trailing-edge indexing lag, not a defect.** The 03:27:15Z run read `parked` 0, though the line was ingested at 03:25:18Z. That run scanned 42,066 records; a re-run over the same window scanned 42,090 and counted the park. The run missed the arrival line as well, which confirms the lag. It is symmetric, it predates S1b, and the old query shows it too. |
+| (b) a 5xx redelivery is not counted twice | **OPEN.** Every stop-park so far has lines equal to distinct keys (17 of 17 at 13:27Z), so no real redelivery has happened yet. The fixture-grade evidence stands: 215 lines → 210 distinct keys (§3j). |
+| (c) the emitted values are exact | **PASS for both values.** `decline_class` is exactly `no_lead_parked` and exactly `intake_minted_lead_parked`. Since T0 there have been 0 `match_call_rejected` and 0 `match_contract_error`. |
+
+**The first real stop WRITE** came at 2026-09-24T15:00:38Z. `lead_matched_no_mint` with `ad_attributable` 1 was followed by `booking_completed` at 15:00:40Z, at office `4ec260bf`, on v85. The line carries no `message_id`, so S-1 counts it as **written** (`bk_noid`). At 16:27Z that office reads written 11, parked 2, `quiet`.
+
+**Intake-plane events inside the epoch.** For each, `office_floor/` is byte-unchanged from `36b835b1` to the merge, `ENABLED` is `true` and `GEN` is `1`, the evaluator stays `s1.5`, and the control passes:
+
+| merge | effect on S-1 | served |
+|---|---|---|
+| autom8y #2477 (`21936549`, docstring only) | none | v83, 03:49:49Z (the evaluator is on the same image) |
+| autom8y #2507 (tests only) | **did not deploy.** The dispatch filter excludes `services/**/tests/**`. | — |
+| autom8y #2513 (`fb881ca3`, the `empty_body` park) | **The arrivals at `ccb52f4c` fall.** The old path counted every 502 retry as a separate `arr_noid` arrival: 52 per 3 days, 0 with `message_id`. `empty_body` carries `class` only and is never evidence. This is a plumbing cure (E-6), not a recovery. | v84, 12:50:21Z |
+| autom8y #2515 (`d4292189`, text-only mail is now read) | Mail that used to park as `no_html_body` can now become a booking. That is the safe direction. | v85, fully served when routing cleared at **14:43:09Z** (published 14:39:16Z) |
+| autom8y-data #491 (`f1a18a3b`, the production ad gate in `match_intake`) | Credit only. Its fail-closed branch reaches only the existing verdicts, and both park verdicts carry `decline_class`, so the evidence is preserved. The first :667 verdicts (16:18Z) landed as `no_lead_parked`. | data :667, 100% between 16:13:52Z and 16:14:17Z |
+
+**The shape after a day of the stop**, from the 16:27:15Z run: `offices_with_bookings` 41 (36 written, 22 with parks), `parked_total` 32, **`zero_floor_count` 1** (it was 4 at T0), `rate_floor_count` 0, residual 0.0297. **No office moved onto ZERO.** The control is now carried by written OR parked evidence, as OD-88 designed.
 
 ### 3c · The deadman criterion passed VACUOUSLY on an empty set — APPLIED, because it can only tighten
 
