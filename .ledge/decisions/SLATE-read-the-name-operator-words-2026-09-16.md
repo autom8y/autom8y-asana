@@ -671,3 +671,47 @@ The rule in SOAK §3·0 still holds: an amendment is never what makes a failing 
 | **W-7, §6 (S-1 / S-2 / S-3), §7** | **Held until after the arm**, per precedence. None is on the critical path. |
 
 **Evidence grade:** MODERATE. This is one seat applying a grant, not an independent reading of the words.
+
+---
+
+## §11 RATIFICATION INTERVIEW, 2026-09-25: the operator's own answers, recorded verbatim-by-choice
+
+This was a phased `/interview`: neutral options, a recommendation labelled on each, strongest opposing options offered, and "wrong question" available throughout. **Every line below is an answer the operator selected in this seat's room.** Where §11 and §10 differ, **§11 wins.** §10's inferences stand only where §11 ratifies them. The operator confirmed the digest ("Yes, record and act").
+
+### §11.1 Decided
+
+| # | Decision | Supersedes |
+|---|---|---|
+| **D1** | Scope: **the S-1 lane only.** Fleet-level rules, including ASR as sole lever-holder, were not re-ratified here. | — |
+| **D2** | **S-1 is done when it is armed and delivering.** Both delivery receipts (runbook §2.2 A and B) must reach `platform_alerts`. | Pythia's R1 bar, *for the instrument* |
+| **D3** | **Read-the-name's north keeps "named to a human who ACTS on it".** The arc stays open after S-1 is done. | — |
+| **D4** | **The arm gate is the post-switch-on CONSERVATION CHECK passing**, readable around 2026-09-27T03:05Z. **It replaces "7 consecutive clean OD-90 rows."** Soak rows continue as the record. | §10.2's start date, and the lane's ≥7-day soak rule, *for this arm* |
+| **D5** | **Conservation pass rule: strict per office.** Every office with ≥5 bookings in the 3 days before T0 keeps ≥1 piece of evidence (written + qualifying parked) in the first full 3-day window after T0. Every drop is examined line by line. **An explained drop passes; this seat judges which drops are explained**, and records each explanation. **Read-only use of the operator's Meta credentials to check actual ad results is granted**, for explaining drops only. | the "record, don't gate" and "drops go to you" alternatives |
+| **D6** | **No 12-hour veto notice** before the arm. | §10.2's step 1 |
+| **D7** | **ASR may approve the GitHub production-environment gate** for the arm's Terraform apply. | — |
+| **D8** | **Reader: the operator, with NO time bound** on acting. | §10.2's "within one business day" |
+| **D9** | **How an "act" is recorded, and so whether the arc has realized: judged later**, by a future sitting. | — |
+| **D10** | **Smoke leads: ANNOUNCE ONLY.** Test leads may go through real offices at any time, each announced on the S-1 page thread beforehand (guid8, UTC window, expected synthetic arrivals). **This replaces runbook §8's moratorium** and still satisfies R-169's gate (a codified convention). | §10.1 row 2 and runbook §8 item 1 |
+| **D11** | **Disarm on a misfire: pre-authorised for any seat.** ASR pulls it and reports to the operator afterwards. | ratifies §10.1 row 3 |
+| **D12** | **Ratified from §10:** the one post-arm epoch (F-D yes, §3a, §3b, §3e, the reserved test office, `pinned_query_sha`); OD-79 accepted after the arm, with the held relay discharged (OD-78); §8 Option 2; W-7, §6 and §7 held until after the arm. | ratifies §10.3 and §10.4 |
+| **D13** | **Rotation (A17(b)):** ASR inventories which sensitive values the pre-#2500 plan artifacts (09-24 18:37–18:51Z) carried, **names only**, then the operator decides per value. **Sequenced LAST**, behind progress work. Executing any rotation stays the operator's (never-grantable). | — |
+
+### §11.2 Deferred, explicitly
+- Whether the arc has realized, and who judges it and when (D9).
+- The rotation decision itself (D13).
+- D-3, the census premise for office `2b591e43`, which is outside this scope.
+- All fleet-level rules.
+
+### §11.3 Unconfirmed assumptions, carried rather than hidden
+- **U1.** "Delivering" = receipt A (a probe `MessageId` on `platform_alerts` via the alarm path) **and** receipt B (the digest's `page_message_id`, with `NumberOfMessagesPublished` = 1 for that hour).
+- **U2.** Creating the success-gap alarm will not page on its own, because `LastSuccessTimestamp` has published on every controlled run since 09-14.
+- **U3.** The Meta credential grant is read-only and scoped to conservation evidence. The credential's location has not been confirmed.
+- **U4.** ASR's approval of the production gate is recorded under the operator's GitHub account, as the 09-24 flip approval was.
+- **U5.** In place of the veto notice, this seat sends the operator a **non-blocking FYI** when the gate passes.
+- **U6.** The "≥5 bookings" threshold is taken from the option text the operator selected.
+
+### §11.4 The arm, re-planned
+1. The conservation check runs once the first full 3-day window after T0 closes (≥ 2026-09-27T03:05Z), under the D5 rule. Explanations for any drop are recorded in SOAK.
+2. On PASS: G-2 is re-read, and `terraform validate` runs at #2541's merge head. This seat then sends ASR the formal gate notice, and the operator a non-blocking FYI (U5).
+3. ASR merges autom8y #2541, dispatches the Service Terraform apply, and approves the production gate (D7). **The apply is the arm.**
+4. This seat observes receipts A and B and the negative pole. When both are delivered, **S-1 is DONE (D2).** The arc stays open (D3, D9).
