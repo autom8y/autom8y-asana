@@ -95,6 +95,8 @@ The fleet's booking lines carry `chiropractor_guid` only from **2026-09-09**; th
 
 ## 3 · What closes the soak
 
+> **⚑ ARM GATE AMENDED 2026-09-25 by operator ratification (slate §11 D4/D5): for the S-1 arm, the gate is the post-switch-on CONSERVATION CHECK passing (strict per office, explained drops pass), readable ≥ 2026-09-27T03:05Z. It REPLACES "seven consecutive clean rows".** Rows continue to be written as the soak record. The criteria below still define what makes a row clean.
+
 Seven consecutive complete rows with: evaluations ≥ 20/day, controlled ≥ 20/day, zero `FLOOR-REFUSED` on a healthy plane (or each refusal explained), `LastSuccessTimestamp` SampleCount ≥ 20/day, prober gauge SampleCount ≥ 280/day (`rate(5 minutes)`) with Maximum < 7200 s (cadence 3600 × buffer 2), both deadman alarms OK with actions = scratch only, exactly one page/day to scratch at 11:00Z (day count incrementing), `***` residual ≤ 10 %.
 
 ### 3·0 · INDEX AND DISPOSITIONS — read this before any section below

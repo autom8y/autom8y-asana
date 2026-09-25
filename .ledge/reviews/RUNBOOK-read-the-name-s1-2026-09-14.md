@@ -755,3 +755,13 @@ guid8 only. No clinic name, no phone digit, no full GUID and no account id. The 
 **What this does not do.** It does not make an unannounced smoke lead detectable. Nothing on the plane marks one. The convention turns an unknowable question into a recorded one, and §4.2's ±1 fragility on `FLOOR-ZERO` still applies to any violation.
 
 **DW-3 status: DISCHARGED by codification** (watch-trigger: *"the operator names the convention and it is codified in a ref-resolvable place"*).
+
+### §8.1 AMENDED 2026-09-25 by the operator's ratification (slate §11 D10): ANNOUNCE ONLY, replacing item 1
+
+**Item 1 above (the moratorium) is withdrawn.** The convention from the arm onward:
+1. **Smoke and test leads MAY go through real offices at any time.**
+2. **Every such run is announced on the S-1 page thread before it starts**, giving the guid8, the UTC window, and the expected number of synthetic arrivals.
+3. **§4.2 step 2 is answered from the thread.** An unannounced run is a convention breach and is recorded as one.
+
+R-169's gate (a codified convention before any arming, both floors) is still met. What announce-only does not prevent: an announced run can still produce a genuine ±1-arrival false `FLOOR-ZERO` page. **The reader knows why.** DW-3 stays DISCHARGED.
+
