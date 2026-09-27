@@ -28,6 +28,7 @@ Every row is one UTC day, read own-hands the following day with the commands in 
 | 9 | 2026-09-23 (complete, read 2026-09-24T01:20Z, on time) — **SPLIT DAY: counts toward NEITHER epoch** (§3j) | 24 (19 at `s1.4`, 00:27–18:27Z; 5 at `s1.5`, 19:27–23:27Z) | 24 | 0 | 24 | 288 samples, Maximum 3803.36 s (< 7200) | **4 of 4 expected present, enumerated by name**, all OK, no state transition in the day, `AlarmActions` and `OKActions` = `autom8-ebi-office-floor-scratch` only (re-read 01:2xZ) | **1** — the 11:27Z digest (an `s1.4` run) and nothing else; subscriptions **0** (`NextToken` none) | office lines 1109: quiet 1013 / zero 96 / **rate 0**; `zero_floor_count` 4 (all 24 runs), `rate_floor_count` **0** | **clear — day max 0.0321, `high` on 0 of 24** | **Every §3 criterion passes, but the row counts toward NEITHER epoch.** The pinned query changed mid-day, at **19:27:18.878Z** (§3j), so no complete day exists on either definition. It is recorded for the record. **Deploys in the day, all recorded in §3j:** autom8y-data #489 serving at 18:37Z (inert while dark); the S1b image moving both the evaluator (the instrument event) and intake v78→v79 (office_floor-only, inert). After the day, 09-24: S1 dark on intake v80 (00:53:20Z) and OD-94 on v81 (01:04:01Z), both with the flag `false`; the evaluator's `$LATEST` moved to `e61dd98` with no `office_floor/` change, a deploy event inside the OD-90 epoch and not an instrument event. The s1.5 runs read written 37 / parked 0 throughout, since the stop was still dark. `ccb52f4c` is OFF RATE in all 24 runs (booking_rate 4.48–7.47 %, bookings 15–34, arrivals 335–455), recorded and not read as a recovery (E-6). `79be1b75` is present in 9 runs, on ZERO in 0. |
 | 10 | 2026-09-24 (complete, read 2026-09-25T00:10Z, on time) — **OD-90 EPOCH, CLEAN ROW 1 OF 7** | 24 (**all 24 at `s1.5`**) | 24 | 0 | 24 | 288 samples, Maximum 3803.06 s (< 7200) | **4 of 4 expected present, enumerated by name**, all OK, no state transition in the day, `AlarmActions` and `OKActions` = `autom8-ebi-office-floor-scratch` only | **1**, the 11:27Z digest and nothing else; subscriptions **0** (`NextToken` none) | office lines 1165: quiet 1108 / zero 57 / **rate 0**; `zero_floor_count` 4 → 1, `rate_floor_count` **0** | **clear: day max 0.0351, `high` on 0 of 24** | **FIRST CLEAN ROW OF THE OD-90 EPOCH. Every §3 criterion passes.** This is the first full day of the fleet no-lead stop (T0 03:04:04Z; §3k). `parked_total` rose from 0 to 70 over the day, and the control's `offices_with_bookings` stayed ≥ 37 on every run, carried by written OR parked evidence as OD-88 designed. **No office moved onto ZERO because of the stop**: zero offices fell from 4 to 1 as parked bookings silenced offices that had looked stalled. Events in the day, all recorded in §3k with none an instrument event: the flip, #2477 (v83), #2513 (v84), #2515 (v85, served 14:43:09Z) and data #491 (:667). `ccb52f4c` stayed off RATE in all 24 runs (booking_rate 6.90–9.69 %, bookings 30–36, arrivals 392–507), recorded and not read as a recovery (E-6). `79be1b75` was present in 24 runs, on ZERO in 0. **Leg (b) still OPEN** (no real redelivery yet). |
 | 11 | 2026-09-25 (complete, read 2026-09-26T00:10Z, on time) — **OD-90 EPOCH, CLEAN ROW 2 OF 7** | 24 (all `s1.5`) | 24 | 0 | 24 | 288 samples, Maximum 3802.51 s (< 7200) | **4 of 4 expected present, enumerated by name**, all OK, no state transition in the day, `AlarmActions` and `OKActions` = `autom8-ebi-office-floor-scratch` only | **1**, the 11:27Z digest and nothing else; subscriptions **0** (`NextToken` none) | office lines 1168: quiet 1166 / zero 2 / **rate 0**; `zero_floor_count` 0–1, `rate_floor_count` **0** | **clear: day max 0.038, `high` on 0 of 24** | **SECOND CLEAN OD-90 ROW. Every §3 criterion passes.** **No intake deploy in the day**: `live` is still v85, and the evaluator image is unchanged since 09-24T14:39:15Z. `parked_total` peaked at 142; `offices_with_bookings` stayed ≥ 38. **Leg (b) CLOSED on real traffic this day**: see §3k addendum. `ccb52f4c` stayed off RATE in all 24 runs (booking_rate 9.61–11.53 %, bookings 23–30, arrivals 305–393; arrivals fell as #2513 stopped counting each retry separately). That is recorded and not read as a recovery (E-6). `79be1b75` was present in 24 runs, on ZERO in 0. **Under slate §11 D4 the arm gate is now the conservation check, not the row count.** Rows continue as the record. |
+| 12 | 2026-09-26 (complete, read 2026-09-27T00:10Z, on time) — **OD-90 EPOCH, CLEAN ROW 3** | 24 (all `s1.5`) | 24 | 0 | 24 | 288 samples, Maximum 3803.10 s (< 7200) | **4 of 4 expected present, enumerated by name**, all OK, no state transition in the day, `AlarmActions` and `OKActions` = `autom8-ebi-office-floor-scratch` only | **1**, the 11:27Z digest and nothing else; subscriptions **0** (`NextToken` none) | office lines 1078: quiet 1078 / **zero 0 / rate 0**; `zero_floor_count` **0 all day**, `rate_floor_count` **0** | **clear: day max 0.0391, `high` on 0 of 24** | **THIRD CLEAN OD-90 ROW. Every §3 criterion passes, and NO office was on either floor for the entire day.** No intake deploy (`live` is still v85). `ccb52f4c` was off RATE in all 24 runs (booking_rate 8.16–11.22 %). `79be1b75` was present in 24 runs, on ZERO in 0. **The arm gate is the conservation check (§11 D4), which PASSED at 03:10Z on 09-27: see §3l.** |
 
 > **⟂ EPOCH BOUNDARY — 2026-09-23T19:27:18.878Z (OD-90, operator-ruled).** Rows 0–8 above are the **old epoch**, and row 9 is the split day (see below), on pinned query `4b9d3534`; it closed at that instant with rows 6–8 as three consecutive clean rows. Those rows are kept as written, not erased or re-graded, and **they do not count toward the new epoch's seven**. The **OD-90 epoch**, on pinned query `2aee74e3` (`evaluator_version` s1.5), opened at the same instant. Its first complete day is **09-24**, and its seventh clean row can be read **2026-10-01T00:05Z at the earliest** (09-30, which is serving day + 7). **09-23 is a split day**, s1.4 until 19:27Z and s1.5 after it; its row is recorded for the record and counts toward neither epoch. Full record: **§3j**.
 
@@ -122,6 +123,7 @@ is which of them CHANGED what the instrument checks.** Two did, **and both only 
 | **3i** | rows 3–7 read late; the first clean rows; a date this seat gave is falsified; the §2 alarm command tightened | **§2 command tightened — APPLIED** (it can only tighten, same rule as 3c); the rest record only |
 | **3j** | **the epoch boundary: the old epoch CLOSES and the OD-90 epoch OPENS at 2026-09-23T19:27:18.878Z** — pinned query `4b9d3534` → `2aee74e3`, `s1.4` → `s1.5` | **OPERATOR-RULED (OD-90)**: a new pinned query, **not a criterion this seat amended**. The §3 thresholds are unchanged. Rows 0–8 are kept on the old definition. |
 | **3k** | inside the OD-90 epoch: the flip (T0 03:04:04Z), legs (a) and (c) PASS, leg (b) OPEN, the first stop write, and five intake-plane events | record only. Traffic and deploy events, **none of them an instrument event**. |
+| **3l** | **the arm gate: the conservation check PASSED** (12/13, 1 explained drop, DB-plane controls agree) | **the gate of record under slate §11 D4.** The formal gate notice went to ASR. |
 
 **The rule that produces this asymmetry, and it is the whole of it.** §3a, §3b and §3e would each **loosen** the
 criterion — under any of them the rows that have already breached would pass. **A criterion amended while it
@@ -781,6 +783,57 @@ S1 (#2469) sets those values at head `c8d5f3cb`, and I verified them there: `NO_
 
 
 **§3k ADDENDUM, 2026-09-25: leg (b) CLOSED on real traffic.** The 16:27:15Z run's own window (09-22T16:27:10Z to 09-25T16:27:10Z) holds **114 qualifying park lines but 112 distinct `park_key`**: keys `b0b2fcc4…` and `e7396936…` were each delivered twice. The evaluator reads **`parked_total` = 112** exactly, so **a redelivered park counts once. All three post-flip legs are now closed on real traffic.** `empty_body` parks (5) carry no `decline_class`, as OD-92 intends.
+
+### 3l · THE ARM GATE: the post-flip CONSERVATION CHECK — **PASS** (2026-09-27T03:10Z), under slate §11 D4/D5
+
+**Rule (D5, operator-ratified).** The cohort is every office with ≥ 5 **written** bookings in the 3 days before T0. Each one must keep ≥ 1 piece of evidence (written + qualifying parked) in the first full 3-day window after T0. Every drop is examined line by line. **An explained drop passes, and this seat judges it.**
+
+**How it was read:**
+- **Instrument:** the pinned query `2aee74e3`, folded by the evaluator's own `floors.py` at `36b835b1`.
+- **Log plane:** bare guid8. **Hashed** as `sha256(guid8)[:8]` for comparison with the DB plane (§8 Option 2).
+- **Pre window:** [2026-09-21T03:04:04Z, T0), 42,159 records scanned.
+- **Post window:** [T0 = 2026-09-24T03:04:04Z, 2026-09-27T03:04:04Z), 72.0 h, 15,385 records scanned.
+
+| guid8 | handle | pre written | pre arr | post written | post parked | post arr | result |
+|---|---|---|---|---|---|---|---|
+| `ccb52f4c` | `75c2be4e` | 35 | 507 | 3 | 12 | 142 | kept |
+| `d167d635` | `f5c07c30` | 17 | 68 | 0 | 25 | 25 | kept |
+| `15caa02c` | `2272ac95` | 16 | 54 | 0 | 9 | 9 | kept |
+| `7a1e83fd` | `fc1df111` | 15 | 73 | 0 | 15 | 15 | kept |
+| `c2ab6637` | `454493c2` | 14 | 61 | 0 | 22 | 24 | kept |
+| `8e56f6e1` | `db212735` | 12 | 41 | 0 | 10 | 10 | kept |
+| `4ec260bf` | `7780f5bc` | 11 | 37 | 1 | 6 | 8 | kept |
+| `6b93fb76` | `932a123c` | 11 | 34 | 0 | 6 | 6 | kept |
+| `53295a22` | `85b661f3` | 10 | 40 | 0 | 5 | 5 | kept |
+| `087d7de5` | `457db8ac` | 7 | 25 | 0 | 6 | 7 | kept |
+| `933a026c` | `d54429f7` | 7 | 21 | 0 | 3 | 3 | kept |
+| `ca70baa8` | `5c9237c6` | 6 | 33 | 0 | 4 | 4 | kept |
+| `06a9afb0` | `14d5a5a0` | 5 | 17 | 0 | 0 | **0** | **drop, EXPLAINED** |
+
+**12 of 13 keep evidence. The single drop is judged EXPLAINED on two independent planes:**
+1. **Log plane.** All of that office's traffic in the 10 days to 09-26 is one burst, 09-21T14:36Z → 09-23T05:07Z (17 terminal lines, 5 `booking_completed`). It has had **zero arrivals** since, and the silence began about 22 h **before** T0. The stop cannot have caused it.
+2. **DB plane** (EBI-client-biz-impact, nhc-db read-only). The office is in onboarding, has had **0 ad-attributable leads since 09-14**, and shows the same appointment burst on 09-21..09-23. **Its 5 pre-window writes therefore had no ad lead behind them: they are the non-ad intake writes the stop exists to remove.**
+
+**The operator's Meta read-grant was NOT used.** The gate asks whether the drop is explained, not whether spend was zero.
+
+**Cross-plane controls**, all read independently by the EBI seat on nhc-db:
+- **Cohort:** the same 13 offices with **identical** pre counts.
+- **Post-window writes:** `75c2be4e` 3 = 3, `7780f5bc` 1 = 1, every other office 0 = 0. The fleet total is 4 on both planes.
+
+The DB plane cannot see parks, which never reach it. So the **parked** half rests on the log plane alone, and it was proven there by legs (a)–(c) (§3j, §3k).
+
+**Gate status at 03:10–03:25Z, 2026-09-27:**
+- conservation **PASS**;
+- **G-2** re-read at the local merge head `671778c4` (autom8y main `a5aa16df` + #2541 `ebdc8df7`):
+  - DW-5: one switch local feeds the env line and all 3 `alarm_actions`;
+  - DW-10 / DW-2: the digest sections on `last_booking_age_days`;
+  - DW-8: `FLOOR-REFUSED` is rendered;
+  - DW-3: runbook §8.1 (announce-only) is on asana main;
+  - DW-4 / G-0: slate §10 and §11 are on asana main;
+  - G-3: the reader (the operator) holds AWS read;
+- `terraform validate` **valid**, `fmt` clean, and 80 guard and evaluator tests pass at that merge head.
+
+**The formal gate notice goes to the lever-holder (ASR) now.** Per §11.4, ASR merges #2541, dispatches the Service Terraform apply, reads the plan, and approves the production gate (D7). **The apply is the arm.** This seat then observes receipts A and B and the negative pole. When both deliver, **S-1 is DONE (D2).**
 
 ### 3c · The deadman criterion passed VACUOUSLY on an empty set — APPLIED, because it can only tighten
 
