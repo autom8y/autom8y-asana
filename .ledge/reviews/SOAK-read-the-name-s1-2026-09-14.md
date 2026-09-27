@@ -124,6 +124,7 @@ is which of them CHANGED what the instrument checks.** Two did, **and both only 
 | **3j** | **the epoch boundary: the old epoch CLOSES and the OD-90 epoch OPENS at 2026-09-23T19:27:18.878Z** — pinned query `4b9d3534` → `2aee74e3`, `s1.4` → `s1.5` | **OPERATOR-RULED (OD-90)**: a new pinned query, **not a criterion this seat amended**. The §3 thresholds are unchanged. Rows 0–8 are kept on the old definition. |
 | **3k** | inside the OD-90 epoch: the flip (T0 03:04:04Z), legs (a) and (c) PASS, leg (b) OPEN, the first stop write, and five intake-plane events | record only. Traffic and deploy events, **none of them an instrument event**. |
 | **3l** | **the arm gate: the conservation check PASSED** (12/13, 1 explained drop, DB-plane controls agree) | **the gate of record under slate §11 D4.** The formal gate notice went to ASR. |
+| **3m** | **S-1 DONE** (armed 03:24Z; receipts A and B delivered); the arc stays open; ⛔ the input outage since 09-26T10:36Z, and why §3l still stands | record. **Pages during the outage are TRUE pages, not misfires.** |
 
 **The rule that produces this asymmetry, and it is the whole of it.** §3a, §3b and §3e would each **loosen** the
 criterion — under any of them the rows that have already breached would pass. **A criterion amended while it
@@ -834,6 +835,21 @@ The DB plane cannot see parks, which never reach it. So the **parked** half rest
 - `terraform validate` **valid**, `fmt` clean, and 80 guard and evaluator tests pass at that merge head.
 
 **The formal gate notice goes to the lever-holder (ASR) now.** Per §11.4, ASR merges #2541, dispatches the Service Terraform apply, reads the plan, and approves the production gate (D7). **The apply is the arm.** This seat then observes receipts A and B and the negative pole. When both deliver, **S-1 is DONE (D2).**
+
+### 3m · **S-1 IS DONE** (slate §11 D2), 2026-09-27T11:27:17Z — armed, and delivering on both paths
+
+- **The arm:** 2026-09-27T03:24:00Z. The gate was §3l (conservation PASS at 03:10Z, G-2 and validate at the merge head). ASR merged autom8y #2541 as `68218d9b`, with 4 files blob-identical to the graded `ebdc8df7`. It read the plan, *1 to add, 6 to change, 0 to destroy*, exactly as expected, then approved the production gate (D7) and applied.
+- **Receipt A** (the alarm path) at 03:25–03:26Z, **receipt B** (the digest path, `page_message_id 8efbd105-…`) at 11:27:17Z, and the **negative pole** (0 to scratch) are all observed by this seat. The detail is in the arming receipt §1(A), (B) and (D).
+- **What "done" does NOT claim.** Read-the-name's north still reads *"named to a human who ACTS on it"* (D3), so **the arc stays open**. Whether and how an act is recorded is judged later (D9). The page has no reader time bound (D8).
+
+**⛔ An input outage began before the arm and continues.** Intake's last invocation and last API Gateway request were both **2026-09-26T10:36:30Z**. Every recent response was 200, and nothing has arrived since: the upstream caller (SendGrid Inbound Parse or the forwarding) stopped. It is being worked by the EBI lane and ASR.
+
+**Effect on S-1:**
+- As the 3-day window goes dark, offices read QUIET. A ZERO appears only where the remaining arrivals carry no evidence.
+- From about 09-29T10:36Z, if the outage persists, the control fails and **FLOOR-REFUSED** is paged.
+- **These are true pages about a real outage, not a D11 misfire. ASR and this seat agree: no disarm.**
+
+**Effect on §3l:** the post-window's last ~17 h fell inside the outage. That can only *remove* evidence, so it biased the conservation check **toward failure**, and 12 of 13 still kept evidence. The single drop went silent on 09-23, before T0. **§3l's PASS stands.**
 
 ### 3c · The deadman criterion passed VACUOUSLY on an empty set — APPLIED, because it can only tighten
 
