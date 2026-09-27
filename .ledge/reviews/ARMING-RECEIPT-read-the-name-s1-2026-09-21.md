@@ -7,7 +7,7 @@ rite: sre
 station: incident-commander (skeleton, P3b); the arming seat fills it
 created: 2026-09-15
 fill_on: 2026-09-21 (pre-arm read) and 2026-09-22 (the arm and its post-arm read)
-status: SKELETON — every OBSERVED cell is blank until the arming seat fills it with its own hands; the REHEARSAL column is 2026-09-15 and is NOT the receipt
+status: OBSERVED — ARMED 2026-09-27T03:24:00Z (autom8y #2541 → 68218d9b, applied by ASR under slate §11 D7); receipts A + B delivered; S-1 DONE per slate §11 D2 at 2026-09-27T11:27:17Z. The arm date is 09-27, not the 09-22 in the row labels. The REHEARSAL column is 2026-09-15 and is NOT the receipt
 arming_state: NOT ARMED
 observer: .ledge/reviews/read-the-name/arm_observe.py   # committed in this PR; durable home of the session-scratch arm_observe.py (hazard H-6)
 governing: .ledge/reviews/RUNBOOK-read-the-name-s1-2026-09-14.md (§2.2 receipts A/B, §5 DW rows, §7 amendment) · .ledge/handoffs/HANDOFF-read-the-name-wave1-seam-2026-09-14.md (§4, §5, §7) · .ledge/reviews/SOAK-read-the-name-s1-2026-09-14.md (§3) · .ledge/decisions/ADR-read-the-name-s1-implementation-2026-09-14.md · .ledge/decisions/RULING-read-the-name-t2-15caa02c-class-2026-09-14.md (R-2)
@@ -47,7 +47,7 @@ Run from an autom8y-asana checkout at the merge of this PR, in us-east-1, with a
 | **latency, stated** | `…-lambda-freshness` (P3600, 2 of 3, > 7200 s) goes red at roughly the **fourth** missed hourly fire, so one to three missed fires are invisible to it (handoff §4, line 99). `…-dlq-not-empty` and `…-lambda-errors` (P300, 1 of 1) are the **faster floor**, but only for a **crashing** evaluator. A **disabled rule** raises no error and no DLQ message; only freshness catches it (at about 4 h), and the missing 11:27Z digest may be the first sign. |
 | **REHEARSAL 2026-09-15T22:52Z** | 6 run lines in 6 h (last 22:27:15Z; recordsScanned 326). Rule `autom8-email-booking-intake-office-floor-schedule` ENABLED `rate(1 hour)`. Four alarms, all OK, **all actions = `autom8-ebi-office-floor-scratch`**: prober-liveness P86400 / 2 · lambda-freshness P3600 / 3 / dta 2 · dlq-not-empty P300 / 1 · lambda-errors P300 / 1. |
 | **OBSERVED pre-arm (09-21)** | |
-| **OBSERVED post-arm (09-22)** | *(expect: the same four alarms plus `autom8-ebi-booking-floor-invoke-success-gap`, every action = `autom8y-platform-alerts`)* |
+| **OBSERVED post-arm (09-27T03:25Z, own read)** | **5 alarms**, the four plus `autom8-ebi-booking-floor-invoke-success-gap`, all `ActionsEnabled=true`, **AlarmActions and OKActions = `autom8y-platform-alerts`**, all OK. The evaluator's `EMAIL_BOOKING_INTAKE_OFFICE_FLOOR_PAGE_TOPIC_ARN` = platform-alerts (`$LATEST` LastModified 03:23:54Z). The scratch topic is RETAINED as the disarm target. The evaluator did not stop: the 11:27:17Z run is `s1.5`, control pass. |
 
 ### (B) The evaluator RUNS but REFUSES
 
@@ -59,7 +59,7 @@ Run from an autom8y-asana checkout at the merge of this PR, in us-east-1, with a
 | **REHEARSAL 2026-09-15T22:54Z** | 24 runs, 24 passed, 0 refused (recordsScanned 1,229). `LastSuccessTimestamp`: 24 of 24 buckets, none missing. The success-gap alarm does not exist (`describe-alarms --alarm-name-prefix autom8-ebi-booking-floor-invoke-success-gap` → 0), as intended until S1.7. |
 | **⚠ caught in rehearsal** | The first draft of this observer reported **4 missing buckets (18Z–21Z) that did not exist**. The AWS CLI renders metric `Timestamp` in the **local offset** (`-04:00`). Slicing the string compared local hours to UTC hours and manufactured the gap. A second read at 5-minute resolution showed one sample every hour at :27, 18Z–22Z. Cure: `utc_hour()` normalises to UTC before bucketing. It is committed, and the re-run printed 24 of 24. **Any hand-rolled census must do the same.** The SOAK §2 commands use a 86,400 s period and are unaffected. **That bug is NOT, however, the day-0 soak mismatch** (20 controlled runs against 19 samples), which this receipt first offered as the likely cause. **Re-derived 2026-09-15T23:14Z with UTC normalisation, and the hypothesis is disproven:** for 2026-09-14 the naive local-offset slice and the UTC-normalised count give the **same 19**, so no day boundary moved. The real reconciliation is arithmetic and was already on the soak table's own row 0: 21 runs = 3 manual + 18 scheduled; **20 controlled = 21 - 1 refusal (leg B)**; **19 samples = 20 controlled - 1, because leg C was a dry-run and a dry-run emits no `LastSuccessTimestamp`**. The hourly census confirms it: the 06Z bucket carries **2** samples and 07Z-23Z carry 1 each, 19 in 18 buckets (recordsScanned 943). **Nothing was lost; UV-P DISCHARGED.** The general caution stands on its own: normalise before bucketing. |
 | **OBSERVED pre-arm (09-21)** | |
-| **OBSERVED post-arm (09-22)** | *(expect: the success-gap alarm exists, actions = `autom8y-platform-alerts`, created after the soak so `treat_missing_data=breaching` does not self-page at apply — runbook §2.1 C-4)* |
+| **OBSERVED post-arm (09-27, own read)** | `autom8-ebi-booking-floor-invoke-success-gap` **exists**, with actions = `autom8y-platform-alerts`. It was INSUFFICIENT_DATA at creation and **settled OK at 03:24:50Z without paging**; its OK action notified platform-alerts once, which is informational. C-4 held: `LastSuccessTimestamp` had published on every controlled run since 09-14. |
 
 ### (C) The MIRROR half — a true page about the wrong thing
 
@@ -86,7 +86,7 @@ Run from an autom8y-asana checkout at the merge of this PR, in us-east-1, with a
 | **the READ observer — declare one or label it** | **UNOBSERVED** unless the named reader posts a dated acknowledgement on the day-1 page thread (guid8 only, no clinic name). Nothing in AWS can observe a human reading. |
 | `[UV-P]` | `[UV-P: autom8-slack-alert renders a plain-text evaluator digest as a readable Slack post | METHOD: autom8-slack-alert Errors for hour 11 on 09-22 plus the Slack post itself | REASON: every message this Lambda has handled on this topic is alarm-shaped]` |
 | **OBSERVED pre-arm (09-21)** | |
-| **OBSERVED post-arm (09-22)** | receipt A: · receipt B: · negative pole: · READ observer: |
+| **OBSERVED post-arm (09-27, own hands)** | **receipt A:** a `set-alarm-state` probe on `…-freshness-prober-liveness` went ALARM at 03:25:29.994Z and OK at 03:26:10.655Z. Both are *"Successfully executed action → autom8y-platform-alerts"*, with the reason text marked *"S-1 ARM RECEIPT A … NOT a real failure"*. SNS `NumberOfMessagesPublished` on platform-alerts is 2 in the 03:25Z bucket. Alarm history does not expose an SNS `MessageId`, so the action state plus the SNS metric are the receipt. · **receipt B:** the 11:27:17Z `FLOOR-DIGEST` run line carries `page_message_id` **`8efbd105-993e-5fc3-a903-b23766eb2c7a`**, `paged` true, `page_class` digest. It is the **only** S-1 publish in hour 11 (1 `page_message_id` line, 0 floor-alarm actions). The topic's hour-11 bucket reads 2 because platform-alerts is shared and carries other traffic. · **negative pole:** **0** publishes to the scratch topic during the probe and in hour 11. Control: the same metric saw the scratch digest on 09-26 at 11:25Z. · **READ observer:** **UNOBSERVED**, and correctly so. Nothing in AWS can observe a human reading. Under slate §11 D8/D9 the reader (the operator) has no time bound, and how an act is recorded is judged later. |
 
 ### (E) Known residuals — declared, not hidden
 
@@ -141,7 +141,7 @@ The residual's own disposition is SOAK §3e, which is NOT APPLIED.
 | **what it observes** | the served image per EBI function: the intake through its `live` alias, the others unqualified (unqualified IS served when there is no alias); a warning on `21d4395`; unanimity |
 | **REHEARSAL 2026-09-15T22:52Z** | all five serve **`0b5e1c9`**; the intake `live` alias is at v72; unanimous. autom8y `0ee1209a`: `rollback` appears in three workflows (`auth-defense-3-migration-gate`, `fleet-deploy-orchestrator`, `seal-proof-bypass-reason-floor-gate`), none of them an EBI rollback. |
 | **OBSERVED pre-arm (09-21)** | |
-| **OBSERVED post-arm (09-22)** | |
+| **OBSERVED post-arm (09-27)** | **Not re-read with `arm_observe.py F` at this observation.** Recorded only: intake `live` is v85 (image `d429218`, served since 09-24T14:43:09Z); the evaluator's `$LATEST` env changed at 03:23:54Z through the arm apply, and its image was not re-read. **Left open deliberately rather than inferred.** |
 
 ## §2 The guid8 lookup (H-5), as a gate input
 
