@@ -715,3 +715,22 @@ This was a phased `/interview`: neutral options, a recommendation labelled on ea
 2. On PASS: G-2 is re-read, and `terraform validate` runs at #2541's merge head. This seat then sends ASR the formal gate notice, and the operator a non-blocking FYI (U5).
 3. ASR merges autom8y #2541, dispatches the Service Terraform apply, and approves the production gate (D7). **The apply is the arm.**
 4. This seat observes receipts A and B and the negative pole. When both are delivered, **S-1 is DONE (D2).** The arc stays open (D3, D9).
+
+---
+
+## §12 RULED 2026-09-29, in this seat's room: an ad-lead-gate refusal is S-1 floor evidence, landing in the post-arm bundle
+
+**The question put to the operator.** Wave 7 (A-18; autom8y #2673 and autom8y-data #520) adds the refusal codes `p5_lead_older_than_90d`, `p5_lead_61_to_90d` and `p5_phone_only_identity`, at about 1.1–2.8 bookings a day. The EBI seat confirmed from `book_contente.py` (~:540–565) that a gate refusal ends at `terminal_decline class=ad_lead_gate_refused` / `ad_lead_gate_refused`. It emits no `booking_completed`, no `contente_booking_booked` and no qualifying park. Under pinned query `2aee74e3` it is therefore an **arrival without evidence**.
+
+**Measured by this seat, 09-29:**
+- Refusals ran at 21–80 a day across 11–28 offices on 09-15..09-23. They fell to 4 on 09-24 and 2 on 09-25, and have been 0 since. The no-lead stop now parks non-ad bookings before the gate.
+- Refusal lines carry **no `message_id` and no `park_key`** (114 of 114 lines over 7 days).
+- The live 3-day window has 0 refusals, and 0 offices were on ZERO in each of the last 5 daily windows.
+
+**The answer, the operator's selection:** ***"Count it, in the post-arm bundle."*** A refused booking still arrived at a working door, so it is **floor evidence** under its own label, "arrived, credit refused". This is the OD-88 pattern: the floor watches the pipe, and credit watches the money. It covers **every** `ad_lead_gate_refused`, not only the new `p5_*` codes, which also closes the gap that existed before wave 7.
+
+**Where it lands:** in the ONE post-arm definition change already ruled (§11 D12), alongside F-D, §3a, §3b, §3e, the reserved test office and `pinned_query_sha`. **Wave 7 is NOT held for it.**
+
+**Accepted interim risk:** until the bundle serves, a refusal still counts as an arrival without evidence. A false ZERO needs ≥ 5 arrivals at one office with zero evidence over 3 days. At about 1–3 refusals a day spread across the fleet, that is unlikely but possible for a small office. A ZERO page that traces to refusals in this interval is recorded as this known gap, not as a misfire of the definition.
+
+**Build note, not ruled:** there is no dedup key on refusal lines, so the evidence term counts `event="ad_lead_gate_refused"` lines. Refusals return 200, SendGrid does not redeliver them, so lines ≈ mails. The term is to be proven two-sided with the bundle.
