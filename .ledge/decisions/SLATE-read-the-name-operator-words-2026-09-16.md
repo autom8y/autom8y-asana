@@ -759,3 +759,26 @@ The operator's selections, each put as a neutral question with its tradeoff:
 7. one arrival per delivery (B3).
 
 It is ONE definition change, and the soak restarts once, at its serving instant.
+
+### §13 ADDENDUM, 2026-09-30: B4, and the overnight mode
+
+| # | Question | Operator's selection |
+|---|---|---|
+| **B4** | The rite-disjoint critic's Condition 1 on autom8y #2694: F-D drops an `unknown_loud` mail's ARRIVAL, while its qualifying PARK still counts as evidence (11 of 135 live) | ***"Exclude from evidence too."*** An `unknown_loud` mail is neither an arrival nor evidence. |
+
+**How B4 was built** (this seat's choice, inside the ruling). The live data showed that an `unknown_loud` delivery's `terminal_decline` line carries `intake_class = unknown_loud` **and** the same `park_key` as its park line. That allows a single-pass subtraction, `parked = max(0, park_id + park_noid − park_ul_id)`, with no join. It is scoped to the two stop classes (`stop_dc`), so the founding office's relay parks, which were never evidence, are not subtracted. The critic confirmed the premise: all 11 ul stop keys have a qualifying park line, so there are 0 orphans.
+
+**Overnight mode, the operator's instruction on 2026-09-30:** *"proceed through this overnight push unmonitored without asking further questions."* This seat makes only choices inside rulings already given. Anything that would need a new ruling stops at its gate and waits for the morning.
+
+## §14 REGISTERED 2026-09-30: the RF-1 slice-4 precondition that names this seat
+
+**What it says** (dials-locus, TDD-data-authz-deny-by-default §R5–R5.4). No slice-4 route with a live caller, starting with `POST /api/v1/leads/intake`, may go to ENFORCE until three things hold:
+1. EBI intake's service principal holds the permission, granted through the registry on the operator's word.
+2. **This seat** has correlated a live ALLOW, recorded while the route is still OBSERVE, to one of EBI's own match calls, with 0 would-deny over the 7 days before the flip. A window with no match call is UNREAD.
+3. A pre-act notice reached this seat, and this seat confirmed that no change to EBI's principal or match path is pending. **An objection from this seat pauses the flip.**
+
+The first hour after the flip is watched on `ebi-no-lead-stop-match-auth-retry`: any datapoint means ASR demotes slice 4 and the operator gets a clock interrupt.
+
+**The mechanism, corrected 2026-09-30.** A slice-4 403 is NOT a `match_call_rejected` park. `match_lead.py:1004` classes 401 and 403 as an OUTAGE, so the mail gets a 5xx, SendGrid retries it for about 72 h, and then **drops** it. No park line is written, and OD-92 sees nothing. The detector is `ebi-no-lead-stop-match-auth-retry` (≥ 1 in 2 of 4 half-hours; armed and OK when read).
+
+**Where it lives:** `contente` `.ledge/specs/TDD-data-authz-deny-by-default-2026-09.md` [R5]–[R5.4], commit `3c8c5d98537786e8ab8c4eb9bcde5760565ca35a`. **That commit is LOCAL ONLY:** contente's main is ~179 commits ahead of its remote. **Pushing contente is the operator's decision.** Until it is pushed, this slate entry is the only copy on a remote.
