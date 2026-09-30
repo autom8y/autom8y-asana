@@ -734,3 +734,28 @@ This was a phased `/interview`: neutral options, a recommendation labelled on ea
 **Accepted interim risk:** until the bundle serves, a refusal still counts as an arrival without evidence. A false ZERO needs ≥ 5 arrivals at one office with zero evidence over 3 days. At about 1–3 refusals a day spread across the fleet, that is unlikely but possible for a small office. A ZERO page that traces to refusals in this interval is recorded as this known gap, not as a misfire of the definition.
 
 **Build note, not ruled:** there is no dedup key on refusal lines, so the evidence term counts `event="ad_lead_gate_refused"` lines. Refusals return 200, SendGrid does not redeliver them, so lines ≈ mails. The term is to be proven two-sided with the bundle.
+
+---
+
+## §13 RULED 2026-09-29/30, in this seat's room: the post-arm bundle, built now (spec: `.ledge/specs/SPEC-read-the-name-s1-post-arm-bundle-2026-09-30.md`)
+
+The operator's selections, each put as a neutral question with its tradeoff:
+
+| # | Question | Answer |
+|---|---|---|
+| B1 | How to ship the bundle, given the reserved test office would need a new office record (an identity mint, operator-only) | ***"Ship 6, drop test office."*** The reserved-test-office exclusion is **dropped**. The announce-only convention (§11 D10) covers smoke leads. |
+| B2 | The §3a floor: below what 3-day line count the residual is not judged | ***"200 lines."*** Below 200 `window_lines` the residual reads UNTAKEN, neither passing nor failing. |
+| B3 | Found while designing: every gate refusal writes 2 terminal lines with no `message_id`, so S-1 counted each refusal as 2 arrivals | ***"Yes: one arrival per delivery."*** Arrivals count once per delivery. A line without a message id is counted once per trace. |
+
+**Measured at the finding** (last 14 days): **466 of 1,936 deliveries (24 %) write more than one terminal line**, and every one is currently counted more than once. 0 deliveries mix message-id and no-id terminal lines. `trace_id` is present on 2,841 of 2,841 terminal lines. The fix therefore corrects about a quarter of all deliveries, not just refusals. It lowers arrivals, and so false-ZERO risk, everywhere.
+
+**The bundle, now 7 items:**
+1. gate refusals as evidence (§12);
+2. F-D;
+3. §3a with a floor of 200;
+4. §3b;
+5. §3e;
+6. `pinned_query_sha` on the run line;
+7. one arrival per delivery (B3).
+
+It is ONE definition change, and the soak restarts once, at its serving instant.
