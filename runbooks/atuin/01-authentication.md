@@ -24,34 +24,16 @@ name: validate_pat
 interpreter: bash
 terminalRows: 12
 ---
-# Prerequisite validation with actionable error
-ENV_FILE="${HOME}/.config/autom8y/envs/autom8y-asana/runbook.env"
-
-# Check env file exists
-if [ ! -f "$ENV_FILE" ]; then
-    echo "ERROR: Environment file not found: $ENV_FILE"
-    echo ""
-    echo "Run: cd \${AUTOM8Y_ASANA_PATH} && just setup-env"
-    exit 1
-fi
-
-# Load environment
-set -a
-source "$ENV_FILE"
-set +a
-
-# Check required credentials
+# Prerequisite validation with actionable error (names only, never a value)
 if [ -z "${ASANA_PAT:-}" ]; then
     echo "ERROR: Missing ASANA_PAT"
     echo ""
-    echo "Add your Personal Access Token to:"
-    echo "  $ENV_FILE"
+    echo "Fix: see .know/env-loader.md"
     exit 1
 fi
 
 echo "PAT validated:"
 echo "  ASANA_PAT: set"
-echo "  ENV_FILE: $ENV_FILE"
 ```
 
 ---
@@ -99,12 +81,6 @@ name: test_auth_flow
 interpreter: bash
 terminalRows: 15
 ---
-# Load environment
-ENV_FILE="${HOME}/.config/autom8y/envs/autom8y-asana/runbook.env"
-if [ -f "$ENV_FILE" ]; then
-    set -a && source "$ENV_FILE" && set +a
-fi
-
 echo "=== Authentication Flow Test ==="
 echo ""
 

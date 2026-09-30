@@ -8,7 +8,7 @@ First-time environment setup for the autom8y-asana SDK and API service. Configur
 - Atuin Desktop installed
 - Asana Personal Access Token (PAT) from [Asana Developer Console](https://app.asana.com/0/my-apps)
 
-**Environment location:** `~/.config/autom8y/envs/autom8y-asana/runbook.env`
+**Credentials:** see `.know/env-loader.md`
 
 ---
 
@@ -44,19 +44,9 @@ echo "  AUTOM8Y_ASANA_PATH: ${AUTOM8Y_ASANA_PATH:-not set}"
 
 ---
 
-## Step 1: Setup Environment
+## Step 1: Credentials
 
-Create your runbook environment file (first time only).
-
-```
----
-type: run
-name: setup_env
----
-cd ${AUTOM8Y_ASANA_PATH} && just setup-env
-```
-
-**Note:** After setup, edit `~/.config/autom8y/envs/autom8y-asana/runbook.env` to add your `ASANA_PAT` from the Asana Developer Console.
+Credentials come from this repo's direnv environment. For setup and fixes, see `.know/env-loader.md`.
 
 ---
 
@@ -85,15 +75,9 @@ name: test_asana_api
 interpreter: bash
 terminalRows: 12
 ---
-# Load environment
-ENV_FILE="${HOME}/.config/autom8y/envs/autom8y-asana/runbook.env"
-if [ -f "$ENV_FILE" ]; then
-    set -a && source "$ENV_FILE" && set +a
-fi
-
 if [ -z "${ASANA_PAT:-}" ]; then
     echo "ERROR: ASANA_PAT not set"
-    echo "Run: just setup-env, then add your PAT"
+    echo "Fix: see .know/env-loader.md"
     exit 1
 fi
 

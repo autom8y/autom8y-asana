@@ -239,50 +239,12 @@ clean:
 # Runbook Support Commands
 # ============================================
 # Minimal commands designed for one-liner use in Atuin Desktop runbooks.
-# Environment auto-loaded from: ~/.config/autom8y/envs/autom8y-asana/runbook.env
-
-# Setup runbook environment (creates ~/.config/autom8y/envs/autom8y-asana/runbook.env)
-[group('setup')]
-setup-env:
-    #!/usr/bin/env bash
-    set -euo pipefail
-
-    TEMPLATE="runbooks/atuin/environments/local.env.example"
-    TARGET_DIR="${HOME}/.config/autom8y/envs/autom8y-asana"
-    TARGET_FILE="${TARGET_DIR}/runbook.env"
-
-    echo "=== autom8y-asana Onboarding Setup ==="
-
-    if [ ! -f "$TEMPLATE" ]; then
-        echo "ERROR: Template not found: $TEMPLATE"
-        exit 1
-    fi
-
-    mkdir -p "$TARGET_DIR"
-
-    if [ -f "$TARGET_FILE" ]; then
-        BACKUP="${TARGET_FILE}.backup.$(date +%Y%m%d%H%M%S)"
-        echo "Backing up existing env to $BACKUP"
-        cp "$TARGET_FILE" "$BACKUP"
-    fi
-
-    echo "Copying template..."
-    cp "$TEMPLATE" "$TARGET_FILE"
-
-    echo ""
-    echo "Environment file created: $TARGET_FILE"
-    echo ""
-    echo "Next: Add your ASANA_PAT (Personal Access Token from Asana)"
 
 # Check required environment variables for runbooks (names and presence states only)
 [group('setup')]
 check-env:
     #!/usr/bin/env bash
     set -euo pipefail
-
-    # Auto-load runbook environment
-    ENV_FILE="${HOME}/.config/autom8y/envs/autom8y-asana/runbook.env"
-    [ -f "$ENV_FILE" ] && set -a && source "$ENV_FILE" && set +a
 
     echo "=== autom8y-asana Environment Check ==="
     MISSING=""
@@ -317,14 +279,13 @@ check-env:
     if [ -n "$MISSING" ]; then
         echo "ERROR: Missing required variables:$MISSING"
         echo ""
-        echo "Fix: Run 'just setup-env' then add your ASANA_PAT"
+        echo "Fix: see .know/env-loader.md"
         exit 1
     fi
 
     echo "API_HOST: ${API_HOST:-0.0.0.0}"
     echo "API_PORT: ${API_PORT:-8000}"
     echo "LOG_LEVEL: ${LOG_LEVEL:-INFO}"
-    echo "ENV_FILE: $ENV_FILE"
     echo ""
     echo "Environment OK"
 

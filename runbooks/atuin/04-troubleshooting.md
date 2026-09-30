@@ -19,39 +19,14 @@ terminalRows: 15
 ---
 echo "=== PAT Diagnostic ==="
 
-ENV_FILE="${HOME}/.config/autom8y/envs/autom8y-asana/runbook.env"
-
-if [ ! -f "$ENV_FILE" ]; then
-    echo "ERROR: Environment file not found"
-    echo "Location: $ENV_FILE"
+if [ -z "${ASANA_PAT:-}" ]; then
+    echo "ASANA_PAT: missing"
     echo ""
-    echo "FIX: Run 'just setup-env' to create it"
+    echo "FIX: see .know/env-loader.md"
     exit 1
 fi
 
-echo "Environment file: $ENV_FILE"
-echo ""
-
-# Check if ASANA_PAT is in the file
-if grep -q "^ASANA_PAT=" "$ENV_FILE"; then
-    echo "ASANA_PAT is defined in file"
-
-    # Load and check value
-    set -a && source "$ENV_FILE" && set +a
-
-    if [ -z "${ASANA_PAT:-}" ]; then
-        echo "ERROR: ASANA_PAT is empty"
-        echo ""
-        echo "FIX: Edit $ENV_FILE and add your PAT"
-    else
-        echo "ASANA_PAT: set"
-    fi
-else
-    echo "ERROR: ASANA_PAT not found in file"
-    echo ""
-    echo "FIX: Add this line to $ENV_FILE:"
-    echo "  ASANA_PAT=your_personal_access_token"
-fi
+echo "ASANA_PAT: set"
 ```
 
 ---
@@ -111,12 +86,6 @@ terminalRows: 15
 ---
 echo "=== PAT Validity Test ==="
 
-# Load environment
-ENV_FILE="${HOME}/.config/autom8y/envs/autom8y-asana/runbook.env"
-if [ -f "$ENV_FILE" ]; then
-    set -a && source "$ENV_FILE" && set +a
-fi
-
 if [ -z "${ASANA_PAT:-}" ]; then
     echo "ERROR: ASANA_PAT not configured"
     exit 1
@@ -172,12 +141,6 @@ interpreter: bash
 terminalRows: 12
 ---
 echo "=== Rate Limit Check ==="
-
-# Load environment
-ENV_FILE="${HOME}/.config/autom8y/envs/autom8y-asana/runbook.env"
-if [ -f "$ENV_FILE" ]; then
-    set -a && source "$ENV_FILE" && set +a
-fi
 
 if [ -z "${ASANA_PAT:-}" ]; then
     echo "ERROR: ASANA_PAT not configured"
@@ -323,7 +286,7 @@ esac
 
 | Issue | Diagnostic | Solution |
 |-------|------------|----------|
-| PAT not set | `diagnose_pat` | Add PAT to env file |
+| PAT not set | `diagnose_pat` | See `.know/env-loader.md` |
 | Invalid PAT | `test_pat_validity` | Regenerate at Asana |
 | Path not found | `diagnose_paths` | Run `just bootstrap-paths` |
 | Rate limited | `check_rate_limit` | Wait for retry-after |
