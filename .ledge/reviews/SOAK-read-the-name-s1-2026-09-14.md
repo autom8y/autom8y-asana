@@ -861,6 +861,51 @@ The DB plane cannot see parks, which never reach it. So the **parked** half rest
 
 For S-1, rows 13–14 sit inside the outage and read true. §3l's conservation PASS stands, because the outage tail could only remove evidence.
 
+### 3n · EPOCH BOUNDARY: the OD-90 epoch CLOSES and the `s1.6` epoch OPENS at 2026-09-30T12:27:18.588Z. The one post-arm bundle, operator-ruled (slate §11–§13)
+
+**What was ruled.** The bundle is the single post-arm change the operator ratified (slate §11), with its content ruled item by item:
+- §12: gate refusals count as floor evidence.
+- §13: B1 ship 6 and drop the test office; B2 residual floor of 200 lines; B3 one arrival per delivery.
+- §13 addendum: B4, `unknown_loud` excluded from evidence as well as from arrivals.
+
+The build spec is `.ledge/specs/SPEC-read-the-name-s1-post-arm-bundle-2026-09-30.md`, including its amendment. It set the boundary: *"The serving instant is the first `s1.6` run line. At it, the epoch closes and opens."* **No §3 threshold moved.** S-1 is already DONE (§3m), so this boundary gates nothing. It marks where one definition of the row ends and the next begins.
+
+**The chain, merge to serve.** Every link below is this seat's own read unless it is marked as ASR's.
+
+| link | reading |
+|---|---|
+| 1 · graded head | Critic PASS, no conditions, at `bad75beb`, over the whole delta. |
+| 2 · merge head | ASR's update-branch at 11:12:37Z gave `3133b44c` (merge of `bad75beb` + main `9d0a517d`). **`blobcheck.sh` (own run, ~11:20Z): BLOB-IDENTICAL.** `office_floor/` tree `245558b9a94f` and the 3 test files match `bad75beb`. The diff against the merge-base is exactly the 7 files. Recomputed from the head's `query.py`: `PINNED_QUERY_SHA256` **`fac5641c…`** (4,789 chars), `DAILY_QUERY_SHA256` `f72c50b7…` (4,800 chars). |
+| 3 · merge | ASR merged autom8y #2694 as **`3bf4bbf3`** at **2026-09-30T11:27:51Z** (squash, match-head `3133b44c`, 12 of 12 required contexts green). This was after the day's `s1.5` digest, per the spec. On main, `office_floor/` at `3bf4bbf3` is tree `245558b9a94f` (own read). |
+| 4 · what rode the deploy | `1749096..3133b44c` under `services/email-booking-intake/` holds only the 4 bundle commits and the 7 files. The Dockerfile copies only the service's `pyproject.toml`, `README.md` and `src/`. **Residual:** dependencies are compiled from `pyproject.toml` at build time with no lockfile, so a rebuild can float them. This is true of every EBI build, and the rollback target covers it. |
+| 5 · served | Deploy Dispatch run 36708701441 (ASR's). **Own read:** office-floor `$LATEST` image tag `3bf4bbf`, CodeSha256 `d7938672…`, LastModified **2026-09-30T11:35:40Z**, Active/Successful. Intake alias **`live` → v90**, RoutingConfig null, the same image and CodeSha256. |
+| 6 · last `s1.5` line | `office_floor_evaluated` at **2026-09-30T11:27:17.920Z**: control pass, `records_scanned` 11,052, `offices_with_bookings` 34, ZERO 0, RATE 0. **The day's digest paged** (`page_message_id ca9c17a4-…`). |
+| 7 · first `s1.6` line | `office_floor_evaluated` at **2026-09-30T12:27:18.588Z**, on stream `[$LATEST]`, the only run line since 12:20Z. **`evaluator_version` `s1.6`; `pinned_query_sha` equals `fac5641c…d63f`**, compared in-process on all 64 characters. Control pass (`query_status` Complete, `records_scanned` 11,300, `offices_with_bookings` 33); paged false; 0 error lines; 40 office lines, all quiet. **Every delta from link 6 is a ruled change:** parked 145 → 138, with `parked_ul_excluded` 11 (B4). `offices_with_bookings` 34 → 33: one office's only evidence was `unknown_loud` parks, and it now reads quiet, not ZERO. Residual 0.0232 → 0.0325, because the unit is now deliveries (5 of 154, `residual_status` judged), under 0.10. `refused_total` 1 is the new field (§12). Unchanged: `offices_evaluated` 40, `offices_unclassified` 20, `offices_with_written` 4, ZERO 0, RATE 0, stall 0. **Verdict sent to ASR at ~12:35Z: PASS.** Wave-8's EBI deploy was holding on it. |
+
+**The rollback, if the first `s1.6` epoch misbehaves.** Intake alias `live` goes back to **v89**. Office-floor `$LATEST` goes back to image **`1749096`**, keeping its current env. v89 and not v88: v88 carries the pre-rotation Tempo header (below). ASR holds the lever.
+
+**What the new row means.** For each office, over W = 3 days, from `s1.6` onward:
+- **Arrivals** are **deliveries**, counted by `message_id`, else `trace_id`. They are no longer lines, and `unknown_loud` is excluded.
+- **Evidence** is written + parked + refused. Parked excludes `unknown_loud` stop parks (B4), and refusals are counted per delivery.
+- **The residual** is judged only on a window of at least 200 lines (B2). Below that it reads `untaken`, never clean.
+- Offices are grouped by `office_guid` alone.
+
+Rows up to 09-29 were written under the `s1.5` definition, and they stand on it: nothing is re-graded. **Row 16 (09-30) is a split day** (`s1.5` through 11:27Z, `s1.6` from 12:27Z) and counts toward neither epoch, the same treatment as row 9 in §3j.
+
+**⚠ Known limit, accepted at the critic's PASS.** The query groups by the **raw `office_guid` string**, not by a canonical form such as `substr(office_guid, 0, 8)`. If two producers ever wrote the same office in two spellings (case, or a full GUID against a redacted one), that office would split into two rows, each with a thinner window. That would cause a false ZERO on one half, or a missed floor.
+- **It cannot happen today:** `redact_uuid` is the single producer of `office_guid` on every line the query reads.
+- **What would make it live:** a second writer of `office_guid`, or a change to `redact_uuid`'s output format.
+- **The tell:** the same guid8 appearing on two office lines in one run.
+
+This is recorded in the spec's amendment as well.
+
+**Events between §3m and this boundary: all on the traffic plane, none an instrument event, and each checked against S-1.**
+- **autom8y-data #525 (H3)**, served 05:46:28Z (td `:686`), ASR's lever. It changed nothing in match or create intake (own diff read). This seat's first-hour intake read was **thin** (N=1) and faulted nothing. The lookup-side question was **discharged** by 10:35Z: 4 lookups returned 1 row each ("verdict intake_minted over 1 row(s)"). There were 0 `status_code` lines, 0 `match_call_rejected` and 0 `match_contract_error`, and both no-lead-stop alarms stayed OK.
+- **The Tempo token rotation, step 7** (ASR, 09:24–09:29Z). It was an env-only apply: intake `live` 88 → 89 on the same image, and office-floor `$LATEST` LastModified **09:25:47Z**. By ASR's digest diff, only `OTEL_EXPORTER_OTLP_HEADERS` changed. The **09:27Z and 10:27Z runs were clean**: both `s1.5`, control pass, `records_scanned` 10,924 and 10,929, 34 offices, 0 error lines. **5 of 5** S-1 alarms were enumerated by name, all OK, all on `autom8y-platform-alerts`. *Authority (as reported by ASR, not verified by this seat):* the operator's word *"Go, as planned"* at 2026-09-30T01:16:25Z in ASR's room (ledger tag WORD-TEMPO-ROTATION), covering that rotation packet's steps 0–9. This seat raised the D13 floor question ("executing any rotation stays the operator's") before the revoke. ASR answered it with that citation.
+- **The first intake pipeline on v90**, at 11:39:43Z: ran end to end, 0 runtime-error lines. It was a `FieldExtractionError` (`appt_year_rollover_suspect`), parked for review by the existing guard, a routine class (258 `FieldExtractionError` in the 7 days before). The bundle does not touch extraction.
+
+**Tooling fix in this PR.** `soak_row.py` redacted every run of 12 digits, and that corrupts hex digests: `fac5641c…` itself contains a 14-digit run. The pattern is now anchored on non-hex neighbours, so ARNs and hosts still redact while digests survive. A UUID whose last group is all digits (about 0.4% of them) still redacts. That is the safe direction, and it is accepted.
+
 ### 3c · The deadman criterion passed VACUOUSLY on an empty set — APPLIED, because it can only tighten
 
 §3 requires *"both deadman alarms OK with actions = scratch only"*. That is an **all-quantifier with no

@@ -30,7 +30,10 @@ ALARMS = [
 
 
 def emit(*p):
-    sys.stdout.write(re.sub(r"\d{12}", "<ACCOUNT>", " ".join(str(x) for x in p)) + "\n")
+    sys.stdout.write(
+        re.sub(r"(?<![0-9a-fA-F])\d{12}(?![0-9a-fA-F])", "<ACCOUNT>", " ".join(str(x) for x in p))
+        + "\n"
+    )
     sys.stdout.flush()
 
 

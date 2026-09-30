@@ -69,3 +69,12 @@ Proofs 1 and 2 are the builder's; all the live proofs are this seat's, as for S1
 - **Window A** = [09-04, 09-12), the runbook's true-stall window: **both TRUE STALLS (`87bd31d7`, `6b93fb76`) STAY ZERO**, and 11 of 12 ZERO offices stay. The only exit is `40f86e73`, on one refusal (a dormant account). **The pager still fires on a genuine stall.**
 
 **Merge timing:** after the 09-30 11:27:17Z digest, so today stays on s1.5 and the first s1.6 digest is 10-01.
+
+**Served (2026-09-30).** autom8y #2694 merged as `3bf4bbf3` at 11:27:51Z, from match-head `3133b44c`. That head is blob-identical to the critic-passed `bad75beb`, and both digests were recomputed at it. Office-floor `$LATEST` has served image `3bf4bbf` since 11:35:40Z. **The first `s1.6` run line, at 12:27:18.588Z, is the serving instant**: control pass, and `pinned_query_sha` equals `fac5641c…`. The epoch record is SOAK §3n.
+
+**Known limit, accepted at the critic's PASS.** Offices are grouped by the raw `office_guid` string, not by a canonical form.
+- **What would break:** two spellings of one office (case, or a full GUID against a redacted one) would split it into two thinner rows. That means a possible false ZERO on one half, or a missed floor.
+- **Why it cannot happen today:** `redact_uuid` is the only producer of `office_guid` on the lines the query reads.
+- **What would re-open it:** a second writer, or a change to `redact_uuid`'s format.
+- **The tell:** one guid8 on two office lines in the same run.
+
