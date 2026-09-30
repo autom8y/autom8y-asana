@@ -46,3 +46,26 @@ Proofs 1 and 2 are the builder's; all the live proofs are this seat's, as for S1
    - (e) the floor-class changes are listed office by office, with a cause for each.
 4. **Rite-disjoint critic** (the EBI critic session), graded against the live plane.
 5. **Lever-holder (ASR)** merges and deploys, with the S-1 pre-act notice. **The serving instant is the first `s1.6` run line.** At it, the epoch closes and opens.
+
+## AMENDMENT 2026-09-30: the build, the defects the live legs caught, and the final shape
+
+**Build:** autom8y #2694, draft. Evaluator s1.6.
+
+**Defects caught before merge, each by a LIVE leg, not by the unit tests:**
+1. **The null trap (draft `a0bcece1`).** In Insights, `ispresent(x) and x = "…"` evaluates to NULL, not false, when `x` is absent, so lines with no `intake_class` or `office_handle` silently left the arrivals and the residual. **Fixed:** nested `if(ispresent(x), if(…, 1, 0), 0)` flags, and a test interpreter that now propagates NULL through `and`.
+2. **Evidence without arrival (critic Condition 1, at `e9a9110c`).** Ruled B4 (§13 addendum). **Fixed at `b7115ebc`:** `unknown_loud` stop parks are subtracted from parked evidence.
+3. **Name-split double count (window A).** Grouping by `(office_guid, office_nm)` counted a delivery twice when its lines carried different office-name forms: +1 at 2 offices across 09-04..09-12, and 0 in the last 14 days. **Fix in flight:** group by `office_guid` only.
+
+**The legs, run on windows that exercise the change** (not only on the outage-thinned last 3 days):
+- **W1** = [T0, 09-26T10:36:30Z):
+  - written identical;
+  - parked = old − independent `unknown_loud` parks (21);
+  - arrivals match (306 → 165);
+  - refused exact; residual 14 = 14;
+  - 0 floor-class changes.
+- **W2** = [09-20, 09-23), before the flip:
+  - arrivals 973 → 384 (−357 multi-line, −232 `unknown_loud`); refused 177, exact;
+  - **the 4 old ZERO offices all exit to quiet**, and all 4 were already judged non-actionable in the arming receipt's third-plane resolution (dormant or unprovisioned). Two exit on duplicate or `unknown_loud` arrivals, two on refusal evidence.
+- **Window A** = [09-04, 09-12), the runbook's true-stall window: **both TRUE STALLS (`87bd31d7`, `6b93fb76`) STAY ZERO**, and 11 of 12 ZERO offices stay. The only exit is `40f86e73`, on one refusal (a dormant account). **The pager still fires on a genuine stall.**
+
+**Merge timing:** after the 09-30 11:27:17Z digest, so today stays on s1.5 and the first s1.6 digest is 10-01.
