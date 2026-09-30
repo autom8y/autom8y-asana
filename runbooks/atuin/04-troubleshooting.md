@@ -44,7 +44,7 @@ if grep -q "^ASANA_PAT=" "$ENV_FILE"; then
         echo ""
         echo "FIX: Edit $ENV_FILE and add your PAT"
     else
-        echo "ASANA_PAT is set: ****${ASANA_PAT: -4}"
+        echo "ASANA_PAT: set"
     fi
 else
     echo "ERROR: ASANA_PAT not found in file"
@@ -122,7 +122,7 @@ if [ -z "${ASANA_PAT:-}" ]; then
     exit 1
 fi
 
-echo "Testing PAT: ****${ASANA_PAT: -4}"
+echo "Testing PAT (ASANA_PAT: set)"
 echo ""
 
 RESPONSE=$(curl -s -w "\n%{http_code}" \

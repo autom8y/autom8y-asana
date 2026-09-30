@@ -50,7 +50,7 @@ if [ -z "${ASANA_PAT:-}" ]; then
 fi
 
 echo "PAT validated:"
-echo "  ASANA_PAT: ****${ASANA_PAT: -4}"
+echo "  ASANA_PAT: set"
 echo "  ENV_FILE: $ENV_FILE"
 ```
 
@@ -113,7 +113,7 @@ if [ -z "${ASANA_PAT:-}" ]; then
     echo "FAIL: ASANA_PAT not set"
     exit 1
 fi
-echo "1. PAT configured: ****${ASANA_PAT: -4}"
+echo "1. PAT configured (ASANA_PAT: set)"
 
 # Step 2: Call API
 echo "2. Testing API call..."
