@@ -1,11 +1,13 @@
 """PT-CI-03 A104.1: the data-service push seam prefers the fleet service account.
 
-``services/gid_push._get_auth_token`` is the credential seam behind every
-data-service push: status (``push_status_to_data_service``), gid
+``services/gid_push._get_auth_token`` is the credential seam behind the gid
 (``push_gid_mappings_to_data_service``), vocab
 (``push_vocabulary_to_data_service``) and stratum
-(``scheduling_stratum_push.push_stratum_snapshot``). The ruled behaviour, each
-case proven two-sided:
+(``scheduling_stratum_push.push_stratum_snapshot``) pushes. The status push
+(``push_status_to_data_service``) left this seam under A109 (W23, form (beta)): it
+mints with its own account from ``STATUS_PUSH_CLIENT_*`` (``TestStatusSeam``
+below; the planted REDs are in ``test_status_push_dedicated_account.py``). The
+ruled behaviour of the general seam, each case proven two-sided:
 
 * SA credentials present -> the service-account token is used and the legacy
   ``AUTOM8Y_DATA_API_KEY`` is NOT read.
@@ -47,6 +49,9 @@ _SEAM_ENV = (
     "SERVICE_CLIENT_ID",
     "SERVICE_CLIENT_SECRET",
     "SERVICE_CLIENT_SECRET_ARN",
+    "STATUS_PUSH_CLIENT_ID",
+    "STATUS_PUSH_CLIENT_SECRET",
+    "STATUS_PUSH_CLIENT_SECRET_ARN",
     "AUTOM8Y_DATA_API_KEY",
     "AUTOM8Y_DATA_API_KEY_ARN",
     "AUTOM8Y_DATA_URL",
@@ -68,8 +73,10 @@ def _hermetic_seam(monkeypatch: pytest.MonkeyPatch) -> Any:
     for name in _SEAM_ENV:
         monkeypatch.delenv(name, raising=False)
     gid_push._reset_service_token_provider()
+    gid_push._reset_status_push_token_provider()
     yield
     gid_push._reset_service_token_provider()
+    gid_push._reset_status_push_token_provider()
 
 
 class _ProviderRecorder:
@@ -123,6 +130,11 @@ def _set_sa(monkeypatch: pytest.MonkeyPatch, *, arn_form: bool = False) -> None:
     monkeypatch.setenv(
         "SERVICE_CLIENT_SECRET_ARN" if arn_form else "SERVICE_CLIENT_SECRET", "test-only-value"
     )
+
+
+def _set_status_push_sa(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("STATUS_PUSH_CLIENT_ID", "sa_statuspushtestonly")
+    monkeypatch.setenv("STATUS_PUSH_CLIENT_SECRET", "status-push-test-only-value")
 
 
 def _set_legacy(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -463,7 +475,12 @@ class TestRealTokenManager:
 
 
 class TestStatusSeam:
-    async def test_sa_bearer_reaches_the_sync_post(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A109: the status push mints from STATUS_PUSH_CLIENT_* only (W23 form (beta))."""
+
+    async def test_status_push_bearer_reaches_the_sync_post(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _set_status_push_sa(monkeypatch)
         _set_sa(monkeypatch)
         _set_legacy(monkeypatch)
         monkeypatch.setenv("STATUS_PUSH_ENABLED", "true")
@@ -479,22 +496,40 @@ class TestStatusSeam:
         assert _bearer_sent(raw) == f"Bearer {_SA_BEARER}"
         assert raw.post.call_args.args[0] == f"{_DATA_URL}/api/v1/account-status/sync"
 
-    async def test_legacy_bearer_when_sa_absent(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def test_no_status_push_account_is_a_named_failure_not_legacy(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The cure's "SA absent -> legacy" rule no longer applies to the status push."""
+        _set_sa(monkeypatch)
         _set_legacy(monkeypatch)
         monkeypatch.setenv("STATUS_PUSH_ENABLED", "true")
-        monkeypatch.setattr(gid_push, "emit_metric", MagicMock())
+        recorder = _install_provider(monkeypatch)
+        emit = MagicMock()
+        monkeypatch.setattr(gid_push, "emit_metric", emit)
+        log = _mock_logger(monkeypatch)
         raw = _wire_http(monkeypatch, body={"deleted": 0, "inserted": 1})
 
         ok = await gid_push.push_status_to_data_service(
             [_status_entry()], "2026-09-30T00:00:00+00:00", data_service_url=_DATA_URL
         )
 
-        assert ok is True
-        assert _bearer_sent(raw) == f"Bearer {_LEGACY_BEARER}"
+        assert ok is False
+        raw.post.assert_not_called()
+        assert recorder.constructed == 0
+        failed = next(
+            c
+            for c in log.error.call_args_list
+            if c.args[0] == "status_push_service_token_mint_failed"
+        )
+        assert failed.kwargs["extra"]["reason"] == gid_push.MINT_REASON_CREDENTIALS_ABSENT
+        assert failed.kwargs["extra"]["credential_lane"] == "status_push"
+        assert failed.kwargs["extra"]["fallback"] == "none"
+        assert not [c for c in emit.call_args_list if c.args[0] == "StatusPushSkipped"]
 
     async def test_mint_failure_is_a_named_failure_not_a_skip(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        _set_status_push_sa(monkeypatch)
         _set_sa(monkeypatch)
         _set_legacy(monkeypatch)
         monkeypatch.setenv("STATUS_PUSH_ENABLED", "true")
@@ -527,7 +562,7 @@ class TestStatusSeam:
     ) -> None:
         from autom8_asana.lambda_handlers import push_orchestrator
 
-        _set_sa(monkeypatch)
+        _set_status_push_sa(monkeypatch)
         _set_legacy(monkeypatch)
         monkeypatch.setenv("STATUS_PUSH_ENABLED", "true")
         monkeypatch.setenv("AUTOM8Y_DATA_URL", _DATA_URL)
@@ -558,12 +593,12 @@ class TestStatusSeam:
         assert len(complete) == 1
         assert complete[0].kwargs["extra"]["success"] is False
 
-    async def test_orchestrator_records_success_on_sa_path(
+    async def test_orchestrator_records_success_on_the_status_push_account(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         from autom8_asana.lambda_handlers import push_orchestrator
 
-        _set_sa(monkeypatch)
+        _set_status_push_sa(monkeypatch)
         monkeypatch.setenv("STATUS_PUSH_ENABLED", "true")
         monkeypatch.setenv("AUTOM8Y_DATA_URL", _DATA_URL)
         _install_provider(monkeypatch)

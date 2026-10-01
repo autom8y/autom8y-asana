@@ -214,7 +214,7 @@ class TestPushStatusSanitizeIntegration:
         }
         with (
             patch.dict(os.environ, env),
-            patch(f"{_GID_PUSH_MODULE}._get_auth_token", return_value="test-token"),
+            patch(f"{_GID_PUSH_MODULE}._get_status_push_token", return_value="test-token"),
             patch(f"{_GID_PUSH_MODULE}.emit_metric"),
             patch(
                 f"{_GID_PUSH_MODULE}._push_to_data_service",
@@ -242,7 +242,7 @@ class TestPushStatusSanitizeIntegration:
         }
         with (
             patch.dict(os.environ, env),
-            patch(f"{_GID_PUSH_MODULE}._get_auth_token", return_value="test-token"),
+            patch(f"{_GID_PUSH_MODULE}._get_status_push_token", return_value="test-token"),
             patch(f"{_GID_PUSH_MODULE}.emit_metric"),
             patch(f"{_GID_PUSH_MODULE}.logger") as mock_logger,
             patch(

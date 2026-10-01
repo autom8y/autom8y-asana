@@ -23,6 +23,9 @@ Contract (N1 §B-1):
   dimension    = skip_reason in
                  {feature_disabled, url_absent, invalid_key,
                   three_way_denominator_null}
+                 invalid_key is RETIRED (PT-CI-03 A109): the status push now mints
+                 with its own account, so missing credentials are a named mint
+                 failure, not a skip. The value stays reserved; nothing emits it.
 """
 
 from __future__ import annotations
@@ -158,23 +161,28 @@ class TestUrlAbsentSkip:
 
 
 class TestInvalidKeySkip:
-    """skip_reason = invalid_key (AUTOM8Y_DATA_API_KEY not available)."""
+    """skip_reason = invalid_key is RETIRED from the status push (PT-CI-03 A109).
 
-    async def test_positive_emits_skip(self) -> None:
+    The status push mints with its own service account (STATUS_PUSH_CLIENT_*).
+    Missing credentials are a named mint FAILURE
+    (status_push_service_token_mint_failed, reason=credentials_absent), never a
+    StatusPushSkipped{invalid_key} skip and never a fallback to the legacy key.
+    """
+
+    async def test_positive_credentials_absent_is_a_failure_not_a_skip(self) -> None:
         with (
             patch.dict(
                 "os.environ",
                 {
                     STATUS_PUSH_ENABLED_ENV_VAR: "true",
                     "AUTOM8Y_DATA_URL": "http://localhost:8000",
+                    # The legacy key is present and must NOT be used.
+                    "AUTOM8Y_DATA_API_KEY": "legacy-test-only",
                 },
                 clear=True,
             ),
             patch("autom8_asana.services.gid_push.emit_metric") as emit,
-            patch(
-                "autom8_asana.services.gid_push._get_auth_token",
-                return_value=None,
-            ),
+            patch("autom8_asana.services.gid_push.logger") as log,
         ):
             result = await push_status_to_data_service(
                 entries=[{"phone": "+15551234567"}],
@@ -182,7 +190,14 @@ class TestInvalidKeySkip:
             )
 
         assert result is False
-        _assert_skip_contract(emit, "invalid_key")
+        assert _skip_calls(emit) == []
+        failed = [
+            c
+            for c in log.error.call_args_list
+            if c.args[0] == "status_push_service_token_mint_failed"
+        ]
+        assert len(failed) == 1
+        assert failed[0].kwargs["extra"]["reason"] == "credentials_absent"
 
     async def test_negative_does_not_emit_on_happy_path(self) -> None:
         """No-defect variant: token present -> no invalid_key skip."""

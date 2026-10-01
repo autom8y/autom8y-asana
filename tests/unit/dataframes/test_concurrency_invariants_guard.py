@@ -191,11 +191,16 @@ _SANCTIONED_IO_TO_THREAD: dict[str, str] = {
     # the legacy key. No polars, no concat, so NOT a CPU merge. It runs at most once
     # per push. On ECS it keeps a cold mint off the API event loop
     # (gid_push.py:381; test_push_seam_service_account.py
-    # ::test_resolve_runs_off_the_event_loop_thread).
+    # ::test_resolve_runs_off_the_event_loop_thread). PT-CI-03 A109 adds the
+    # status push's own lane in the same module: _resolve_status_push_token
+    # offloads the sync _get_status_push_token, the same class of blocking token
+    # exchange (test_status_push_dedicated_account.py
+    # ::test_status_resolution_runs_off_the_event_loop).
     "autom8_asana/services/gid_push.py": (
         "data-push S2S credential resolution — sync token exchange / secrets-"
-        "extension HTTP wrapped for the async push seams; blocking network I/O "
-        "offload, NOT a CPU merge; once per push"
+        "extension HTTP wrapped for the async push seams (general seam + the "
+        "status push's own account); blocking network I/O offload, NOT a CPU "
+        "merge; once per push"
     ),
 }
 

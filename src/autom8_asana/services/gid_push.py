@@ -50,6 +50,10 @@ _BRIDGE_FLEET_NAMESPACE = "Autom8y/AsanaBridgeFleet"
 # counter MUST NOT change push behavior (return values are unchanged).
 SKIP_REASON_FEATURE_DISABLED = "feature_disabled"
 SKIP_REASON_URL_ABSENT = "url_absent"
+# invalid_key is RETIRED from the status push (PT-CI-03 A109): the push now mints
+# with its own service account, so missing credentials are a named mint FAILURE
+# (status_push_service_token_mint_failed, reason=credentials_absent), never a skip.
+# The value stays reserved in the closed enum; nothing emits it today.
 SKIP_REASON_INVALID_KEY = "invalid_key"
 SKIP_REASON_THREE_WAY_DENOMINATOR_NULL = "three_way_denominator_null"
 
@@ -167,9 +171,10 @@ def _get_data_service_url() -> str | None:
 # S2S credential seam (PT-CI-03 A104.1)
 # ============================================================================
 #
-# Every data-service push in this module (gid, status, vocab) and the
-# scheduling-stratum push resolve their bearer token here when the caller does
-# not pass one. Selection, in order:
+# The gid and vocab pushes in this module and the scheduling-stratum push resolve
+# their bearer token here when the caller does not pass one. The account-status
+# push does NOT: it has its own account and env names (the "Status-push
+# credential" block below, PT-CI-03 A109). Selection, in order:
 #
 #   1. Service account. BOTH ``SERVICE_CLIENT_ID`` and ``SERVICE_CLIENT_SECRET``
 #      (or the Lambda ``SERVICE_CLIENT_SECRET_ARN`` form) are set -> mint a JWT
@@ -396,6 +401,160 @@ def _log_service_token_mint_failed(
             "fallback": "none",
         },
     )
+
+
+# ============================================================================
+# Status-push credential (PT-CI-03 A109; operator word W23, form (beta))
+# ============================================================================
+#
+# The account-status push is the ONE push that writes a fleet-wide snapshot, so it
+# mints with its OWN service account (auth registry id ``asana-status-push``: not
+# business-scoped, ``data:write`` only), read from its own env names:
+#
+#   1. BOTH ``STATUS_PUSH_CLIENT_ID`` and ``STATUS_PUSH_CLIENT_SECRET`` (or the
+#      Lambda ``STATUS_PUSH_CLIENT_SECRET_ARN`` form) are set -> mint with a
+#      ServiceTokenAuthProvider built from exactly those two values.
+#   2. Anything else -> ServiceTokenMintError. There is NO fallback:
+#        * one name of the pair set           -> ``partial_credentials``;
+#        * neither name set                   -> ``credentials_absent``;
+#        * the secret resolves to nothing     -> ``provider_init_failed``.
+#
+# It never reads the general seam's ``SERVICE_CLIENT_*`` pair (``asana-service``,
+# which stays business-scoped) nor the legacy ``AUTOM8Y_DATA_API_KEY``. Those
+# belong to the gid, vocab and stratum pushes, which keep :func:`_get_auth_token`
+# unchanged; none of them reads the ``STATUS_PUSH_*`` names.
+#
+# Why "neither set" is a failure and not the general seam's legacy fallback: the
+# status push has exactly one designed credential. Pushing with any other one would
+# hide a missing wiring (A104.1: no silent fallback). On ECS the task definition
+# carries both names (terraform/services/asana); a runtime without them reports
+# ``status_push_service_token_mint_failed`` with ``reason=credentials_absent``,
+# which names the gap, instead of a skip blamed on the legacy key.
+#
+# The explicit-argument build matters: ServiceTokenAuthProvider substitutes
+# ``SERVICE_CLIENT_ID`` / ``SERVICE_CLIENT_SECRET`` for an EMPTY argument, so the
+# status push only ever constructs it with two non-empty values.
+
+#: The status push's service-account client id (``sa_*``); presence-checked by name.
+STATUS_PUSH_CLIENT_ID_ENV_VAR = "STATUS_PUSH_CLIENT_ID"
+#: The status push's service-account secret. ECS injects the bare name; a Lambda
+#: delivery would inject ``<name>_ARN``.
+STATUS_PUSH_CLIENT_CREDENTIAL_ENV_VAR = "STATUS_PUSH_CLIENT_SECRET"
+#: ServiceTokenMintError reason: neither status-push name is set.
+MINT_REASON_CREDENTIALS_ABSENT = "credentials_absent"
+#: ``credential_lane`` on the status push's selection and mint-failure lines.
+STATUS_PUSH_CREDENTIAL_LANE = "status_push"
+
+_STATUS_PUSH_LOOKUP_KEY = "autom8y-data-status-push"
+
+_status_push_provider: ServiceTokenAuthProvider | None = None
+_status_push_provider_client_id: str | None = None
+_status_push_provider_lock = threading.Lock()
+
+
+def _status_push_presence() -> tuple[bool, bool]:
+    """Return ``(client_id_set, client_secret_set)`` for the status push, by NAME only."""
+    return (
+        _env_set(STATUS_PUSH_CLIENT_ID_ENV_VAR),
+        _env_set(STATUS_PUSH_CLIENT_CREDENTIAL_ENV_VAR)
+        or _env_set(f"{STATUS_PUSH_CLIENT_CREDENTIAL_ENV_VAR}_ARN"),
+    )
+
+
+def _build_status_push_provider() -> ServiceTokenAuthProvider:
+    """Build the provider from the two status-push values, never from defaults.
+
+    Raises ValueError when either value resolves empty, so the provider's own
+    ``SERVICE_CLIENT_*`` defaults are unreachable from this lane.
+    """
+    from autom8_asana.auth.service_token import ServiceTokenAuthProvider
+
+    client_id = os.environ.get(STATUS_PUSH_CLIENT_ID_ENV_VAR, "").strip()
+    client_secret = resolve_secret_from_env(STATUS_PUSH_CLIENT_CREDENTIAL_ENV_VAR)
+    if not client_id or not client_secret:
+        raise ValueError("status-push service-account credentials resolved empty")
+    return ServiceTokenAuthProvider(client_id=client_id, client_secret=client_secret)
+
+
+def _get_status_push_provider() -> ServiceTokenAuthProvider:
+    """Return the status push's process-wide provider, building it on first use.
+
+    Separate from the general seam's provider: the two hold different accounts.
+    Thread-safe; a failed build is not cached.
+    """
+    global _status_push_provider, _status_push_provider_client_id
+    client_id = os.environ.get(STATUS_PUSH_CLIENT_ID_ENV_VAR, "")
+    with _status_push_provider_lock:
+        if _status_push_provider is not None and _status_push_provider_client_id == client_id:
+            return _status_push_provider
+        provider = _build_status_push_provider()
+        previous = _status_push_provider
+        _status_push_provider = provider
+        _status_push_provider_client_id = client_id
+    if previous is not None:
+        try:
+            previous.close()
+        except Exception:  # noqa: BLE001 -- releasing an old HTTP client must never fail a push
+            logger.debug("status_push_service_token_provider_close_failed")
+    return provider
+
+
+def _reset_status_push_token_provider() -> None:
+    """Drop the status push's cached provider. For tests and an explicit swap."""
+    global _status_push_provider, _status_push_provider_client_id
+    with _status_push_provider_lock:
+        previous = _status_push_provider
+        _status_push_provider = None
+        _status_push_provider_client_id = None
+    if previous is not None:
+        try:
+            previous.close()
+        except Exception:  # noqa: BLE001 -- best-effort release
+            logger.debug("status_push_service_token_provider_close_failed")
+
+
+def _get_status_push_token() -> str:
+    """Mint (or reuse) the status push's JWT. Raises ServiceTokenMintError.
+
+    Synchronous; async callers use :func:`_resolve_status_push_token`. Never
+    returns an empty value and never falls back to another credential.
+    """
+    client_id_set, client_secret_set = _status_push_presence()
+    if not (client_id_set or client_secret_set):
+        raise ServiceTokenMintError(MINT_REASON_CREDENTIALS_ABSENT)
+    if not (client_id_set and client_secret_set):
+        raise ServiceTokenMintError(MINT_REASON_PARTIAL_CREDENTIALS)
+    # Broad on purpose: ANY failure to build or to exchange is a mint failure.
+    try:
+        provider = _get_status_push_provider()
+    except Exception as exc:
+        raise ServiceTokenMintError(
+            MINT_REASON_PROVIDER_INIT_FAILED, error_type=type(exc).__name__
+        ) from exc
+    try:
+        token = provider.get_secret(_STATUS_PUSH_LOOKUP_KEY)
+    except Exception as exc:
+        status = getattr(exc, "status_code", None)
+        raise ServiceTokenMintError(
+            MINT_REASON_EXCHANGE_FAILED,
+            error_type=type(exc).__name__,
+            status_code=status if isinstance(status, int) else None,
+        ) from exc
+    if not token:
+        raise ServiceTokenMintError(MINT_REASON_EMPTY_BEARER)
+    logger.info(
+        "data_push_credential_selected",
+        extra={
+            "credential_source": CREDENTIAL_SOURCE_SERVICE_ACCOUNT,
+            "credential_lane": STATUS_PUSH_CREDENTIAL_LANE,
+        },
+    )
+    return token
+
+
+async def _resolve_status_push_token() -> str:
+    """Async form of :func:`_get_status_push_token`, run off the event loop."""
+    return await asyncio.to_thread(_get_status_push_token)
 
 
 async def _push_to_data_service(
@@ -930,7 +1089,9 @@ async def push_status_to_data_service(
         entries: List of status entry dicts.
         source_timestamp: ISO timestamp of snapshot generation.
         data_service_url: Override for the autom8_data base URL.
-        auth_token: Override for the S2S JWT bearer token.
+        auth_token: Override for the S2S JWT bearer token. Defaults to the status
+            push's OWN service account (:func:`_get_status_push_token`,
+            ``STATUS_PUSH_CLIENT_*``); no production caller passes one.
 
     Returns:
         True if the push succeeded (HTTP 2xx), False otherwise.
@@ -953,19 +1114,21 @@ async def push_status_to_data_service(
         return False
 
     try:
-        token = auth_token or await _resolve_auth_token()
+        # A109 / W23 (beta): the status push mints ONLY with its own account
+        # (STATUS_PUSH_CLIENT_*), never the general seam's asana-service pair or
+        # the legacy key. _resolve_status_push_token returns a non-empty bearer or
+        # raises, so there is no "no token" skip on this path.
+        token = auth_token or await _resolve_status_push_token()
     except ServiceTokenMintError as exc:
-        # A104.1: a configured service account that cannot mint is a FAILURE,
-        # not a skip -- no legacy fallback, no StatusPushSkipped. The caller
-        # (push_orchestrator) records StatusPushFailure and success:false.
-        _log_service_token_mint_failed("status_push", exc, entry_count=str(len(entries)))
-        return False
-    if not token:
-        logger.warning(
-            "status_push_skipped",
-            extra={"reason": "AUTOM8Y_DATA_API_KEY not available"},
+        # A104.1: a credential that cannot mint is a FAILURE, not a skip -- no
+        # fallback, no StatusPushSkipped. The caller (push_orchestrator) records
+        # StatusPushFailure and success:false.
+        _log_service_token_mint_failed(
+            "status_push",
+            exc,
+            entry_count=str(len(entries)),
+            credential_lane=STATUS_PUSH_CREDENTIAL_LANE,
         )
-        _emit_status_push_skipped(SKIP_REASON_INVALID_KEY)
         return False
 
     # Per-row guards (sprint-C6): drop E.164-invalid phones + intra-snapshot
