@@ -9,7 +9,9 @@ The push is best-effort: failure does NOT fail the cache warmer.
 
 from __future__ import annotations
 
+import asyncio
 import os
+import threading
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -29,6 +31,7 @@ from autom8_asana.lambda_handlers.cloudwatch import emit_metric
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from autom8_asana.auth.service_token import ServiceTokenAuthProvider
     from autom8_asana.models.custom_field import CustomFieldEnumOption
     from autom8_asana.services.gid_lookup import GidLookupIndex
 
@@ -160,20 +163,239 @@ def _get_data_service_url() -> str | None:
     return os.environ.get("AUTOM8Y_DATA_URL")
 
 
-def _get_auth_token() -> str | None:
-    """Resolve the S2S JWT token for autom8_data.
+# ============================================================================
+# S2S credential seam (PT-CI-03 A104.1)
+# ============================================================================
+#
+# Every data-service push in this module (gid, status, vocab) and the
+# scheduling-stratum push resolve their bearer token here when the caller does
+# not pass one. Selection, in order:
+#
+#   1. Service account. BOTH ``SERVICE_CLIENT_ID`` and ``SERVICE_CLIENT_SECRET``
+#      (or the Lambda ``SERVICE_CLIENT_SECRET_ARN`` form) are set -> mint a JWT
+#      with ServiceTokenAuthProvider (client credentials). The legacy key is NOT
+#      read on this path.
+#   2. Legacy static key. NEITHER service-account variable is set -> the
+#      ``AUTOM8Y_DATA_API_KEY`` value, as before this seam existed.
+#
+# A configured service account that cannot produce a token raises
+# ServiceTokenMintError. That covers a half-configured pair, a provider that
+# cannot be built, a failed exchange and an empty token. The error is NEVER
+# turned into the legacy key or "no token": the caller logs a named failure and
+# reports success=False. Pushing with a different credential than the one the
+# runtime is configured with would hide a broken credential path.
+#
+# Token lifetime: one ServiceTokenAuthProvider is kept per process, so its
+# TokenManager cache is reused across pushes. It refreshes 30 s (plus 0-10 s of
+# jitter) before ``exp``, so a push never mints per call while the token is
+# fresh. The provider is rebuilt only if SERVICE_CLIENT_ID changes. Secret
+# rotation therefore takes effect at the next process start, which is when ECS
+# and Lambda re-read injected secrets anyway.
 
-    Uses the same ``AUTOM8Y_DATA_API_KEY`` environment variable that
-    ``DataServiceClient`` uses, resolved through the Lambda extension
-    helper (supports SSM/Secrets Manager ARN references).
+#: Service-account client id (``sa_*`` or ``client_*``); presence-checked by name.
+SERVICE_CLIENT_ID_ENV_VAR = "SERVICE_CLIENT_ID"
+#: Service-account secret. ECS injects the bare name; the scheduled-lambda module
+#: injects ``<name>_ARN`` (resolved lazily by ServiceTokenAuthProvider).
+SERVICE_CLIENT_CREDENTIAL_ENV_VAR = "SERVICE_CLIENT_SECRET"
+#: Legacy static bearer. Read ONLY when no service-account variable is set.
+LEGACY_DATA_API_KEY_ENV_VAR = "AUTOM8Y_DATA_API_KEY"
+
+#: Closed set of ServiceTokenMintError reasons.
+MINT_REASON_PARTIAL_CREDENTIALS = "partial_credentials"
+MINT_REASON_PROVIDER_INIT_FAILED = "provider_init_failed"
+MINT_REASON_EXCHANGE_FAILED = "exchange_failed"
+MINT_REASON_EMPTY_BEARER = "empty_bearer"
+
+#: ``credential_source`` values on the ``data_push_credential_selected`` line.
+CREDENTIAL_SOURCE_SERVICE_ACCOUNT = "service_account"
+CREDENTIAL_SOURCE_LEGACY_KEY = "legacy_key"
+CREDENTIAL_SOURCE_NONE = "none"
+
+#: ServiceTokenAuthProvider.get_secret ignores its key; this names the caller.
+_PROVIDER_LOOKUP_KEY = "autom8y-data-push"
+
+
+class ServiceTokenMintError(Exception):
+    """The service account is configured but produced no token.
+
+    Raised by :func:`_get_auth_token`. Push callers turn it into a named
+    ``<push>_service_token_mint_failed`` ERROR line and a ``False`` result.
+    They never fall back to the legacy key. The message is built from fixed
+    reason codes and exception TYPE names only, so it never carries a secret.
+
+    Attributes:
+        reason: One of the ``MINT_REASON_*`` constants.
+        error_type: Class name of the underlying exception, if any.
+        status_code: HTTP status of a refused exchange, when the SDK reports one
+            (for example 400 for an auth-service ``AUTH-TEB-004``).
+    """
+
+    def __init__(
+        self,
+        reason: str,
+        *,
+        error_type: str | None = None,
+        status_code: int | None = None,
+    ) -> None:
+        self.reason = reason
+        self.error_type = error_type
+        self.status_code = status_code
+        super().__init__(f"service-account token mint failed: {reason}")
+
+
+_service_token_provider: ServiceTokenAuthProvider | None = None
+_service_token_provider_client_id: str | None = None
+_service_token_provider_lock = threading.Lock()
+
+
+def _env_set(name: str) -> bool:
+    """True when *name* is set to a non-blank value. Reads presence only."""
+    return bool(os.environ.get(name, "").strip())
+
+
+def _service_account_presence() -> tuple[bool, bool]:
+    """Return ``(client_id_set, client_secret_set)`` from env NAMES only.
+
+    The secret is never resolved here; ServiceTokenAuthProvider resolves it.
+    The ``_ARN`` form counts as set, because that is how the scheduled-lambda
+    module delivers it.
+    """
+    return (
+        _env_set(SERVICE_CLIENT_ID_ENV_VAR),
+        _env_set(SERVICE_CLIENT_CREDENTIAL_ENV_VAR)
+        or _env_set(f"{SERVICE_CLIENT_CREDENTIAL_ENV_VAR}_ARN"),
+    )
+
+
+def _get_service_token_provider() -> ServiceTokenAuthProvider:
+    """Return the process-wide provider, building it on first use.
+
+    Thread-safe (pushes resolve tokens in a worker thread). A failed build is
+    not cached, so the next push retries it.
+    """
+    global _service_token_provider, _service_token_provider_client_id
+    client_id = os.environ.get(SERVICE_CLIENT_ID_ENV_VAR, "")
+    with _service_token_provider_lock:
+        if _service_token_provider is not None and _service_token_provider_client_id == client_id:
+            return _service_token_provider
+        from autom8_asana.auth.service_token import ServiceTokenAuthProvider
+
+        provider = ServiceTokenAuthProvider()
+        previous = _service_token_provider
+        _service_token_provider = provider
+        _service_token_provider_client_id = client_id
+    if previous is not None:
+        try:
+            previous.close()
+        except Exception:  # noqa: BLE001 -- releasing an old HTTP client must never fail a push
+            logger.debug("data_push_service_token_provider_close_failed")
+    return provider
+
+
+def _reset_service_token_provider() -> None:
+    """Drop the cached provider. For tests and for an explicit credential swap."""
+    global _service_token_provider, _service_token_provider_client_id
+    with _service_token_provider_lock:
+        previous = _service_token_provider
+        _service_token_provider = None
+        _service_token_provider_client_id = None
+    if previous is not None:
+        try:
+            previous.close()
+        except Exception:  # noqa: BLE001 -- best-effort release
+            logger.debug("data_push_service_token_provider_close_failed")
+
+
+def _mint_service_token() -> str:
+    """Mint (or reuse) the service-account JWT. Raises ServiceTokenMintError."""
+    # Broad on purpose: ANY failure to build the provider or to exchange is a
+    # mint failure, re-raised as the named error -- never the legacy key.
+    try:
+        provider = _get_service_token_provider()
+    except Exception as exc:
+        raise ServiceTokenMintError(
+            MINT_REASON_PROVIDER_INIT_FAILED, error_type=type(exc).__name__
+        ) from exc
+    try:
+        token = provider.get_secret(_PROVIDER_LOOKUP_KEY)
+    except Exception as exc:
+        status = getattr(exc, "status_code", None)
+        raise ServiceTokenMintError(
+            MINT_REASON_EXCHANGE_FAILED,
+            error_type=type(exc).__name__,
+            status_code=status if isinstance(status, int) else None,
+        ) from exc
+    if not token:
+        raise ServiceTokenMintError(MINT_REASON_EMPTY_BEARER)
+    return token
+
+
+def _get_auth_token() -> str | None:
+    """Resolve the S2S bearer for autom8_data (see the seam notes above).
+
+    Synchronous: the service-account exchange is a blocking HTTP call. Async
+    callers use :func:`_resolve_auth_token`, which runs this in a worker thread.
 
     Returns:
-        Bearer token string, or None if not available.
+        The service-account JWT when the service account is configured;
+        otherwise the legacy ``AUTOM8Y_DATA_API_KEY`` value, or ``None`` when
+        that is absent too.
+
+    Raises:
+        ServiceTokenMintError: The service account is configured (fully or
+            partly) but produced no token. There is no legacy fallback here.
     """
+    client_id_set, client_secret_set = _service_account_presence()
+    if client_id_set or client_secret_set:
+        if not (client_id_set and client_secret_set):
+            raise ServiceTokenMintError(MINT_REASON_PARTIAL_CREDENTIALS)
+        token = _mint_service_token()
+        logger.info(
+            "data_push_credential_selected",
+            extra={"credential_source": CREDENTIAL_SOURCE_SERVICE_ACCOUNT},
+        )
+        return token
+
     try:
-        return resolve_secret_from_env("AUTOM8Y_DATA_API_KEY")
+        legacy = resolve_secret_from_env(LEGACY_DATA_API_KEY_ENV_VAR)
     except ValueError:
-        return None
+        legacy = None
+    logger.info(
+        "data_push_credential_selected",
+        extra={
+            "credential_source": (
+                CREDENTIAL_SOURCE_LEGACY_KEY if legacy else CREDENTIAL_SOURCE_NONE
+            )
+        },
+    )
+    return legacy
+
+
+async def _resolve_auth_token() -> str | None:
+    """Async form of :func:`_get_auth_token`, run off the event loop.
+
+    On ECS the status push runs inside the API process. A cold mint (with the
+    SDK's retries) must not stall the loop that serves requests and health
+    checks. ServiceTokenMintError propagates unchanged.
+    """
+    return await asyncio.to_thread(_get_auth_token)
+
+
+def _log_service_token_mint_failed(
+    log_prefix: str, exc: ServiceTokenMintError, **context: str
+) -> None:
+    """Emit the named ``<log_prefix>_service_token_mint_failed`` ERROR line."""
+    logger.error(
+        f"{log_prefix}_service_token_mint_failed",
+        extra={
+            **context,
+            "credential_source": CREDENTIAL_SOURCE_SERVICE_ACCOUNT,
+            "reason": exc.reason,
+            "error_type": exc.error_type,
+            "status_code": exc.status_code,
+            "fallback": "none",
+        },
+    )
 
 
 async def _push_to_data_service(
@@ -339,7 +561,8 @@ async def push_gid_mappings_to_data_service(
         data_service_url: Override for the autom8_data base URL.
             Defaults to ``AUTOM8Y_DATA_URL`` environment variable.
         auth_token: Override for the S2S JWT bearer token.
-            Defaults to ``AUTOM8Y_DATA_API_KEY`` environment variable.
+            Defaults to the credential seam (:func:`_get_auth_token`): the
+            service account when configured, else ``AUTOM8Y_DATA_API_KEY``.
 
     Returns:
         True if the push succeeded (HTTP 2xx), False otherwise.
@@ -367,7 +590,11 @@ async def push_gid_mappings_to_data_service(
         )
         return False
 
-    token = auth_token or _get_auth_token()
+    try:
+        token = auth_token or await _resolve_auth_token()
+    except ServiceTokenMintError as exc:
+        _log_service_token_mint_failed("gid_push", exc, project_gid=project_gid)
+        return False
     if not token:
         logger.warning(
             "gid_push_skipped",
@@ -725,7 +952,14 @@ async def push_status_to_data_service(
         _emit_status_push_skipped(SKIP_REASON_URL_ABSENT)
         return False
 
-    token = auth_token or _get_auth_token()
+    try:
+        token = auth_token or await _resolve_auth_token()
+    except ServiceTokenMintError as exc:
+        # A104.1: a configured service account that cannot mint is a FAILURE,
+        # not a skip -- no legacy fallback, no StatusPushSkipped. The caller
+        # (push_orchestrator) records StatusPushFailure and success:false.
+        _log_service_token_mint_failed("status_push", exc, entry_count=str(len(entries)))
+        return False
     if not token:
         logger.warning(
             "status_push_skipped",
@@ -1150,7 +1384,11 @@ async def push_vocabulary_to_data_service(
         _emit_vocab_sync_skipped(SKIP_REASON_URL_ABSENT)
         return False
 
-    token = auth_token or _get_auth_token()
+    try:
+        token = auth_token or await _resolve_auth_token()
+    except ServiceTokenMintError as exc:
+        _log_service_token_mint_failed("vocab_sync", exc, field_key=field_key)
+        return False
     if not token:
         logger.warning(
             "vocab_sync_skipped",
