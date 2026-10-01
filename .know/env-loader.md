@@ -13,7 +13,7 @@ source_scope:
   - ".ledge/decisions/ADR-env-secret-profile-split.md"
   - ".ledge/decisions/ADR-bucket-naming.md"
 generator: tech-writer
-source_hash: "fdbf359f95115e6958c6c085b10ed9a2b36e6dda + stdlib a8-devenv@1162145dd"
+source_hash: "fdbf359f95115e6958c6c085b10ed9a2b36e6dda + stdlib a8-devenv@272b7e698"
 confidence: 0.85
 format_version: "1.0"
 update_mode: "full"
@@ -41,7 +41,7 @@ asana reads `ASANA_PAT` and `ASANA_WORKSPACE_GID` from a **declared loader**. Th
 | `... set (not substrate: withheld or shadowed)` | The loader withheld the value, a pre-existing value accompanies a withhold, or a later layer overrode a served value | [Who fixes what](#who-fixes-what-the-owner-and-producer-map). Only for `not-found` before the mint, also [Legacy path and bridge window](#legacy-path-fetch-secrets-and-layer-5) |
 | `... set (not substrate: no companion)` | The value came from somewhere else (legacy copy, hand export, or the tree is out of scope) | The [fresh-eval check](#reading-the-companion-fresh-eval) first, then [Legacy path and bridge window](#legacy-path-fetch-secrets-and-layer-5) |
 | `ASANA_PAT: missing` | Nothing supplied the value | [Reading the companion](#reading-the-companion-fresh-eval), then [Who fixes what](#who-fixes-what-the-owner-and-producer-map) |
-| A withhold line on stderr naming a cause (exact wording: the rendering from the a8-devenv stdlib at commit `1162145dd`, provisional until the stdlib release is pinned, and re-verified then; golden `test/devenv/fixtures/voice/c3-voice.golden`, sha256 prefix `3929407c`. Line shape: `<org>: WARNING: CREDENTIAL WITHHELD: <VAR> (<cause>) -- <fix> (DC-n)`; an `insecure-type` line adds `: coordinate is not SecureString` after `(DC-9)`) | The loader refused to export one variable | [Who fixes what](#who-fixes-what-the-owner-and-producer-map) |
+| A withhold line on stderr naming a cause (exact wording: the rendering from the a8-devenv stdlib pinned at commit `272b7e698` (this voice is unchanged since `1162145dd`); golden `test/devenv/fixtures/voice/c3-voice.golden`, sha256 prefix `3929407c`. Line shape: `<org>: WARNING: CREDENTIAL WITHHELD: <VAR> (<cause>) -- <fix> (DC-n)`; an `insecure-type` line adds `: coordinate is not SecureString` after `(DC-9)`) | The loader refused to export one variable | [Who fixes what](#who-fixes-what-the-owner-and-producer-map) |
 | `fetch-secrets: REFUSED` | The legacy recipe found `A8_CRED_VERSION_ASANA_PAT` set and not `0` in its own environment, and stopped | [Legacy path and bridge window](#legacy-path-fetch-secrets-and-layer-5) |
 | `Written: .env/local (1 name; skipped, companion set and not 0: ASANA_WORKSPACE_GID)` | The legacy recipe wrote the PAT only. The GID is served here, so it was skipped | [Legacy path and bridge window](#legacy-path-fetch-secrets-and-layer-5) |
 
@@ -73,10 +73,16 @@ The TTL field is omitted, so the effective TTL is 86400 seconds (24 hours). The 
 **How it loads.** Inside `use autom8y`, right after the org-secrets loader. **No `.envrc` change is needed or made.** The stdlib reads exactly `<repo root>/.a8-credentials`. It never globs and never walks above the repo root.
 
 **Rules for the file:**
-- **Maintainer rule (provisional; it binds once the `--check` lint is built and the stdlib release is pinned).** `--check` also fails a `#` comment line that contains `=` (a URL with a query string, for example). Keep the header of `.a8-credentials` free of `=`.
+- **Maintainer rule.** `--check` fails any `#` line that contains `=` (`DECLARATION COMMENT`), a URL query or `key = value` prose included. Keep the header of `.a8-credentials` free of `=`. A `#` line without `=` passes even if it holds a token: never paste a value into a comment.
 - The stdlib rejects malformed lines as `declaration-invalid` (fields, separator, `#` placement, BOM, trailing whitespace). Fields are `ENV_VAR|STORE|SOURCE_COORD` with an optional fourth `|TTL`; the separator is `|`. Line 1 is a `#` comment pointing here. Use LF endings and a final newline (a CR is stripped, not rejected).
-- The loader accepts only a regular, non-symlink file at the exact name and ignores the execute bit. Keep mode 100644. `--check` enforces it once that check is built.
+- The loader accepts only a regular, non-symlink file at the exact name and ignores the execute bit. Keep mode 100644. `--check` fails any other index mode, 100755 included (`DECLARATION MODE`).
 - Do not add other trust-checked files in the same change. `.a8-credentials` is one of the files the worktree trust check compares (see `ari worktree trust show <path>`): editing it (or `.env/defaults`, `.env/local.example`, `devbox.json`, `devbox.lock`, mise config, `.envrc`) changes what every pre-merge tree must re-allow.
+
+**Checking the declaration (`--check`).** Run `/bin/bash <resolved a8.sh path> --check <repo root>`. Use the separate-word form: `--check=<root>` is not recognised, exits 0 and prints nothing, so CI must not use it.
+- Run it on a **full, fresh checkout**. A sparse checkout, skip-worktree, a symlink or a mode-000 file gives `DECLARATION UNREADABLE`, and a locally configured clean filter can hide a line. CI runs it in a fresh clone.
+- Exits: 0 no finding. 1 at least one finding, printed on stdout as `a8: CHECK: <CLASS>: <path>…` (position only). 2 the check could not run: the root is not the top level of a git work tree, or git failed. 64 usage (no operand, an operand starting with `-`, or more than one operand). 66 the root is not an accessible directory.
+- Classes you will meet: `DECLARATION INVALID`, `DECLARATION COMMENT`, `DECLARATION MODE`, `DECLARATION UNTRACKED`, `DECLARATION IGNORED`, `DECLARATION UNREADABLE` and `ENVRC UNTRACKED`. Six more exist: `DECLARATION FOLD VARIANT`, `DECLARATION LOCUS`, `DECLARATION TOO LONG`, `RECORD TRACKED`, `RECORD PREFIX LINK` and `ENV FILE TRACKED`. Treat any exit 1 as a failure. Keep the root `.envrc` tracked: a root declaration needs it.
+- It calls no network and prints no values.
 
 **Where values come from.** `ASANA_PAT` is production's Secrets Manager secret `autom8y/asana/asana-pat`, mirrored by its rotation authority to the SSM coordinate above. The GID is the same, from `autom8y/asana/asana-workspace-gid`. The coordinate must be a `SecureString`; anything else is withheld as `insecure-type`.
 
@@ -148,7 +154,7 @@ For asana, `<unit root>` is the repo root (the directory holding `.a8-credential
 | `--verify` | Compares the cached version with a live metadata call. On STALE it drops the cache entry **and refetches in the same call**. It ignores any backoff marker. | The value looks stale, after a rotation, or after a withhold whose cause names verify (`store-unreachable`, `expired-unrefreshable`). |
 | `--fill` | Fills the cache **only when the entry is expired or absent**. It makes no network call for an unexpired entry. | You need a value cached without forcing a live compare. |
 
-**Argument grammar and exit codes.** Stdout is one `<ENV_VAR>: FRESH|STALE|UNKNOWN` line per reported variable. It never carries a value or a cache path. Stderr is fixed text only. These are from the stdlib at commit `1162145dd`, provisional until the stdlib release is pinned, and re-verified then.
+**Argument grammar and exit codes.** Stdout is one `<ENV_VAR>: FRESH|STALE|UNKNOWN` line per reported variable. It never carries a value or a cache path. Stderr is fixed text only. These are from the stdlib pinned at commit `272b7e698` (unchanged since `1162145dd`).
 
 | Exit | Meaning |
 |---|---|
@@ -160,7 +166,7 @@ For asana, `<unit root>` is the repo root (the directory holding `.a8-credential
 | 66 | The unit root is not an accessible directory |
 | 78 | Config resolution or the profile gate failed |
 
-Exit 69 is reserved for `--check`, which fails closed until the `--check` lint lands. It is not a verb result.
+Exit 69 is not a result of any verb or of `--check`. Only a stale copy of the stdlib from before the pinned release returns it; replace that copy.
 
 **Locating `a8.sh`** (`<resolved a8.sh path>`). Resolve this path through symlinks:
 
@@ -205,7 +211,7 @@ The path in that slot is printed with shell `%q` quoting. A plain path prints ba
 | bare `shadowed` | Arises only after a serve. The line names one layer (`.envrc.local`, `tf-bridge`, `tool-tokens` or `venv`). Remove the declared name from that layer. | Re-run the fresh-eval check |
 | `(<any withhold cause>, shadowed)` | Take that cause's own fix slot (for `not-found`, the DC-9 owner slot; a duplicate declaration can print `(declaration-invalid, shadowed)`). It never names a layer. **Do not delete your `.env/local` value until a fresh eval reads `<v>:<exp>` with `exp` in the future**: see [Do not delete your `.env/local` until the fresh eval serves](#do-not-delete-your-envlocal-until-the-fresh-eval-serves). | Re-run the fresh-eval check |
 
-**Exact wording of each line:** see the rendering from the a8-devenv stdlib at commit `1162145dd`, provisional until the stdlib release is pinned, and re-verified then (golden `test/devenv/fixtures/voice/c3-voice.golden`, sha256 prefix `3929407c`). This file does not reproduce the stdlib's full voice text. It quotes only the fixed fix slots below, and they match that golden.
+**Exact wording of each line:** see the rendering from the a8-devenv stdlib pinned at commit `272b7e698` (this voice is unchanged since `1162145dd`; golden `test/devenv/fixtures/voice/c3-voice.golden`, sha256 prefix `3929407c`). This file does not reproduce the stdlib's full voice text. It quotes only the fixed fix slots below, and they match that golden.
 
 | Cause | Fix slot printed after `--` |
 |---|---|
@@ -395,8 +401,8 @@ These were surfaced by the ADR-0002 investigation (grep audit, 2026-04-20). Any 
 1. **Layer 2 (`secrets.shared`) contents for autom8y-asana**: The encrypted `.a8/autom8y/secrets.shared` file is not decryptable in a read-only audit. Its contents are treated as opaque ecosystem-shared secrets. If a developer needs to know which secrets are injected at Layer 2, they must decrypt locally with the dotenvx key.
 2. **Layer 4 (`.env/secrets`) contents**: Same constraint as Layer 2. The encrypted project secrets file is not auditable without the dotenvx key.
 3. **`.env/current` interaction**: The `_a8_load_env` function reads `.env/current` to determine the active environment name, which in turn determines the Layer-5 file path. This file is not described above because it is not one of the 6 loading layers — it is an environment selector, not a value source. However, devs who rename their environment (e.g., to `staging`) must be aware that Layer 5 becomes `.env/staging`, not `.env/local`.
-4. **Verify and fill: argument grammar and exit codes**: RESOLVED. Filled from the stdlib at `1162145dd`, re-checked when the stdlib release is pinned.
-5. **Exact stdlib voice text for withhold lines**: RESOLVED. Filled from the stdlib at `1162145dd`, re-checked when the stdlib release is pinned. The full text stays in the golden, not here.
+4. **Verify and fill: argument grammar and exit codes**: RESOLVED. Filled from the stdlib at `1162145dd`, re-checked at the pinned release `272b7e698`: unchanged.
+5. **Exact stdlib voice text for withhold lines**: RESOLVED. Filled from the stdlib at `1162145dd`, re-checked at the pinned release `272b7e698`: unchanged. The full text stays in the golden, not here.
 6. **Mint status and operating mode**: when the SSM mirror exists, and whether the producer runs an overlap or a window, are operator records.
 
 ---
