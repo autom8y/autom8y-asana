@@ -221,7 +221,6 @@ class TestPushAccountStatusSnapshotSeam:
 
         env = {
             "AUTOM8Y_DATA_URL": "http://data.internal.test",
-            "AUTOM8Y_DATA_API_KEY": "test-token-not-a-secret",
             "STATUS_PUSH_ENABLED": "true",
         }
 
@@ -239,6 +238,11 @@ class TestPushAccountStatusSnapshotSeam:
                 new_callable=AsyncMock,
                 return_value=True,
             ) as mock_transport,
+            # A109: the status push mints with its own account (STATUS_PUSH_CLIENT_*).
+            patch(
+                "autom8_asana.services.gid_push._get_status_push_token",
+                return_value="test-token-not-a-secret",
+            ),
             patch("autom8_asana.services.gid_push.emit_metric"),
             patch("autom8_asana.lambda_handlers.push_orchestrator.emit_metric"),
             patch.dict(os.environ, env),

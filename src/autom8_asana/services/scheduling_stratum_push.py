@@ -30,9 +30,11 @@ from autom8_asana.normalizer.scheduling_stratum import CASCADE_PRIORITY, resolve
 # Reuse the established data-service push seam (the shared HTTP helper that already
 # owns the S2S JWT bearer header, timeout, broad-catch isolation, and PII masking).
 from autom8_asana.services.gid_push import (
-    _get_auth_token,
+    ServiceTokenMintError,
     _get_data_service_url,
+    _log_service_token_mint_failed,
     _push_to_data_service,
+    _resolve_auth_token,
 )
 
 if TYPE_CHECKING:
@@ -209,7 +211,21 @@ async def push_stratum_snapshot(
         )
 
     base_url = data_service_url or _get_data_service_url()
-    token = auth_token or _get_auth_token()
+    token: str | None = None
+    if base_url:
+        # Credential seam (A104.1): service account when configured, else the
+        # legacy key. A configured service account that cannot mint is a named
+        # failure with NO fallback. The URL is checked first so a missing URL
+        # never costs a mint.
+        try:
+            token = auth_token or await _resolve_auth_token()
+        except ServiceTokenMintError as exc:
+            _log_service_token_mint_failed(
+                "scheduling_stratum_push", exc, entry_count=str(len(entries))
+            )
+            return StratumPushResult(
+                pushed=False, dry_run=False, entry_count=len(entries), payload=payload
+            )
     if not base_url or not token:
         logger.warning(
             "scheduling_stratum_push_skipped",
