@@ -13,7 +13,7 @@ source_scope:
   - ".ledge/decisions/ADR-env-secret-profile-split.md"
   - ".ledge/decisions/ADR-bucket-naming.md"
 generator: tech-writer
-source_hash: "fdbf359f95115e6958c6c085b10ed9a2b36e6dda + stdlib a8-devenv@272b7e698"
+source_hash: "fdbf359f95115e6958c6c085b10ed9a2b36e6dda + stdlib a8-devenv@0729890c6"
 confidence: 0.85
 format_version: "1.0"
 update_mode: "full"
@@ -41,7 +41,7 @@ asana reads `ASANA_PAT` and `ASANA_WORKSPACE_GID` from a **declared loader**. Th
 | `... set (not substrate: withheld or shadowed)` | The loader withheld the value, a pre-existing value accompanies a withhold, or a later layer overrode a served value | [Who fixes what](#who-fixes-what-the-owner-and-producer-map). Only for `not-found` before the mint, also [Legacy path and bridge window](#legacy-path-fetch-secrets-and-layer-5) |
 | `... set (not substrate: no companion)` | The value came from somewhere else (legacy copy, hand export, or the tree is out of scope) | The [fresh-eval check](#reading-the-companion-fresh-eval) first, then [Legacy path and bridge window](#legacy-path-fetch-secrets-and-layer-5) |
 | `ASANA_PAT: missing` | Nothing supplied the value | [Reading the companion](#reading-the-companion-fresh-eval), then [Who fixes what](#who-fixes-what-the-owner-and-producer-map) |
-| A withhold line on stderr naming a cause (exact wording: the rendering from the a8-devenv stdlib pinned at commit `272b7e698` (this voice is unchanged since `1162145dd`); golden `test/devenv/fixtures/voice/c3-voice.golden`, sha256 prefix `3929407c`. Line shape: `<org>: WARNING: CREDENTIAL WITHHELD: <VAR> (<cause>) -- <fix> (DC-n)`; an `insecure-type` line adds `: coordinate is not SecureString` after `(DC-9)`) | The loader refused to export one variable | [Who fixes what](#who-fixes-what-the-owner-and-producer-map) |
+| A withhold line on stderr naming a cause (exact wording: the rendering from the a8-devenv stdlib pinned at commit `0729890c6` (this voice is unchanged since `1162145dd`); golden `test/devenv/fixtures/voice/c3-voice.golden`, sha256 prefix `3929407c`. Line shape: `<org>: WARNING: CREDENTIAL WITHHELD: <VAR> (<cause>) -- <fix> (DC-n)`; an `insecure-type` line adds `: coordinate is not SecureString` after `(DC-9)`) | The loader refused to export one variable | [Who fixes what](#who-fixes-what-the-owner-and-producer-map) |
 | `fetch-secrets: REFUSED` | The legacy recipe found `A8_CRED_VERSION_ASANA_PAT` set and not `0` in its own environment, and stopped | [Legacy path and bridge window](#legacy-path-fetch-secrets-and-layer-5) |
 | `Written: .env/local (1 name; skipped, companion set and not 0: ASANA_WORKSPACE_GID)` | The legacy recipe wrote the PAT only. The GID is served here, so it was skipped | [Legacy path and bridge window](#legacy-path-fetch-secrets-and-layer-5) |
 
@@ -154,7 +154,7 @@ For asana, `<unit root>` is the repo root (the directory holding `.a8-credential
 | `--verify` | Compares the cached version with a live metadata call. On STALE it drops the cache entry **and refetches in the same call**. It ignores any backoff marker. | The value looks stale, after a rotation, or after a withhold whose cause names verify (`store-unreachable`, `expired-unrefreshable`). |
 | `--fill` | Fills the cache **only when the entry is expired or absent**. It makes no network call for an unexpired entry. | You need a value cached without forcing a live compare. |
 
-**Argument grammar and exit codes.** Stdout is one `<ENV_VAR>: FRESH|STALE|UNKNOWN` line per reported variable. It never carries a value or a cache path. Stderr is fixed text only. These are from the stdlib pinned at commit `272b7e698` (unchanged since `1162145dd`).
+**Argument grammar and exit codes.** Stdout is one `<ENV_VAR>: FRESH|STALE|UNKNOWN` line per reported variable. It never carries a value or a cache path. Stderr is fixed text only. These are from the stdlib pinned at commit `0729890c6` (unchanged since `1162145dd`).
 
 | Exit | Meaning |
 |---|---|
@@ -211,7 +211,7 @@ The path in that slot is printed with shell `%q` quoting. A plain path prints ba
 | bare `shadowed` | Arises only after a serve. The line names one layer (`.envrc.local`, `tf-bridge`, `tool-tokens` or `venv`). Remove the declared name from that layer. | Re-run the fresh-eval check |
 | `(<any withhold cause>, shadowed)` | Take that cause's own fix slot (for `not-found`, the DC-9 owner slot; a duplicate declaration can print `(declaration-invalid, shadowed)`). It never names a layer. **Do not delete your `.env/local` value until a fresh eval reads `<v>:<exp>` with `exp` in the future**: see [Do not delete your `.env/local` until the fresh eval serves](#do-not-delete-your-envlocal-until-the-fresh-eval-serves). | Re-run the fresh-eval check |
 
-**Exact wording of each line:** see the rendering from the a8-devenv stdlib pinned at commit `272b7e698` (this voice is unchanged since `1162145dd`; golden `test/devenv/fixtures/voice/c3-voice.golden`, sha256 prefix `3929407c`). This file does not reproduce the stdlib's full voice text. It quotes only the fixed fix slots below, and they match that golden.
+**Exact wording of each line:** see the rendering from the a8-devenv stdlib pinned at commit `0729890c6` (this voice is unchanged since `1162145dd`; golden `test/devenv/fixtures/voice/c3-voice.golden`, sha256 prefix `3929407c`). This file does not reproduce the stdlib's full voice text. It quotes only the fixed fix slots below, and they match that golden.
 
 | Cause | Fix slot printed after `--` |
 |---|---|
@@ -401,8 +401,8 @@ These were surfaced by the ADR-0002 investigation (grep audit, 2026-04-20). Any 
 1. **Layer 2 (`secrets.shared`) contents for autom8y-asana**: The encrypted `.a8/autom8y/secrets.shared` file is not decryptable in a read-only audit. Its contents are treated as opaque ecosystem-shared secrets. If a developer needs to know which secrets are injected at Layer 2, they must decrypt locally with the dotenvx key.
 2. **Layer 4 (`.env/secrets`) contents**: Same constraint as Layer 2. The encrypted project secrets file is not auditable without the dotenvx key.
 3. **`.env/current` interaction**: The `_a8_load_env` function reads `.env/current` to determine the active environment name, which in turn determines the Layer-5 file path. This file is not described above because it is not one of the 6 loading layers — it is an environment selector, not a value source. However, devs who rename their environment (e.g., to `staging`) must be aware that Layer 5 becomes `.env/staging`, not `.env/local`.
-4. **Verify and fill: argument grammar and exit codes**: RESOLVED. Filled from the stdlib at `1162145dd`, re-checked at the pinned release `272b7e698`: unchanged.
-5. **Exact stdlib voice text for withhold lines**: RESOLVED. Filled from the stdlib at `1162145dd`, re-checked at the pinned release `272b7e698`: unchanged. The full text stays in the golden, not here.
+4. **Verify and fill: argument grammar and exit codes**: RESOLVED. Filled from the stdlib at `1162145dd`, re-checked at the pinned release `0729890c6`: unchanged.
+5. **Exact stdlib voice text for withhold lines**: RESOLVED. Filled from the stdlib at `1162145dd`, re-checked at the pinned release `0729890c6`: unchanged. The full text stays in the golden, not here.
 6. **Mint status and operating mode**: when the SSM mirror exists, and whether the producer runs an overlap or a window, are operator records.
 
 ---
