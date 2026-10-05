@@ -3,9 +3,9 @@ run-name: "Semgrep layer rules [${{ github.event.pull_request.number || github.s
 
 # Runs the repo's .semgrep.yml (layer-boundary rules, e.g. autom8y.asana-no-lower-imports-api)
 # on every pull request and every push to main. Before this workflow the rules ran only in the
-# pre-commit hook, so violations could land unseen. Scope is src/: every path-restricted rule in
-# .semgrep.yml targets src/autom8_asana and the rest exclude tests, so scanning src/ is equivalent
-# to the repo-root scan the pre-commit hook performs.
+# pre-commit hook, so violations could land unseen. Scope is the repo root, the same scan the
+# pre-commit hook performs: the layer rules are path-restricted to src/autom8_asana, but other
+# rules (e.g. the logger rule) apply repo-wide, so scanning only src/ would miss them.
 # semgrep is pinned; bump the version deliberately, not by drift.
 
 on:
@@ -39,4 +39,4 @@ jobs:
       - name: Run semgrep layer rules
         run: >-
           uvx --from semgrep==1.178.0
-          semgrep --config .semgrep.yml --error --metrics=off --disable-version-check src/
+          semgrep --config .semgrep.yml --error --metrics=off --disable-version-check .
