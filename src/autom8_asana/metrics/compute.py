@@ -33,7 +33,8 @@ def compute_metric(
     inspect row-level data in verbose mode.
 
     Processing pipeline:
-        1. Select relevant columns (dedup keys + metric column + "name" for display)
+        1. Select relevant columns (dedup keys + metric column + "name" for display,
+           plus any columns referenced by filters; the latter are dropped after step 4)
         2. Cast metric column to target dtype (if cast_dtype is set)
         3. Apply MetricExpr.filter_expr (row-level filter)
         4. Apply Scope.pre_filters (additional filters, ANDed)
@@ -94,7 +95,17 @@ def compute_metric(
         if c not in seen:
             seen.add(c)
             unique_cols.append(c)
-    result = df.select(unique_cols)
+    # Also carry columns referenced by filters so they can be evaluated
+    # (SCAR-METRICS-SELECT-FILTER-001); they are dropped after filtering.
+    filter_exprs = ([expr.filter_expr] if expr.filter_expr is not None else []) + list(
+        scope.pre_filters or []
+    )
+    extra_cols: list[str] = []
+    for fe in filter_exprs:
+        for c in fe.meta.root_names():
+            if c in df.columns and c not in seen and c not in extra_cols:
+                extra_cols.append(c)
+    result = df.select([*unique_cols, *extra_cols])
 
     # Step 2: Cast metric column if needed
     if expr.cast_dtype is not None:
@@ -110,6 +121,10 @@ def compute_metric(
     if scope.pre_filters:
         for f in scope.pre_filters:
             result = result.filter(f)
+
+    # Drop filter-only columns so output shape is unchanged
+    if extra_cols:
+        result = result.select(unique_cols)
 
     # Step 5: Deduplicate
     if scope.dedup_keys:
