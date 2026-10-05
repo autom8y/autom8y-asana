@@ -49,7 +49,7 @@ class MatchingQueryRequest(BaseModel):
     email: str | None = Field(
         default=None,
         description="Business email address.",
-        examples=["contact@acmechiro.com"],
+        examples=["contact@example.com"],
     )
     domain: str | None = Field(
         default=None,

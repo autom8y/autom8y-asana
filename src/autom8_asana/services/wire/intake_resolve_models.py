@@ -167,7 +167,7 @@ class ContactResolveRequest(BaseModel):
     email: str | None = Field(
         default=None,
         description="Email address for exact match on contact_email field.",
-        examples=["jane@acmechiro.com"],
+        examples=["jane@example.com"],
     )
     phone: LeadPhoneField | None = Field(
         default=None,
@@ -202,7 +202,7 @@ class ContactResolveResponse(BaseModel):
     email: str | None = Field(
         default=None,
         description="Resolved contact email address.",
-        examples=["jane@acmechiro.com"],
+        examples=["jane@example.com"],
     )
     phone: LeadPhoneField | None = Field(
         default=None,
@@ -236,7 +236,7 @@ class BusinessByEmailResolveRequest(BaseModel):
         min_length=3,
         max_length=320,  # RFC 3696 practical ceiling
         description="Contact email address. Exact match against contact_email.",
-        examples=["jane@acmechiro.example"],
+        examples=["jane@example.com"],
     )
 
 

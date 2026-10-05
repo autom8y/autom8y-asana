@@ -90,7 +90,7 @@ class IntakeContact(BaseModel):
     email: str | None = Field(
         default=None,
         description="Email address of the contact.",
-        examples=["jane@acmechiro.com"],
+        examples=["jane@example.com"],
     )
     phone: LeadPhoneField | None = Field(
         default=None,
