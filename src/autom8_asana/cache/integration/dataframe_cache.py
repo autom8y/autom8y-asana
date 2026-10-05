@@ -756,10 +756,10 @@ class DataFrameCache:
             self._stats[entity_type]["lkg_serves"] += 1
             # TD-007 (observability-plan §1.3): make the LKG-flattering of the
             # success rate VISIBLE — serving_stale_total + lkg_serve_age. Lazy
-            # import keeps the cache layer decoupled from api/metrics; emission is
+            # import keeps the cache layer decoupled from the api package; emission is
             # fire-and-forget so it never affects the serve path.
             try:
-                from autom8_asana.api.metrics import record_serving_stale
+                from autom8_asana.observability.prometheus_metrics import record_serving_stale
 
                 record_serving_stale(entity_type, float(age))
             except Exception:  # noqa: BLE001 -- metrics emission is fire-and-forget

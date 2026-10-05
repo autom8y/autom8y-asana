@@ -852,7 +852,9 @@ class UniversalResolutionStrategy:
                     # record cache hit on the body-parameterized hot path
                     # (drives cache_miss_rate alert A1 — MISS-RATE-SPIKE).
                     try:
-                        from autom8_asana.api.metrics import record_cache_lookup
+                        from autom8_asana.observability.prometheus_metrics import (
+                            record_cache_lookup,
+                        )
 
                         record_cache_lookup(self.entity_type, hit=True)
                     except Exception:  # noqa: BLE001 -- metrics emission is fire-and-forget
@@ -881,7 +883,7 @@ class UniversalResolutionStrategy:
             # cache_miss_rate alert A1; the 503 emitted downstream by
             # _build_on_miss is the direct symptom this metric explains.
             try:
-                from autom8_asana.api.metrics import record_cache_lookup
+                from autom8_asana.observability.prometheus_metrics import record_cache_lookup
 
                 record_cache_lookup(self.entity_type, hit=False)
             except Exception:  # noqa: BLE001 -- metrics emission is fire-and-forget
@@ -1080,7 +1082,7 @@ class UniversalResolutionStrategy:
                     # dict size as the in-flight proxy (1:1 with semaphore slot
                     # ownership during build path execution). Defensive imports
                     # to avoid import-cycle risk; metrics module is light.
-                    from autom8_asana.api.metrics import (
+                    from autom8_asana.observability.prometheus_metrics import (
                         record_build_coordinator_utilization,
                     )
 
