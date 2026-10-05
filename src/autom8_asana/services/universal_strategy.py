@@ -1030,12 +1030,12 @@ class UniversalResolutionStrategy:
                 running. Includes ``retry_after_seconds=30`` (harmonized
                 with ``cache/dataframe/decorator.py`` per Surface F').
         """
-        from autom8_asana.api.exception_types import ApiDataFrameBuildError
         from autom8_asana.cache.dataframe.factory import (
             _swr_build_callback,
             get_build_coordinator,
             get_dataframe_cache_provider,
         )
+        from autom8_asana.core.api_exceptions import ApiDataFrameBuildError
 
         cache = get_dataframe_cache_provider()
 
@@ -1192,7 +1192,7 @@ class UniversalResolutionStrategy:
         Raises:
             ApiDataFrameBuildError: On build failure or timeout.
         """
-        from autom8_asana.api.exception_types import ApiDataFrameBuildError
+        from autom8_asana.core.api_exceptions import ApiDataFrameBuildError
 
         try:
             df, _watermark = await asyncio.wait_for(
