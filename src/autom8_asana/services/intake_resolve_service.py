@@ -27,7 +27,7 @@ from typing import TYPE_CHECKING, Any
 from autom8y_api_schemas import LeadPhone, OfficePhone
 from autom8y_log import get_logger
 
-from autom8_asana.api.routes.intake_resolve_models import (
+from autom8_asana.services.wire.intake_resolve_models import (
     BusinessResolveResponse,
     ContactResolveResponse,
 )

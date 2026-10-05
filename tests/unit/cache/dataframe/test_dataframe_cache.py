@@ -1528,7 +1528,9 @@ class TestOfferFreshnessResilience:
         # Contract patched OUT -> multiplier ceiling (1800s) applies (the old bug
         # locus). FIX (c) closes the seam at this very ceiling.
         with patch("autom8_asana.config.FRESHNESS_CONTRACT_MAX_AGE_SECONDS", {}):
-            with patch("autom8_asana.api.metrics.record_serving_stale") as mock_serving_stale:
+            with patch(
+                "autom8_asana.observability.prometheus_metrics.record_serving_stale"
+            ) as mock_serving_stale:
                 with patch(
                     "autom8_asana.cache.integration.dataframe_cache.logger.warning",
                     side_effect=_capture,
@@ -1606,7 +1608,9 @@ class TestOfferFreshnessResilience:
             "autom8_asana.cache.integration.dataframe_cache.logger.warning",
             side_effect=_capture,
         ):
-            with patch("autom8_asana.api.metrics.record_serving_stale") as mock_serving_stale:
+            with patch(
+                "autom8_asana.observability.prometheus_metrics.record_serving_stale"
+            ) as mock_serving_stale:
                 with patch("autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"):
                     result = await cache.get_async("1143843662099250", "offer")
 
@@ -1678,7 +1682,9 @@ class TestOfferFreshnessResilience:
         cache = make_cache(memory_tier=memory)
 
         with patch("autom8_asana.config.FRESHNESS_CONTRACT_MAX_AGE_SECONDS", {}):
-            with patch("autom8_asana.api.metrics.record_serving_stale") as mock_serving_stale:
+            with patch(
+                "autom8_asana.observability.prometheus_metrics.record_serving_stale"
+            ) as mock_serving_stale:
                 with patch(
                     "autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"
                 ) as mock_create_task:
