@@ -199,7 +199,7 @@ class TestFireAndForget:
         def _boom(*_args: object, **_kwargs: object) -> str:
             raise TypeError("not serializable")
 
-        monkeypatch.setattr("autom8_asana.api.metrics.json.dumps", _boom)
+        monkeypatch.setattr("autom8_asana.observability.prometheus_metrics.json.dumps", _boom)
         # Must not raise despite the internal serialization error.
         assert emit_receiver_sli_emf("project", success=True, serving_stale_total=0.0) is None
         # Nothing leaked to stdout.
@@ -211,5 +211,5 @@ class TestFireAndForget:
         def _boom(*_args: object, **_kwargs: object) -> None:
             raise OSError("stdout broken")
 
-        monkeypatch.setattr("autom8_asana.api.metrics.sys.stdout.write", _boom)
+        monkeypatch.setattr("autom8_asana.observability.prometheus_metrics.sys.stdout.write", _boom)
         assert emit_receiver_sli_emf("section", success=False, serving_stale_total=1.0) is None

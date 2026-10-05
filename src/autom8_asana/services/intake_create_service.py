@@ -20,12 +20,12 @@ from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
-from autom8_asana.api.routes.intake_create_models import (
+from autom8_asana.core.project_registry import UNIT_PROJECT
+from autom8_asana.services.wire.intake_create_models import (
     IntakeBusinessCreateRequest,
     IntakeBusinessCreateResponse,
     IntakeRouteResponse,
 )
-from autom8_asana.core.project_registry import UNIT_PROJECT
 
 if TYPE_CHECKING:
     from autom8_asana import AsanaClient

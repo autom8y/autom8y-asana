@@ -71,12 +71,12 @@ def get_semaphore_occupancy() -> tuple[int, int, int]:
 def _emit_semaphore_occupancy() -> None:
     """Push current occupancy to the metrics gauges (fire-and-forget).
 
-    Lazy import keeps the dataframes layer decoupled from api/metrics. Emission
+    Lazy import keeps the dataframes layer decoupled from the api package. Emission
     is a few gauge ``.set()`` calls — cheap; any failure is swallowed so metrics
     never break the offload path.
     """
     try:
-        from autom8_asana.api.metrics import record_cpu_thread_semaphore
+        from autom8_asana.observability.prometheus_metrics import record_cpu_thread_semaphore
 
         in_use, waiting, max_slots = get_semaphore_occupancy()
         record_cpu_thread_semaphore(in_use, waiting, max_slots)

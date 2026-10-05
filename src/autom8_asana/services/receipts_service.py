@@ -37,7 +37,6 @@ from typing import TYPE_CHECKING
 
 from autom8y_log import get_logger
 
-from autom8_asana.api.routes.receipts_models import ReceiptKind, ReceiptPostResponse
 from autom8_asana.core.project_registry import BUSINESS_PROJECT
 from autom8_asana.domain.forwarding_stage import (
     RECEIPT_KIND_TO_STAGE,
@@ -58,6 +57,7 @@ from autom8_asana.services.ci_task_resolution import (
 from autom8_asana.services.ci_task_resolution import (
     resolve_play_holder_business_gid as _resolve_play_holder_business_gid_impl,
 )
+from autom8_asana.services.wire.receipts_models import ReceiptKind, ReceiptPostResponse
 
 if TYPE_CHECKING:
     from autom8_asana import AsanaClient

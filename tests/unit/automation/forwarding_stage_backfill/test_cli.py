@@ -49,7 +49,7 @@ class TestBuildWriteConfig:
         """RED side: a build that drops a gate (e.g. ignores option_gids) would
         report is_active when it should not, or vice-versa."""
         with patch(
-            "autom8_asana.api.config.get_settings",
+            "autom8_asana.core.api_settings.get_api_settings",
             return_value=_settings(
                 enabled=True, field_gid=FORWARDING_FIELD_GID, option_gids=STAGE_OPTION_GIDS
             ),
@@ -62,7 +62,7 @@ class TestBuildWriteConfig:
     def test_inactive_when_switch_off(self) -> None:
         """The master switch OFF -> inactive even with field + options set."""
         with patch(
-            "autom8_asana.api.config.get_settings",
+            "autom8_asana.core.api_settings.get_api_settings",
             return_value=_settings(
                 enabled=False, field_gid=FORWARDING_FIELD_GID, option_gids=STAGE_OPTION_GIDS
             ),
@@ -73,7 +73,7 @@ class TestBuildWriteConfig:
     def test_inactive_when_options_empty(self) -> None:
         """Empty option map -> inactive even with switch on + field set."""
         with patch(
-            "autom8_asana.api.config.get_settings",
+            "autom8_asana.core.api_settings.get_api_settings",
             return_value=_settings(enabled=True, field_gid=FORWARDING_FIELD_GID, option_gids={}),
         ):
             cfg = build_write_config()
