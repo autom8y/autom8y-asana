@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
-from autom8_asana.api.routes.intake_custom_fields_models import CustomFieldWriteResponse
+from autom8_asana.services.wire.intake_custom_fields_models import CustomFieldWriteResponse
 
 if TYPE_CHECKING:
     from autom8_asana import AsanaClient

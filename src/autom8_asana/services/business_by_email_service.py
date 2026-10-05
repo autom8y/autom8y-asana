@@ -67,18 +67,18 @@ from typing import TYPE_CHECKING, Any
 from autom8y_log import get_logger
 
 if TYPE_CHECKING:
-    from autom8_asana.api.routes.intake_resolve_models import BusinessByEmailResolveResponse
     from autom8_asana.client import AsanaClient
+    from autom8_asana.services.wire.intake_resolve_models import BusinessByEmailResolveResponse
 
 # ★ IMPORT DIRECTION (do not "tidy" these into module-level imports):
-# ``api/routes/__init__.py`` imports ``intake_resolve``, which imports THIS
-# module. A module-level ``from autom8_asana.api.routes...`` here therefore
-# closes a cycle -- importing this module first raises
-# ``ImportError: cannot import name ... (most likely due to a circular
-# import)``. ``intake_resolve_service`` gets away with the module-level form
-# only because nothing imports it ahead of the routes package; that is a
-# latent version of the same cycle, not a licence. The response model and the
-# E.164 predicate are imported at their use sites below instead.
+# the response model now lives in ``services/wire/intake_resolve_models.py``
+# (moved below the API layer; ``api/routes/intake_resolve_models.py`` is a
+# re-export shim), so importing it no longer closes the api.routes ->
+# intake_resolve -> this-module cycle these use-site imports were written to
+# avoid. They stay at their use sites deliberately: hoisting them would change
+# import timing, which this refactor holds constant (SCAR-CW-001 discipline).
+# ``intake_resolve_service`` no longer imports the api package either. The
+# E.164 predicate is still imported at its use site below for the same reason.
 
 logger = get_logger(__name__)
 
@@ -180,7 +180,7 @@ def _email_criterion(email: str) -> dict[str, str]:
 
 def _not_found(reason: str, **extra: Any) -> BusinessByEmailResolveResponse:
     """Build a discriminated found=false answer."""
-    from autom8_asana.api.routes.intake_resolve_models import BusinessByEmailResolveResponse
+    from autom8_asana.services.wire.intake_resolve_models import BusinessByEmailResolveResponse
 
     return BusinessByEmailResolveResponse(found=False, reason=reason, **extra)
 
@@ -206,9 +206,9 @@ async def resolve_business_by_email(
             not be consulted, or the registry no longer supports the criterion.
             Never downgraded to ``found=False``.
     """
-    from autom8_asana.api.routes.intake_resolve_models import BusinessByEmailResolveResponse
     from autom8_asana.services.intake_resolve_service import is_valid_e164
     from autom8_asana.services.resolver import EntityProjectRegistry, get_strategy
+    from autom8_asana.services.wire.intake_resolve_models import BusinessByEmailResolveResponse
 
     criterion = _email_criterion(email)
 

@@ -18,11 +18,6 @@ from typing import TYPE_CHECKING
 from autom8y_api_schemas import OfficePhone
 from autom8y_log import get_logger
 
-from autom8_asana.api.routes.matching_models import (
-    MatchCandidate,
-    MatchFieldComparison,
-    MatchingQueryResponse,
-)
 from autom8_asana.models.business.matching import (
     Candidate,
     CompositeBlockingRule,
@@ -31,6 +26,11 @@ from autom8_asana.models.business.matching import (
     MatchResult,
 )
 from autom8_asana.models.business.seeder import BusinessData
+from autom8_asana.services.wire.matching_models import (
+    MatchCandidate,
+    MatchFieldComparison,
+    MatchingQueryResponse,
+)
 
 if TYPE_CHECKING:
     import polars as pl
