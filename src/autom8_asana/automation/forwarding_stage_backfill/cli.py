@@ -59,9 +59,9 @@ def build_write_config() -> BackfillWriteConfig:
     field GID / the master switch live. A bad Inactive disposition string falls
     back to the safe PARKED default (never crash the CLI on a config typo).
     """
-    from autom8_asana.api.config import get_settings
+    from autom8_asana.core.api_settings import get_api_settings
 
-    settings = get_settings()
+    settings = get_api_settings()
     raw_disp = (settings.forwarding_stage_disposition or {}).get(
         "Inactive", StageDisposition.PARKED.value
     )
@@ -85,11 +85,11 @@ def _company_id_field_gid() -> str:
     """The 'Company ID' custom-field definition GID (the resolution key).
 
     Reuses the SAME ``ApiSettings.company_id_field_gid`` field the receipts route
-    consumes (api/config.py:81).
+    consumes (core/api_settings.py:81).
     """
-    from autom8_asana.api.config import get_settings
+    from autom8_asana.core.api_settings import get_api_settings
 
-    return get_settings().company_id_field_gid
+    return get_api_settings().company_id_field_gid
 
 
 async def _run(mode: BackfillMode, *, lookback_days: int, out_path: str | None) -> int:

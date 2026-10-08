@@ -8,7 +8,7 @@ station: incident-commander (skeleton, P3b); the arming seat fills it
 created: 2026-09-15
 fill_on: 2026-09-21 (pre-arm read) and 2026-09-22 (the arm and its post-arm read)
 status: OBSERVED — ARMED 2026-09-27T03:24:00Z (autom8y #2541 → 68218d9b, applied by ASR under slate §11 D7); receipts A + B delivered; S-1 DONE per slate §11 D2 at 2026-09-27T11:27:17Z. The arm date is 09-27, not the 09-22 in the row labels. The REHEARSAL column is 2026-09-15 and is NOT the receipt
-arming_state: NOT ARMED
+arming_state: ARMED 2026-09-27T03:24:00Z (autom8y #2541 → 68218d9b); page paths → autom8y-platform-alerts; scratch topic retained as the disarm target
 observer: .ledge/reviews/read-the-name/arm_observe.py   # committed in this PR; durable home of the session-scratch arm_observe.py (hazard H-6)
 governing: .ledge/reviews/RUNBOOK-read-the-name-s1-2026-09-14.md (§2.2 receipts A/B, §5 DW rows, §7 amendment) · .ledge/handoffs/HANDOFF-read-the-name-wave1-seam-2026-09-14.md (§4, §5, §7) · .ledge/reviews/SOAK-read-the-name-s1-2026-09-14.md (§3) · .ledge/decisions/ADR-read-the-name-s1-implementation-2026-09-14.md · .ledge/decisions/RULING-read-the-name-t2-15caa02c-class-2026-09-14.md (R-2)
 refs_read: autom8y-asana origin/main 408cbc37 · autom8y origin/main 0ee1209a

@@ -715,3 +715,70 @@ This was a phased `/interview`: neutral options, a recommendation labelled on ea
 2. On PASS: G-2 is re-read, and `terraform validate` runs at #2541's merge head. This seat then sends ASR the formal gate notice, and the operator a non-blocking FYI (U5).
 3. ASR merges autom8y #2541, dispatches the Service Terraform apply, and approves the production gate (D7). **The apply is the arm.**
 4. This seat observes receipts A and B and the negative pole. When both are delivered, **S-1 is DONE (D2).** The arc stays open (D3, D9).
+
+---
+
+## §12 RULED 2026-09-29, in this seat's room: an ad-lead-gate refusal is S-1 floor evidence, landing in the post-arm bundle
+
+**The question put to the operator.** Wave 7 (A-18; autom8y #2673 and autom8y-data #520) adds the refusal codes `p5_lead_older_than_90d`, `p5_lead_61_to_90d` and `p5_phone_only_identity`, at about 1.1–2.8 bookings a day. The EBI seat confirmed from `book_contente.py` (~:540–565) that a gate refusal ends at `terminal_decline class=ad_lead_gate_refused` / `ad_lead_gate_refused`. It emits no `booking_completed`, no `contente_booking_booked` and no qualifying park. Under pinned query `2aee74e3` it is therefore an **arrival without evidence**.
+
+**Measured by this seat, 09-29:**
+- Refusals ran at 21–80 a day across 11–28 offices on 09-15..09-23. They fell to 4 on 09-24 and 2 on 09-25, and have been 0 since. The no-lead stop now parks non-ad bookings before the gate.
+- Refusal lines carry **no `message_id` and no `park_key`** (114 of 114 lines over 7 days).
+- The live 3-day window has 0 refusals, and 0 offices were on ZERO in each of the last 5 daily windows.
+
+**The answer, the operator's selection:** ***"Count it, in the post-arm bundle."*** A refused booking still arrived at a working door, so it is **floor evidence** under its own label, "arrived, credit refused". This is the OD-88 pattern: the floor watches the pipe, and credit watches the money. It covers **every** `ad_lead_gate_refused`, not only the new `p5_*` codes, which also closes the gap that existed before wave 7.
+
+**Where it lands:** in the ONE post-arm definition change already ruled (§11 D12), alongside F-D, §3a, §3b, §3e, the reserved test office and `pinned_query_sha`. **Wave 7 is NOT held for it.**
+
+**Accepted interim risk:** until the bundle serves, a refusal still counts as an arrival without evidence. A false ZERO needs ≥ 5 arrivals at one office with zero evidence over 3 days. At about 1–3 refusals a day spread across the fleet, that is unlikely but possible for a small office. A ZERO page that traces to refusals in this interval is recorded as this known gap, not as a misfire of the definition.
+
+**Build note, not ruled:** there is no dedup key on refusal lines, so the evidence term counts `event="ad_lead_gate_refused"` lines. Refusals return 200, SendGrid does not redeliver them, so lines ≈ mails. The term is to be proven two-sided with the bundle.
+
+---
+
+## §13 RULED 2026-09-29/30, in this seat's room: the post-arm bundle, built now (spec: `.ledge/specs/SPEC-read-the-name-s1-post-arm-bundle-2026-09-30.md`)
+
+The operator's selections, each put as a neutral question with its tradeoff:
+
+| # | Question | Answer |
+|---|---|---|
+| B1 | How to ship the bundle, given the reserved test office would need a new office record (an identity mint, operator-only) | ***"Ship 6, drop test office."*** The reserved-test-office exclusion is **dropped**. The announce-only convention (§11 D10) covers smoke leads. |
+| B2 | The §3a floor: below what 3-day line count the residual is not judged | ***"200 lines."*** Below 200 `window_lines` the residual reads UNTAKEN, neither passing nor failing. |
+| B3 | Found while designing: every gate refusal writes 2 terminal lines with no `message_id`, so S-1 counted each refusal as 2 arrivals | ***"Yes: one arrival per delivery."*** Arrivals count once per delivery. A line without a message id is counted once per trace. |
+
+**Measured at the finding** (last 14 days): **466 of 1,936 deliveries (24 %) write more than one terminal line**, and every one is currently counted more than once. 0 deliveries mix message-id and no-id terminal lines. `trace_id` is present on 2,841 of 2,841 terminal lines. The fix therefore corrects about a quarter of all deliveries, not just refusals. It lowers arrivals, and so false-ZERO risk, everywhere.
+
+**The bundle, now 7 items:**
+1. gate refusals as evidence (§12);
+2. F-D;
+3. §3a with a floor of 200;
+4. §3b;
+5. §3e;
+6. `pinned_query_sha` on the run line;
+7. one arrival per delivery (B3).
+
+It is ONE definition change, and the soak restarts once, at its serving instant.
+
+### §13 ADDENDUM, 2026-09-30: B4, and the overnight mode
+
+| # | Question | Operator's selection |
+|---|---|---|
+| **B4** | The rite-disjoint critic's Condition 1 on autom8y #2694: F-D drops an `unknown_loud` mail's ARRIVAL, while its qualifying PARK still counts as evidence (11 of 135 live) | ***"Exclude from evidence too."*** An `unknown_loud` mail is neither an arrival nor evidence. |
+
+**How B4 was built** (this seat's choice, inside the ruling). The live data showed that an `unknown_loud` delivery's `terminal_decline` line carries `intake_class = unknown_loud` **and** the same `park_key` as its park line. That allows a single-pass subtraction, `parked = max(0, park_id + park_noid − park_ul_id)`, with no join. It is scoped to the two stop classes (`stop_dc`), so the founding office's relay parks, which were never evidence, are not subtracted. The critic confirmed the premise: all 11 ul stop keys have a qualifying park line, so there are 0 orphans.
+
+**Overnight mode, the operator's instruction on 2026-09-30:** *"proceed through this overnight push unmonitored without asking further questions."* This seat makes only choices inside rulings already given. Anything that would need a new ruling stops at its gate and waits for the morning.
+
+## §14 REGISTERED 2026-09-30: the RF-1 slice-4 precondition that names this seat
+
+**What it says** (dials-locus, TDD-data-authz-deny-by-default §R5–R5.4). No slice-4 route with a live caller, starting with `POST /api/v1/leads/intake`, may go to ENFORCE until three things hold:
+1. EBI intake's service principal holds the permission, granted through the registry on the operator's word.
+2. **This seat** has correlated a live ALLOW, recorded while the route is still OBSERVE, to one of EBI's own match calls, with 0 would-deny over the 7 days before the flip. A window with no match call is UNREAD.
+3. A pre-act notice reached this seat, and this seat confirmed that no change to EBI's principal or match path is pending. **An objection from this seat pauses the flip.**
+
+The first hour after the flip is watched on `ebi-no-lead-stop-match-auth-retry`: any datapoint means ASR demotes slice 4 and the operator gets a clock interrupt.
+
+**The mechanism, corrected 2026-09-30.** A slice-4 403 is NOT a `match_call_rejected` park. `match_lead.py:1004` classes 401 and 403 as an OUTAGE, so the mail gets a 5xx, SendGrid retries it for about 72 h, and then **drops** it. No park line is written, and OD-92 sees nothing. The detector is `ebi-no-lead-stop-match-auth-retry` (≥ 1 in 2 of 4 half-hours; armed and OK when read).
+
+**Where it lives:** `contente` `.ledge/specs/TDD-data-authz-deny-by-default-2026-09.md` [R5]–[R5.4], commit `3c8c5d98537786e8ab8c4eb9bcde5760565ca35a`. **That commit is LOCAL ONLY:** contente's main is ~179 commits ahead of its remote. **Pushing contente is the operator's decision.** Until it is pushed, this slate entry is the only copy on a remote.

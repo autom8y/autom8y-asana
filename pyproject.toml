@@ -46,6 +46,11 @@ dependencies = [
     # Previously imported optionally from PhoneNormalizer; declared here per
     # sprint-b-schema-convergence Item 9 to reconnect detached dependency.
     "phonenumbers>=8.13.0",
+    # PT-CI-03 A104.1 C-3 hardening: a DIRECT floor on pyjwt. The Dockerfile's
+    # `uv sync --no-sources` honours neither --frozen nor --locked, so without a
+    # direct requirement 2.15.0 was only a lock preference (autom8y-auth 4.1.0
+    # requires pyjwt[crypto]>=2.13.0). The upper cap keeps a major bump deliberate.
+    "pyjwt>=2.15.0,<3",
 ]
 
 [project.optional-dependencies]
