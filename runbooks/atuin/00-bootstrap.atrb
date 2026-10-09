@@ -85,14 +85,14 @@ content:
     textAlignment: left
   content:
   - type: text
-    text: 'Environment location:'
+    text: 'Credentials:'
     styles:
       bold: true
   - type: text
-    text: ' '
+    text: ' see '
     styles: {}
   - type: text
-    text: ~/.config/autom8y/envs/autom8y-asana/runbook.env
+    text: .know/env-loader.md
     styles:
       code: true
   children: []
@@ -181,7 +181,7 @@ content:
     isToggleable: false
   content:
   - type: text
-    text: 'Step 1: Setup Environment'
+    text: 'Step 1: Credentials'
     styles: {}
   children: []
 - id: 7881eb83-4997-42a6-8143-962689a4330f
@@ -192,48 +192,8 @@ content:
     textAlignment: left
   content:
   - type: text
-    text: Create your runbook environment file (first time only).
-    styles: {}
-  children: []
-- id: ba158d83-1b59-45ab-9375-81754e9e1922
-  type: run
-  props:
-    type: terminal
-    name: setup_env
-    code: cd ${AUTOM8Y_ASANA_PATH} && just setup-env
-    pty: true
-    global: false
-    outputVisible: true
-    dependency: '{}'
-    terminalRows: 10
-  children: []
-- id: 5aa078a4-4263-4b9b-9c04-d7f0a0e4df72
-  type: paragraph
-  props:
-    backgroundColor: default
-    textColor: default
-    textAlignment: left
-  content:
-  - type: text
-    text: 'Note:'
-    styles:
-      bold: true
-  - type: text
-    text: ' After setup, edit '
-    styles: {}
-  - type: text
-    text: ~/.config/autom8y/envs/autom8y-asana/runbook.env
-    styles:
-      code: true
-  - type: text
-    text: ' to add your '
-    styles: {}
-  - type: text
-    text: ASANA_PAT
-    styles:
-      code: true
-  - type: text
-    text: ' from the Asana Developer Console.'
+    text: Credentials come from this repo's direnv environment. For setup and fixes,
+      see .know/env-loader.md.
     styles: {}
   children: []
 - id: 5e37b31e-bf92-4492-b7cd-03947bc222fd
@@ -324,15 +284,9 @@ content:
     interpreter: bash
     name: test_asana_api
     code: |-
-      # Load environment
-      ENV_FILE="${HOME}/.config/autom8y/envs/autom8y-asana/runbook.env"
-      if [ -f "$ENV_FILE" ]; then
-          set -a && source "$ENV_FILE" && set +a
-      fi
-
       if [ -z "${ASANA_PAT:-}" ]; then
           echo "ERROR: ASANA_PAT not set"
-          echo "Run: just setup-env, then add your PAT"
+          echo "Fix: see .know/env-loader.md"
           exit 1
       fi
 

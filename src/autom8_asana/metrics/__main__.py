@@ -81,15 +81,16 @@ which is strict about S3 cache configuration. See:
 
   1. .env/defaults                (committed, Layer 3) — set committed project defaults here
      path: {root}/.env/defaults
-  2. .env/local.example → .env/local  (example committed; .env/local is gitignored, Layer 5)
-     path: {root}/.env/local.example
-     copy: cp .env/local.example .env/local   # then edit .env/local with real values
+  2. .a8-credentials              (committed; names credential coordinates, never values)
+     Credentials (ASANA_PAT, ASANA_WORKSPACE_GID) are declared at {root}/.a8-credentials.
+     The S3 cache vars are plain config and belong in .env/defaults, never there.
   3. secretspec.toml              (the contract itself — declares which vars are required under --profile cli)
      path: {root}/secretspec.toml
      validate: secretspec check --file secretspec.toml --provider env --profile cli --reason "manual preflight check"
 
 Typical fix: ensure .env/defaults contains ASANA_CACHE_S3_BUCKET and ASANA_CACHE_S3_REGION,
-then re-run 'direnv allow' (or source the env manually) and retry."""
+then reload the environment (direnv reload) and retry. If direnv reports the .envrc is blocked,
+in a knossos worktree check: ari worktree trust show {root}"""
     print(msg, file=sys.stderr)
 
 

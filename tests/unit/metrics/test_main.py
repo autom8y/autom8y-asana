@@ -433,6 +433,113 @@ class TestPreflightSecretspecDrift:
         assert "ASANA_CACHE_S3_BUCKET" in captured.getvalue()
 
 
+class TestPreflightHintText:
+    """The preflight hint points at the declaration and the trust check (voice text only).
+
+    Every fallback arm (secretspec absent, timed out, or exited non-zero) reaches
+    _preflight_inline_fallback, which prints _emit_preflight_error's hint and exits 2.
+    The hint must name the credential declaration (.a8-credentials, with the repo root
+    rendered), keep the S3 cache vars on .env/defaults, name the worktree trust check,
+    and never re-teach the .env/local copy or a bare direnv allow. The assertions on
+    line attribution make a wrong hint fail even when every expected string is present.
+    Names and fixed strings only: no fixture holds a value.
+    """
+
+    @pytest.mark.parametrize(
+        "run_patch",
+        [
+            pytest.param({"side_effect": FileNotFoundError("secretspec")}, id="binary-absent"),
+            pytest.param(
+                {"side_effect": subprocess.TimeoutExpired(cmd=["secretspec", "check"], timeout=5)},
+                id="timeout",
+            ),
+            pytest.param(
+                {
+                    "return_value": subprocess.CompletedProcess(
+                        args=["secretspec", "check"], returncode=2, stdout="", stderr=""
+                    )
+                },
+                id="nonzero-exit",
+            ),
+        ],
+    )
+    def test_fallback_hint_names_declaration_and_trust_check(
+        self,
+        run_patch: dict[str, object],
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        from autom8_asana.metrics import __main__ as metrics_main
+
+        for var in _CLI_REQUIRED:
+            monkeypatch.delenv(var, raising=False)
+
+        with patch.object(metrics_main.subprocess, "run", **run_patch):
+            with pytest.raises(SystemExit) as exc_info:
+                metrics_main._preflight_cli_profile()
+
+        assert exc_info.value.code == 2
+        captured = capsys.readouterr()
+        stderr = captured.err
+
+        present = (
+            *_CLI_REQUIRED,
+            "ASANA_PAT",
+            "ASANA_WORKSPACE_GID",
+            ".env/defaults",
+            ".a8-credentials",
+            "ari worktree trust show",
+        )
+        for needle in present:
+            assert needle in stderr, f"preflight hint must name {needle!r}"
+        for stream_name, stream in (("stdout", captured.out), ("stderr", stderr)):
+            assert ".env/local" not in stream, f"{stream_name} must not point at .env/local"
+            assert "direnv allow" not in stream, f"{stream_name} must not say 'direnv allow'"
+
+        root = str(metrics_main._REPO_ROOT)
+        lines = stderr.splitlines()
+
+        # HT-1: exactly one line names the rendered declaration path, and it carries the
+        # credential names only (neither S3 cache var, nor the phrase "cache vars").
+        cred_idx = [i for i, line in enumerate(lines) if root + "/.a8-credentials" in line]
+        assert len(cred_idx) == 1, f"expected 1 line naming the declaration, got {len(cred_idx)}"
+        cred_line = lines[cred_idx[0]]
+        assert "ASANA_PAT" in cred_line
+        assert "ASANA_WORKSPACE_GID" in cred_line
+        for var in _CLI_REQUIRED:
+            assert var not in cred_line, f"{var} must not be attributed to .a8-credentials"
+        assert "cache vars" not in cred_line
+
+        # HT-2: the next line attributes the S3 cache vars to .env/defaults and denies
+        # them the declaration line above; no line naming the declaration names them.
+        assert cred_idx[0] + 1 < len(lines), "the S3 attribution line must follow"
+        s3_line = lines[cred_idx[0] + 1]
+        for phrase in ("S3 cache vars", "belong in .env/defaults", "never there"):
+            assert phrase in s3_line, f"S3 attribution line must say {phrase!r}"
+        assert not [ln for ln in lines if ".a8-credentials" in ln and "cache vars" in ln]
+
+        # HT-3: the trust check is rendered with the repo root, never a bare placeholder.
+        assert "ari worktree trust show " + root in stderr
+        assert "{root}" not in stderr
+
+        # HT-4: the reload verb is named.
+        assert "direnv reload" in stderr
+
+        # HT-5: the two hint blocks, rendered, line for line.
+        item2 = [
+            "  2. .a8-credentials              (committed; names credential coordinates, never values)",
+            f"     Credentials (ASANA_PAT, ASANA_WORKSPACE_GID) are declared at {root}/.a8-credentials.",
+            "     The S3 cache vars are plain config and belong in .env/defaults, never there.",
+        ]
+        tail = [
+            "Typical fix: ensure .env/defaults contains ASANA_CACHE_S3_BUCKET and ASANA_CACHE_S3_REGION,",
+            "then reload the environment (direnv reload) and retry. If direnv reports the .envrc is blocked,",
+            f"in a knossos worktree check: ari worktree trust show {root}",
+        ]
+        assert lines[cred_idx[0] - 1 : cred_idx[0] + 2] == item2
+        assert lines[-3:] == tail
+
+
 # ---------------------------------------------------------------------------
 # Batch-A — Work-Items 1, 2, 8
 # Tests for --force-warm, --sla-profile, MINOR-OBS-2 botocore handler

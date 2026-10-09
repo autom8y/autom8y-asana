@@ -137,34 +137,16 @@ content:
     interpreter: bash
     name: validate_pat
     code: |-
-      # Prerequisite validation with actionable error
-      ENV_FILE="${HOME}/.config/autom8y/envs/autom8y-asana/runbook.env"
-
-      # Check env file exists
-      if [ ! -f "$ENV_FILE" ]; then
-          echo "ERROR: Environment file not found: $ENV_FILE"
-          echo ""
-          echo "Run: cd \${AUTOM8Y_ASANA_PATH} && just setup-env"
-          exit 1
-      fi
-
-      # Load environment
-      set -a
-      source "$ENV_FILE"
-      set +a
-
-      # Check required credentials
+      # Prerequisite validation with actionable error (names only, never a value)
       if [ -z "${ASANA_PAT:-}" ]; then
           echo "ERROR: Missing ASANA_PAT"
           echo ""
-          echo "Add your Personal Access Token to:"
-          echo "  $ENV_FILE"
+          echo "Fix: see .know/env-loader.md"
           exit 1
       fi
 
       echo "PAT validated:"
-      echo "  ASANA_PAT: ****${ASANA_PAT: -4}"
-      echo "  ENV_FILE: $ENV_FILE"
+      echo "  ASANA_PAT: set"
     outputVariable: ''
     outputVisible: true
     dependency: '{}'
@@ -303,12 +285,6 @@ content:
     interpreter: bash
     name: test_auth_flow
     code: |-
-      # Load environment
-      ENV_FILE="${HOME}/.config/autom8y/envs/autom8y-asana/runbook.env"
-      if [ -f "$ENV_FILE" ]; then
-          set -a && source "$ENV_FILE" && set +a
-      fi
-
       echo "=== Authentication Flow Test ==="
       echo ""
 
@@ -317,7 +293,7 @@ content:
           echo "FAIL: ASANA_PAT not set"
           exit 1
       fi
-      echo "1. PAT configured: ****${ASANA_PAT: -4}"
+      echo "1. PAT configured (ASANA_PAT: set)"
 
       # Step 2: Call API
       echo "2. Testing API call..."

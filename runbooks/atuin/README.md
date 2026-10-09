@@ -77,22 +77,21 @@ Personal Access Token -----> 01-authentication (PAT test)
 ## Quick Start
 
 1. Obtain Asana PAT (see Prerequisites above)
-2. Run `just setup-env` to create `~/.config/autom8y/envs/autom8y-asana/runbook.env`
-3. Add your `ASANA_PAT` to the env file
-4. Open this folder in Atuin Desktop
-5. Run `00-bootstrap.md` to verify setup (~3 min)
+2. Set up credentials for this repo: see `.know/env-loader.md`
+3. Open this folder in Atuin Desktop
+4. Run `00-bootstrap.md` to verify setup (~3 min)
 
-**Note:** Environment is automatically loaded by justfile commands. No `direnv allow` needed.
+**Note:** Credentials come from this repo's direnv environment. `just check-env` reports each name's state without printing any value.
 
 ---
 
 ## Environment Variables
 
-Required variables in `~/.config/autom8y/envs/autom8y-asana/runbook.env`:
+Required variables, from this repo's direnv environment (setup and fixes: see `.know/env-loader.md`):
 
 ```bash
 # Required
-ASANA_PAT=your_personal_access_token
+ASANA_PAT
 
 # Optional (with defaults)
 API_HOST=0.0.0.0
@@ -134,6 +133,6 @@ See [04-troubleshooting.md](./04-troubleshooting.md) for detailed solutions.
 | 401 Unauthorized | Invalid/expired PAT | Regenerate at Asana |
 | 403 Forbidden | No access to resource | Check workspace permissions |
 | 429 Rate Limited | Too many requests | Wait for Retry-After header |
-| Missing ASANA_PAT | Not configured | Run `just setup-env` |
+| Missing ASANA_PAT | Not configured | See `.know/env-loader.md` |
 | Path not configured | Missing paths.env | Run `just bootstrap-paths` |
 | Server not responding | Not running | Run `just serve-api` |

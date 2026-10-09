@@ -224,7 +224,7 @@ The SDK expects `ASANA_PAT` by default. Check:
 Check IAM permissions:
 ```bash
 aws sts get-caller-identity
-aws secretsmanager get-secret-value --secret-id autom8y/asana/bot_pat
+aws secretsmanager describe-secret --secret-id autom8y/asana/asana-pat --query '[Name,LastChangedDate]'
 ```
 
 ### boto3 not installed

@@ -239,92 +239,99 @@ clean:
 # Runbook Support Commands
 # ============================================
 # Minimal commands designed for one-liner use in Atuin Desktop runbooks.
-# Environment auto-loaded from: ~/.config/autom8y/envs/autom8y-asana/runbook.env
 
-# Setup runbook environment (creates ~/.config/autom8y/envs/autom8y-asana/runbook.env)
-[group('setup')]
-setup-env:
-    #!/usr/bin/env bash
-    set -euo pipefail
-
-    TEMPLATE="runbooks/atuin/environments/local.env.example"
-    TARGET_DIR="${HOME}/.config/autom8y/envs/autom8y-asana"
-    TARGET_FILE="${TARGET_DIR}/runbook.env"
-
-    echo "=== autom8y-asana Onboarding Setup ==="
-
-    if [ ! -f "$TEMPLATE" ]; then
-        echo "ERROR: Template not found: $TEMPLATE"
-        exit 1
-    fi
-
-    mkdir -p "$TARGET_DIR"
-
-    if [ -f "$TARGET_FILE" ]; then
-        BACKUP="${TARGET_FILE}.backup.$(date +%Y%m%d%H%M%S)"
-        echo "Backing up existing env to $BACKUP"
-        cp "$TARGET_FILE" "$BACKUP"
-    fi
-
-    echo "Copying template..."
-    cp "$TEMPLATE" "$TARGET_FILE"
-
-    echo ""
-    echo "Environment file created: $TARGET_FILE"
-    echo ""
-    echo "Next: Add your ASANA_PAT (Personal Access Token from Asana)"
-
-# Check required environment variables for runbooks
+# Check required environment variables for runbooks (names and presence states only)
 [group('setup')]
 check-env:
     #!/usr/bin/env bash
     set -euo pipefail
 
-    # Auto-load runbook environment
-    ENV_FILE="${HOME}/.config/autom8y/envs/autom8y-asana/runbook.env"
-    [ -f "$ENV_FILE" ] && set -a && source "$ENV_FILE" && set +a
-
     echo "=== autom8y-asana Environment Check ==="
     MISSING=""
 
+    # One state per NAME, keyed on its companion A8_CRED_VERSION_<NAME>: set-ness and a
+    # byte-exact "0" comparison only. The companion is never parsed and its expiry is never
+    # read; no value, length, suffix, prefix or hash is printed. See .know/env-loader.md.
+    cred_state() {
+        local name="$1" comp="A8_CRED_VERSION_$1"
+        if [ -z "${!name:-}" ]; then
+            echo "${name}: missing"
+            return 1
+        fi
+        if [ -n "${!comp+x}" ] && [ "${!comp}" != "0" ]; then
+            echo "${name}: set (substrate-marked)"
+            echo "  note: may be inherited or expired; decide per .know/env-loader.md"
+            if [ -e .env/local ]; then
+                echo "  note: .env/local also exists (a legacy copy); see .know/env-loader.md"
+            fi
+        elif [ -n "${!comp+x}" ]; then
+            echo "${name}: set (not substrate: withheld or shadowed)"
+        else
+            echo "${name}: set (not substrate: no companion)"
+        fi
+    }
+
     # Required variables
-    [ -z "${ASANA_PAT:-}" ] && MISSING="$MISSING ASANA_PAT"
+    cred_state ASANA_PAT || MISSING="$MISSING ASANA_PAT"
+    # Reported, not required by this check
+    cred_state ASANA_WORKSPACE_GID || true
 
     if [ -n "$MISSING" ]; then
         echo "ERROR: Missing required variables:$MISSING"
         echo ""
-        echo "Fix: Run 'just setup-env' then add your ASANA_PAT"
+        echo "Fix: see .know/env-loader.md"
         exit 1
     fi
 
-    echo "ASANA_PAT: ****${ASANA_PAT: -4}"
     echo "API_HOST: ${API_HOST:-0.0.0.0}"
     echo "API_PORT: ${API_PORT:-8000}"
     echo "LOG_LEVEL: ${LOG_LEVEL:-INFO}"
-    echo "ENV_FILE: $ENV_FILE"
     echo ""
     echo "Environment OK"
 
-# Fetch service secrets from AWS and populate .env/local
-[group('setup')]
+# LEGACY (pre-substrate): fetch the service secrets into .env/local; refuses only when its own env carries A8_CRED_VERSION_ASANA_PAT other than 0 (OW-3)
+[group('legacy')]
 fetch-secrets:
     #!/usr/bin/env bash
     set -euo pipefail
-    TARGET=".env/local"
+    # Guard first, before any AWS call: refuse when the companion A8_CRED_VERSION_ASANA_PAT
+    # is SET and not byte-exactly "0" (the empty value included). It is compared to "0"
+    # only: never parsed, never its expiry, never a credential value.
+    if [ -n "${A8_CRED_VERSION_ASANA_PAT+x}" ] && [ "$A8_CRED_VERSION_ASANA_PAT" != "0" ]; then
+        echo "fetch-secrets: REFUSED: A8_CRED_VERSION_ASANA_PAT is set in this process env (served here, or inherited). operator: to decide for this tree run: env -u ASANA_PAT -u A8_CRED_VERSION_ASANA_PAT direnv exec . printenv A8_CRED_VERSION_ASANA_PAT; read the result per .know/env-loader.md (a blocked .envrc reads the same as unset). Declared at .a8-credentials." >&2
+        exit 3
+    fi
+    if [ -n "${A8_CRED_VERSION_ASANA_PAT+x}" ]; then
+        echo "fetch-secrets: NOTE: A8_CRED_VERSION_ASANA_PAT is 0 (withheld or shadowed); .env/local is a fallback copy, silent once served; retire it per .know/env-loader.md"
+    fi
+    # Write: the temp file first (mode 600), removed on any exit. Each fetch appends straight
+    # into it, so values never pass through a shell variable. mv last replaces any prior
+    # .env/local, so the result is mode 600 even when a prior copy was wider.
+    umask 077
     mkdir -p .env
+    tmp=$(mktemp .env/local.XXXXXX)
+    trap 'rm -f "$tmp"' EXIT
     echo "Fetching autom8y-asana secrets from AWS Secrets Manager..."
-    ASANA_PAT=$(aws secretsmanager get-secret-value \
-        --secret-id "autom8y/asana/asana-pat" \
-        --query SecretString --output text) || { echo "ERROR: Failed to fetch ASANA_PAT"; exit 1; }
-    ASANA_WORKSPACE_GID=$(aws secretsmanager get-secret-value \
-        --secret-id "autom8y/asana/asana-workspace-gid" \
-        --query SecretString --output text) || { echo "ERROR: Failed to fetch ASANA_WORKSPACE_GID"; exit 1; }
-    printf '# Local development secrets (gitignored)\n# Generated by: just fetch-secrets (%s)\nASANA_PAT=%s\nASANA_WORKSPACE_GID=%s\n' \
-        "$(date +%Y-%m-%d)" "$ASANA_PAT" "$ASANA_WORKSPACE_GID" > "$TARGET"
-    echo "Written: $TARGET"
-    echo "  ASANA_PAT: ****${ASANA_PAT: -4}"
-    echo "  ASANA_WORKSPACE_GID: ${ASANA_WORKSPACE_GID}"
-    echo "Run 'direnv reload' to pick up changes."
+    printf '# Local development secrets (gitignored)\n# Generated by: just fetch-secrets (%s)\n' "$(date +%Y-%m-%d)" >> "$tmp"
+    { printf '%s=' ASANA_PAT; aws secretsmanager get-secret-value --secret-id "autom8y/asana/asana-pat" --query SecretString --output text; } >> "$tmp" \
+        || { echo "ERROR: Failed to fetch ASANA_PAT"; exit 1; }
+    # Per-name write (OW-12): skip a name whose OWN companion A8_CRED_VERSION_<NAME> is set
+    # and not byte-exactly "0", by the guard's own two checks. Only the GID can be skipped:
+    # the guard above already refused a served PAT. `skipped` holds a NAME, never a value.
+    skipped=""
+    if [ -n "${A8_CRED_VERSION_ASANA_WORKSPACE_GID+x}" ] && [ "$A8_CRED_VERSION_ASANA_WORKSPACE_GID" != "0" ]; then
+        skipped="ASANA_WORKSPACE_GID"
+    else
+        { printf '%s=' ASANA_WORKSPACE_GID; aws secretsmanager get-secret-value --secret-id "autom8y/asana/asana-workspace-gid" --query SecretString --output text; } >> "$tmp" \
+            || { echo "ERROR: Failed to fetch ASANA_WORKSPACE_GID"; exit 1; }
+    fi
+    mv -f "$tmp" .env/local
+    if [ -n "$skipped" ]; then
+        echo "Written: .env/local (1 name; skipped, companion set and not 0: $skipped)"
+    else
+        echo "Written: .env/local (2 names)"
+    fi
+    echo "LEGACY: .env/local is the pre-substrate path. This repo declares at .a8-credentials. This recipe refuses only when its own env carries A8_CRED_VERSION_ASANA_PAT other than 0 (OW-3); a shell without the direnv hook, or any withhold or shadowed, lets it write. When it writes, it skips each name whose own A8_CRED_VERSION_<NAME> is set and not 0 (OW-12). It retires with main's .env/local at A3(d) (OW-4). See .know/env-loader.md."
 
 # === Workflow Invocation ===
 
