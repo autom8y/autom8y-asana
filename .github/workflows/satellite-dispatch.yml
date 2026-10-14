@@ -1,8 +1,14 @@
 name: Satellite Dispatch
 
+# The `sdk-published` repository_dispatch trigger is REMOVED (2026-10-14), matching
+# autom8y-data, -ads, -sms and -scheduling (S02-C1 / R-26, 2026-09-02). It had no
+# behavior beyond dispatching a deploy of this satellite's UNCHANGED main: the
+# lockfile bump a publish announces is opened as a PR by the monorepo's own
+# lockfile-propagator (sdk-publish-v2.yml, "Propagate lockfile bumps to
+# satellites"), and that PR deploys through the push-to-main Test leg below once
+# the bump is IN the tree. Until then only LAMBDA_PUBLISH_HOLD refused the roll.
+
 on:
-  repository_dispatch:
-    types: [sdk-published]
   workflow_run:
     workflows: ["Test"]
     types: [completed]
@@ -11,8 +17,8 @@ on:
 
 permissions: {}
 
-# Serialize asana satellite deploys: stacked dispatches (sdk-published +
-# main-branch Test-success + manual workflow_dispatch can fire near-simultaneously)
+# Serialize asana satellite deploys: stacked dispatches (main-branch Test-success +
+# manual workflow_dispatch can fire near-simultaneously)
 # previously raced the downstream a8 deploy, re-registering competing task
 # definitions. cancel-in-progress: false queues a new dispatch behind any
 # in-flight one rather than cancelling a mid-canary deploy. Asana-scoped — this
@@ -28,7 +34,6 @@ jobs:
     # this repository. Test also runs on pull_request, workflow_dispatch and other
     # events; none of those may deploy through this path.
     if: >-
-      github.event_name == 'repository_dispatch' ||
       github.event_name == 'workflow_dispatch' ||
       (
         github.event_name == 'workflow_run' &&
@@ -52,7 +57,6 @@ jobs:
         run: |
           set -euo pipefail
           case "$EVENT_NAME" in
-            repository_dispatch) triggered_by=sdk-published ;;
             workflow_dispatch)   triggered_by=workflow_dispatch ;;
             workflow_run)        triggered_by=push ;;
             *) echo "::error::unexpected event: $EVENT_NAME"; exit 1 ;;
