@@ -32,6 +32,12 @@ on:
     # PR), and this file itself, so a change only to this CI configuration --
     # including the merge that added these two lines -- does not redeploy
     # production (autom8y-data #455 precedent).
+    #
+    # Also suppressed (2026-10-28): `gitleaks.yml` and `.gitleaksignore`, the
+    # secret-scanner configuration, which is not a build input, so a change to
+    # them alone (including the merge that added them here) does not redeploy.
+    # Other scanner files, such as `.gitleaks.toml` and `trufflehog-scan.yml`,
+    # are not listed and still deploy.
     paths-ignore:
       - '.ledge/**'
       - '.sos/**'
@@ -41,6 +47,8 @@ on:
       - '.know/**.md'
       - 'secretspec.toml'
       - '.github/workflows/test.yml'
+      - '.github/workflows/gitleaks.yml'
+      - '.gitleaksignore'
   pull_request:
     branches: [main]
   # sdk-contract-governance Sprint 3: accept dispatch from
