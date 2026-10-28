@@ -128,3 +128,71 @@ eff1d0d228630ae05cc13839c61f7047671563e5:tests/unit/test_client.py:asana-client-
 eff1d0d228630ae05cc13839c61f7047671563e5:tests/unit/test_settings.py:asana-client-id:39
 eff1d0d228630ae05cc13839c61f7047671563e5:tests/unit/test_settings.py:asana-client-id:452
 eff1d0d228630ae05cc13839c61f7047671563e5:tests/unit/test_settings.py:asana-client-id:453
+
+# ---------------------------------------------------------------------------
+# ADDENDUM 2026-10-28: pin bump to security-gitleaks.yml@b2dfaf08f2, which adds
+# the autom8y-service-api-key rule. 16 fingerprints lifted from the Fingerprint
+# field of a redacted dry run (gitleaks 8.30.1, not the pinned 8.24.3; full
+# mirror history including pull-request refs; the repo .gitleaks.toml plus the
+# appended rule; the 49 entries above applied). Triage a7e63371, metadata and
+# names only. No values. Total now 65.
+# Baselined as likely fixtures (13, metadata only): tests/ constants, the
+# deliberate canaries fixture-cc7-bite-canary.txt and va-red-fixture.txt, and
+# asana-client-id hits (an OAuth client ID is not a secret).
+# Baselined on the operator's ruling (3): the autom8y-service-api-key rows in
+# tmp/qa_hotfix_test.py, tmp/qa_individual_tests.py and tmp/qa_stability_check.py
+# (one commit, triage L14-L16).
+# NOT baselined, uncertain and routed to the operator (3): the
+# stripe-access-token rows on the same three lines. The ruling names an internal
+# service key, not a Stripe token, so they stay red until the operator rules.
+# Any finding not listed here, including those, still fails the scan.
+# Note: all 16 entries in this addendum are in 13 commits that are reachable
+# from no branch or tag, so a green CI scan does not prove them.
+# Basis for the 3 ruled rows: a8 repo
+# .ledge/decisions/worktree-credential-substrate-OPERATOR-word-2026-10-28-declaration-lane-telos.md,
+# ADDENDUM 3: "L14-L16 internal service key in asana tmp/qa_*.py: no rotate
+# ... Just fix forward. Minimal exposure risk across these is accepted."
+
+# .claude/sessions/session-20260212-002451-ec865d27/events.jsonl
+f6e2bf431e6261ae6bda505383e1fa218b6a909b:.claude/sessions/session-20260212-002451-ec865d27/events.jsonl:asana-client-id:65
+
+# .github/workflows/test.yml
+8366df93dbb1e9843016f2a7611bb54af5462ad3:.github/workflows/test.yml:asana-client-id:18
+f3490b95410fca142a18849a1eeabff144fdb901:.github/workflows/test.yml:asana-client-id:22
+
+# fixture-cc7-bite-canary.txt
+9392d97feb6b7622c62b54618d83579bdc87fef5:fixture-cc7-bite-canary.txt:asana-native-pat:2
+
+# src/autom8_asana/client.py
+a776f1fe147c873f05901a22d4febc7d006ffe0b:src/autom8_asana/client.py:asana-client-id:53
+
+# tests/api/test_routes_query.py
+e875cb6bd9b618f32642664005db838f26df6183:tests/api/test_routes_query.py:generic-api-key:577
+
+# tests/api/test_routes_query_rows.py
+2d75f203cfcf6d488a4456e20d03138aa321d37b:tests/api/test_routes_query_rows.py:generic-api-key:761
+
+# tests/test_auth/test_integration.py
+5cf7835e1fc4d28a4f27189a3cc8e272b7510ea8:tests/test_auth/test_integration.py:generic-api-key:296
+
+# tests/unit/api/middleware/test_idempotency_contracts.py
+9513bdb4cefb87aba6429305f60e2f09a8ac937b:tests/unit/api/middleware/test_idempotency_contracts.py:generic-api-key:129
+
+# tests/unit/api/routes/test_resolver_gid_contract.py
+7e9d0ed7605f202bdf3a674cab89de49545209e1:tests/unit/api/routes/test_resolver_gid_contract.py:generic-api-key:397
+
+# tests/unit/query/test_hierarchy.py
+03c780e793530d8520935d478a839951b87731f5:tests/unit/query/test_hierarchy.py:generic-api-key:146
+
+# tmp/qa_hotfix_test.py
+120237c46e2eb989351e668c443eba39b8a06f47:tmp/qa_hotfix_test.py:autom8y-service-api-key:12
+
+# tmp/qa_individual_tests.py
+120237c46e2eb989351e668c443eba39b8a06f47:tmp/qa_individual_tests.py:autom8y-service-api-key:12
+
+# tmp/qa_stability_check.py
+120237c46e2eb989351e668c443eba39b8a06f47:tmp/qa_stability_check.py:autom8y-service-api-key:10
+
+# va-red-fixture.txt
+39aa4240ca03cd1fbc4c32495242263a87191dec:va-red-fixture.txt:aws-codeartifact-atk:7
+39aa4240ca03cd1fbc4c32495242263a87191dec:va-red-fixture.txt:slack-webhook-url:9
