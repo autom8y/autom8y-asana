@@ -26,6 +26,12 @@ on:
     #   .know/**         `.know/cache-freshness-ttl-manifest.yaml` is loaded at
     #                    runtime (src/autom8_asana/metrics/sla_profile.py). Only the
     #                    prose subset of .know is filtered.
+    #
+    # Also suppressed (2026-10-28): `secretspec.toml`, the root secret inventory
+    # (not COPY'd by the Dockerfile; the tests that read it still run on every
+    # PR), and this file itself, so a change only to this CI configuration --
+    # including the merge that added these two lines -- does not redeploy
+    # production (autom8y-data #455 precedent).
     paths-ignore:
       - '.ledge/**'
       - '.sos/**'
@@ -33,6 +39,8 @@ on:
       - '.gemini/**'
       - '.knossos/**'
       - '.know/**.md'
+      - 'secretspec.toml'
+      - '.github/workflows/test.yml'
   pull_request:
     branches: [main]
   # sdk-contract-governance Sprint 3: accept dispatch from
