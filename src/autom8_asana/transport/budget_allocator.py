@@ -339,6 +339,14 @@ class BudgetAllocator:
         # mutates a client's request path.
         self._registered_client_ids: set[int] = set()
 
+        # Process-singleton ECS fair-share admission gate (the 1390/60s self-cap).
+        # MEMOIZED: every AsanaClient GET in the process admits through ONE shared
+        # gate, so the cap is a process-wide budget (PC-1 unification, PC-4 sizing),
+        # NOT a per-client reset that a concurrent burst would defeat. Built lazily on
+        # the first fair-share GET, so an INERT process never constructs it (ITEM-D).
+        self._fair_share_gate_instance: WarmerFloorGate | None = None
+        self._fair_share_gate_lock = threading.Lock()
+
         # Startup INFO log (per-principal, at fresh construction) -- ITEM-D §2.3.
         state = "ACTIVE" if config.enabled else "INERT"
         self._log.info(
@@ -395,6 +403,51 @@ class BudgetAllocator:
             clock=clock or self._clock,
             sleep=sleep or self._sleep,
         )
+
+    def fair_share_floor(self) -> PublishedFloor:
+        """Return the static ECS fair-share self-cap (1390/60s) as a data-at-rest floor.
+
+        Symmetric with ``published_floor`` (the 110/60s warmer reservation) but sized to
+        the ECS fair-share cap (``fair_share_max_requests``). PURE config read
+        (C-11-DECOUPLED, pythia PC-2): it invokes NO AIMD / dynamic concurrency
+        instrumentation, so the cap value is data-at-rest and readable whether the
+        allocator is ACTIVE, INERT, or KILLED.
+        """
+        return PublishedFloor(
+            max_requests=self._config.fair_share_max_requests,
+            window_seconds=self._config.floor_window_seconds,
+        )
+
+    def fair_share_gate(
+        self,
+        *,
+        clock: Callable[[], float] | None = None,
+        sleep: Callable[[float], Awaitable[None]] | None = None,
+    ) -> WarmerFloorGate:
+        """Return the PROCESS-SINGLETON ECS fair-share admission gate (1390/60s self-cap).
+
+        Unlike ``warmer_floor_gate`` (a fresh gate per warm sweep), the fair-share gate
+        is MEMOIZED: every AsanaClient GET in the process admits through ONE shared gate,
+        so the 1390/60s cap is a process-wide budget (pythia PC-1 unification, PC-4
+        sizing) rather than a per-client reset that a concurrent burst would defeat. The
+        token bucket admits at the fair-share rate (``fair_share_max_requests`` /
+        ``floor_window_seconds``), queue-position-independent and AIMD-decoupled -- the
+        SAME primitive as the warmer floor, sized to the ECS self-cap instead of the
+        warmer reservation. ``clock``/``sleep`` (honored on FIRST construction only)
+        default to the allocator's own clock/sleep, so the in-silico cap tests drive it
+        with a fixture clock (ZERO real sleeps, F-b).
+        """
+        existing = self._fair_share_gate_instance
+        if existing is not None:
+            return existing
+        with self._fair_share_gate_lock:
+            if self._fair_share_gate_instance is None:
+                self._fair_share_gate_instance = WarmerFloorGate(
+                    self.fair_share_floor(),
+                    clock=clock or self._clock,
+                    sleep=sleep or self._sleep,
+                )
+            return self._fair_share_gate_instance
 
     # -- unification bookkeeping (PC-1) --------------------------------------
 
