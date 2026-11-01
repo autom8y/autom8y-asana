@@ -142,6 +142,8 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING, Any, Final, NamedTuple
 
+from autom8y_api_schemas import OfficePhone
+
 from autom8_asana.lambda_handlers.traffic_offer_divergence_tripwire import (
     EvaluationRefusedError,
     active_roster_phones,
@@ -725,7 +727,7 @@ def project_enrollment_intent(
             guid_null_in_scope += 1
         intents.append(
             EnrollmentIntent(
-                office_phone=phone,
+                office_phone=OfficePhone(phone),
                 intent_enabled=enabled,
                 intent_raw=raw,
                 intent_source=source,

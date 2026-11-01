@@ -23,6 +23,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from autom8y_api_schemas import OfficePhone
 from autom8y_log import get_logger
 
 from autom8_asana.auth.business_token import (
@@ -292,7 +293,11 @@ class GrainBridgeLeadsConsumer:
             business = await ctx.business_async()
             return _ResolvedBusiness(
                 gid=business.gid,
-                office_phone=business.office_phone,
+                office_phone=(
+                    OfficePhone(business.office_phone)
+                    if business.office_phone is not None
+                    else None
+                ),
                 vertical=business.vertical,
                 company_id=business.company_id,
                 name=business.name,
