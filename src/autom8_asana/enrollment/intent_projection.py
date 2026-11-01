@@ -159,6 +159,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
 
     import polars as pl
+    from autom8y_api_schemas import OfficePhoneField
 
 # ==============================================================================
 # Frame identity (project gids + S3 key layout)
@@ -449,7 +450,7 @@ class EnrollmentIntent(NamedTuple):
     (R-12).
     """
 
-    office_phone: str
+    office_phone: OfficePhoneField
     intent_enabled: bool
     intent_raw: str | None
     intent_source: str

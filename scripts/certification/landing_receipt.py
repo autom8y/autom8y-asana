@@ -44,6 +44,8 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
+from autom8y_api_schemas import E164PhoneField
+
 HERE = Path(__file__).resolve().parent
 DEFAULT_PREDICATE = HERE / "predicate.toml"
 DEFAULT_ENV = Path("/Users/tomtenuta/Code/a8/autom8/.env")
@@ -340,7 +342,7 @@ class Booking:
     appt_id: int
     created: datetime
     appt_office_phone: str | None
-    contact_phone: str | None
+    contact_phone: E164PhoneField | None
     start_raw: str | None
     start_dt: datetime | None
     start_dialect: str

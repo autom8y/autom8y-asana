@@ -54,6 +54,8 @@ from autom8_asana.errors import (
 from autom8_asana.resolution.context import ResolutionContext
 
 if TYPE_CHECKING:
+    from autom8y_api_schemas import OfficePhoneField
+
     from autom8_asana.clients.data.client import DataServiceClient
     from autom8_asana.core.scope import EntityScope
     from autom8_asana.protocols.auth import AuthProvider
@@ -73,7 +75,7 @@ class _ResolvedBusiness:
     """Resolved Business fields needed for the per-business leads read."""
 
     gid: str
-    office_phone: str | None
+    office_phone: OfficePhoneField | None
     vertical: str | None
     company_id: str | None
     name: str | None
