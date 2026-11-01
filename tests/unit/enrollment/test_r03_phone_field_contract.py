@@ -37,9 +37,7 @@ class TestPhoneFieldContract:
             TypeAdapter(field).validate_python(bad)
 
     @pytest.mark.parametrize("wrap", [OfficePhone, LeadPhone])
-    def test_newtype_wrap_is_identity_at_runtime(
-        self, wrap: Callable[[str], str]
-    ) -> None:
+    def test_newtype_wrap_is_identity_at_runtime(self, wrap: Callable[[str], str]) -> None:
         wrapped = wrap(VALID)
         assert wrapped == VALID
         assert isinstance(wrapped, str)
