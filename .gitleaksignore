@@ -196,3 +196,9 @@ e875cb6bd9b618f32642664005db838f26df6183:tests/api/test_routes_query.py:generic-
 # va-red-fixture.txt
 39aa4240ca03cd1fbc4c32495242263a87191dec:va-red-fixture.txt:aws-codeartifact-atk:7
 39aa4240ca03cd1fbc4c32495242263a87191dec:va-red-fixture.txt:slack-webhook-url:9
+
+# Operator ruling 2026-11-03 (TOM-WORD-LO6-L3-push-and-gitleaks-rulings, 55f8015ec541): the three
+# stripe-access-token rows in tmp/qa_*.py (commit 120237c4, on no branch or tag) are baselined.
+120237c46e2eb989351e668c443eba39b8a06f47:tmp/qa_hotfix_test.py:stripe-access-token:12
+120237c46e2eb989351e668c443eba39b8a06f47:tmp/qa_individual_tests.py:stripe-access-token:12
+120237c46e2eb989351e668c443eba39b8a06f47:tmp/qa_stability_check.py:stripe-access-token:10
