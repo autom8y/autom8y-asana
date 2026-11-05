@@ -44,6 +44,8 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
+from autom8y_api_schemas import LeadPhone, LeadPhoneField
+
 HERE = Path(__file__).resolve().parent
 DEFAULT_PREDICATE = HERE / "predicate.toml"
 DEFAULT_ENV = Path("/Users/tomtenuta/Code/a8/autom8/.env")
@@ -340,7 +342,7 @@ class Booking:
     appt_id: int
     created: datetime
     appt_office_phone: str | None
-    contact_phone: str | None
+    contact_phone: LeadPhoneField | None
     start_raw: str | None
     start_dt: datetime | None
     start_dialect: str
@@ -441,7 +443,7 @@ class Harness:
         for aid, created, office, phone, start_raw, status, source, atype in appt_rows:
             dt, dialect = parse_start(start_raw)
             b = Booking(appt_id=aid, created=created, appt_office_phone=office,
-                        contact_phone=phone, start_raw=start_raw, start_dt=dt,
+                        contact_phone=LeadPhone(phone) if phone is not None else None, start_raw=start_raw, start_dt=dt,
                         start_dialect=dialect, status=status, source=source)
             b.legs["R1-appt-type"] = (atype == "appt")
             bookings.append(b)

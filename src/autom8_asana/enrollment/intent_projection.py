@@ -142,6 +142,8 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING, Any, Final, NamedTuple
 
+from autom8y_api_schemas import OfficePhone
+
 from autom8_asana.lambda_handlers.traffic_offer_divergence_tripwire import (
     EvaluationRefusedError,
     active_roster_phones,
@@ -159,6 +161,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
 
     import polars as pl
+    from autom8y_api_schemas import OfficePhoneField
 
 # ==============================================================================
 # Frame identity (project gids + S3 key layout)
@@ -449,7 +452,7 @@ class EnrollmentIntent(NamedTuple):
     (R-12).
     """
 
-    office_phone: str
+    office_phone: OfficePhoneField
     intent_enabled: bool
     intent_raw: str | None
     intent_source: str
@@ -724,7 +727,7 @@ def project_enrollment_intent(
             guid_null_in_scope += 1
         intents.append(
             EnrollmentIntent(
-                office_phone=phone,
+                office_phone=OfficePhone(phone),
                 intent_enabled=enabled,
                 intent_raw=raw,
                 intent_source=source,
