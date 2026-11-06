@@ -31,7 +31,7 @@ import asyncio
 import hashlib
 import os
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -116,6 +116,9 @@ class OfficeRunResult:
     deploy_root: str
     wrangler_command: str | None
     posts: dict[str, str | None]
+    # Phase-2: the composed text of each comment (link / template / card), so a dry run shows
+    # EXACTLY what --execute would post. Empty on Phase-1.
+    previews: dict[str, str] = field(default_factory=dict)
 
 
 def _now() -> str:
@@ -192,6 +195,27 @@ def _assert_served_parity(*, served_bytes: bytes, slug: str, expected_sha256: st
         return verify_bundle_parity(deploy_root=root, slug=slug, expected_sha256=expected_sha256)
 
 
+class StagedDeckMissing(RuntimeError):
+    """A PRODUCED office's pinned deck is absent from (or drifted in) the given deploy root."""
+
+
+def _assert_staged_in_root(deploy_root: Path, *, slug: str, frozen_sha256: str) -> None:
+    """Refuse unless ``<deploy_root>/<slug>/index.html`` exists with the frozen sha256."""
+    leaf = Path(deploy_root) / slug / "index.html"
+    if not leaf.is_file():
+        raise StagedDeckMissing(
+            f"already produced (slug {slug}) but {leaf} does not exist: the first produce ran "
+            "against a different --deploy-base. Re-run with that same --deploy-base, or copy "
+            f"its {slug}/ directory into {deploy_root}."
+        )
+    actual = hashlib.sha256(leaf.read_bytes()).hexdigest()
+    if actual != frozen_sha256:
+        raise StagedDeckMissing(
+            f"already produced (slug {slug}) but {leaf} has sha256 {actual[:12]}…, "
+            f"not the frozen {frozen_sha256[:12]}…: the staged deck drifted."
+        )
+
+
 async def _run_produce(
     client: AsanaClient,
     *,
@@ -215,7 +239,12 @@ async def _run_produce(
         Phase.DONE,
     ):
         # Already produced: reuse the PINNED slug, re-surface the command, NEVER re-mint
-        # (re-minting orphans the deployed deck — SLUG-1) and never re-freeze.
+        # (re-minting orphans the deployed deck — SLUG-1) and never re-freeze. But the pinned
+        # deck must actually sit in THIS root: a first run against a different --deploy-base
+        # leaves it elsewhere, and silently re-surfacing would deploy a root without it.
+        _assert_staged_in_root(
+            deploy_root, slug=existing.slug, frozen_sha256=existing.frozen_sha256
+        )
         return OfficeRunResult(
             play_gid=play_gid,
             phase=existing.phase,
@@ -374,10 +403,19 @@ async def _run_resume(
     card = await post_contact_card(client, play_gid=play_gid, deck_slug=state.slug, execute=execute)
     if execute:
         state.posts["card"] = card.story_gid
-        state.phase = Phase.DONE
+        # DONE only once all three stories exist. With no card (no holder / no usable
+        # contacts) the office stays DEPLOY_CONFIRMED, so a re-run after the contact is fixed
+        # re-enters resume: link + template skip on their markers and the card is retried.
+        if card.story_gid:
+            state.phase = Phase.DONE
         state.updated_at = _now()
         store.save(state)
-        logger.info("floodgates_office_done", play_gid=play_gid, slug=state.slug)
+        if card.story_gid:
+            logger.info("floodgates_office_done", play_gid=play_gid, slug=state.slug)
+        else:
+            logger.warning(
+                "floodgates_office_card_missing", play_gid=play_gid, outcome=card.outcome
+            )
 
     return OfficeRunResult(
         play_gid=play_gid,
@@ -388,6 +426,13 @@ async def _run_resume(
         deploy_root=deploy_root,
         wrangler_command=None,
         posts=dict(state.posts),
+        previews={
+            "link": getattr(link, "comment_text", "") or "",
+            "template": getattr(template, "comment_text", "") or "",
+            "card": getattr(card, "comment_text", None)
+            or getattr(card, "comment_html", None)
+            or f"(no card: {getattr(card, 'outcome', 'unknown')})",
+        },
     )
 
 

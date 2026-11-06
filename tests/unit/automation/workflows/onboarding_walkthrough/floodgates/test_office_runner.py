@@ -572,3 +572,87 @@ class TestCrashResume:
         assert result.slug == SLUG  # reused, not re-minted
         freeze.assert_not_awaited()
         mint.assert_not_called()
+
+
+class TestStagedInRoot:
+    """An already-produced office must have its pinned deck in THIS root, byte-exact."""
+
+    def _leaf(self, root, slug, body: bytes):
+        (root / slug).mkdir(parents=True)
+        (root / slug / "index.html").write_bytes(body)
+
+    def test_present_and_matching_passes(self, tmp_path) -> None:
+        import hashlib
+
+        from autom8_asana.automation.workflows.onboarding_walkthrough.floodgates import (
+            office_runner as orun,
+        )
+
+        slug = "c" * 32
+        self._leaf(tmp_path, slug, b"<html>deck</html>")
+        orun._assert_staged_in_root(
+            tmp_path, slug=slug, frozen_sha256=hashlib.sha256(b"<html>deck</html>").hexdigest()
+        )
+
+    def test_missing_leaf_refuses(self, tmp_path) -> None:
+        import pytest
+
+        from autom8_asana.automation.workflows.onboarding_walkthrough.floodgates import (
+            office_runner as orun,
+        )
+
+        with pytest.raises(orun.StagedDeckMissing, match="different --deploy-base"):
+            orun._assert_staged_in_root(tmp_path, slug="c" * 32, frozen_sha256="0" * 64)
+
+    def test_drifted_leaf_refuses(self, tmp_path) -> None:
+        import pytest
+
+        from autom8_asana.automation.workflows.onboarding_walkthrough.floodgates import (
+            office_runner as orun,
+        )
+
+        slug = "c" * 32
+        self._leaf(tmp_path, slug, b"<html>tampered</html>")
+        with pytest.raises(orun.StagedDeckMissing, match="drifted"):
+            orun._assert_staged_in_root(tmp_path, slug=slug, frozen_sha256="0" * 64)
+
+
+class TestMissingCardIsNotDone:
+    """No contact card -> NOT done, so the runbook's 'add a contact, re-run' actually retries."""
+
+    async def _resume(self, tmp_path, store, card_ns):
+        with ExitStack() as stack:
+            m = _resume_patches(stack)
+            m["card"].return_value = card_ns
+            return await run_office(
+                _mock_client(),
+                play_gid=PLAY_GID,
+                clinic=CLINIC,
+                phase="resume",
+                store=store,
+                deploy_base=tmp_path / "deploy",
+                execute=True,
+            )
+
+    async def test_no_card_stays_deploy_confirmed_then_retry_reaches_done(self, tmp_path) -> None:
+        store = _store(tmp_path)
+        _seed_produced(store, frozen_sha256=SERVED_SHA)
+        first = await self._resume(
+            tmp_path, store, SimpleNamespace(story_gid=None, outcome="no_contacts")
+        )
+        state = store.load(PLAY_GID)
+        assert state is not None
+        assert first.phase is Phase.DEPLOY_CONFIRMED
+        assert state.phase is Phase.DEPLOY_CONFIRMED  # not DONE: a re-run must re-enter resume
+        assert state.posts["card"] is None
+        assert state.posts["link"] == "LINK_STORY"
+
+        # Operator adds the contact; the re-run retries the card and only then reaches DONE.
+        second = await self._resume(
+            tmp_path, store, SimpleNamespace(story_gid="CARD_STORY", outcome="posted")
+        )
+        state = store.load(PLAY_GID)
+        assert state is not None
+        assert second.phase is Phase.DONE
+        assert state.phase is Phase.DONE
+        assert state.posts["card"] == "CARD_STORY"

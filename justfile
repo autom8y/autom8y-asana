@@ -339,3 +339,76 @@ fetch-secrets:
 [group('runbook')]
 invoke workflow_id *args:
     uv run python scripts/invoke_workflow.py {{workflow_id}} {{args}}
+
+# === Onboarding deck (floodgates) ===
+# One client: name -> produce -> deploy -> preview -> post. See
+# docs/runbooks/RUNBOOK-onboard-deck.md. Needs AUTOM8_FLOODGATES_STATE_DIR (ONE absolute
+# state dir shared by every checkout) and DECK_HOST_DIR (the deck-host checkout); deploy
+# also needs DECK_HOST_CF_ACCOUNT_ID.
+
+_floodgates := "autom8_asana.automation.workflows.onboarding_walkthrough.floodgates.batch"
+
+# Step 0: print the clinic name suggested by the PLAY title (read-only)
+[group('onboard-deck')]
+[positional-arguments]
+onboard-deck-name play_gid:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    [[ "$1" =~ ^[0-9]+$ ]] || { echo "play_gid must be digits" >&2; exit 2; }
+    uv run python -m {{_floodgates}} --phase produce --office "$1" --suggest-clinic
+
+# Step 1: build and stage the deck with the CONFIRMED clinic name (no Asana writes)
+[group('onboard-deck')]
+[positional-arguments]
+onboard-deck-produce play_gid clinic:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    [[ "$1" =~ ^[0-9]+$ ]] || { echo "play_gid must be digits" >&2; exit 2; }
+    : "${AUTOM8_FLOODGATES_STATE_DIR:?set AUTOM8_FLOODGATES_STATE_DIR (one absolute dir)}"
+    : "${DECK_HOST_DIR:?set DECK_HOST_DIR to the deck-host checkout}"
+    mise exec node@22 -- uv run python -m {{_floodgates}} --phase produce --office "$1" \
+        --clinic "$2" --deploy-base "$DECK_HOST_DIR/public" \
+        --state-dir "$AUTOM8_FLOODGATES_STATE_DIR"
+
+# Step 2: publish every staged deck to the deck host (Cloudflare Pages; production)
+[group('onboard-deck')]
+onboard-deck-deploy:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    : "${DECK_HOST_DIR:?set DECK_HOST_DIR to the deck-host checkout}"
+    : "${DECK_HOST_CF_ACCOUNT_ID:?set DECK_HOST_CF_ACCOUNT_ID to the account that owns the deck-host Pages project}"
+    cd "$DECK_HOST_DIR"
+    # wrangler's project-local cache beats CLOUDFLARE_ACCOUNT_ID: refuse any cached account
+    # id (either cache file format) that is not exactly the configured one.
+    cache=node_modules/.cache/wrangler
+    if [ -d "$cache" ]; then
+        for id in $(cat "$cache"/*.json 2>/dev/null | grep -o -E '[0-9a-f]{32}' | sort -u); do
+            if [ "$id" != "$DECK_HOST_CF_ACCOUNT_ID" ]; then
+                echo "REFUSED: $cache pins account $id; move that directory aside and re-run." >&2
+                exit 1
+            fi
+        done
+    fi
+    env -u CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID="$DECK_HOST_CF_ACCOUNT_ID" \
+        mise exec node@22 -- node_modules/.bin/wrangler pages deploy "$DECK_HOST_DIR/public" \
+        --project-name=deck-host --branch=main
+
+# Step 3: re-check the live deck and print the three comments (posts nothing)
+[group('onboard-deck')]
+[positional-arguments]
+onboard-deck-preview play_gid:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    [[ "$1" =~ ^[0-9]+$ ]] || { echo "play_gid must be digits" >&2; exit 2; }
+    : "${AUTOM8_FLOODGATES_STATE_DIR:?set AUTOM8_FLOODGATES_STATE_DIR (one absolute dir)}"
+    uv run python -m {{_floodgates}} --phase resume --office "$1" --state-dir "$AUTOM8_FLOODGATES_STATE_DIR"
+
+# Step 4: post the three comments on the PLAY task (Asana write; re-runs skip existing ones)
+[group('onboard-deck')]
+[positional-arguments]
+onboard-deck-post play_gid:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    [[ "$1" =~ ^[0-9]+$ ]] || { echo "play_gid must be digits" >&2; exit 2; }
+    : "${AUTOM8_FLOODGATES_STATE_DIR:?set AUTOM8_FLOODGATES_STATE_DIR (one absolute dir)}"
+    uv run python -m {{_floodgates}} --phase resume --office "$1" --state-dir "$AUTOM8_FLOODGATES_STATE_DIR" --execute
