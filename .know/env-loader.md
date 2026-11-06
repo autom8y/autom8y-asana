@@ -46,7 +46,7 @@ asana reads `ASANA_PAT` and `ASANA_WORKSPACE_GID` from a **declared loader**. Th
 | `Written: .env/local (1 name; skipped, companion set and not 0: ASANA_WORKSPACE_GID)` | The legacy recipe wrote the PAT only. The GID is served here, so it was skipped | [Legacy path and bridge window](#legacy-path-fetch-secrets-and-layer-5) |
 
 **Two rules that prevent the common mistakes:**
-1. Agents never run `direnv exec` and never run `direnv allow`. Steps marked **OPERATOR** are the operator's.
+1. Agents run `direnv exec . <command>` in a tree whose `.envrc` is already allowed, dry runs and the fresh-eval check included; served values are never printed. Agents never run `direnv allow`; trusting a tree's `.envrc` is the operator's act.
 2. **Never delete your `.env/local` credential until a fresh eval in that tree reads `<v>:<exp>` with `exp` in the future.** Until then it is the only working copy, even when a line reads `(<cause>, shadowed)`. See [Do not delete your `.env/local` until the fresh eval serves](#do-not-delete-your-envlocal-until-the-fresh-eval-serves).
 
 ---
