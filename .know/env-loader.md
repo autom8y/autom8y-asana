@@ -119,7 +119,7 @@ For every declared name, the loader exports a **version companion**: `A8_CRED_VE
 
 **A companion in your shell is not proof about your current tree.** A process launched in a declaring primary checkout carries its companion into a hand-typed worktree, and a running process keeps its launch environment. To decide for one tree, run a fresh evaluation in that tree with the variable and its companion unset first.
 
-> **OPERATOR ACTION.** Agents never run `direnv exec`.
+> **Agent-run; prints a version and expiry, never a value.**
 >
 > ```bash
 > env -u ASANA_PAT -u A8_CRED_VERSION_ASANA_PAT direnv exec . printenv A8_CRED_VERSION_ASANA_PAT
@@ -130,7 +130,7 @@ For every declared name, the loader exports a **version companion**: `A8_CRED_VE
 | Output | Meaning | What to do |
 |---|---|---|
 | `<v>:<exp>` and `exp` **greater than** now | **Served.** The loader supplied a live value in this tree, as of the loader's exit; a later `.envrc` line, mise `[env]` or hook is outside that attestation. | Nothing. Do not run `fetch-secrets`. |
-| `<v>:<exp>` and `exp` **at or before** now | **Stale.** Treat as **not served.** | Refresh with the verify verb ([below](#operator-verbs-verify-and-fill)), then `direnv reload` (**OPERATOR**) and this check. |
+| `<v>:<exp>` and `exp` **at or before** now | **Stale.** Treat as **not served.** | Refresh with the verify verb ([below](#operator-verbs-verify-and-fill)), then `direnv reload` (agent-run) and this check. |
 | `0` | **Withheld in scope.** The loader tried and withheld the value, or served it and a later layer then overrode it. | Read the withhold line for the cause; see [Who fixes what](#who-fixes-what-the-owner-and-producer-map). |
 | unset or empty | **Out of scope or not declared.** | Check the caveat below before concluding. |
 
@@ -203,10 +203,10 @@ The path in that slot is printed with shell `%q` quoting. A plain path prints ba
 | Cause | First step | Then |
 |---|---|---|
 | `auth-expired` | **OPERATOR:** sign in to the resolved profile's SSO session, then reload the tree | Re-run the fresh-eval check |
-| `store-unreachable`, `expired-unrefreshable` | **OPERATOR:** run the [verify verb](#operator-verbs-verify-and-fill) | Then `direnv reload` (OPERATOR) and the fresh-eval check |
+| `store-unreachable`, `expired-unrefreshable` | **OPERATOR:** run the [verify verb](#operator-verbs-verify-and-fill) | Then `direnv reload` (agent-run) and the fresh-eval check |
 | `not-found` | The `operator: owner of ... (DC-9)` line: the producer has not minted the mirror coordinate, or wrote it elsewhere. Ask the producer. | Pre-mint this is expected: see the [bridge window](#the-bridge-window-pre-mint) |
 | `access-denied` | **First check the resolved profile's permission set (the profile `ecosystem.conf` selects); then the producer.** | The producer only fixes a wrong grant on the mirror side |
-| `insecure-type` | The owner slot `operator: owner of <unit root>/.a8-credentials (DC-9): coordinate is not SecureString`. Ask the producer to rewrite it as `SecureString` under the mirror's KMS key. | Then run the verify verb, `direnv reload` (OPERATOR) and the fresh-eval check |
+| `insecure-type` | The owner slot `operator: owner of <unit root>/.a8-credentials (DC-9): coordinate is not SecureString`. Ask the producer to rewrite it as `SecureString` under the mirror's KMS key. | Then run the verify verb, `direnv reload` (agent-run) and the fresh-eval check |
 | `declaration-invalid` | Fix `.a8-credentials` at the line and field named. Check the [rules](#the-declared-loader-a8-credentials). | Editing that file re-opens the trust gate: this is a reviewed change, not a local tweak |
 | bare `shadowed` | Arises only after a serve. The line names one layer (`.envrc.local`, `tf-bridge`, `tool-tokens` or `venv`). Remove the declared name from that layer. | Re-run the fresh-eval check |
 | `(<any withhold cause>, shadowed)` | Take that cause's own fix slot (for `not-found`, the DC-9 owner slot; a duplicate declaration can print `(declaration-invalid, shadowed)`). It never names a layer. **Do not delete your `.env/local` value until a fresh eval reads `<v>:<exp>` with `exp` in the future**: see [Do not delete your `.env/local` until the fresh eval serves](#do-not-delete-your-envlocal-until-the-fresh-eval-serves). | Re-run the fresh-eval check |
