@@ -23,11 +23,13 @@ import asyncio
 import contextlib
 import dataclasses
 import hashlib
+import json
 import stat
 import sys
 import urllib.request
 import uuid
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -73,6 +75,9 @@ from tests.unit.automation.workflows.test_walkthrough_render_assert import (
     requires_browser,
     requires_producer,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 SPIKE_GUID = SPIKE_ADDRESS.partition("@")[0]
 OWN_SHA = hashlib.sha256(SPIKE_GUID.encode()).hexdigest()
@@ -366,6 +371,28 @@ class TestRenderArgv:
         args = log.read_text(encoding="utf-8").split()
         assert "--use-mock-keychain" in args and "--password-store=basic" in args
 
+    def test_browser_subprocesses_get_only_the_allowlisted_env(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """F-3: API tokens in the operator's shell never reach the browser (render + probe)."""
+        planted = {
+            "ASANA_PAT": "synthetic-asana-value",
+            "CLOUDFLARE_API_TOKEN": "synthetic-cf-value",
+            "CF_API_TOKEN": "synthetic-cf-legacy-value",
+        }
+        for name, value in planted.items():
+            monkeypatch.setenv(name, value)
+        monkeypatch.setenv("LANG", "en_US.UTF-8")
+        render_fake = _fake_executable(tmp_path / "chrome-env", "env")
+        dom = render_dom("http://127.0.0.1:1/a/", Browser(path=render_fake, kind="chrome"))
+        probe_fake = _fake_executable(tmp_path / "chrome-env-probe", "env | tr '\\n' ' '")
+        probe = render_check.browser_version(Browser(path=probe_fake, kind="chrome"))
+        for seen in (dom, probe):
+            assert not any(value in seen for value in planted.values())
+            assert "PATH=" in seen and "LANG=en_US.UTF-8" in seen  # positive control
+            names = {pair.partition("=")[0] for pair in seen.split() if "=" in pair}
+            assert names <= set(render_check.BROWSER_ENV_ALLOWLIST) | {"PWD", "SHLVL", "_"}
+
     def test_render_dom_uses_a_fresh_profile_each_time(self, tmp_path: Path) -> None:
         log = tmp_path / "argv.log"
         fake = _fake_executable(
@@ -458,11 +485,26 @@ class GateCtx:
     def store(self) -> StateStore:
         return StateStore(self.state_dir)
 
+    def ledger(self, decks: dict[str, dict[str, str]]) -> None:
+        """Write the deck-host ledger at the default location (``<deploy>/../config``)."""
+        _write_ledger(self.deploy, decks)
+
+
+def _write_ledger(deploy_root: Path, decks: dict[str, dict[str, str]]) -> Path:
+    config = deploy_root.parent / "config"
+    config.mkdir(parents=True, exist_ok=True)
+    path = config / "deck-manifest.json"
+    path.write_text(json.dumps({"version": 1, "decks": decks}), encoding="utf-8")
+    return path
+
 
 @pytest.fixture
 def gate(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> GateCtx:
+    """A guard-clean publish root (``_headers`` + an empty ledger); browser stubbed to pass."""
     ctx = GateCtx(deploy=tmp_path / "public", state_dir=tmp_path / "state", calls=[], failing=set())
     ctx.deploy.mkdir()
+    (ctx.deploy / "_headers").write_text(host_bundle.HEADERS_FILE_CONTENT, encoding="utf-8")
+    ctx.ledger({})
     fake_browser = Browser(path=Path("/fake/chrome"), kind="chrome")
 
     def fake_check(deploy_root: Path, slug: str, **kwargs: object) -> RenderReceipt:
@@ -494,14 +536,20 @@ class TestRenderGate:
             c["office_guid_sha256"] == OWN_SHA and c["clinic"] == CLIENT_NAME for c in gate.calls
         )
 
-    def test_other_phases_and_unstaged_decks_are_not_checked(self, gate: GateCtx) -> None:
+    def test_done_deck_is_hash_verified_not_rendered_and_unstaged_states_are_ignored(
+        self, gate: GateCtx
+    ) -> None:
         d = gate.deploy
         gate.store.save(_office("1001", SLUG, _stage(d, SLUG, b"deck-1"), Phase.PRODUCED))
         gate.store.save(_office("1002", SLUG_2, _stage(d, SLUG_2, b"deck-2"), Phase.DONE))
         gate.store.save(_office("1003", "ab" * 16, "0" * 64, Phase.PRODUCED))  # not staged here
         gate.store.save(_office("1004", "cd" * 16, "0" * 64, Phase.PENDING))
         receipts = render_gate(d, gate.state_dir)
-        assert [r.slug for r in receipts] == [SLUG]
+        assert [(r.slug, r.outcome) for r in receipts] == [
+            (SLUG, "pass"),
+            (SLUG_2, "verified_live"),
+        ]
+        assert [c["slug"] for c in gate.calls] == [SLUG]
 
     def test_drifted_staged_sha_refuses_without_rendering(self, gate: GateCtx) -> None:
         d = gate.deploy
@@ -546,6 +594,220 @@ class TestRenderGate:
             render_gate(d, gate.state_dir)
 
 
+# --- F-1: the deploy gate covers the WHOLE publish root (S3 security review) ---
+
+#: Synthetic slugs for the whole-root cases (32 lowercase hex; no real deck).
+LIVE_LEDGER = "11111111111111111111111111111111"
+LIVE_DONE = "22222222222222222222222222222222"
+EXTRA = "33333333333333333333333333333333"
+
+
+def _clean_whole_root(gate: GateCtx) -> None:
+    """One PRODUCED deck + one live ledger deck + one DONE deck not yet in the ledger."""
+    d = gate.deploy
+    gate.store.save(_office("2001", SLUG, _stage(d, SLUG, b"new deck"), Phase.PRODUCED))
+    live_sha = _stage(d, LIVE_LEDGER, b"live deck in the ledger")
+    gate.ledger({LIVE_LEDGER: {"frozen_sha256": live_sha, "status": "live"}})
+    gate.store.save(_office("2002", LIVE_DONE, _stage(d, LIVE_DONE, b"done deck"), Phase.DONE))
+
+
+def _break_done_drift(gate: GateCtx) -> None:
+    (gate.deploy / LIVE_DONE / "index.html").write_bytes(b"done deck, edited after delivery")
+
+
+def _break_ledger_drift(gate: GateCtx) -> None:
+    (gate.deploy / LIVE_LEDGER / "index.html").write_bytes(b"live deck, edited after delivery")
+
+
+def _break_unaccounted(gate: GateCtx) -> None:
+    _stage(gate.deploy, EXTRA, b"no state, no ledger row")
+
+
+def _break_pending_state_staged(gate: GateCtx) -> None:
+    sha = _stage(gate.deploy, EXTRA, b"pending deck")
+    gate.store.save(_office("2003", EXTRA, sha, Phase.PENDING))
+
+
+def _break_revoked_present(gate: GateCtx) -> None:
+    sha = _stage(gate.deploy, EXTRA, b"revoked deck")
+    live_sha = hashlib.sha256(b"live deck in the ledger").hexdigest()
+    gate.ledger(
+        {
+            LIVE_LEDGER: {"frozen_sha256": live_sha, "status": "live"},
+            EXTRA: {"frozen_sha256": sha, "status": "revoked"},
+        }
+    )
+
+
+def _break_ledger_state_disagree(gate: GateCtx) -> None:
+    live_sha = hashlib.sha256(b"live deck in the ledger").hexdigest()
+    done_sha = hashlib.sha256(b"done deck").hexdigest()
+    gate.ledger(
+        {
+            LIVE_LEDGER: {"frozen_sha256": live_sha, "status": "live"},
+            LIVE_DONE: {"frozen_sha256": "f" * 64, "status": "live"},
+        }
+    )
+    assert done_sha != "f" * 64
+
+
+def _break_ledger_sha_missing(gate: GateCtx) -> None:
+    gate.ledger({LIVE_LEDGER: {"status": "live"}})
+
+
+def _break_duplicate_state(gate: GateCtx) -> None:
+    sha = hashlib.sha256(b"new deck").hexdigest()
+    gate.store.save(_office("2004", SLUG, sha, Phase.PRODUCED))
+
+
+def _break_root_stray(gate: GateCtx) -> None:
+    (gate.deploy / "stray.html").write_text("<html>stray</html>", encoding="utf-8")
+
+
+def _break_headers_drift(gate: GateCtx) -> None:
+    (gate.deploy / "_headers").write_text("/*\n  X-Drift: 1\n", encoding="utf-8")
+
+
+def _break_ledger_missing(gate: GateCtx) -> None:
+    (gate.deploy.parent / "config" / "deck-manifest.json").unlink()
+
+
+#: (break, expected gate reason, expected per-slug outcome or None for a root-level refusal)
+WHOLE_ROOT_DEFECTS = [
+    (_break_done_drift, "deck_refused", (LIVE_DONE, "refused:deployed_sha_drift")),
+    (_break_ledger_drift, "deck_refused", (LIVE_LEDGER, "refused:deployed_sha_drift")),
+    (_break_unaccounted, "deck_refused", (EXTRA, "refused:unaccounted_slug")),
+    (_break_pending_state_staged, "deck_refused", (EXTRA, "refused:unaccounted_slug")),
+    (_break_revoked_present, "deck_refused", (EXTRA, "refused:revoked_slug_present")),
+    (_break_ledger_state_disagree, "deck_refused", (LIVE_DONE, "refused:ledger_state_disagree")),
+    (_break_ledger_sha_missing, "deck_refused", (LIVE_LEDGER, "refused:ledger_sha_missing")),
+    (_break_duplicate_state, "deck_refused", (SLUG, "refused:state_slug_duplicate")),
+    (_break_root_stray, "deploy_root_refused", None),
+    (_break_headers_drift, "deploy_root_refused", None),
+    (_break_ledger_missing, "deploy_root_refused", None),
+]
+
+
+class TestRenderGateWholeRoot:
+    """Every byte under ``public/`` is matched to a record before wrangler runs (F-1).
+
+    Two-sided: the clean root passes (positive control); each defect is ONE deliberately
+    broken INPUT on that same root and refuses with its own reason code. The pre-fix gate
+    iterated state files only and returned PASS on every one of these roots.
+    """
+
+    def test_clean_root_passes_with_one_receipt_per_slug(self, gate: GateCtx) -> None:
+        _clean_whole_root(gate)
+        receipts = render_gate(gate.deploy, gate.state_dir)
+        assert [(r.slug, r.outcome) for r in receipts] == [
+            (SLUG, "pass"),
+            (LIVE_LEDGER, "verified_live"),
+            (LIVE_DONE, "verified_live"),
+        ]
+        assert [c["slug"] for c in gate.calls] == [SLUG]  # only the new deck is rendered
+        live = [r for r in receipts if r.outcome == "verified_live"]
+        assert all(r.browser_path == r.browser_kind == r.browser_version == "" for r in live)
+
+    @pytest.mark.parametrize(
+        ("breaker", "reason", "slug_outcome"),
+        WHOLE_ROOT_DEFECTS,
+        ids=[b.__name__.removeprefix("_break_") for b, _, _ in WHOLE_ROOT_DEFECTS],
+    )
+    def test_each_defect_refuses_with_its_reason(
+        self,
+        gate: GateCtx,
+        capsys: pytest.CaptureFixture[str],
+        breaker: Callable[[GateCtx], None],
+        reason: str,
+        slug_outcome: tuple[str, str] | None,
+    ) -> None:
+        _clean_whole_root(gate)
+        breaker(gate)
+        with pytest.raises(RenderGateRefused) as info:
+            render_gate(gate.deploy, gate.state_dir)
+        assert info.value.reason == reason
+        outcomes = {r.slug: r.outcome for r in info.value.receipts}
+        if slug_outcome is not None:
+            slug, outcome = slug_outcome
+            assert outcomes[slug] == outcome
+            assert f"{slug}: {outcome.removeprefix('refused:')}" in str(info.value)
+            assert CLIENT_NAME not in str(info.value)  # slug + reason only, no names
+            # every other slug is still classified (one refusal does not hide the rest)
+            assert sum(1 for o in outcomes.values() if o.startswith("refused:")) == 1
+        else:
+            assert outcomes == {}
+            assert gate.calls == []  # nothing rendered behind a refused root
+        # The CLI the deploy recipe runs exits 1, so wrangler never starts (set -e).
+        argv = ["--deploy-base", str(gate.deploy), "--state-dir", str(gate.state_dir)]
+        assert render_check.main(argv) == 1
+        assert "REFUSED" in capsys.readouterr().err
+
+    def test_reviewer_probe_root_refuses(self, gate: GateCtx) -> None:
+        """The S3 probe verbatim: PRODUCED + drifted DONE + stateless dir + root stray.html."""
+        _clean_whole_root(gate)
+        _break_done_drift(gate)
+        _break_unaccounted(gate)
+        _break_root_stray(gate)
+        with pytest.raises(RenderGateRefused) as info:
+            render_gate(gate.deploy, gate.state_dir)
+        assert info.value.reason == "deploy_root_refused"
+        (gate.deploy / "stray.html").unlink()  # with the stray gone, both slug defects show
+        with pytest.raises(RenderGateRefused) as info:
+            render_gate(gate.deploy, gate.state_dir)
+        outcomes = {r.slug: r.outcome for r in info.value.receipts}
+        assert outcomes == {
+            SLUG: "pass",
+            LIVE_LEDGER: "verified_live",
+            LIVE_DONE: "refused:deployed_sha_drift",
+            EXTRA: "refused:unaccounted_slug",
+        }
+
+    def test_only_verified_live_decks_pass_as_a_redeploy_with_notice(
+        self, gate: GateCtx, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        d = gate.deploy
+        live_sha = _stage(d, LIVE_LEDGER, b"live deck in the ledger")
+        gate.ledger({LIVE_LEDGER: {"frozen_sha256": live_sha, "status": "live"}})
+        gate.store.save(_office("2002", LIVE_DONE, _stage(d, LIVE_DONE, b"done deck"), Phase.DONE))
+        argv = ["--deploy-base", str(d), "--state-dir", str(gate.state_dir)]
+        assert render_check.main(argv) == 0
+        out = capsys.readouterr().out
+        assert f"NOTICE: {render_check.REDEPLOY_NOTICE}" in out
+        assert f"slug={LIVE_LEDGER} " in out and f"slug={LIVE_DONE} " in out
+        assert out.count("outcome=verified_live") == 2
+        assert "RENDER-GATE PASS decks=2 rendered=0 verified_live=2" in out
+        assert gate.calls == []  # no browser needed for a verified-live redeploy
+
+    def test_new_deck_pass_prints_no_redeploy_notice(
+        self, gate: GateCtx, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        _clean_whole_root(gate)
+        argv = ["--deploy-base", str(gate.deploy), "--state-dir", str(gate.state_dir)]
+        assert render_check.main(argv) == 0
+        out = capsys.readouterr().out
+        assert "NOTICE" not in out
+        assert "RENDER-GATE PASS decks=3 rendered=1 verified_live=2" in out
+
+    def test_explicit_deck_manifest_flag_is_used(
+        self, gate: GateCtx, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        _clean_whole_root(gate)
+        moved = tmp_path / "elsewhere" / "deck-manifest.json"
+        moved.parent.mkdir()
+        (gate.deploy.parent / "config" / "deck-manifest.json").rename(moved)
+        argv = ["--deploy-base", str(gate.deploy), "--state-dir", str(gate.state_dir)]
+        assert render_check.main(argv) == 1  # default location now missing: fail closed
+        assert render_check.main([*argv, "--deck-manifest", str(moved)]) == 0
+        capsys.readouterr()
+
+    def test_unreadable_state_dir_refuses(self, gate: GateCtx) -> None:
+        _clean_whole_root(gate)
+        gate.state_dir.joinpath("9999.json").write_text("{not json", encoding="utf-8")
+        with pytest.raises(RenderGateRefused) as info:
+            render_gate(gate.deploy, gate.state_dir)
+        assert info.value.reason == "state_unreadable"
+
+
 # --- CLI exit codes (always run) ---
 
 
@@ -560,8 +822,11 @@ class TestMain:
     ) -> None:
         seen: list[tuple[Path, Path]] = []
 
-        def fake_gate(deploy_base: Path, state_dir: Path) -> list[RenderReceipt]:
+        def fake_gate(
+            deploy_base: Path, state_dir: Path, *, manifest_path: Path | None = None
+        ) -> list[RenderReceipt]:
             seen.append((deploy_base, state_dir))
+            assert manifest_path is None
             return [self._receipt()]
 
         monkeypatch.setattr(render_check, "render_gate", fake_gate)
@@ -571,7 +836,7 @@ class TestMain:
         out = capsys.readouterr().out
         assert f"slug={SLUG} browser=chrome version='Fake 1'" in out
         assert "outcome=pass" in out
-        assert "RENDER-GATE PASS decks=1" in out
+        assert "RENDER-GATE PASS decks=1 rendered=1 verified_live=0" in out
 
     def test_exit_1_on_refusal(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
@@ -580,7 +845,9 @@ class TestMain:
             SLUG, "/fake/chrome", "chrome", "Fake 1", "t", "refused:corruption_marker"
         )
 
-        def fake_gate(deploy_base: Path, state_dir: Path) -> list[RenderReceipt]:
+        def fake_gate(
+            deploy_base: Path, state_dir: Path, *, manifest_path: Path | None = None
+        ) -> list[RenderReceipt]:
             raise RenderGateRefused("deck_refused", "synthetic", [refused])
 
         monkeypatch.setattr(render_check, "render_gate", fake_gate)
@@ -591,13 +858,21 @@ class TestMain:
 
     def test_exit_1_on_zero_decks_unfaked(self, tmp_path: Path) -> None:
         (tmp_path / "public").mkdir()
+        (tmp_path / "public" / "_headers").write_text(
+            host_bundle.HEADERS_FILE_CONTENT, encoding="utf-8"
+        )
+        _write_ledger(tmp_path / "public", {})
+        with pytest.raises(RenderGateRefused, match="zero_decks_checked"):
+            render_gate(tmp_path / "public", tmp_path / "state")
         argv = ["--deploy-base", str(tmp_path / "public"), "--state-dir", str(tmp_path / "state")]
         assert render_check.main(argv) == 1
 
     def test_exit_2_on_browser_unavailable(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        def fake_gate(deploy_base: Path, state_dir: Path) -> list[RenderReceipt]:
+        def fake_gate(
+            deploy_base: Path, state_dir: Path, *, manifest_path: Path | None = None
+        ) -> list[RenderReceipt]:
             raise BrowserUnavailable("browser_unavailable", "synthetic")
 
         monkeypatch.setattr(render_check, "render_gate", fake_gate)
@@ -712,6 +987,7 @@ class TestStagedDeckRenderCheck:
         self, own_frozen: bytes, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         deploy_root = _stage_real(tmp_path, own_frozen)
+        _write_ledger(deploy_root, {})
         state_dir = tmp_path / "state"
         StateStore(state_dir).save(
             _office("1001", SLUG, hashlib.sha256(own_frozen).hexdigest(), Phase.PRODUCED)

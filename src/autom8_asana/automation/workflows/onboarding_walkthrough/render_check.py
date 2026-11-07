@@ -25,10 +25,44 @@ re-fetch of ``location.href`` is a 200 as on the live host, never a 304).
 CLI (the deploy gate; no Asana reads)::
 
     python -m autom8_asana.automation.workflows.onboarding_walkthrough.render_check \\
-        --deploy-base <abs deploy root> --state-dir <abs floodgates state dir>
+        --deploy-base <abs deploy root> --state-dir <abs floodgates state dir> \\
+        [--deck-manifest <abs ledger path>]
 
-Exit 0 only when every staged deck passed; 1 on any refusal (including zero decks
-checked); 2 when no usable browser exists (stop and ask the operator).
+The deploy gate covers the WHOLE publish root (``wrangler pages deploy <root>`` publishes
+every byte under it), not only the decks the state dir knows about:
+
+1. :func:`deploy_root_guard.assert_deploy_root_ready` runs first: the hygiene allowlist
+   (``_headers`` + 32-hex slug dirs holding exactly ``index.html``), ``_headers`` byte
+   parity, and no-orphan (every non-revoked ledger slug is staged). A refusal is
+   ``deploy_root_refused``.
+2. Every slug dir in the root is then accounted for, against the deck-host ledger
+   (``<deploy_base>/../config/deck-manifest.json``; missing or unreadable refuses) and the
+   state dir:
+
+   * a ledger entry with ``status == "revoked"`` whose dir is present refuses
+     (``revoked_slug_present``);
+   * a state at PRODUCED or DEPLOY_CONFIRMED: the staged sha256 must equal the state's
+     ``frozen_sha256`` (``staged_sha_drift``), then the deck is RENDERED and asserted;
+   * else a non-revoked ledger entry (a live deck): the staged sha256 must equal the
+     ledger's ``frozen_sha256`` (``deployed_sha_drift``: a live deck edited after delivery);
+   * else a DONE state not yet in the ledger (the ledger row is added by hand after
+     deploy): the staged sha256 must equal the state's ``frozen_sha256``
+     (``deployed_sha_drift``);
+   * anything else refuses (``unaccounted_slug``).
+
+   Wherever a state and a non-revoked ledger entry both exist for a slug, their
+   ``frozen_sha256`` must agree (``ledger_state_disagree``). Every slug is classified
+   (one refusal does not hide the rest); any refusal raises ``deck_refused``.
+
+Zero rule: a root with no slug dir at all refuses (``zero_decks_checked``; nothing to
+deploy is not a pass). A root whose every slug is a hash-verified live deck and none is
+newly produced PASSES with one ``verified_live`` receipt per slug and the notice "no newly
+produced deck; redeploying the verified live set" (a legitimate redeploy, e.g. after a
+``_headers`` change).
+
+Exit 0 only when every slug in the root is accounted for and every newly produced deck
+rendered clean; 1 on any refusal; 2 when no usable browser exists (stop and ask the
+operator).
 """
 
 from __future__ import annotations
@@ -54,7 +88,13 @@ from typing import TYPE_CHECKING, Literal, NoReturn
 
 from autom8y_log import get_logger
 
+from autom8_asana.automation.workflows.onboarding_walkthrough.floodgates.deploy_root_guard import (
+    DeployRootRefused,
+    assert_deploy_root_ready,
+    load_ledger_decks,
+)
 from autom8_asana.automation.workflows.onboarding_walkthrough.floodgates.state import (
+    OfficeState,
     Phase,
     StateStore,
 )
@@ -67,13 +107,15 @@ from autom8_asana.automation.workflows.onboarding_walkthrough.tenant_binding imp
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator, Sequence
+    from collections.abc import Iterator, Mapping, Sequence
 
 logger = get_logger(__name__)
 
 __all__ = [
+    "BROWSER_ENV_ALLOWLIST",
     "BROWSER_OVERRIDE_ENV",
     "KEYCHAIN_FLAGS",
+    "REDEPLOY_NOTICE",
     "PLACEHOLDER_TOKENS",
     "RENDERED_CORRUPTION_MARKERS",
     "Browser",
@@ -83,6 +125,7 @@ __all__ = [
     "RenderGateRefused",
     "RenderReceipt",
     "assert_rendered_deck",
+    "browser_env",
     "browser_version",
     "check_staged_deck",
     "find_browser",
@@ -102,6 +145,19 @@ BROWSER_OVERRIDE_ENV = "CHROME_HEADLESS_SHELL_BIN"
 #: --user-data-dir otherwise makes Chrome ask the login keychain for "Chrome Safe
 #: Storage", which raises a "keychain cannot be found" dialog for the operator.
 KEYCHAIN_FLAGS: tuple[str, ...] = ("--use-mock-keychain", "--password-store=basic")
+
+#: The ONLY environment variables a browser subprocess receives (F-3): API tokens in the
+#: operator's shell (``ASANA_PAT``, Cloudflare tokens) never reach the browser.
+BROWSER_ENV_ALLOWLIST: tuple[str, ...] = (
+    "PATH",
+    "HOME",
+    "TMPDIR",
+    "LANG",
+    "LC_ALL",
+    "DISPLAY",
+    "WAYLAND_DISPLAY",
+    "XDG_RUNTIME_DIR",
+)
 
 #: The subprocess ceiling for one render (the browser's own --timeout is 15 s).
 RENDER_TIMEOUT_S = 45
@@ -290,11 +346,20 @@ def require_browser() -> Browser:
     return browser
 
 
+def browser_env() -> dict[str, str]:
+    """The allowlisted environment for every browser subprocess (no API tokens)."""
+    return {name: os.environ[name] for name in BROWSER_ENV_ALLOWLIST if name in os.environ}
+
+
 @functools.cache
 def _version_of(path: str) -> str:
     try:
         proc = subprocess.run(
-            [path, *KEYCHAIN_FLAGS, "--version"], capture_output=True, timeout=15, check=False
+            [path, *KEYCHAIN_FLAGS, "--version"],
+            capture_output=True,
+            timeout=15,
+            check=False,
+            env=browser_env(),
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         return f"unknown ({type(exc).__name__})"
@@ -402,7 +467,13 @@ def render_dom(url: str, browser: Browser) -> str:
     ) as profile:
         argv = render_argv(url, browser, Path(profile))
         try:
-            proc = subprocess.run(argv, capture_output=True, timeout=RENDER_TIMEOUT_S, check=False)
+            proc = subprocess.run(
+                argv,
+                capture_output=True,
+                timeout=RENDER_TIMEOUT_S,
+                check=False,
+                env=browser_env(),
+            )
         except subprocess.TimeoutExpired:
             _refuse(
                 "render_timeout", f"render of {url} exceeded {RENDER_TIMEOUT_S}s ({browser.path})"
@@ -502,7 +573,7 @@ class RenderReceipt:
     browser_kind: str
     browser_version: str
     checked_at: str  # iso8601 UTC
-    outcome: str  # "pass", or "refused:<reason>"
+    outcome: str  # "pass", "verified_live" (hash-verified live deck), or "refused:<reason>"
 
     def line(self) -> str:
         return (
@@ -552,40 +623,129 @@ class RenderGateRefused(RenderCheckRefused):
         self.receipts = list(receipts)
 
 
-def render_gate(deploy_base: Path, state_dir: Path) -> list[RenderReceipt]:
-    """The deploy gate: every staged PRODUCED / DEPLOY_CONFIRMED deck must pass. No Asana.
+#: Printed by the CLI when the root holds no newly produced deck, only verified live ones.
+REDEPLOY_NOTICE = "no newly produced deck; redeploying the verified live set"
 
-    For each office in the state dir at PRODUCED or DEPLOY_CONFIRMED whose
-    ``<deploy_base>/<slug>/index.html`` exists: its sha256 must equal the recorded
-    ``frozen_sha256`` (else ``staged_sha_drift``), then :func:`check_staged_deck` runs with
-    the state's digest and clinic. Every deck is checked (one refusal does not hide the
-    rest); any refusal raises :class:`RenderGateRefused`, as does checking zero decks
-    (nothing to deploy is not a pass). :class:`BrowserUnavailable` propagates at once.
+_GATED = frozenset({Phase.PRODUCED, Phase.DEPLOY_CONFIRMED})
+_HEADERS_NAME = "_headers"
+
+
+def _plain_receipt(slug: str, outcome: str, browser: Browser | None) -> RenderReceipt:
+    return RenderReceipt(
+        slug=slug,
+        browser_path=str(browser.path) if browser else "",
+        browser_kind=browser.kind if browser else "",
+        browser_version=browser_version(browser) if browser else "",
+        checked_at=datetime.now(UTC).isoformat(),
+        outcome=outcome,
+    )
+
+
+def _slug_disposition(
+    slug: str,
+    served_sha: str,
+    entry: Mapping[str, object] | None,
+    state: OfficeState | None,
+) -> Literal["render", "verified_live"]:
+    """Classify one slug dir of the publish root, or refuse (see the module docstring).
+
+    Pure: no rendering. Raises :class:`RenderCheckRefused` with the slug's reason code.
     """
-    gated = {Phase.PRODUCED, Phase.DEPLOY_CONFIRMED}
+    if entry is not None and entry.get("status") == "revoked":
+        _refuse("revoked_slug_present", f"/{slug}/ is revoked in the ledger but still staged")
+    ledger_sha: str | None = None
+    if entry is not None:
+        raw_sha = entry.get("frozen_sha256")
+        if not (isinstance(raw_sha, str) and raw_sha):
+            _refuse("ledger_sha_missing", f"ledger entry for /{slug}/ has no frozen_sha256")
+        ledger_sha = raw_sha
+    if state is not None and ledger_sha is not None and ledger_sha != state.frozen_sha256:
+        _refuse(
+            "ledger_state_disagree",
+            f"/{slug}/ ledger frozen_sha256={ledger_sha} != state frozen_sha256="
+            f"{state.frozen_sha256}",
+        )
+    if state is not None and state.phase in _GATED:
+        if served_sha != state.frozen_sha256:
+            _refuse(
+                "staged_sha_drift",
+                f"/{slug}/index.html sha256={served_sha} != frozen_sha256="
+                f"{state.frozen_sha256} (staged bytes are not the frozen deck)",
+            )
+        return "render"
+    recorded = ledger_sha
+    if recorded is None and state is not None and state.phase is Phase.DONE:
+        recorded = state.frozen_sha256
+    if recorded is None:
+        _refuse(
+            "unaccounted_slug",
+            f"/{slug}/ has no PRODUCED/DEPLOY_CONFIRMED/DONE state and no ledger entry",
+        )
+    if served_sha != recorded:
+        _refuse(
+            "deployed_sha_drift",
+            f"/{slug}/index.html sha256={served_sha} != recorded frozen_sha256={recorded} "
+            "(a live deck was edited after delivery)",
+        )
+    return "verified_live"
+
+
+def render_gate(
+    deploy_base: Path, state_dir: Path, *, manifest_path: Path | None = None
+) -> list[RenderReceipt]:
+    """The deploy gate over the WHOLE publish root. No Asana. See the module docstring.
+
+    Runs :func:`deploy_root_guard.assert_deploy_root_ready`, loads the ledger and the state
+    dir once, then accounts for every slug dir in ``deploy_base``: newly produced decks are
+    sha-checked and rendered (:func:`check_staged_deck`), live decks are hash-verified
+    against the ledger or their DONE state (``verified_live``), anything else refuses.
+    Every slug is classified before refusing; any refusal raises :class:`RenderGateRefused`
+    (``deck_refused``; the message lists ``slug: reason`` only, no names), as does a root
+    with no slug dir (``zero_decks_checked``). :class:`BrowserUnavailable` propagates at once.
+    """
+    try:
+        assert_deploy_root_ready(deploy_base, manifest_path=manifest_path)
+        ledger = load_ledger_decks(deploy_base, manifest_path=manifest_path)
+    except DeployRootRefused as exc:
+        logger.error("render_gate_refused", reason="deploy_root_refused")
+        raise RenderGateRefused("deploy_root_refused", str(exc), []) from exc
+    try:
+        offices = StateStore(state_dir).all_offices()
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        logger.error("render_gate_refused", reason="state_unreadable")
+        raise RenderGateRefused(
+            "state_unreadable", f"state dir {state_dir} is unreadable: {exc}", []
+        ) from exc
+    states: dict[str, OfficeState] = {}
+    duplicated: set[str] = set()
+    for office in offices:
+        if office.slug in states:
+            duplicated.add(office.slug)
+        states[office.slug] = office
+
     receipts: list[RenderReceipt] = []
     refused: list[str] = []
     browser: Browser | None = None
-    for state in StateStore(state_dir).all_offices():
-        if state.phase not in gated:
+    # Hygiene passed, so every entry but _headers is a 32-hex dir holding exactly index.html.
+    for child in sorted(deploy_base.iterdir()):
+        slug = child.name
+        if slug == _HEADERS_NAME:
             continue
-        served = deploy_base / state.slug / "index.html"
-        if not served.is_file():
-            continue
+        state = states.get(slug)
         try:
-            actual = hashlib.sha256(served.read_bytes()).hexdigest()
-            if actual != state.frozen_sha256:
-                _refuse(
-                    "staged_sha_drift",
-                    f"/{state.slug}/index.html sha256={actual} != frozen_sha256="
-                    f"{state.frozen_sha256} (staged bytes are not the frozen deck)",
-                )
+            if slug in duplicated:
+                _refuse("state_slug_duplicate", f"/{slug}/ is pinned by more than one state")
+            served_sha = hashlib.sha256((child / "index.html").read_bytes()).hexdigest()
+            if _slug_disposition(slug, served_sha, ledger.get(slug), state) == "verified_live":
+                receipts.append(_plain_receipt(slug, "verified_live", None))
+                continue
+            assert state is not None  # "render" is returned only for a gated state
             if browser is None:
                 browser = require_browser()
             receipts.append(
                 check_staged_deck(
                     deploy_base,
-                    state.slug,
+                    slug,
                     office_guid_sha256=state.office_guid_sha256,
                     clinic=state.clinic,
                     browser=browser,
@@ -594,20 +754,11 @@ def render_gate(deploy_base: Path, state_dir: Path) -> list[RenderReceipt]:
         except BrowserUnavailable:
             raise
         except RenderCheckRefused as exc:
-            refused.append(f"{state.slug}: {exc}")
-            receipts.append(
-                RenderReceipt(
-                    slug=state.slug,
-                    browser_path=str(browser.path) if browser else "",
-                    browser_kind=browser.kind if browser else "",
-                    browser_version=browser_version(browser) if browser else "",
-                    checked_at=datetime.now(UTC).isoformat(),
-                    outcome=f"refused:{exc.reason}",
-                )
-            )
+            refused.append(f"{slug}: {exc.reason}")
+            receipts.append(_plain_receipt(slug, f"refused:{exc.reason}", browser))
     if refused:
-        message = f"{len(refused)} of {len(receipts)} staged deck(s) refused: " + " | ".join(
-            refused
+        message = f"{len(refused)} of {len(receipts)} slug(s) in the publish root refused: " + (
+            " | ".join(refused)
         )
         logger.error(
             "render_gate_refused", reason="deck_refused", refused=len(refused), total=len(receipts)
@@ -615,27 +766,45 @@ def render_gate(deploy_base: Path, state_dir: Path) -> list[RenderReceipt]:
         raise RenderGateRefused("deck_refused", message, receipts)
     if not receipts:
         message = (
-            f"zero staged decks checked (no PRODUCED/DEPLOY_CONFIRMED state in {state_dir} "
-            f"has <slug>/index.html under {deploy_base}); nothing to deploy is not a pass"
+            f"zero decks checked (no slug dir under {deploy_base}); nothing to deploy is not a pass"
         )
-        logger.error("render_gate_refused", reason="zero_decks_checked", detail=message)
+        logger.error("render_gate_refused", reason="zero_decks_checked")
         raise RenderGateRefused("zero_decks_checked", message, receipts)
+    if all(r.outcome == "verified_live" for r in receipts):
+        logger.info("render_gate_redeploy_verified_live", decks=len(receipts))
     return receipts
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """CLI for the deploy gate. Exit 0 all passed / 1 refused / 2 no browser."""
+    """CLI for the deploy gate over the whole publish root.
+
+    Exit 0 pass / 1 refused / 2 no browser.
+    """
     parser = argparse.ArgumentParser(
         prog="render_check",
-        description="D10(b) rendered-deck deploy gate (fails closed, never skips).",
+        description=(
+            "D10(b) deploy gate over the WHOLE publish root (fails closed, never skips): "
+            "root hygiene, _headers parity and no-orphan; then every slug dir is accounted "
+            "for: newly produced decks are rendered, live decks are hash-verified against "
+            "the ledger or their DONE state, anything else refuses."
+        ),
     )
     parser.add_argument("--deploy-base", required=True, type=Path, help="deck-host deploy root")
     parser.add_argument("--state-dir", required=True, type=Path, help="floodgates state dir")
+    parser.add_argument(
+        "--deck-manifest",
+        type=Path,
+        default=None,
+        help="deck-host ledger (default: <deploy-base>/../config/deck-manifest.json)",
+    )
     args = parser.parse_args(argv)
     deploy_base: Path = args.deploy_base.expanduser().resolve()
     state_dir: Path = args.state_dir.expanduser().resolve()
+    manifest: Path | None = (
+        args.deck_manifest.expanduser().resolve() if args.deck_manifest is not None else None
+    )
     try:
-        receipts = render_gate(deploy_base, state_dir)
+        receipts = render_gate(deploy_base, state_dir, manifest_path=manifest)
     except BrowserUnavailable as exc:
         sys.stderr.write(f"BROWSER-UNAVAILABLE: {exc}\nStop and ask the operator.\n")
         return 2
@@ -649,7 +818,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 1
     for receipt in receipts:
         sys.stdout.write(receipt.line() + "\n")
-    sys.stdout.write(f"RENDER-GATE PASS decks={len(receipts)}\n")
+    rendered = sum(1 for r in receipts if r.outcome == "pass")
+    if rendered == 0:
+        sys.stdout.write(f"NOTICE: {REDEPLOY_NOTICE}\n")
+    sys.stdout.write(
+        f"RENDER-GATE PASS decks={len(receipts)} rendered={rendered} "
+        f"verified_live={len(receipts) - rendered}\n"
+    )
     return 0
 
 

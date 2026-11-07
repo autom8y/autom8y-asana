@@ -379,7 +379,8 @@ onboard-deck-deploy:
     : "${DECK_HOST_DIR:?set DECK_HOST_DIR to the deck-host checkout}"
     : "${DECK_HOST_CF_ACCOUNT_ID:?set DECK_HOST_CF_ACCOUNT_ID to the account that owns the deck-host Pages project}"
     : "${AUTOM8_FLOODGATES_STATE_DIR:?set AUTOM8_FLOODGATES_STATE_DIR (one absolute dir)}"
-    # D10(b) rendered-deck gate: fails closed, never skips
+    # D10(b) deploy gate over the whole public/ root (hygiene, _headers, no-orphan; every
+    # slug dir rendered or hash-verified, anything else refused). Fails closed, never skips.
     uv run python -m {{_render_check}} --deploy-base "$DECK_HOST_DIR/public" \
         --state-dir "$AUTOM8_FLOODGATES_STATE_DIR"
     cd "$DECK_HOST_DIR"
@@ -394,7 +395,9 @@ onboard-deck-deploy:
             fi
         done
     fi
-    env -u CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID="$DECK_HOST_CF_ACCOUNT_ID" \
+    # Only the wrangler OAuth login may authenticate: drop every token-style variable.
+    env -u CLOUDFLARE_API_TOKEN -u CF_API_TOKEN -u CLOUDFLARE_API_KEY -u CLOUDFLARE_EMAIL \
+        CLOUDFLARE_ACCOUNT_ID="$DECK_HOST_CF_ACCOUNT_ID" \
         mise exec node@22 -- node_modules/.bin/wrangler pages deploy "$DECK_HOST_DIR/public" \
         --project-name=deck-host --branch=main
 
