@@ -795,3 +795,48 @@ class TestClinicSuggestion:
         rc, run = self._main(["--phase", "produce", "--suggest-clinic"], "x")
         assert rc == 2
         run.assert_not_awaited()
+
+
+class TestCliD9Refusal:
+    """A D9 name refusal is a failed office: exit 1, both names on the [failed] line, and the
+    structured log event carries no names."""
+
+    def test_name_mismatch_exits_red_and_shows_both_names(self, tmp_path, capsys) -> None:
+        from autom8_asana.automation.workflows.onboarding_walkthrough.floodgates.name_match import (
+            ClinicNameMismatch,
+        )
+
+        root = _make_shared_root(tmp_path, [])
+        refusal = ClinicNameMismatch(
+            "D9: name mismatch on PLAY A / Business B1: title='Harbor Light Centre' "
+            "business='Harbor Light Center' --clinic='Harbor Light Centre'. "
+            "Stopped; ask the operator."
+        )
+        with (
+            patch.object(fbatch, "AsanaClient"),
+            patch.object(fbatch, "run_office", new=AsyncMock(side_effect=refusal)),
+            patch.object(fbatch, "logger") as logger,
+        ):
+            rc = fbatch.main(
+                [
+                    "--phase",
+                    "produce",
+                    "--office",
+                    "A",
+                    "--clinic",
+                    "Harbor Light Centre",
+                    "--deploy-base",
+                    str(root),
+                    "--state-dir",
+                    str(tmp_path / "state"),
+                ]
+            )
+        out = capsys.readouterr().out
+        assert rc == 1
+        failed = next(line for line in out.splitlines() if line.startswith("[failed] A"))
+        assert "D9" in failed
+        assert "'Harbor Light Centre'" in failed
+        assert "'Harbor Light Center'" in failed
+        assert "wrangler pages deploy" not in out
+        logged = [c.kwargs for c in logger.warning.call_args_list]
+        assert logged == [{"play_gid": "A", "error": "ClinicNameMismatch"}]

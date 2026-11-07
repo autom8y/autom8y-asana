@@ -87,6 +87,9 @@ class BusinessResolution:
     not silent (DEFER-WATCH-1). ``ancestor_depth`` is the hop count walked from the PLAY
     to the matched Business (0 = the task itself was the Business). ``candidates`` is the
     ambiguity set carried on a LOUD refusal (never a silent first-match).
+    ``business_name`` is the matched Business node's ``name``, read in the SAME fetch as
+    the Company ID, so a caller that confirms the name (floodgates D9) and composes the
+    routing address reads both from one walk (``None`` when no Business matched).
     """
 
     business_gid: str | None
@@ -94,6 +97,7 @@ class BusinessResolution:
     method: Literal["hierarchy", "phone"]
     ancestor_depth: int | None
     candidates: tuple[str, ...] = field(default_factory=tuple)
+    business_name: str | None = None
 
 
 class BusinessResolutionAmbiguous(RuntimeError):
@@ -151,6 +155,7 @@ def _as_node_dict(node: Any) -> dict[str, Any]:
             return dumped
     return {
         "gid": getattr(node, "gid", None),
+        "name": getattr(node, "name", None),
         "parent": getattr(node, "parent", None),
         "projects": getattr(node, "projects", None),
         "custom_fields": getattr(node, "custom_fields", None),
@@ -203,6 +208,12 @@ def _company_id_from_node(node: dict[str, Any]) -> str | None:
             company_id = cf.get("display_value")
             return str(company_id) if company_id is not None else None
     return None
+
+
+def _name_from_node(node: dict[str, Any]) -> str | None:
+    """Read the task ``name`` off a walk node dict (``None`` when absent)."""
+    name = node.get("name")
+    return str(name) if name is not None else None
 
 
 def _office_phone_from_node(node: dict[str, Any]) -> str | None:
@@ -294,6 +305,7 @@ async def resolve_business_gid(
             company_id=_company_id_from_node(matched_node),
             method="hierarchy",
             ancestor_depth=depth_at_match,
+            business_name=_name_from_node(matched_node),
         )
         if phone_crosscheck:
             await _assert_phone_agrees(asana_client, task_gid, resolution)

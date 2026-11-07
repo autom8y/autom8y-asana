@@ -31,7 +31,6 @@ import argparse
 import asyncio
 import json
 import os
-import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -47,6 +46,10 @@ from autom8_asana.automation.workflows.onboarding_walkthrough.floodgates.deploy_
     DeployRootRefused,
     assert_deploy_root_ready,
     assert_wave_slugs_staged,
+)
+from autom8_asana.automation.workflows.onboarding_walkthrough.floodgates.name_match import (
+    ClinicNameMismatch,
+    clinic_from_play_name,
 )
 from autom8_asana.automation.workflows.onboarding_walkthrough.floodgates.office_runner import (
     OfficeRunResult,
@@ -73,6 +76,7 @@ DEPLOY_BASE_ENV = "AUTOM8_FLOODGATES_DEPLOY_BASE"
 __all__ = [
     "BatchReport",
     "OfficeReport",
+    "clinic_from_play_name",
     "enumerate_active_play_gids",
     "main",
     "run_batch",
@@ -88,27 +92,6 @@ class OfficeReport:
     outcome: str | None = None
     error: str | None = None
     result: OfficeRunResult | None = None
-
-
-_ZERO_WIDTH = dict.fromkeys(map(ord, "\u200b\u200c\u200d\u2060\ufeff"))
-_LEADING_SEPARATORS = re.compile(r"^[\s\u2014\u2013:-]+")
-
-
-def clinic_from_play_name(name: str | None) -> str | None:
-    """Suggest a clinic name from a PLAY title; None when the title is not a PLAY.
-
-    ``"PLAY: Custom Calendar Integration — X"`` -> ``"X"``. Zero-width characters are
-    dropped, whitespace is collapsed and leading separators are stripped. This is only a
-    SUGGESTION for the operator to confirm: produce still takes the name from ``--clinic``.
-    """
-    if not name:
-        return None
-    match = PLAY_NAME_RE.search(name)
-    if match is None:
-        return None
-    rest = name[match.end() :].translate(_ZERO_WIDTH)
-    rest = " ".join(_LEADING_SEPARATORS.sub("", rest).split())
-    return rest or None
 
 
 @dataclass
@@ -247,7 +230,10 @@ async def run_batch(
                 execute=execute,
             )
         except Exception as exc:  # noqa: BLE001 -- per-office isolation: one failure (incl. a corrupt-manifest load) never halts the wave
-            logger.warning("floodgates_office_failed", play_gid=gid, error=str(exc))
+            # A D9 refusal carries clinic names: they go to the [failed] stdout line only,
+            # never into the structured log (which gets the gid and the error type).
+            log_error = "ClinicNameMismatch" if isinstance(exc, ClinicNameMismatch) else str(exc)
+            logger.warning("floodgates_office_failed", play_gid=gid, error=log_error)
             reports.append(OfficeReport(gid, "failed", error=str(exc)))
             continue
         reports.append(OfficeReport(gid, "ok", outcome=result.outcome, result=result))

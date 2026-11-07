@@ -15,6 +15,7 @@ Nothing is sent to the client. The rep sends the email.
   - is in the Calendar-Integrations project, in the **ACTIVE** section
   - is named `PLAY: Custom Calendar Integration — <clinic>`
   - has a parent Business whose `Company ID` is filled in (a lowercase UUID)
+- **The names agree (D9):** the clinic part of the PLAY title, the parent Business task's name and the name you pass to step 1 must be the same. Step 1 forgives only invisible differences (extra spaces, zero-width characters). It stops on any visible one: case, spelling ("Centre" vs "Center"), or a suffix such as "— Downtown". The deck uses the Business name.
 - **Your shell:**
   - is in this repository, with direnv loaded (it serves `ASANA_PAT`)
   - has `AUTOM8_FLOODGATES_STATE_DIR` set to ONE absolute directory, the same one every time and from every checkout. It holds each client's run state; a second directory would mint a second deck.
@@ -48,6 +49,7 @@ Copy the entry shape from the previous entry.
 
 | Symptom | Fix |
 |---|---|
+| `D9: name mismatch …` or `D9: … has no Business parent` | The title, the Business name and the name you passed disagree, or the PLAY has no parent Business. On a mismatch the `[failed]` line prints all three names. Fix the Asana record or pass the matching name. If you can't tell which name is right, ask the operator; don't work around it. A re-run of an office that was already produced is checked against the name it was built with. |
 | `REFUSED` from the produce pre-flight | The deploy folder isn't clean. Point `DECK_HOST_DIR` at the deck-host checkout and check its `public/` holds only `_headers` and slug folders. |
 | `already produced … does not exist` | An earlier produce used a different folder. Re-run with that folder, or copy its slug folder over. |
 | Wrong clinic name after step 1 | Before step 2 only: remove that office's state file in `AUTOM8_FLOODGATES_STATE_DIR` and its new slug folder in `public/`, then run step 1 again. |

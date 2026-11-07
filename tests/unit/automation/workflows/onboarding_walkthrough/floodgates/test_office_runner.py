@@ -15,6 +15,9 @@ The load-bearing RED teeth:
   command and HALTS — no Asana post, no ``curl``, no ``wrangler`` ever executed.
 * **byte-parity gate** (``test_phase2_byte_parity_*``): served ≠ frozen → ``BundleParityError``,
   no post (never link a deck that is not byte-identical to what was frozen).
+* **D9 name confirmation** (``TestD9NameConfirmation``): produce stops unless the PLAY title's
+  clinic part, the parent Business name and ``--clinic`` agree; it freezes the canonical
+  Business name, and the already-produced path re-checks against the frozen name.
 """
 
 from __future__ import annotations
@@ -26,6 +29,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from autom8_asana.automation.workflows.onboarding_walkthrough import office_resolution
 from autom8_asana.automation.workflows.onboarding_walkthrough.floodgates import (
     office_runner as orunner,
 )
@@ -42,7 +46,10 @@ from autom8_asana.automation.workflows.onboarding_walkthrough.host_bundle import
 from autom8_asana.automation.workflows.onboarding_walkthrough.personalization_gate import (
     PersonalizationError,
 )
-from autom8_asana.automation.workflows.onboarding_walkthrough.template_comment import _mask_guid
+from autom8_asana.automation.workflows.onboarding_walkthrough.template_comment import (
+    TemplateCommentRefused,
+    _mask_guid,
+)
 from autom8_asana.automation.workflows.onboarding_walkthrough.tenant_binding import (
     TaskOfficeMismatch,
 )
@@ -58,6 +65,8 @@ SLUG = "207688021de88a6d7231e1d08ea77a85"
 PLAY_GID = "1215823342887129"
 CLINIC = "Sand Lake Dental"
 DECK_URL = f"https://decks.cntently.com/{SLUG}/"
+
+BUSINESS_GID = "1200000000000042"
 
 SERVED = b"<html>the frozen served deck for Sand Lake Dental</html>"
 SERVED_SHA = hashlib.sha256(SERVED).hexdigest()
@@ -81,13 +90,15 @@ def _store(tmp_path: object) -> StateStore:
     return StateStore(tmp_path / "state")  # type: ignore[operator]
 
 
-def _seed_produced(store: StateStore, *, frozen_sha256: str, guid: str = GUID) -> OfficeState:
+def _seed_produced(
+    store: StateStore, *, frozen_sha256: str, guid: str = GUID, clinic: str = CLINIC
+) -> OfficeState:
     """Seed a committed Phase-1 (PRODUCED) manifest — the crash/resume entry state."""
     state = OfficeState(
         play_gid=PLAY_GID,
         office_guid_masked=_mask_guid(guid),
         office_guid_sha256=hashlib.sha256(guid.encode()).hexdigest(),
-        clinic=CLINIC,
+        clinic=clinic,
         slug=SLUG,
         deck_url=DECK_URL,
         frozen_sha256=frozen_sha256,
@@ -99,12 +110,48 @@ def _seed_produced(store: StateStore, *, frozen_sha256: str, guid: str = GUID) -
     return state
 
 
-def _produce_patches(stack: ExitStack, *, guid: str = GUID) -> dict[str, MagicMock]:
-    """Patch the Phase-1 heavy collaborators; return the mocks for assertion."""
+def _play_title(clinic_part: str) -> str:
+    return f"PLAY: Custom Calendar Integration — {clinic_part}"
+
+
+def _produce_patches(
+    stack: ExitStack,
+    *,
+    guid: str | None = GUID,
+    names: dict[str, tuple[str, str | None]] | None = None,
+    business_gid: str | None = BUSINESS_GID,
+) -> dict[str, MagicMock]:
+    """Patch the Phase-1 heavy collaborators; return the mocks for assertion.
+
+    ``names`` maps a PLAY gid to ``(title clinic part, Business name)`` for the D9 walk;
+    the default is the matching ``(CLINIC, CLINIC)`` for ``PLAY_GID``. The Business walk is
+    patched at its SOURCE module (``office_resolution``) and returns a duck-typed
+    resolution, so these patches also load against a runner that predates D9.
+    """
+    names = names if names is not None else {PLAY_GID: (CLINIC, CLINIC)}
+
+    async def _preflight(_client: object, gid: str) -> tuple[str, str]:
+        return _play_title(names[gid][0]), "ACTIVE"
+
+    async def _walk(_client: object, *, task_gid: str, **_kw: object) -> SimpleNamespace:
+        return SimpleNamespace(
+            business_gid=business_gid,
+            company_id=guid,
+            method="hierarchy",
+            ancestor_depth=1,
+            candidates=(),
+            business_name=names[task_gid][1],
+        )
+
     m: dict[str, MagicMock] = {}
     m["preflight"] = stack.enter_context(
-        patch.object(orunner, "_preflight", new=AsyncMock(return_value=("PLAY: …", "ACTIVE")))
+        patch.object(orunner, "_preflight", new=AsyncMock(side_effect=_preflight))
     )
+    m["walk"] = stack.enter_context(
+        patch.object(office_resolution, "resolve_business_gid", new=AsyncMock(side_effect=_walk))
+    )
+    # The produce path walks ONCE via resolve_business_gid; the phone-fallback resolver must
+    # not be reached (asserted by the D9 tests).
     m["resolve"] = stack.enter_context(
         patch.object(orunner, "_resolve_office_guid", new=AsyncMock(return_value=guid))
     )
@@ -227,13 +274,16 @@ class TestPhase1Produce:
         """The operator-confirmed clinic name is gated (fault-13): an internal-nomenclature
         value refuses at ``assert_customer_personalization`` BEFORE any freeze/mint/stage."""
         store = _store(tmp_path)
+        internal = "PLAY: Custom Calendar Integration — Harbor Light"
         with ExitStack() as stack:
-            m = _produce_patches(stack)
+            # Title and Business carry the same value, so D9 passes and the
+            # personalization gate is what refuses.
+            m = _produce_patches(stack, names={PLAY_GID: (internal, internal)})
             with pytest.raises(PersonalizationError):
                 await run_office(
                     _mock_client(),
                     play_gid=PLAY_GID,
-                    clinic="PLAY: Custom Calendar Integration — Sand Lake",
+                    clinic=internal,
                     phase="produce",
                     store=store,
                     deploy_base=tmp_path / "deploy",
@@ -302,8 +352,11 @@ class TestPhase1Produce:
         deploy_base = tmp_path / "deploy"
         slug_b = "fedcba9876543210aabbccddeeff0011"
         play_b = "1215823342887130"
+        clinic_b = "Harbor Light Chiropractic"
         with ExitStack() as stack:
-            _produce_patches(stack)
+            _produce_patches(
+                stack, names={PLAY_GID: (CLINIC, CLINIC), play_b: (clinic_b, clinic_b)}
+            )
             # Re-patch mint on top: office A gets SLUG, office B gets slug_b.
             stack.enter_context(patch.object(orunner, "mint_slug", side_effect=[SLUG, slug_b]))
             first = await run_office(
@@ -317,7 +370,7 @@ class TestPhase1Produce:
             second = await run_office(
                 _mock_client(),
                 play_gid=play_b,
-                clinic="Total Wellness Center",
+                clinic=clinic_b,
                 phase="produce",
                 store=store,
                 deploy_base=deploy_base,
@@ -656,3 +709,138 @@ class TestMissingCardIsNotDone:
         assert second.phase is Phase.DONE
         assert state.phase is Phase.DONE
         assert state.posts["card"] == "CARD_STORY"
+
+
+# ============================================================ D9 name confirmation (RED teeth)
+
+# Synthetic names only (this repo is public).
+D9_CLINIC = "Harbor Light Chiropractic"
+
+
+class TestD9NameConfirmation:
+    """Produce stops unless title clinic == Business name == --clinic (FORK-S1 rule).
+
+    The refusal tests match ``RuntimeError`` + "D9" (not the new exception class), so they
+    load against a runner that predates D9: there they FAIL with "DID NOT RAISE", which is
+    the pre-change RED of the teeth proof.
+    """
+
+    async def test_matching_names_produce_and_freeze_the_canonical_business_name(
+        self, tmp_path
+    ) -> None:
+        """GREEN: the three names agree up to invisible differences (B carries a zero-width
+        character and a double space, --clinic a trailing space). Produce runs, the deck
+        freezes the CANONICAL Business name, the manifest records it, and the one walk
+        supplies the Company ID (the phone-fallback resolver is never reached)."""
+        store = _store(tmp_path)
+        business = "Harbor Light  Chiropractic\u200b"
+        with ExitStack() as stack:
+            m = _produce_patches(stack, names={PLAY_GID: (D9_CLINIC, business)})
+            result = await run_office(
+                _mock_client(),
+                play_gid=PLAY_GID,
+                clinic=D9_CLINIC + " ",
+                phase="produce",
+                store=store,
+                deploy_base=tmp_path / "deploy",
+            )
+        assert result.outcome == "produced"
+        m["freeze"].assert_awaited_once()
+        assert m["freeze"].await_args.kwargs["client_name"] == D9_CLINIC
+        assert m["freeze"].await_args.kwargs["gated_address"] == ADDR
+        m["walk"].assert_awaited_once()
+        m["resolve"].assert_not_awaited()
+        state = store.load(PLAY_GID)
+        assert state is not None
+        assert state.clinic == D9_CLINIC
+
+    async def test_near_miss_business_name_refuses_before_freeze_and_mint(self, tmp_path) -> None:
+        """RED: the title says "Centre", the Business says "Center", and --clinic copied the
+        title. A visible difference: stop and ask. No freeze, no mint, nothing committed."""
+        store = _store(tmp_path)
+        title_part = "Harbor Light Family Wellness Centre"
+        business = "Harbor Light Family Wellness Center"
+        with ExitStack() as stack:
+            m = _produce_patches(stack, names={PLAY_GID: (title_part, business)})
+            with pytest.raises(RuntimeError, match="D9") as excinfo:
+                await run_office(
+                    _mock_client(),
+                    play_gid=PLAY_GID,
+                    clinic=title_part,
+                    phase="produce",
+                    store=store,
+                    deploy_base=tmp_path / "deploy",
+                )
+        message = str(excinfo.value)
+        assert PLAY_GID in message
+        assert BUSINESS_GID in message
+        assert ascii(title_part) in message
+        assert ascii(business) in message
+        assert "ask the operator" in message
+        m["freeze"].assert_not_awaited()
+        m["mint"].assert_not_called()
+        assert store.load(PLAY_GID) is None
+
+    async def test_no_business_parent_refuses_before_freeze(self, tmp_path) -> None:
+        """RED: the walk finds no Business parent. A phone match is not a parent, so the
+        name cannot be confirmed: refuse D9 (no phone fallback on the produce path)."""
+        store = _store(tmp_path)
+        with ExitStack() as stack:
+            m = _produce_patches(stack, business_gid=None, names={PLAY_GID: (CLINIC, None)})
+            with pytest.raises(RuntimeError, match="D9"):
+                await run_office(
+                    _mock_client(),
+                    play_gid=PLAY_GID,
+                    clinic=CLINIC,
+                    phase="produce",
+                    store=store,
+                    deploy_base=tmp_path / "deploy",
+                )
+        m["freeze"].assert_not_awaited()
+        m["mint"].assert_not_called()
+
+    async def test_confirmed_name_without_company_id_refuses_before_freeze(self, tmp_path) -> None:
+        """The name is confirmed but the Business carries no Company ID: refuse (no routing
+        address can be composed), and never fall back to a second resolver."""
+        store = _store(tmp_path)
+        with ExitStack() as stack:
+            m = _produce_patches(stack, guid=None)
+            with pytest.raises(TemplateCommentRefused, match="no Company ID"):
+                await run_office(
+                    _mock_client(),
+                    play_gid=PLAY_GID,
+                    clinic=CLINIC,
+                    phase="produce",
+                    store=store,
+                    deploy_base=tmp_path / "deploy",
+                )
+        m["freeze"].assert_not_awaited()
+        m["resolve"].assert_not_awaited()
+
+    async def test_already_produced_refuses_when_business_name_differs_from_frozen_clinic(
+        self, tmp_path
+    ) -> None:
+        """RED: the office was produced as "Harbor Light Chiropractic"; since then the title
+        and the Business were renamed. Re-surfacing the deploy command would ship a deck with
+        the old name, so the already-produced path re-checks D9 against the FROZEN name."""
+        store = _store(tmp_path)
+        deploy_base = tmp_path / "deploy"
+        body = b"<html>staged deck</html>"
+        (deploy_base / SLUG).mkdir(parents=True)
+        (deploy_base / SLUG / "index.html").write_bytes(body)
+        _seed_produced(store, frozen_sha256=hashlib.sha256(body).hexdigest(), clinic=D9_CLINIC)
+        renamed = "Harbor Light Spine Center"
+        with ExitStack() as stack:
+            m = _produce_patches(stack, names={PLAY_GID: (renamed, renamed)})
+            with pytest.raises(RuntimeError, match="D9") as excinfo:
+                await run_office(
+                    _mock_client(),
+                    play_gid=PLAY_GID,
+                    clinic=renamed,
+                    phase="produce",
+                    store=store,
+                    deploy_base=deploy_base,
+                )
+        assert ascii(D9_CLINIC) in str(excinfo.value)  # the frozen name is the --clinic witness
+        m["freeze"].assert_not_awaited()
+        m["mint"].assert_not_called()
