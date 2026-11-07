@@ -30,6 +30,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -46,6 +47,10 @@ from autom8_asana.automation.workflows.onboarding_walkthrough.floodgates.deploy_
     assert_deploy_root_ready,
     assert_wave_slugs_staged,
 )
+from autom8_asana.automation.workflows.onboarding_walkthrough.floodgates.name_match import (
+    ClinicNameMismatch,
+    clinic_from_play_name,
+)
 from autom8_asana.automation.workflows.onboarding_walkthrough.floodgates.office_runner import (
     OfficeRunResult,
     run_office,
@@ -55,6 +60,9 @@ from autom8_asana.automation.workflows.onboarding_walkthrough.floodgates.state i
     StateStore,
 )
 from autom8_asana.automation.workflows.onboarding_walkthrough.link_on_play import PLAY_NAME_RE
+from autom8_asana.automation.workflows.onboarding_walkthrough.render_check import (
+    RenderCheckRefused,
+)
 from autom8_asana.automation.workflows.section_resolution import resolve_section_gids
 from autom8_asana.client import AsanaClient
 
@@ -63,9 +71,15 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
+# Operator-environment defaults (absolute paths recommended), so a recipe or shell profile
+# pins ONE state dir and ONE deploy root for every run instead of per-command flags.
+STATE_DIR_ENV = "AUTOM8_FLOODGATES_STATE_DIR"
+DEPLOY_BASE_ENV = "AUTOM8_FLOODGATES_DEPLOY_BASE"
+
 __all__ = [
     "BatchReport",
     "OfficeReport",
+    "clinic_from_play_name",
     "enumerate_active_play_gids",
     "main",
     "run_batch",
@@ -174,6 +188,19 @@ async def run_batch(
     (every staged-ok office's pinned slug dir present in the root). Any guard refusal is
     recorded LOUDLY on the report and NO wrangler command is surfaced (fail-closed).
     """
+    if phase == "produce":
+        # PRE-FLIGHT the shared root BEFORE any office freezes or mints. Running the guard
+        # only after produce let a wrong ``--deploy-base`` persist PRODUCED state whose slug
+        # dir lives in the wrong root; every re-run then returned ``already_produced`` and
+        # the wave stayed refused. A refused root now produces NOTHING (no mint, no state).
+        try:
+            assert_deploy_root_ready(Path(deploy_base), manifest_path=deck_manifest)
+        except DeployRootRefused as exc:
+            logger.error(
+                "floodgates_wave_preflight_refused", deploy_base=str(deploy_base), error=str(exc)
+            )
+            return BatchReport(offices=[], deploy_refusal=str(exc))
+
     play_gids = [office] if office is not None else await enumerate_active_play_gids(client)
     reports: list[OfficeReport] = []
     for gid in play_gids:
@@ -206,7 +233,16 @@ async def run_batch(
                 execute=execute,
             )
         except Exception as exc:  # noqa: BLE001 -- per-office isolation: one failure (incl. a corrupt-manifest load) never halts the wave
-            logger.warning("floodgates_office_failed", play_gid=gid, error=str(exc))
+            # A D9 refusal carries clinic names, and a D10(b) refusal can (clinic_missing):
+            # they go to the [failed] stdout line only, never into the structured log (which
+            # gets the gid and the error type, plus the reason code for a render refusal).
+            if isinstance(exc, ClinicNameMismatch):
+                log_error = "ClinicNameMismatch"
+            elif isinstance(exc, RenderCheckRefused):
+                log_error = f"{type(exc).__name__}[{exc.reason}]"
+            else:
+                log_error = str(exc)
+            logger.warning("floodgates_office_failed", play_gid=gid, error=log_error)
             reports.append(OfficeReport(gid, "failed", error=str(exc)))
             continue
         reports.append(OfficeReport(gid, "ok", outcome=result.outcome, result=result))
@@ -292,7 +328,21 @@ def _write_report(report: BatchReport, *, phase: str, deploy_base: Path) -> None
         if office.error:
             line += f" — {office.error}"
         sys.stdout.write(line + "\n")
+    if phase == "resume":
+        for office in report.ok:
+            previews = getattr(office.result, "previews", None) or {}
+            if office.outcome == "dry_run" and previews:
+                for name in ("link", "template", "card"):
+                    sys.stdout.write(
+                        f"\n--- {office.play_gid} {name} (exactly what --execute would post) ---\n"
+                        f"{previews.get(name, '')}\n"
+                    )
     if phase == "produce":
+        # D10(b) receipts: which browser rendered each staged deck, and the outcome.
+        for office in report.ok:
+            receipt = getattr(office.result, "render_receipt", None)
+            if receipt is not None:
+                sys.stdout.write(f"[render] {office.play_gid} {receipt.line()}\n")
         if report.wrangler_command:
             sys.stdout.write(_wave_halt_banner(report, deploy_base=deploy_base))
         elif report.deploy_refusal:
@@ -331,13 +381,18 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="JSON object {play_gid: clinic} of operator-confirmed names for a full-wave produce.",
     )
-    parser.add_argument("--state-dir", type=Path, default=Path(".sos/floodgates/state"))
+    parser.add_argument(
+        "--state-dir",
+        type=Path,
+        default=Path(os.environ.get(STATE_DIR_ENV, ".sos/floodgates/state")),
+        help=f"per-office state directory (env {STATE_DIR_ENV}); resolved to an absolute path.",
+    )
     parser.add_argument(
         "--deploy-base",
         type=Path,
-        default=Path(".sos/floodgates/deploy"),
+        default=Path(os.environ.get(DEPLOY_BASE_ENV, ".sos/floodgates/deploy")),
         help=(
-            "the WAVE-SHARED accumulating deploy root — point it at the deck-host checkout's "
+            f"(env {DEPLOY_BASE_ENV}) the WAVE-SHARED accumulating deploy root — point it at the deck-host checkout's "
             "public/ for cross-wave accumulation (TDD §8). The wave-level wrangler command is "
             "surfaced only after the fail-closed deploy-root guard passes."
         ),
@@ -359,11 +414,24 @@ def main(argv: list[str] | None = None) -> int:
         help="Cloudflare Pages project name (surfaced into the wrangler command; operator-domain).",
     )
     parser.add_argument(
+        "--suggest-clinic",
+        action="store_true",
+        help=(
+            "read-only: print the clinic name suggested by --office's PLAY title, then exit "
+            "(no produce, no writes). Confirm it, then pass it to --clinic."
+        ),
+    )
+    parser.add_argument(
         "--execute",
         action="store_true",
         help="Perform the Phase-2 PLAY-comment posts (the only mutating mode).",
     )
     args = parser.parse_args(argv)
+    # Absolute paths: a relative default resolved against whatever cwd the operator ran from
+    # silently forked state across directories (a second run minted a second deck).
+    args.state_dir = args.state_dir.expanduser().resolve()
+    args.deploy_base = args.deploy_base.expanduser().resolve()
+    sys.stdout.write(f"state-dir: {args.state_dir}\ndeploy-base: {args.deploy_base}\n")
 
     clinic_map: dict[str, str] = {}
     if args.manifest is not None:
@@ -371,6 +439,9 @@ def main(argv: list[str] | None = None) -> int:
         clinic_map.update({str(k): str(v) for k, v in raw.items()})
     if args.office is not None and args.clinic is not None:
         clinic_map[args.office] = args.clinic
+
+    if args.suggest_clinic:
+        return _suggest_clinic(args.office)
 
     store = StateStore(args.state_dir)
 
@@ -391,8 +462,48 @@ def main(argv: list[str] | None = None) -> int:
 
     report = asyncio.run(_run())
     _write_report(report, phase=args.phase, deploy_base=args.deploy_base)
-    # A wave-level deploy refusal is RED: staged offices exist but no command was surfaced.
-    return 1 if (report.failed or report.deploy_refusal) else 0
+    incomplete = _incomplete_offices(report, phase=args.phase, execute=args.execute)
+    for gid, why in incomplete:
+        sys.stdout.write(f"[INCOMPLETE] {gid} — {why}\n")
+    skipped_scoped = bool(
+        args.office is not None and any(o.status == "skipped_no_clinic" for o in report.skipped)
+    )
+    # RED when anything did not do what was asked: a failure, a refused wave, a skip of the
+    # ONE office the operator named, or a "done" office with no contact card posted.
+    return 1 if (report.failed or report.deploy_refusal or skipped_scoped or incomplete) else 0
+
+
+def _suggest_clinic(office: str | None) -> int:
+    """Print the PLAY title's suggested clinic name for ONE office (read-only)."""
+    if office is None:
+        sys.stdout.write("--suggest-clinic needs --office <play_gid>\n")
+        return 2
+
+    async def _name() -> str | None:
+        async with AsanaClient() as client:
+            task = await client.tasks.get_async(office, opt_fields=["name"])
+            return getattr(task, "name", None)
+
+    suggestion = clinic_from_play_name(asyncio.run(_name()))
+    if suggestion is None:
+        sys.stdout.write(f"{office}: no suggestion (title is not a PLAY with a clinic part)\n")
+        return 1
+    sys.stdout.write(f"{office}: suggested clinic: {suggestion}\n")
+    return 0
+
+
+def _incomplete_offices(report: BatchReport, *, phase: str, execute: bool) -> list[tuple[str, str]]:
+    """Offices an executed resume left without a contact-card story (no holder/contacts)."""
+    if phase != "resume" or not execute:
+        return []
+    out: list[tuple[str, str]] = []
+    for office in report.ok:
+        posts = getattr(office.result, "posts", None) or {}
+        if not posts.get("card"):
+            out.append(
+                (office.play_gid, "no contact card posted (no holder or no usable contacts)")
+            )
+    return out
 
 
 if __name__ == "__main__":

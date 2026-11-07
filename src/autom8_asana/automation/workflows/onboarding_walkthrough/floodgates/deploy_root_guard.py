@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import json
 import re
-from typing import TYPE_CHECKING, NoReturn
+from typing import TYPE_CHECKING, Any, NoReturn
 
 from autom8y_log import get_logger
 
@@ -50,6 +50,7 @@ __all__ = [
     "assert_root_hygiene",
     "assert_wave_slugs_staged",
     "default_manifest_path",
+    "load_ledger_decks",
 ]
 
 #: The deploy-root allowlist dir shape — identical to ``host_bundle._SLUG_RE`` by contract
@@ -159,6 +160,46 @@ def assert_headers_parity(deploy_root: Path) -> None:
         )
 
 
+def load_ledger_decks(
+    deploy_root: Path, *, manifest_path: Path | None = None
+) -> dict[str, dict[str, Any]]:
+    """Read the committed deck-host ledger's ``decks`` object, fail-closed.
+
+    Shared by the no-orphan predicate and the deploy gate (``render_check.render_gate``),
+    so both read the ledger the same way. Every entry must be a JSON object.
+
+    Args:
+        deploy_root: The staged wave-shared root.
+        manifest_path: Explicit ledger path; default ``<deploy_root>/../config/deck-manifest.json``.
+
+    Raises:
+        DeployRootRefused: the ledger is missing, unreadable, has no ``decks`` object, or
+            holds an entry that is not an object (absence of the ledger is not permission).
+    """
+    path = manifest_path if manifest_path is not None else default_manifest_path(deploy_root)
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        _refuse(
+            "manifest_unreadable",
+            f"deck-manifest ledger missing/unreadable at {path}: {exc} — absence of the ledger "
+            "is NOT permission; refusing to surface the deploy (fail-closed)",
+        )
+    decks = raw.get("decks") if isinstance(raw, dict) else None
+    if not isinstance(decks, dict):
+        _refuse(
+            "manifest_malformed",
+            f"deck-manifest ledger at {path} has no 'decks' object — refusing (fail-closed)",
+        )
+    for slug, entry in decks.items():
+        if not isinstance(entry, dict):
+            _refuse(
+                "manifest_malformed",
+                f"deck-manifest entry for slug {slug!r} at {path} is not an object — refusing",
+            )
+    return decks
+
+
 def assert_manifest_superset(deploy_root: Path, *, manifest_path: Path | None = None) -> None:
     """No-orphan predicate: every non-revoked ledger slug MUST be staged in the root.
 
@@ -176,28 +217,9 @@ def assert_manifest_superset(deploy_root: Path, *, manifest_path: Path | None = 
     Raises:
         DeployRootRefused: unreadable/malformed ledger, or any non-revoked slug absent.
     """
-    path = manifest_path if manifest_path is not None else default_manifest_path(deploy_root)
-    try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as exc:
-        _refuse(
-            "manifest_unreadable",
-            f"deck-manifest ledger missing/unreadable at {path}: {exc} — absence of the ledger "
-            "is NOT permission; refusing to surface the deploy (fail-closed)",
-        )
-    decks = raw.get("decks") if isinstance(raw, dict) else None
-    if not isinstance(decks, dict):
-        _refuse(
-            "manifest_malformed",
-            f"deck-manifest ledger at {path} has no 'decks' object — refusing (fail-closed)",
-        )
+    decks = load_ledger_decks(deploy_root, manifest_path=manifest_path)
     orphans: list[str] = []
     for slug, entry in decks.items():
-        if not isinstance(entry, dict):
-            _refuse(
-                "manifest_malformed",
-                f"deck-manifest entry for slug {slug!r} at {path} is not an object — refusing",
-            )
         if entry.get("status") == "revoked":
             continue
         if not (deploy_root / slug / "index.html").is_file():

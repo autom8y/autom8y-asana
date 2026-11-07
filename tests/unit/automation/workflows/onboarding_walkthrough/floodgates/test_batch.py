@@ -76,7 +76,7 @@ class TestPerOfficeIsolation:
                 MagicMock(),
                 phase="produce",
                 store=store,
-                deploy_base=tmp_path / "deploy",
+                deploy_base=_make_shared_root(tmp_path, []),
                 clinic_map={"A": "Clinic A", "B": "Clinic B", "C": "Clinic C"},
             )
 
@@ -112,7 +112,7 @@ class TestPerOfficeIsolation:
                 MagicMock(),
                 phase="produce",
                 store=store,
-                deploy_base=tmp_path / "deploy",
+                deploy_base=_make_shared_root(tmp_path, []),
                 clinic_map={"A": "Clinic A", "B": "Clinic B", "C": "Clinic C"},
             )
 
@@ -138,7 +138,7 @@ class TestPerOfficeIsolation:
                 MagicMock(),
                 phase="produce",
                 store=store,
-                deploy_base=tmp_path / "deploy",
+                deploy_base=_make_shared_root(tmp_path, []),
                 clinic_map={"B": "Clinic B"},
             )
         by_gid = {o.play_gid: o for o in report.offices}
@@ -165,7 +165,7 @@ class TestPerOfficeIsolation:
                 MagicMock(),
                 phase="produce",
                 store=store,
-                deploy_base=tmp_path / "deploy",
+                deploy_base=_make_shared_root(tmp_path, []),
                 clinic_map={"A": "Clinic A"},  # B has no confirmed clinic
             )
         by_gid = {o.play_gid: o for o in report.offices}
@@ -413,9 +413,9 @@ class TestWaveDeployGate:
         assert report.deploy_refusal is None
         assert report.wrangler_command == (f"wrangler pages deploy {root} --project-name=deck-host")
 
-    async def test_no_staged_offices_means_no_guard_no_command(self, tmp_path) -> None:
-        """A wave with nothing staged (all skipped) surfaces nothing and refuses nothing —
-        even over a root that would fail the guard (there is no deploy to gate)."""
+    async def test_no_staged_offices_over_green_root_surfaces_nothing(self, tmp_path) -> None:
+        """A wave with nothing staged (all skipped) over a guard-GREEN root surfaces no
+        command and refuses nothing (there is no deploy to gate)."""
         store = _store(tmp_path)
         store.save(_done_state("A"))
         with (
@@ -426,11 +426,34 @@ class TestWaveDeployGate:
                 MagicMock(),
                 phase="produce",
                 store=store,
-                deploy_base=tmp_path / "nonexistent-root",
+                deploy_base=_make_shared_root(tmp_path, []),
                 clinic_map={},
             )
         assert report.wrangler_command is None
         assert report.deploy_refusal is None
+
+    async def test_produce_over_bad_root_refuses_even_when_nothing_would_stage(
+        self, tmp_path
+    ) -> None:
+        """Produce pre-flights the root before enumerating: a bad root refuses up front,
+        even if every office would have been skipped (a produce must name a valid root)."""
+        store = _store(tmp_path)
+        store.save(_done_state("A"))
+        enumerate_ = AsyncMock(return_value=["A"])
+        with (
+            patch.object(fbatch, "enumerate_active_play_gids", new=enumerate_),
+            patch.object(fbatch, "run_office", new=AsyncMock()),
+        ):
+            report = await run_batch(
+                MagicMock(),
+                phase="produce",
+                store=store,
+                deploy_base=tmp_path / "nonexistent-root",
+                clinic_map={},
+            )
+        enumerate_.assert_not_awaited()
+        assert report.wrangler_command is None
+        assert report.deploy_refusal is not None
 
     async def test_resume_phase_never_runs_the_guard(self, tmp_path) -> None:
         """Resume surfaces no deploy command, so the guard must not run (a resume against
@@ -524,10 +547,398 @@ class TestScoping:
                 MagicMock(),
                 phase="produce",
                 store=store,
-                deploy_base=tmp_path / "deploy",
+                deploy_base=_make_shared_root(tmp_path, []),
                 clinic_map={"B": "Clinic B"},
                 office="B",
             )
         enumerate_mock.assert_not_awaited()
         assert [o.play_gid for o in report.offices] == ["B"]
         assert run_office.await_args.kwargs["play_gid"] == "B"
+
+
+class TestProducePreflight:
+    """A refused shared root must produce NOTHING: no freeze, no mint, no PRODUCED state."""
+
+    async def test_refused_root_never_runs_an_office(self, tmp_path) -> None:
+        store = _store(tmp_path)
+        root = _make_shared_root(tmp_path, [SLUG_A])
+        (root / "stray-notes.txt").write_text("oops", encoding="utf-8")
+        run = AsyncMock()
+        with (
+            patch.object(fbatch, "enumerate_active_play_gids", new=AsyncMock(return_value=["A"])),
+            patch.object(fbatch, "run_office", new=run),
+        ):
+            report = await run_batch(
+                MagicMock(),
+                phase="produce",
+                store=store,
+                deploy_base=root,
+                clinic_map={"A": "Clinic A"},
+            )
+        run.assert_not_awaited()
+        assert report.offices == []
+        assert report.wrangler_command is None
+        assert report.deploy_refusal is not None
+        assert "root-hygiene REFUSED" in report.deploy_refusal
+        assert store.load("A") is None  # no state persisted
+
+    async def test_default_style_root_without_ledger_refuses_up_front(self, tmp_path) -> None:
+        """The old default (a bare dir with no sibling ledger) refuses before any office."""
+        store = _store(tmp_path)
+        bare = tmp_path / "bare-deploy"
+        bare.mkdir()
+        run = AsyncMock()
+        with patch.object(fbatch, "run_office", new=run):
+            report = await run_batch(
+                MagicMock(),
+                phase="produce",
+                store=store,
+                deploy_base=bare,
+                clinic_map={"A": "Clinic A"},
+                office="A",
+            )
+        run.assert_not_awaited()
+        assert report.deploy_refusal is not None
+
+    async def test_green_root_still_runs_offices(self, tmp_path) -> None:
+        """Control: the preflight does not block a guard-GREEN root."""
+        store = _store(tmp_path)
+        root = _make_shared_root(tmp_path, [SLUG_A])
+
+        async def _run(_client, *, play_gid, deploy_base, **_kw):
+            return _produced(play_gid, deploy_base)
+
+        run = AsyncMock(side_effect=_run)
+        with patch.object(fbatch, "run_office", new=run):
+            report = await run_batch(
+                MagicMock(),
+                phase="produce",
+                store=store,
+                deploy_base=root,
+                clinic_map={"A": "Clinic A"},
+                office="A",
+            )
+        run.assert_awaited_once()
+        assert report.deploy_refusal is None
+        assert report.wrangler_command is not None
+
+
+class TestCliPathDefaults:
+    """One state dir and one deploy root per operator env, always absolute."""
+
+    def _run_main(self, argv):
+        run = AsyncMock(return_value=BatchReport(offices=[]))
+        with (
+            patch.object(fbatch, "run_batch", new=run),
+            patch.object(fbatch, "AsanaClient"),
+        ):
+            rc = fbatch.main(argv)
+        return rc, run.await_args.kwargs
+
+    def test_env_vars_supply_both_defaults(self, tmp_path, monkeypatch) -> None:
+        monkeypatch.setenv(fbatch.STATE_DIR_ENV, str(tmp_path / "st"))
+        monkeypatch.setenv(fbatch.DEPLOY_BASE_ENV, str(tmp_path / "pub"))
+        _rc, kw = self._run_main(["--phase", "resume"])
+        assert kw["store"]._dir == (tmp_path / "st").resolve()
+        assert kw["deploy_base"] == (tmp_path / "pub").resolve()
+
+    def test_explicit_flags_beat_env(self, tmp_path, monkeypatch) -> None:
+        monkeypatch.setenv(fbatch.STATE_DIR_ENV, str(tmp_path / "env-st"))
+        _rc, kw = self._run_main(["--phase", "resume", "--state-dir", str(tmp_path / "flag-st")])
+        assert kw["store"]._dir == (tmp_path / "flag-st").resolve()
+
+    def test_relative_paths_are_resolved_absolute(self, tmp_path, monkeypatch) -> None:
+        monkeypatch.delenv(fbatch.STATE_DIR_ENV, raising=False)
+        monkeypatch.delenv(fbatch.DEPLOY_BASE_ENV, raising=False)
+        monkeypatch.chdir(tmp_path)
+        _rc, kw = self._run_main(["--phase", "resume"])
+        assert kw["store"]._dir.is_absolute()
+        assert kw["store"]._dir == (tmp_path / ".sos/floodgates/state").resolve()
+        assert kw["deploy_base"].is_absolute()
+
+
+class TestCliExitHonesty:
+    """Exit 0 only when the run did what was asked."""
+
+    def _main(self, argv, report):
+        with (
+            patch.object(fbatch, "run_batch", new=AsyncMock(return_value=report)),
+            patch.object(fbatch, "AsanaClient"),
+        ):
+            return fbatch.main(argv)
+
+    def _ok(self, gid, posts):
+        return OfficeReport(
+            gid,
+            "ok",
+            outcome="posted",
+            result=SimpleNamespace(
+                play_gid=gid, phase=Phase.DONE, outcome="posted", wrangler_command=None, posts=posts
+            ),  # type: ignore[arg-type]
+        )
+
+    def test_scoped_office_skip_is_red(self, tmp_path, capsys) -> None:
+        report = BatchReport(offices=[OfficeReport("A", "skipped_no_clinic", error="no name")])
+        rc = self._main(
+            ["--phase", "produce", "--office", "A", "--deploy-base", str(tmp_path)], report
+        )
+        assert rc == 1
+
+    def test_scoped_rerun_of_done_office_is_green(self, tmp_path) -> None:
+        """A re-run on an office that is already DONE did what was asked: exit 0."""
+        report = BatchReport(offices=[OfficeReport("A", "skipped_done", outcome="already_done")])
+        rc = self._main(["--phase", "resume", "--office", "A", "--execute"], report)
+        assert rc == 0
+
+    def test_unscoped_wave_skip_stays_green(self, tmp_path) -> None:
+        """Control: in a full wave a skipped (e.g. DONE) office is normal, not a failure."""
+        report = BatchReport(offices=[OfficeReport("A", "skipped_done", outcome="already_done")])
+        assert self._main(["--phase", "produce", "--deploy-base", str(tmp_path)], report) == 0
+
+    def test_execute_without_card_is_red_and_named(self, tmp_path, capsys) -> None:
+        report = BatchReport(offices=[self._ok("A", {"link": "L", "template": "T", "card": None})])
+        rc = self._main(["--phase", "resume", "--office", "A", "--execute"], report)
+        assert rc == 1
+        assert "[INCOMPLETE] A" in capsys.readouterr().out
+
+    def test_execute_with_all_three_posts_is_green(self, tmp_path) -> None:
+        """Control: all three story ids present -> exit 0."""
+        report = BatchReport(offices=[self._ok("A", {"link": "L", "template": "T", "card": "C"})])
+        assert self._main(["--phase", "resume", "--office", "A", "--execute"], report) == 0
+
+    def test_dry_run_resume_never_flags_missing_card(self, tmp_path) -> None:
+        """Control: a dry run posts nothing, so no card is expected yet."""
+        report = BatchReport(
+            offices=[self._ok("A", {"link": None, "template": None, "card": None})]
+        )
+        assert self._main(["--phase", "resume", "--office", "A"], report) == 0
+
+
+class TestResumePreview:
+    def _report(self, outcome):
+        result = SimpleNamespace(
+            play_gid="A",
+            phase=Phase.PRODUCED,
+            outcome=outcome,
+            wrangler_command=None,
+            posts={"link": None, "template": None, "card": None},
+            previews={"link": "LINK-TEXT", "template": "TEMPLATE-TEXT", "card": "CARD-TEXT"},
+        )
+        return BatchReport(offices=[OfficeReport("A", "ok", outcome=outcome, result=result)])  # type: ignore[arg-type]
+
+    def _out(self, argv, report, capsys):
+        with (
+            patch.object(fbatch, "run_batch", new=AsyncMock(return_value=report)),
+            patch.object(fbatch, "AsanaClient"),
+        ):
+            fbatch.main(argv)
+        return capsys.readouterr().out
+
+    def test_dry_run_prints_all_three_comments(self, capsys) -> None:
+        out = self._out(["--phase", "resume", "--office", "A"], self._report("dry_run"), capsys)
+        for text in ("LINK-TEXT", "TEMPLATE-TEXT", "CARD-TEXT"):
+            assert text in out
+
+    def test_executed_run_does_not_reprint_comments(self, capsys) -> None:
+        """Control: after --execute the comments are on the task; no preview is printed."""
+        out = self._out(
+            ["--phase", "resume", "--office", "A", "--execute"], self._report("posted"), capsys
+        )
+        assert "LINK-TEXT" not in out
+
+
+class TestClinicSuggestion:
+    def test_parse_play_title(self) -> None:
+        f = fbatch.clinic_from_play_name
+        assert (
+            f("PLAY: Custom Calendar Integration — Maple Grove Wellness") == "Maple Grove Wellness"
+        )
+        assert f("PLAY: Custom Calendar Integration - Acme Dental") == "Acme Dental"
+        assert f("PLAY: Custom Calendar Integration — - Acme") == "Acme"  # stacked separators
+        assert f("PLAY: Custom Calendar Integration —  Acme   Dental ") == "Acme Dental"
+        assert f("PLAY: Custom Calendar Integration — Acme\u200b Dental") == "Acme Dental"
+        assert f("PLAY: Custom Calendar Integration — Acme — Downtown") == "Acme — Downtown"
+        assert f("PLAY: Custom Calendar Integration") is None  # no clinic part
+        assert f("PLAY: Custom Calendar Integrations — Acme") is None  # not the PLAY word
+        assert f("Playa Vista Dental") is None  # not a PLAY (control)
+        assert f(None) is None
+
+    def _main(self, argv, name):
+        client = MagicMock()
+        client.tasks.get_async = AsyncMock(return_value=SimpleNamespace(name=name))
+        client_cm = MagicMock()
+        client_cm.return_value.__aenter__ = AsyncMock(return_value=client)
+        client_cm.return_value.__aexit__ = AsyncMock(return_value=False)
+        run = AsyncMock()
+        with (
+            patch.object(fbatch, "AsanaClient", new=client_cm),
+            patch.object(fbatch, "run_batch", new=run),
+        ):
+            rc = fbatch.main(argv)
+        return rc, run
+
+    def test_suggest_prints_name_and_never_runs_a_phase(self, capsys) -> None:
+        rc, run = self._main(
+            ["--phase", "produce", "--office", "A", "--suggest-clinic"],
+            "PLAY: Custom Calendar Integration — Acme Dental",
+        )
+        assert rc == 0
+        run.assert_not_awaited()  # read-only: no produce, no state
+        assert "suggested clinic: Acme Dental" in capsys.readouterr().out
+
+    def test_suggest_non_play_title_is_red(self, capsys) -> None:
+        rc, run = self._main(
+            ["--phase", "produce", "--office", "A", "--suggest-clinic"], "Some other task"
+        )
+        assert rc == 1
+        run.assert_not_awaited()
+
+    def test_suggest_needs_office(self) -> None:
+        rc, run = self._main(["--phase", "produce", "--suggest-clinic"], "x")
+        assert rc == 2
+        run.assert_not_awaited()
+
+
+class TestCliD9Refusal:
+    """A D9 name refusal is a failed office: exit 1, both names on the [failed] line, and the
+    structured log event carries no names."""
+
+    def test_name_mismatch_exits_red_and_shows_both_names(self, tmp_path, capsys) -> None:
+        from autom8_asana.automation.workflows.onboarding_walkthrough.floodgates.name_match import (
+            ClinicNameMismatch,
+        )
+
+        root = _make_shared_root(tmp_path, [])
+        refusal = ClinicNameMismatch(
+            "D9: name mismatch on PLAY A / Business B1: title='Harbor Light Centre' "
+            "business='Harbor Light Center' --clinic='Harbor Light Centre'. "
+            "Stopped; ask the operator."
+        )
+        with (
+            patch.object(fbatch, "AsanaClient"),
+            patch.object(fbatch, "run_office", new=AsyncMock(side_effect=refusal)),
+            patch.object(fbatch, "logger") as logger,
+        ):
+            rc = fbatch.main(
+                [
+                    "--phase",
+                    "produce",
+                    "--office",
+                    "A",
+                    "--clinic",
+                    "Harbor Light Centre",
+                    "--deploy-base",
+                    str(root),
+                    "--state-dir",
+                    str(tmp_path / "state"),
+                ]
+            )
+        out = capsys.readouterr().out
+        assert rc == 1
+        failed = next(line for line in out.splitlines() if line.startswith("[failed] A"))
+        assert "D9" in failed
+        assert "'Harbor Light Centre'" in failed
+        assert "'Harbor Light Center'" in failed
+        assert "wrangler pages deploy" not in out
+        logged = [c.kwargs for c in logger.warning.call_args_list]
+        assert logged == [{"play_gid": "A", "error": "ClinicNameMismatch"}]
+
+
+class TestCliD10bRender:
+    """D10(b) at the CLI: a produce report prints one ``[render]`` line per ok office with a
+    receipt, and a render refusal is a failed office whose log event carries no clinic name."""
+
+    def _receipt(self, slug: str):
+        from autom8_asana.automation.workflows.onboarding_walkthrough.render_check import (
+            RenderReceipt,
+        )
+
+        return RenderReceipt(
+            slug=slug,
+            browser_path="/opt/synthetic/chrome-headless-shell",
+            browser_kind="headless-shell",
+            browser_version="Synthetic Headless 1.0",
+            checked_at="2026-11-07T00:00:00+00:00",
+            outcome="pass",
+        )
+
+    def _report(self, outcome: str, *, with_receipt: bool) -> BatchReport:
+        def _office(gid: str, slug: str, receipt: bool) -> OfficeReport:
+            result = SimpleNamespace(
+                play_gid=gid,
+                phase=Phase.PRODUCED,
+                outcome=outcome,
+                wrangler_command=None,
+                posts={"link": None, "template": None, "card": None},
+                previews={},
+                render_receipt=self._receipt(slug) if receipt else None,
+            )
+            return OfficeReport(gid, "ok", outcome=outcome, result=result)  # type: ignore[arg-type]
+
+        return BatchReport(
+            offices=[
+                _office("A", "a" * 32, with_receipt),
+                _office("B", "b" * 32, False),  # control: no receipt -> no line
+                OfficeReport("C", "failed", error="[foreign_address] refused"),
+            ]
+        )
+
+    def test_produce_prints_one_render_line_per_receipt(self, tmp_path, capsys) -> None:
+        fbatch._write_report(
+            self._report("produced", with_receipt=True), phase="produce", deploy_base=tmp_path
+        )
+        out = capsys.readouterr().out
+        expected = f"[render] A {self._receipt('a' * 32).line()}"
+        assert expected in out
+        assert "path='/opt/synthetic/chrome-headless-shell'" in expected
+        assert "browser=headless-shell" in expected
+        assert "version='Synthetic Headless 1.0'" in expected
+        assert "outcome=pass" in expected
+        assert out.count("[render]") == 1  # B has no receipt, C failed
+
+    def test_resume_prints_no_render_line(self, tmp_path, capsys) -> None:
+        fbatch._write_report(
+            self._report("posted", with_receipt=True), phase="resume", deploy_base=tmp_path
+        )
+        assert "[render]" not in capsys.readouterr().out
+
+    def test_render_refusal_is_red_and_logs_reason_code_not_clinic(self, tmp_path, capsys) -> None:
+        """A render refusal is a failed office (exit 1, no deploy command). The message may
+        carry the clinic name (clinic_missing): it goes to the [failed] line only, and the
+        structured log gets the type and reason code."""
+        from autom8_asana.automation.workflows.onboarding_walkthrough.render_check import (
+            RenderCheckRefused,
+        )
+
+        root = _make_shared_root(tmp_path, [])
+        refusal = RenderCheckRefused(
+            "clinic_missing", "rendered body lacks 'Prepared for Juniper Ridge Dental'"
+        )
+        with (
+            patch.object(fbatch, "AsanaClient"),
+            patch.object(fbatch, "run_office", new=AsyncMock(side_effect=refusal)),
+            patch.object(fbatch, "logger") as logger,
+        ):
+            rc = fbatch.main(
+                [
+                    "--phase",
+                    "produce",
+                    "--office",
+                    "A",
+                    "--clinic",
+                    "Juniper Ridge Dental",
+                    "--deploy-base",
+                    str(root),
+                    "--state-dir",
+                    str(tmp_path / "state"),
+                ]
+            )
+        out = capsys.readouterr().out
+        assert rc == 1
+        failed = next(line for line in out.splitlines() if line.startswith("[failed] A"))
+        assert "[clinic_missing]" in failed
+        assert "wrangler pages deploy" not in out
+        assert "[render]" not in out
+        logged = [c.kwargs for c in logger.warning.call_args_list]
+        assert logged == [{"play_gid": "A", "error": "RenderCheckRefused[clinic_missing]"}]
+        assert "Juniper" not in repr(logged)

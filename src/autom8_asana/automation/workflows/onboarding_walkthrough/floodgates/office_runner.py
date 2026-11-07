@@ -4,15 +4,19 @@
 already-proven onboarding primitives around the operator-gated Cloudflare deploy:
 
 * **Phase 1 ``produce``** (fully automatable; NO Asana writes, NO client contact):
-  positive-select the PLAY -> resolve the office guid pure-Asana (task-bound) -> compose
-  the gated routing address -> gate the operator-confirmed clinic name (fault-13) ->
-  freeze the deck (Node producer) -> assert exclusive tenant-binding -> mint + PIN the
-  capability slug (once; SLUG-1) -> host-stage into the WAVE-SHARED deploy root (every
-  office of a wave accumulates into ONE root; slug dirs are collision-free by
-  ``_SLUG_RE`` and ``stage_deck_bundle`` is accumulation-proven) -> commit the manifest
-  at ``PRODUCED`` -> **SURFACE the exact ``wrangler pages deploy`` command and HALT**.
-  The reserved CF lever is printed, NEVER executed — and the batch surfaces it ONCE per
-  wave, only after the fail-closed deploy-root guard passes (deploy_root_guard).
+  positive-select the PLAY -> walk ONCE to the parent Business (task-bound) -> confirm
+  the clinic name: title == Business name == ``--clinic`` (D9, ``name_match``) -> compose
+  the gated routing address from that Business's Company ID -> gate the clinic name
+  (fault-13) -> freeze the deck (Node producer) with the canonical Business name ->
+  assert exclusive tenant-binding -> mint + PIN the capability slug (once; SLUG-1) ->
+  host-stage into the WAVE-SHARED deploy root (every office of a wave accumulates into
+  ONE root; slug dirs are collision-free by ``_SLUG_RE`` and ``stage_deck_bundle`` is
+  accumulation-proven) -> render the staged deck in a headless browser and assert it (D10(b),
+  ``render_check``; a refusal removes the never-deployed slug dir) -> commit the manifest at
+  ``PRODUCED`` -> **SURFACE the exact
+  ``wrangler pages deploy`` command and HALT**. The reserved CF lever is printed, NEVER
+  executed — and the batch surfaces it ONCE per wave, only after the fail-closed
+  deploy-root guard passes (deploy_root_guard).
 * **Phase 2 ``resume``** (after the operator confirms the deck is live): a ★C-1
   manifest-integrity guard (the manifest keyed to this PLAY MUST describe the office the
   live task resolves to, else ``TaskOfficeMismatch``) -> served byte-parity gate (served
@@ -30,8 +34,9 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import os
+import shutil
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -39,6 +44,7 @@ from typing import TYPE_CHECKING
 from autom8y_core.helpers.routing import format_routing_address
 from autom8y_log import get_logger
 
+from autom8_asana.automation.workflows.onboarding_walkthrough import office_resolution
 from autom8_asana.automation.workflows.onboarding_walkthrough.constants import (
     WALKTHROUGH_DECK_DEFAULT,
     WALKTHROUGH_PRODUCER_DIR_ENV_VAR,
@@ -47,6 +53,9 @@ from autom8_asana.automation.workflows.onboarding_walkthrough.contact_synthesis 
     post_contact_card,
 )
 from autom8_asana.automation.workflows.onboarding_walkthrough.deck_manifests import load_title
+from autom8_asana.automation.workflows.onboarding_walkthrough.floodgates.name_match import (
+    assert_clinic_name_confirmed,
+)
 from autom8_asana.automation.workflows.onboarding_walkthrough.floodgates.state import (
     OfficeState,
     Phase,
@@ -68,7 +77,12 @@ from autom8_asana.automation.workflows.onboarding_walkthrough.personalization_ga
 from autom8_asana.automation.workflows.onboarding_walkthrough.producer import (
     freeze_walkthrough_deck,
 )
+from autom8_asana.automation.workflows.onboarding_walkthrough.render_check import (
+    RenderReceipt,
+    check_staged_deck,
+)
 from autom8_asana.automation.workflows.onboarding_walkthrough.template_comment import (
+    TemplateCommentRefused,
     _mask_guid,
     _resolve_office_guid,
     post_template_comment,
@@ -105,7 +119,8 @@ class OfficeRunResult:
 
     ``outcome`` is one of ``"produced"`` | ``"already_produced"`` (Phase-1) |
     ``"posted"`` | ``"dry_run"`` | ``"already_done"`` (Phase-2). ``wrangler_command`` is the
-    surfaced reserved-lever command on Phase-1 (``None`` on Phase-2).
+    surfaced reserved-lever command on Phase-1 (``None`` on Phase-2). ``render_receipt`` is
+    the D10(b) rendered-deck check that passed on Phase-1 (``None`` on Phase-2).
     """
 
     play_gid: str
@@ -116,6 +131,11 @@ class OfficeRunResult:
     deploy_root: str
     wrangler_command: str | None
     posts: dict[str, str | None]
+    # Phase-2: the composed text of each comment (link / template / card), so a dry run shows
+    # EXACTLY what --execute would post. Empty on Phase-1.
+    previews: dict[str, str] = field(default_factory=dict)
+    # Phase-1: the passing rendered-deck receipt (browser path, kind, version, outcome).
+    render_receipt: RenderReceipt | None = None
 
 
 def _now() -> str:
@@ -192,6 +212,59 @@ def _assert_served_parity(*, served_bytes: bytes, slug: str, expected_sha256: st
         return verify_bundle_parity(deploy_root=root, slug=slug, expected_sha256=expected_sha256)
 
 
+class StagedDeckMissing(RuntimeError):
+    """A PRODUCED office's pinned deck is absent from (or drifted in) the given deploy root."""
+
+
+def _assert_staged_in_root(deploy_root: Path, *, slug: str, frozen_sha256: str) -> None:
+    """Refuse unless ``<deploy_root>/<slug>/index.html`` exists with the frozen sha256."""
+    leaf = Path(deploy_root) / slug / "index.html"
+    if not leaf.is_file():
+        raise StagedDeckMissing(
+            f"already produced (slug {slug}) but {leaf} does not exist: the first produce ran "
+            "against a different --deploy-base. Re-run with that same --deploy-base, or copy "
+            f"its {slug}/ directory into {deploy_root}."
+        )
+    actual = hashlib.sha256(leaf.read_bytes()).hexdigest()
+    if actual != frozen_sha256:
+        raise StagedDeckMissing(
+            f"already produced (slug {slug}) but {leaf} has sha256 {actual[:12]}…, "
+            f"not the frozen {frozen_sha256[:12]}…: the staged deck drifted."
+        )
+
+
+def _render_check_or_unstage(
+    deploy_root: Path,
+    *,
+    play_gid: str,
+    slug: str,
+    office_guid_sha256: str,
+    clinic: str,
+) -> RenderReceipt:
+    """Run the D10(b) rendered-deck check on a deck staged THIS run; unstage it on failure.
+
+    Only for the produce path, where the deck has never been deployed. Any exception
+    (``BrowserUnavailable``, ``RenderCheckRefused``, or anything else) removes
+    ``<deploy_root>/<slug>`` and re-raises. The log line carries the gid, the slug and the
+    reason code only: never a clinic name or an address.
+    """
+    try:
+        return check_staged_deck(
+            deploy_root, slug, office_guid_sha256=office_guid_sha256, clinic=clinic
+        )
+    except BaseException as exc:
+        reason = getattr(exc, "reason", None) or type(exc).__name__
+        shutil.rmtree(Path(deploy_root) / slug, ignore_errors=False)
+        logger.error(
+            "floodgates_render_check_refused",
+            play_gid=play_gid,
+            slug=slug,
+            reason=reason,
+            staged_dir_removed=True,
+        )
+        raise
+
+
 async def _run_produce(
     client: AsanaClient,
     *,
@@ -215,7 +288,28 @@ async def _run_produce(
         Phase.DONE,
     ):
         # Already produced: reuse the PINNED slug, re-surface the command, NEVER re-mint
-        # (re-minting orphans the deployed deck — SLUG-1) and never re-freeze.
+        # (re-minting orphans the deployed deck — SLUG-1) and never re-freeze. D9 is re-checked
+        # first against the name that was FROZEN (existing.clinic): a title or Business renamed
+        # since the first produce means the staged deck may carry a wrong name, so stop.
+        play_title, _section = await _preflight(client, play_gid)
+        resolution = await office_resolution.resolve_business_gid(client, task_gid=play_gid)
+        assert_clinic_name_confirmed(
+            play_gid=play_gid, title=play_title, resolution=resolution, clinic_arg=existing.clinic
+        )
+        # The pinned deck must actually sit in THIS root: a first run against a different
+        # --deploy-base leaves it elsewhere, and silently re-surfacing would deploy a root
+        # without it.
+        _assert_staged_in_root(
+            deploy_root, slug=existing.slug, frozen_sha256=existing.frozen_sha256
+        )
+        # D10(b) again on the bytes that are about to be re-surfaced. A refusal raises but
+        # does NOT delete: a PRODUCED deck may already be live, so only the command is withheld.
+        receipt = check_staged_deck(
+            deploy_root,
+            existing.slug,
+            office_guid_sha256=existing.office_guid_sha256,
+            clinic=existing.clinic,
+        )
         return OfficeRunResult(
             play_gid=play_gid,
             phase=existing.phase,
@@ -225,23 +319,40 @@ async def _run_produce(
             deploy_root=str(deploy_root),
             wrangler_command=_surface_wrangler_command(deploy_root, project_name),
             posts=dict(existing.posts),
+            render_receipt=receipt,
         )
 
     # 1. Positive selection (name + ACTIVE membership) — reuse link_on_play preflight.
-    await _preflight(client, play_gid)
-    # 2. Resolve the office guid pure-Asana, bound to THIS task.
-    office_guid = await _resolve_office_guid(client, task_gid=play_gid)
+    play_title, _section = await _preflight(client, play_gid)
+    # 2. ONE walk to the parent Business, bound to THIS task: it supplies BOTH the Business
+    #    name (D9) and the Company ID (the office guid), so the two cannot diverge. No phone
+    #    fallback here: a phone match is not a parent, and D9 needs the parent's name.
+    resolution = await office_resolution.resolve_business_gid(client, task_gid=play_gid)
+    # 2a. D9: title clinic == Business name == --clinic, or stop and ask. BEFORE the
+    #     personalization gate, the freeze and the mint. Returns the canonical Business name.
+    client_name = assert_clinic_name_confirmed(
+        play_gid=play_gid, title=play_title, resolution=resolution, clinic_arg=clinic
+    )
+    # 2b. The office guid is that SAME Business's Company ID.
+    office_guid = resolution.company_id
+    if not office_guid:
+        raise TemplateCommentRefused(
+            f"Business {resolution.business_gid} carries no Company ID custom field: cannot "
+            "compose a tenant-matched routing address (spec §7 step 1)."
+        )
     # 3. Compose the gated routing address (raises ValueError on a malformed guid).
     gated_address = format_routing_address(office_guid)
-    # 4. Gate the operator-confirmed clinic name (fault-13) BEFORE freeze.
+    # 4. Gate the clinic name (fault-13) BEFORE freeze: the operator's string and the
+    #    canonical name that is frozen.
     assert_customer_personalization(clinic)
-    # 5. Freeze — the SOLE freezer (Node producer).
+    assert_customer_personalization(client_name)
+    # 5. Freeze — the SOLE freezer (Node producer) — with the confirmed Business name.
     title = load_title(deck_template)
     frozen_bytes = await freeze_walkthrough_deck(
         producer_dir=producer_dir,
         deck_template=deck_template,
         gated_address=gated_address,
-        client_name=clinic,
+        client_name=client_name,
         title=title,
         out_filename=f"{play_gid}.html",
     )
@@ -265,14 +376,28 @@ async def _run_produce(
     finally:
         artifact.unlink(missing_ok=True)
 
+    # 8b. D10(b): render the staged deck over localhost in a headless browser and assert it,
+    #     BEFORE PRODUCED. On ANY failure (incl. BrowserUnavailable or an interrupt) remove the
+    #     slug dir: it has never been deployed, and a leftover dir would be published by the
+    #     next wave deploy. No state is saved, so an existing (pre-PRODUCED) manifest with a
+    #     pinned slug stays exactly as it was.
+    office_guid_sha256 = hashlib.sha256(office_guid.encode()).hexdigest()
+    receipt = _render_check_or_unstage(
+        deploy_root,
+        play_gid=play_gid,
+        slug=slug,
+        office_guid_sha256=office_guid_sha256,
+        clinic=client_name,
+    )
+
     deck_url = f"https://{DECK_HOST}/{slug}/"
     # 9. Commit PRODUCED (atomic per-office manifest; never the full guid at rest — record the
     #    forensic mask AND the full-strength SHA-256 identity digest the ★C-1 guard decides on).
     state = OfficeState(
         play_gid=play_gid,
         office_guid_masked=_mask_guid(office_guid),
-        office_guid_sha256=hashlib.sha256(office_guid.encode()).hexdigest(),
-        clinic=clinic,
+        office_guid_sha256=office_guid_sha256,
+        clinic=client_name,
         slug=slug,
         deck_url=deck_url,
         frozen_sha256=frozen_sha256,
@@ -296,6 +421,7 @@ async def _run_produce(
         deploy_root=str(deploy_root),
         wrangler_command=_surface_wrangler_command(deploy_root, project_name),
         posts=dict(state.posts),
+        render_receipt=receipt,
     )
 
 
@@ -374,10 +500,19 @@ async def _run_resume(
     card = await post_contact_card(client, play_gid=play_gid, deck_slug=state.slug, execute=execute)
     if execute:
         state.posts["card"] = card.story_gid
-        state.phase = Phase.DONE
+        # DONE only once all three stories exist. With no card (no holder / no usable
+        # contacts) the office stays DEPLOY_CONFIRMED, so a re-run after the contact is fixed
+        # re-enters resume: link + template skip on their markers and the card is retried.
+        if card.story_gid:
+            state.phase = Phase.DONE
         state.updated_at = _now()
         store.save(state)
-        logger.info("floodgates_office_done", play_gid=play_gid, slug=state.slug)
+        if card.story_gid:
+            logger.info("floodgates_office_done", play_gid=play_gid, slug=state.slug)
+        else:
+            logger.warning(
+                "floodgates_office_card_missing", play_gid=play_gid, outcome=card.outcome
+            )
 
     return OfficeRunResult(
         play_gid=play_gid,
@@ -388,6 +523,13 @@ async def _run_resume(
         deploy_root=deploy_root,
         wrangler_command=None,
         posts=dict(state.posts),
+        previews={
+            "link": getattr(link, "comment_text", "") or "",
+            "template": getattr(template, "comment_text", "") or "",
+            "card": getattr(card, "comment_text", None)
+            or getattr(card, "comment_html", None)
+            or f"(no card: {getattr(card, 'outcome', 'unknown')})",
+        },
     )
 
 

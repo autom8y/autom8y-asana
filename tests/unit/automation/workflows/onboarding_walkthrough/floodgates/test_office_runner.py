@@ -15,6 +15,12 @@ The load-bearing RED teeth:
   command and HALTS — no Asana post, no ``curl``, no ``wrangler`` ever executed.
 * **byte-parity gate** (``test_phase2_byte_parity_*``): served ≠ frozen → ``BundleParityError``,
   no post (never link a deck that is not byte-identical to what was frozen).
+* **D9 name confirmation** (``TestD9NameConfirmation``): produce stops unless the PLAY title's
+  clinic part, the parent Business name and ``--clinic`` agree; it freezes the canonical
+  Business name, and the already-produced path re-checks against the frozen name.
+* **D10(b) rendered-deck check** (``TestD10bRenderCheck``): produce renders the staged deck
+  before PRODUCED; a refusal removes the never-deployed slug dir and saves no state, and the
+  already-produced path re-runs the check but never deletes a deck that may be live.
 """
 
 from __future__ import annotations
@@ -26,6 +32,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from autom8_asana.automation.workflows.onboarding_walkthrough import (
+    office_resolution,
+    render_check,
+)
 from autom8_asana.automation.workflows.onboarding_walkthrough.floodgates import (
     office_runner as orunner,
 )
@@ -42,7 +52,10 @@ from autom8_asana.automation.workflows.onboarding_walkthrough.host_bundle import
 from autom8_asana.automation.workflows.onboarding_walkthrough.personalization_gate import (
     PersonalizationError,
 )
-from autom8_asana.automation.workflows.onboarding_walkthrough.template_comment import _mask_guid
+from autom8_asana.automation.workflows.onboarding_walkthrough.template_comment import (
+    TemplateCommentRefused,
+    _mask_guid,
+)
 from autom8_asana.automation.workflows.onboarding_walkthrough.tenant_binding import (
     TaskOfficeMismatch,
 )
@@ -58,6 +71,8 @@ SLUG = "207688021de88a6d7231e1d08ea77a85"
 PLAY_GID = "1215823342887129"
 CLINIC = "Sand Lake Dental"
 DECK_URL = f"https://decks.cntently.com/{SLUG}/"
+
+BUSINESS_GID = "1200000000000042"
 
 SERVED = b"<html>the frozen served deck for Sand Lake Dental</html>"
 SERVED_SHA = hashlib.sha256(SERVED).hexdigest()
@@ -81,13 +96,15 @@ def _store(tmp_path: object) -> StateStore:
     return StateStore(tmp_path / "state")  # type: ignore[operator]
 
 
-def _seed_produced(store: StateStore, *, frozen_sha256: str, guid: str = GUID) -> OfficeState:
+def _seed_produced(
+    store: StateStore, *, frozen_sha256: str, guid: str = GUID, clinic: str = CLINIC
+) -> OfficeState:
     """Seed a committed Phase-1 (PRODUCED) manifest — the crash/resume entry state."""
     state = OfficeState(
         play_gid=PLAY_GID,
         office_guid_masked=_mask_guid(guid),
         office_guid_sha256=hashlib.sha256(guid.encode()).hexdigest(),
-        clinic=CLINIC,
+        clinic=clinic,
         slug=SLUG,
         deck_url=DECK_URL,
         frozen_sha256=frozen_sha256,
@@ -99,12 +116,59 @@ def _seed_produced(store: StateStore, *, frozen_sha256: str, guid: str = GUID) -
     return state
 
 
-def _produce_patches(stack: ExitStack, *, guid: str = GUID) -> dict[str, MagicMock]:
-    """Patch the Phase-1 heavy collaborators; return the mocks for assertion."""
+def _receipt(slug: str = SLUG) -> render_check.RenderReceipt:
+    return render_check.RenderReceipt(
+        slug=slug,
+        browser_path="/opt/synthetic/chrome-headless-shell",
+        browser_kind="headless-shell",
+        browser_version="Synthetic Headless 1.0",
+        checked_at="2026-11-07T00:00:00+00:00",
+        outcome="pass",
+    )
+
+
+def _play_title(clinic_part: str) -> str:
+    return f"PLAY: Custom Calendar Integration — {clinic_part}"
+
+
+def _produce_patches(
+    stack: ExitStack,
+    *,
+    guid: str | None = GUID,
+    names: dict[str, tuple[str, str | None]] | None = None,
+    business_gid: str | None = BUSINESS_GID,
+) -> dict[str, MagicMock]:
+    """Patch the Phase-1 heavy collaborators; return the mocks for assertion.
+
+    ``names`` maps a PLAY gid to ``(title clinic part, Business name)`` for the D9 walk;
+    the default is the matching ``(CLINIC, CLINIC)`` for ``PLAY_GID``. The Business walk is
+    patched at its SOURCE module (``office_resolution``) and returns a duck-typed
+    resolution, so these patches also load against a runner that predates D9.
+    """
+    names = names if names is not None else {PLAY_GID: (CLINIC, CLINIC)}
+
+    async def _preflight(_client: object, gid: str) -> tuple[str, str]:
+        return _play_title(names[gid][0]), "ACTIVE"
+
+    async def _walk(_client: object, *, task_gid: str, **_kw: object) -> SimpleNamespace:
+        return SimpleNamespace(
+            business_gid=business_gid,
+            company_id=guid,
+            method="hierarchy",
+            ancestor_depth=1,
+            candidates=(),
+            business_name=names[task_gid][1],
+        )
+
     m: dict[str, MagicMock] = {}
     m["preflight"] = stack.enter_context(
-        patch.object(orunner, "_preflight", new=AsyncMock(return_value=("PLAY: …", "ACTIVE")))
+        patch.object(orunner, "_preflight", new=AsyncMock(side_effect=_preflight))
     )
+    m["walk"] = stack.enter_context(
+        patch.object(office_resolution, "resolve_business_gid", new=AsyncMock(side_effect=_walk))
+    )
+    # The produce path walks ONCE via resolve_business_gid; the phone-fallback resolver must
+    # not be reached (asserted by the D9 tests).
     m["resolve"] = stack.enter_context(
         patch.object(orunner, "_resolve_office_guid", new=AsyncMock(return_value=guid))
     )
@@ -112,6 +176,16 @@ def _produce_patches(stack: ExitStack, *, guid: str = GUID) -> dict[str, MagicMo
         patch.object(orunner, "freeze_walkthrough_deck", new=AsyncMock(side_effect=_fake_freeze))
     )
     m["mint"] = stack.enter_context(patch.object(orunner, "mint_slug", return_value=SLUG))
+    # D10(b): the render check is faked (no browser in unit tests). ``create=True`` lets the
+    # stack load against a runner that predates the check (the teeth-proof RED).
+    m["render"] = stack.enter_context(
+        patch.object(
+            orunner,
+            "check_staged_deck",
+            create=True,
+            side_effect=lambda _root, slug, **_kw: _receipt(slug),
+        )
+    )
     # posters + curl must never be reached in Phase-1 (the HALT).
     m["link"] = stack.enter_context(patch.object(orunner, "post_link_on_play", new=AsyncMock()))
     m["template"] = stack.enter_context(
@@ -227,13 +301,16 @@ class TestPhase1Produce:
         """The operator-confirmed clinic name is gated (fault-13): an internal-nomenclature
         value refuses at ``assert_customer_personalization`` BEFORE any freeze/mint/stage."""
         store = _store(tmp_path)
+        internal = "PLAY: Custom Calendar Integration — Harbor Light"
         with ExitStack() as stack:
-            m = _produce_patches(stack)
+            # Title and Business carry the same value, so D9 passes and the
+            # personalization gate is what refuses.
+            m = _produce_patches(stack, names={PLAY_GID: (internal, internal)})
             with pytest.raises(PersonalizationError):
                 await run_office(
                     _mock_client(),
                     play_gid=PLAY_GID,
-                    clinic="PLAY: Custom Calendar Integration — Sand Lake",
+                    clinic=internal,
                     phase="produce",
                     store=store,
                     deploy_base=tmp_path / "deploy",
@@ -302,8 +379,11 @@ class TestPhase1Produce:
         deploy_base = tmp_path / "deploy"
         slug_b = "fedcba9876543210aabbccddeeff0011"
         play_b = "1215823342887130"
+        clinic_b = "Harbor Light Chiropractic"
         with ExitStack() as stack:
-            _produce_patches(stack)
+            _produce_patches(
+                stack, names={PLAY_GID: (CLINIC, CLINIC), play_b: (clinic_b, clinic_b)}
+            )
             # Re-patch mint on top: office A gets SLUG, office B gets slug_b.
             stack.enter_context(patch.object(orunner, "mint_slug", side_effect=[SLUG, slug_b]))
             first = await run_office(
@@ -317,7 +397,7 @@ class TestPhase1Produce:
             second = await run_office(
                 _mock_client(),
                 play_gid=play_b,
-                clinic="Total Wellness Center",
+                clinic=clinic_b,
                 phase="produce",
                 store=store,
                 deploy_base=deploy_base,
@@ -572,3 +652,407 @@ class TestCrashResume:
         assert result.slug == SLUG  # reused, not re-minted
         freeze.assert_not_awaited()
         mint.assert_not_called()
+
+
+class TestStagedInRoot:
+    """An already-produced office must have its pinned deck in THIS root, byte-exact."""
+
+    def _leaf(self, root, slug, body: bytes):
+        (root / slug).mkdir(parents=True)
+        (root / slug / "index.html").write_bytes(body)
+
+    def test_present_and_matching_passes(self, tmp_path) -> None:
+        import hashlib
+
+        from autom8_asana.automation.workflows.onboarding_walkthrough.floodgates import (
+            office_runner as orun,
+        )
+
+        slug = "c" * 32
+        self._leaf(tmp_path, slug, b"<html>deck</html>")
+        orun._assert_staged_in_root(
+            tmp_path, slug=slug, frozen_sha256=hashlib.sha256(b"<html>deck</html>").hexdigest()
+        )
+
+    def test_missing_leaf_refuses(self, tmp_path) -> None:
+        import pytest
+
+        from autom8_asana.automation.workflows.onboarding_walkthrough.floodgates import (
+            office_runner as orun,
+        )
+
+        with pytest.raises(orun.StagedDeckMissing, match="different --deploy-base"):
+            orun._assert_staged_in_root(tmp_path, slug="c" * 32, frozen_sha256="0" * 64)
+
+    def test_drifted_leaf_refuses(self, tmp_path) -> None:
+        import pytest
+
+        from autom8_asana.automation.workflows.onboarding_walkthrough.floodgates import (
+            office_runner as orun,
+        )
+
+        slug = "c" * 32
+        self._leaf(tmp_path, slug, b"<html>tampered</html>")
+        with pytest.raises(orun.StagedDeckMissing, match="drifted"):
+            orun._assert_staged_in_root(tmp_path, slug=slug, frozen_sha256="0" * 64)
+
+
+class TestMissingCardIsNotDone:
+    """No contact card -> NOT done, so the runbook's 'add a contact, re-run' actually retries."""
+
+    async def _resume(self, tmp_path, store, card_ns):
+        with ExitStack() as stack:
+            m = _resume_patches(stack)
+            m["card"].return_value = card_ns
+            return await run_office(
+                _mock_client(),
+                play_gid=PLAY_GID,
+                clinic=CLINIC,
+                phase="resume",
+                store=store,
+                deploy_base=tmp_path / "deploy",
+                execute=True,
+            )
+
+    async def test_no_card_stays_deploy_confirmed_then_retry_reaches_done(self, tmp_path) -> None:
+        store = _store(tmp_path)
+        _seed_produced(store, frozen_sha256=SERVED_SHA)
+        first = await self._resume(
+            tmp_path, store, SimpleNamespace(story_gid=None, outcome="no_contacts")
+        )
+        state = store.load(PLAY_GID)
+        assert state is not None
+        assert first.phase is Phase.DEPLOY_CONFIRMED
+        assert state.phase is Phase.DEPLOY_CONFIRMED  # not DONE: a re-run must re-enter resume
+        assert state.posts["card"] is None
+        assert state.posts["link"] == "LINK_STORY"
+
+        # Operator adds the contact; the re-run retries the card and only then reaches DONE.
+        second = await self._resume(
+            tmp_path, store, SimpleNamespace(story_gid="CARD_STORY", outcome="posted")
+        )
+        state = store.load(PLAY_GID)
+        assert state is not None
+        assert second.phase is Phase.DONE
+        assert state.phase is Phase.DONE
+        assert state.posts["card"] == "CARD_STORY"
+
+
+# ============================================================ D9 name confirmation (RED teeth)
+
+# Synthetic names only (this repo is public).
+D9_CLINIC = "Harbor Light Chiropractic"
+
+
+class TestD9NameConfirmation:
+    """Produce stops unless title clinic == Business name == --clinic (FORK-S1 rule).
+
+    The refusal tests match ``RuntimeError`` + "D9" (not the new exception class), so they
+    load against a runner that predates D9: there they FAIL with "DID NOT RAISE", which is
+    the pre-change RED of the teeth proof.
+    """
+
+    async def test_matching_names_produce_and_freeze_the_canonical_business_name(
+        self, tmp_path
+    ) -> None:
+        """GREEN: the three names agree up to invisible differences (B carries a zero-width
+        character and a double space, --clinic a trailing space). Produce runs, the deck
+        freezes the CANONICAL Business name, the manifest records it, and the one walk
+        supplies the Company ID (the phone-fallback resolver is never reached)."""
+        store = _store(tmp_path)
+        business = "Harbor Light  Chiropractic\u200b"
+        with ExitStack() as stack:
+            m = _produce_patches(stack, names={PLAY_GID: (D9_CLINIC, business)})
+            result = await run_office(
+                _mock_client(),
+                play_gid=PLAY_GID,
+                clinic=D9_CLINIC + " ",
+                phase="produce",
+                store=store,
+                deploy_base=tmp_path / "deploy",
+            )
+        assert result.outcome == "produced"
+        m["freeze"].assert_awaited_once()
+        assert m["freeze"].await_args.kwargs["client_name"] == D9_CLINIC
+        assert m["freeze"].await_args.kwargs["gated_address"] == ADDR
+        m["walk"].assert_awaited_once()
+        m["resolve"].assert_not_awaited()
+        state = store.load(PLAY_GID)
+        assert state is not None
+        assert state.clinic == D9_CLINIC
+
+    async def test_near_miss_business_name_refuses_before_freeze_and_mint(self, tmp_path) -> None:
+        """RED: the title says "Centre", the Business says "Center", and --clinic copied the
+        title. A visible difference: stop and ask. No freeze, no mint, nothing committed."""
+        store = _store(tmp_path)
+        title_part = "Harbor Light Family Wellness Centre"
+        business = "Harbor Light Family Wellness Center"
+        with ExitStack() as stack:
+            m = _produce_patches(stack, names={PLAY_GID: (title_part, business)})
+            with pytest.raises(RuntimeError, match="D9") as excinfo:
+                await run_office(
+                    _mock_client(),
+                    play_gid=PLAY_GID,
+                    clinic=title_part,
+                    phase="produce",
+                    store=store,
+                    deploy_base=tmp_path / "deploy",
+                )
+        message = str(excinfo.value)
+        assert PLAY_GID in message
+        assert BUSINESS_GID in message
+        assert ascii(title_part) in message
+        assert ascii(business) in message
+        assert "ask the operator" in message
+        m["freeze"].assert_not_awaited()
+        m["mint"].assert_not_called()
+        assert store.load(PLAY_GID) is None
+
+    async def test_no_business_parent_refuses_before_freeze(self, tmp_path) -> None:
+        """RED: the walk finds no Business parent. A phone match is not a parent, so the
+        name cannot be confirmed: refuse D9 (no phone fallback on the produce path)."""
+        store = _store(tmp_path)
+        with ExitStack() as stack:
+            m = _produce_patches(stack, business_gid=None, names={PLAY_GID: (CLINIC, None)})
+            with pytest.raises(RuntimeError, match="D9"):
+                await run_office(
+                    _mock_client(),
+                    play_gid=PLAY_GID,
+                    clinic=CLINIC,
+                    phase="produce",
+                    store=store,
+                    deploy_base=tmp_path / "deploy",
+                )
+        m["freeze"].assert_not_awaited()
+        m["mint"].assert_not_called()
+
+    async def test_confirmed_name_without_company_id_refuses_before_freeze(self, tmp_path) -> None:
+        """The name is confirmed but the Business carries no Company ID: refuse (no routing
+        address can be composed), and never fall back to a second resolver."""
+        store = _store(tmp_path)
+        with ExitStack() as stack:
+            m = _produce_patches(stack, guid=None)
+            with pytest.raises(TemplateCommentRefused, match="no Company ID"):
+                await run_office(
+                    _mock_client(),
+                    play_gid=PLAY_GID,
+                    clinic=CLINIC,
+                    phase="produce",
+                    store=store,
+                    deploy_base=tmp_path / "deploy",
+                )
+        m["freeze"].assert_not_awaited()
+        m["resolve"].assert_not_awaited()
+
+    async def test_already_produced_refuses_when_business_name_differs_from_frozen_clinic(
+        self, tmp_path
+    ) -> None:
+        """RED: the office was produced as "Harbor Light Chiropractic"; since then the title
+        and the Business were renamed. Re-surfacing the deploy command would ship a deck with
+        the old name, so the already-produced path re-checks D9 against the FROZEN name."""
+        store = _store(tmp_path)
+        deploy_base = tmp_path / "deploy"
+        body = b"<html>staged deck</html>"
+        (deploy_base / SLUG).mkdir(parents=True)
+        (deploy_base / SLUG / "index.html").write_bytes(body)
+        _seed_produced(store, frozen_sha256=hashlib.sha256(body).hexdigest(), clinic=D9_CLINIC)
+        renamed = "Harbor Light Spine Center"
+        with ExitStack() as stack:
+            m = _produce_patches(stack, names={PLAY_GID: (renamed, renamed)})
+            with pytest.raises(RuntimeError, match="D9") as excinfo:
+                await run_office(
+                    _mock_client(),
+                    play_gid=PLAY_GID,
+                    clinic=renamed,
+                    phase="produce",
+                    store=store,
+                    deploy_base=deploy_base,
+                )
+        assert ascii(D9_CLINIC) in str(excinfo.value)  # the frozen name is the --clinic witness
+        m["freeze"].assert_not_awaited()
+        m["mint"].assert_not_called()
+
+
+# ============================================================ D10(b) rendered-deck check (RED teeth)
+
+# Synthetic names only (this repo is public).
+D10_CLINIC = "Juniper Ridge Dental"
+
+
+class TestD10bRenderCheck:
+    """Produce renders the staged deck before PRODUCED (FORK-S2 (c), produce step 8b).
+
+    The refusal tests catch the exception and assert the cleanup FIRST, so against a runner
+    that predates the check they FAIL on "the staged dir survived" (the teeth-proof RED).
+    """
+
+    async def _produce(self, tmp_path, store, deploy_base, m_overrides=None):
+        with ExitStack() as stack:
+            m = _produce_patches(stack, names={PLAY_GID: (D10_CLINIC, D10_CLINIC)})
+            for name, kwargs in (m_overrides or {}).items():
+                m[name].configure_mock(**kwargs)
+            raised: BaseException | None = None
+            try:
+                result = await run_office(
+                    _mock_client(),
+                    play_gid=PLAY_GID,
+                    clinic=D10_CLINIC,
+                    phase="produce",
+                    store=store,
+                    deploy_base=deploy_base,
+                )
+            except Exception as exc:  # noqa: BLE001 -- the test asserts on it below
+                raised, result = exc, None
+        return m, result, raised
+
+    async def test_produce_checks_once_with_frozen_sha_and_canonical_clinic(self, tmp_path) -> None:
+        """GREEN: the check runs ONCE, on the wave root and the minted slug, with the sha of
+        the office guid and the clinic that was frozen; the result carries the receipt."""
+        store = _store(tmp_path)
+        deploy_base = tmp_path / "deploy"
+        m, result, raised = await self._produce(tmp_path, store, deploy_base)
+        assert raised is None
+        assert result is not None
+        assert result.outcome == "produced"
+        m["render"].assert_called_once()
+        args, kwargs = m["render"].call_args
+        assert args == (deploy_base, SLUG)
+        assert kwargs == {
+            "office_guid_sha256": hashlib.sha256(GUID.encode()).hexdigest(),
+            "clinic": D10_CLINIC,
+        }
+        assert kwargs["clinic"] == m["freeze"].await_args.kwargs["client_name"]
+        assert result.render_receipt == _receipt(SLUG)
+        state = store.load(PLAY_GID)
+        assert state is not None
+        assert state.phase is Phase.PRODUCED
+        assert (deploy_base / SLUG / "index.html").is_file()
+
+    @pytest.mark.parametrize(
+        "exc",
+        [
+            render_check.RenderCheckRefused("foreign_address", "masked detail"),
+            render_check.BrowserUnavailable("browser_not_found", "no browser found"),
+        ],
+        ids=["RenderCheckRefused", "BrowserUnavailable"],
+    )
+    async def test_refusal_removes_staged_dir_saves_no_state_and_reraises(
+        self, tmp_path, exc
+    ) -> None:
+        """RED: the check refuses after staging. The never-deployed slug dir is GONE (it would
+        ride the next wave deploy), no state file exists, and the same exception surfaces."""
+        store = _store(tmp_path)
+        deploy_base = tmp_path / "deploy"
+        m, result, raised = await self._produce(
+            tmp_path, store, deploy_base, {"render": {"side_effect": exc}}
+        )
+        assert not (deploy_base / SLUG).exists(), "the staged dir survived the refusal"
+        assert not store.path_for(PLAY_GID).exists(), "state was saved despite the refusal"
+        assert raised is exc
+        assert result is None
+        # The refusal came AFTER staging: freeze and mint ran, and the root itself survives.
+        m["freeze"].assert_awaited_once()
+        m["mint"].assert_called_once()
+        assert (deploy_base / "_headers").is_file()
+
+    async def test_interrupt_during_check_also_unstages(self, tmp_path) -> None:
+        """A KeyboardInterrupt (not an Exception) during the check still removes the staged dir
+        and saves no state: the cleanup catches BaseException. Kills the except-Exception mutant."""
+        store = _store(tmp_path)
+        deploy_base = tmp_path / "deploy"
+        with ExitStack() as stack:
+            m = _produce_patches(stack, names={PLAY_GID: (D10_CLINIC, D10_CLINIC)})
+            m["render"].configure_mock(side_effect=KeyboardInterrupt())
+            with pytest.raises(KeyboardInterrupt):
+                await run_office(
+                    _mock_client(),
+                    play_gid=PLAY_GID,
+                    clinic=D10_CLINIC,
+                    phase="produce",
+                    store=store,
+                    deploy_base=deploy_base,
+                )
+        assert not (deploy_base / SLUG).exists(), "the staged dir survived the interrupt"
+        assert not store.path_for(PLAY_GID).exists()
+
+    async def test_unexpected_error_from_check_also_unstages(self, tmp_path) -> None:
+        """ANY exception from the check unstages, not only the two named refusals."""
+        store = _store(tmp_path)
+        deploy_base = tmp_path / "deploy"
+        boom = OSError("synthetic render crash")
+        _m, _result, raised = await self._produce(
+            tmp_path, store, deploy_base, {"render": {"side_effect": boom}}
+        )
+        assert not (deploy_base / SLUG).exists()
+        assert not store.path_for(PLAY_GID).exists()
+        assert raised is boom
+
+    async def test_refusal_on_pinned_slug_unstages_but_keeps_existing_state(self, tmp_path) -> None:
+        """A prior partial run left a PENDING manifest with a pinned slug. The re-run re-stages
+        into that slug; a refusal removes the dir and leaves the manifest byte-identical."""
+        store = _store(tmp_path)
+        deploy_base = tmp_path / "deploy"
+        pinned = "0123456789abcdef" * 2
+        seeded = _seed_produced(store, frozen_sha256="0" * 64, clinic=D10_CLINIC)
+        seeded.phase = Phase.PENDING
+        seeded.slug = pinned
+        store.save(seeded)
+        before = store.path_for(PLAY_GID).read_bytes()
+        m, _result, raised = await self._produce(
+            tmp_path,
+            store,
+            deploy_base,
+            {"render": {"side_effect": render_check.RenderCheckRefused("empty_interp", "x")}},
+        )
+        assert isinstance(raised, render_check.RenderCheckRefused)
+        m["mint"].assert_not_called()  # the pinned slug was reused
+        assert m["render"].call_args.args == (deploy_base, pinned)
+        assert not (deploy_base / pinned).exists()
+        assert store.path_for(PLAY_GID).read_bytes() == before
+
+    async def test_already_produced_rechecks_with_frozen_identity_and_carries_receipt(
+        self, tmp_path
+    ) -> None:
+        """GREEN: the re-surface path re-runs the check with the manifest's sha and clinic
+        (the full guid is never at rest), and the result carries the receipt."""
+        store = _store(tmp_path)
+        deploy_base = tmp_path / "deploy"
+        body = b"<html>staged deck</html>"
+        (deploy_base / SLUG).mkdir(parents=True)
+        (deploy_base / SLUG / "index.html").write_bytes(body)
+        seeded = _seed_produced(
+            store, frozen_sha256=hashlib.sha256(body).hexdigest(), clinic=D10_CLINIC
+        )
+        m, result, raised = await self._produce(tmp_path, store, deploy_base)
+        assert raised is None
+        assert result is not None
+        assert result.outcome == "already_produced"
+        m["render"].assert_called_once_with(
+            deploy_base,
+            SLUG,
+            office_guid_sha256=seeded.office_guid_sha256,
+            clinic=seeded.clinic,
+        )
+        assert result.render_receipt == _receipt(SLUG)
+
+    async def test_already_produced_refusal_raises_without_deleting_or_changing_state(
+        self, tmp_path
+    ) -> None:
+        """RED: a PRODUCED deck may already be live, so a refusal on the re-surface path raises
+        (no deploy command) but leaves the staged dir and the manifest exactly as they were."""
+        store = _store(tmp_path)
+        deploy_base = tmp_path / "deploy"
+        body = b"<html>staged deck</html>"
+        (deploy_base / SLUG).mkdir(parents=True)
+        (deploy_base / SLUG / "index.html").write_bytes(body)
+        _seed_produced(store, frozen_sha256=hashlib.sha256(body).hexdigest(), clinic=D10_CLINIC)
+        before = store.path_for(PLAY_GID).read_bytes()
+        refusal = render_check.RenderCheckRefused("prepared_for_missing", "x")
+        m, result, raised = await self._produce(
+            tmp_path, store, deploy_base, {"render": {"side_effect": refusal}}
+        )
+        assert raised is refusal, "the already-produced path re-surfaced without the check"
+        assert result is None
+        assert (deploy_base / SLUG / "index.html").read_bytes() == body
+        assert store.path_for(PLAY_GID).read_bytes() == before
+        m["freeze"].assert_not_awaited()
