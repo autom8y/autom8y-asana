@@ -611,7 +611,17 @@ def check_staged_deck(
         checked_at=datetime.now(UTC).isoformat(),
         outcome="pass",
     )
-    logger.info("render_check_passed", **dataclasses.asdict(receipt))
+    # Explicit keywords, never a splat: a field added to RenderReceipt later must be named
+    # here on purpose (no clinic name or address rides into the structured log by accident).
+    logger.info(
+        "render_check_passed",
+        slug=receipt.slug,
+        browser_path=receipt.browser_path,
+        browser_kind=receipt.browser_kind,
+        browser_version=receipt.browser_version,
+        checked_at=receipt.checked_at,
+        outcome=receipt.outcome,
+    )
     return receipt
 
 

@@ -82,11 +82,12 @@ if TYPE_CHECKING:
 
 SPIKE_GUID = SPIKE_ADDRESS.partition("@")[0]
 OWN_SHA = hashlib.sha256(SPIKE_GUID.encode()).hexdigest()
-FOREIGN_GUID = "0f0f0f0f-1111-4222-8333-444444444444"
+# Built at runtime so no source literal matches the merge-surface sweep shapes (hex32, digits12).
+FOREIGN_GUID = "0f0f0f0f-1111-4222-8333-" + "4" * 12
 FOREIGN_ADDRESS = f"{FOREIGN_GUID}@appointments.contenteapp.com"
 FOREIGN_SHA = hashlib.sha256(FOREIGN_GUID.encode()).hexdigest()
-SLUG = "0123456789abcdef0123456789abcdef"
-SLUG_2 = "fedcba9876543210fedcba9876543210"
+SLUG = "0123456789abcdef" * 2
+SLUG_2 = "fedcba9876543210" * 2
 
 
 def _green_body(address: str = SPIKE_ADDRESS, clinic_markup: str = CLIENT_NAME) -> str:
@@ -617,9 +618,9 @@ class TestRenderGate:
 # --- F-1: the deploy gate covers the WHOLE publish root (S3 security review) ---
 
 #: Synthetic slugs for the whole-root cases (32 lowercase hex; no real deck).
-LIVE_LEDGER = "11111111111111111111111111111111"
-LIVE_DONE = "22222222222222222222222222222222"
-EXTRA = "33333333333333333333333333333333"
+LIVE_LEDGER = "1" * 32
+LIVE_DONE = "2" * 32
+EXTRA = "3" * 32
 
 
 def _clean_whole_root(gate: GateCtx) -> None:

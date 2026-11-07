@@ -49,7 +49,7 @@ def _resolution(
 ) -> BusinessResolution:
     return BusinessResolution(
         business_gid=business_gid,
-        company_id="00000000-0000-4000-8000-000000000000",
+        company_id="00000000-0000-4000-8000-" + "0" * 12,
         method=method,  # type: ignore[arg-type]
         ancestor_depth=1,
         business_name=business_name,

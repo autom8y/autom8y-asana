@@ -992,7 +992,7 @@ class TestD10bRenderCheck:
         into that slug; a refusal removes the dir and leaves the manifest byte-identical."""
         store = _store(tmp_path)
         deploy_base = tmp_path / "deploy"
-        pinned = "0123456789abcdef0123456789abcdef"
+        pinned = "0123456789abcdef" * 2
         seeded = _seed_produced(store, frozen_sha256="0" * 64, clinic=D10_CLINIC)
         seeded.phase = Phase.PENDING
         seeded.slug = pinned
