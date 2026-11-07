@@ -17,11 +17,12 @@ time (never a checked-in artifact, so a producer regression cannot hide):
   carry the fixed DOM extractor and NONE of the corruptor's signature strings,
   plus the N-1 (``__dcMerge`` capture-then-strip) and fault-13 (wrap CSS +
   grapheme clamp) markers -- the four-fix co-presence the merge must preserve.
-* **GREEN render** (needs the pre-installed Chromium headless shell; NEVER
-  downloads): served over localhost HTTP (the corruption vector needs a
-  succeeding ``fetch(location.href)`` -- it is INERT on ``file://``), the deck
-  must render real content ("Prepared for <client>", ``<deck-stage``) with no
-  runtime-JS-as-text corruption marker visible.
+* **GREEN render** (needs a pre-installed Chromium-family browser, resolved by
+  ``render_check.find_browser``; NEVER downloads): served over localhost HTTP
+  (the corruption vector needs a succeeding ``fetch(location.href)`` -- it is
+  INERT on ``file://``), the deck must render real content ("Prepared for
+  <client>", ``<deck-stage``) with no runtime-JS-as-text corruption marker
+  visible.
 * **RED render / positive control (teeth):** the SAME assert must FLAG a
   deliberately-broken INPUT -- the frozen bytes with the fixed extractor
   surgically swapped back to the exact stale corruptor (the historical
@@ -35,27 +36,23 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import functools
-import http.server
-import os
-import re
 import shutil
-import socketserver
-import subprocess
-import sys
-import threading
 import uuid
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import pytest
-
-if TYPE_CHECKING:
-    from collections.abc import Iterator
 
 from autom8_asana.automation.workflows.onboarding_walkthrough import deck_manifests
 from autom8_asana.automation.workflows.onboarding_walkthrough.producer import (
     freeze_walkthrough_deck,
+)
+from autom8_asana.automation.workflows.onboarding_walkthrough.render_check import (
+    RENDERED_CORRUPTION_MARKERS,
+    Browser,
+    find_browser,
+    render_dom,
+    serve_directory,
+    visible_body,
 )
 
 # --- Conventions (mirrors test_onboarding_walkthrough.py) ---
@@ -85,41 +82,13 @@ def _producer_available() -> bool:
     )
 
 
-def _headless_shell() -> Path | None:
-    """Locate a PRE-INSTALLED Chromium headless shell. Never downloads.
-
-    Resolution order: ``CHROME_HEADLESS_SHELL_BIN`` env override, then the
-    Playwright browser caches (``PLAYWRIGHT_BROWSERS_PATH`` or the platform
-    default), newest build wins.
-    """
-    override = os.environ.get("CHROME_HEADLESS_SHELL_BIN")
-    if override:
-        p = Path(override)
-        return p if p.is_file() else None
-    if sys.platform == "darwin":
-        default_cache = Path.home() / "Library" / "Caches" / "ms-playwright"
-    else:
-        default_cache = Path.home() / ".cache" / "ms-playwright"
-    cache = Path(os.environ.get("PLAYWRIGHT_BROWSERS_PATH", default_cache))
-    if not cache.is_dir():
-        return None
-    candidates = sorted(
-        cache.glob("chromium_headless_shell-*/chrome-headless-shell-*/chrome-headless-shell"),
-        key=lambda p: p.parts,
-    )
-    for candidate in reversed(candidates):
-        if candidate.is_file() and os.access(candidate, os.X_OK):
-            return candidate
-    return None
-
-
 requires_producer = pytest.mark.skipif(
     not _producer_available(),
     reason="vendored Node producer not available (need node + vendor/deck-producer/node_modules)",
 )
 requires_browser = pytest.mark.skipif(
-    _headless_shell() is None,
-    reason="no pre-installed Chromium headless shell (ms-playwright cache); never downloaded",
+    find_browser() is None,
+    reason="no pre-installed Chromium-family browser (render_check.find_browser); never downloaded",
 )
 
 # --- The corruptor surgery seams (exact bytes, both sides) ---
@@ -180,16 +149,6 @@ _CORRUPTOR_SIGNATURES = (
     "const openMatch =",
 )
 
-#: dc-runtime source fragments that, when VISIBLE in the rendered body (outside
-#: <script>/<style>), prove the R1 runtime-JS-as-content corruption fired.
-_RENDERED_CORRUPTION_MARKERS = (
-    "[dc-runtime]",
-    "function updateHtml",
-    "parsed.template",
-    "compileTemplate(",
-)
-
-
 # --- Freeze / render helpers ---
 
 
@@ -216,63 +175,10 @@ def frozen_deck() -> bytes:
     return frozen
 
 
-@contextlib.contextmanager
-def _serve(directory: Path) -> Iterator[str]:
-    """Serve ``directory`` on an ephemeral localhost port (corruption needs HTTP)."""
-    handler = functools.partial(
-        http.server.SimpleHTTPRequestHandler,
-        directory=str(directory),
-    )
-
-    class _QuietServer(socketserver.ThreadingTCPServer):
-        allow_reuse_address = True
-
-    with _QuietServer(("127.0.0.1", 0), handler) as httpd:
-        thread = threading.Thread(target=httpd.serve_forever, daemon=True)
-        thread.start()
-        try:
-            yield f"http://127.0.0.1:{httpd.server_address[1]}"
-        finally:
-            httpd.shutdown()
-            thread.join(timeout=5)
-
-
-def _render_dom(url: str) -> str:
-    """Dump the post-JS DOM of ``url`` via the pre-installed headless shell."""
-    shell = _headless_shell()
-    assert shell is not None, "requires_browser must gate callers"
-    proc = subprocess.run(
-        [
-            str(shell),
-            "--headless",
-            "--disable-gpu",
-            "--no-sandbox",
-            "--virtual-time-budget=8000",
-            "--timeout=15000",
-            "--dump-dom",
-            url,
-        ],
-        capture_output=True,
-        timeout=45,
-        check=False,
-    )
-    dom = proc.stdout.decode("utf-8", "replace")
-    assert proc.returncode == 0 and dom.strip(), (
-        f"headless render failed (exit={proc.returncode}): "
-        f"{proc.stderr.decode('utf-8', 'replace')[:500]}"
-    )
-    return dom
-
-
-def _visible_body(dom: str) -> str:
-    """The rendered <body> markup with <script>/<style> payloads stripped.
-
-    What remains is (a superset of) what the CLIENT sees. dc-runtime source
-    text appearing here means the deck rendered runtime JS as content -- R1.
-    """
-    body = dom[dom.find("<body") :]
-    body = re.sub(r"<script\b.*?</script[^>]*>", "", body, flags=re.S | re.I)
-    return re.sub(r"<style\b.*?</style[^>]*>", "", body, flags=re.S | re.I)
+def _browser() -> Browser:
+    browser = find_browser()
+    assert browser is not None, "requires_browser must gate callers"
+    return browser
 
 
 def _corrupt(frozen: bytes) -> bytes:
@@ -328,14 +234,14 @@ class TestWalkthroughRenderAssert:
         self, frozen_deck: bytes, tmp_path: Path
     ) -> None:
         (tmp_path / "deck.html").write_bytes(frozen_deck)
-        with _serve(tmp_path) as base:
-            vis = _visible_body(_render_dom(f"{base}/deck.html"))
+        with serve_directory(tmp_path) as base:
+            vis = visible_body(render_dom(f"{base}/deck.html", _browser()))
         # Personalization rendered for the client (fault-13 surface).
         assert f'Prepared for <span class="sc-interp">{CLIENT_NAME}</span>' in vis
         # Real deck content mounted.
         assert "<deck-stage" in vis
         # And NO runtime source leaked into the visible body (R1).
-        for marker in _RENDERED_CORRUPTION_MARKERS:
+        for marker in RENDERED_CORRUPTION_MARKERS:
             assert marker not in vis, (
                 f"R1 REGRESSION: dc-runtime source {marker!r} is VISIBLE in the "
                 "rendered deck body -- the producer froze a corrupting runtime"
@@ -344,9 +250,9 @@ class TestWalkthroughRenderAssert:
     def test_red_stale_corruptor_is_flagged(self, frozen_deck: bytes, tmp_path: Path) -> None:
         """Positive control: the assert has TEETH against the historical defect."""
         (tmp_path / "deck.html").write_bytes(_corrupt(frozen_deck))
-        with _serve(tmp_path) as base:
-            vis = _visible_body(_render_dom(f"{base}/deck.html"))
-        flagged = [m for m in _RENDERED_CORRUPTION_MARKERS if m in vis]
+        with serve_directory(tmp_path) as base:
+            vis = visible_body(render_dom(f"{base}/deck.html", _browser()))
+        flagged = [m for m in RENDERED_CORRUPTION_MARKERS if m in vis]
         assert flagged, (
             "the RED fixture (exact stale text-extractor corruptor) rendered "
             "clean -- the render assert lost its teeth"

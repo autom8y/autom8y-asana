@@ -347,6 +347,7 @@ invoke workflow_id *args:
 # also needs DECK_HOST_CF_ACCOUNT_ID.
 
 _floodgates := "autom8_asana.automation.workflows.onboarding_walkthrough.floodgates.batch"
+_render_check := "autom8_asana.automation.workflows.onboarding_walkthrough.render_check"
 
 # Step 0: print the clinic name suggested by the PLAY title (read-only)
 [group('onboard-deck')]
@@ -377,6 +378,10 @@ onboard-deck-deploy:
     set -euo pipefail
     : "${DECK_HOST_DIR:?set DECK_HOST_DIR to the deck-host checkout}"
     : "${DECK_HOST_CF_ACCOUNT_ID:?set DECK_HOST_CF_ACCOUNT_ID to the account that owns the deck-host Pages project}"
+    : "${AUTOM8_FLOODGATES_STATE_DIR:?set AUTOM8_FLOODGATES_STATE_DIR (one absolute dir)}"
+    # D10(b) rendered-deck gate: fails closed, never skips
+    uv run python -m {{_render_check}} --deploy-base "$DECK_HOST_DIR/public" \
+        --state-dir "$AUTOM8_FLOODGATES_STATE_DIR"
     cd "$DECK_HOST_DIR"
     # wrangler's project-local cache beats CLOUDFLARE_ACCOUNT_ID: refuse any cached account
     # id (either cache file format) that is not exactly the configured one.
