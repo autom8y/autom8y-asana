@@ -60,6 +60,9 @@ from autom8_asana.automation.workflows.onboarding_walkthrough.floodgates.state i
     StateStore,
 )
 from autom8_asana.automation.workflows.onboarding_walkthrough.link_on_play import PLAY_NAME_RE
+from autom8_asana.automation.workflows.onboarding_walkthrough.render_check import (
+    RenderCheckRefused,
+)
 from autom8_asana.automation.workflows.section_resolution import resolve_section_gids
 from autom8_asana.client import AsanaClient
 
@@ -230,9 +233,15 @@ async def run_batch(
                 execute=execute,
             )
         except Exception as exc:  # noqa: BLE001 -- per-office isolation: one failure (incl. a corrupt-manifest load) never halts the wave
-            # A D9 refusal carries clinic names: they go to the [failed] stdout line only,
-            # never into the structured log (which gets the gid and the error type).
-            log_error = "ClinicNameMismatch" if isinstance(exc, ClinicNameMismatch) else str(exc)
+            # A D9 refusal carries clinic names, and a D10(b) refusal can (clinic_missing):
+            # they go to the [failed] stdout line only, never into the structured log (which
+            # gets the gid and the error type, plus the reason code for a render refusal).
+            if isinstance(exc, ClinicNameMismatch):
+                log_error = "ClinicNameMismatch"
+            elif isinstance(exc, RenderCheckRefused):
+                log_error = f"{type(exc).__name__}[{exc.reason}]"
+            else:
+                log_error = str(exc)
             logger.warning("floodgates_office_failed", play_gid=gid, error=log_error)
             reports.append(OfficeReport(gid, "failed", error=str(exc)))
             continue
@@ -329,6 +338,11 @@ def _write_report(report: BatchReport, *, phase: str, deploy_base: Path) -> None
                         f"{previews.get(name, '')}\n"
                     )
     if phase == "produce":
+        # D10(b) receipts: which browser rendered each staged deck, and the outcome.
+        for office in report.ok:
+            receipt = getattr(office.result, "render_receipt", None)
+            if receipt is not None:
+                sys.stdout.write(f"[render] {office.play_gid} {receipt.line()}\n")
         if report.wrangler_command:
             sys.stdout.write(_wave_halt_banner(report, deploy_base=deploy_base))
         elif report.deploy_refusal:

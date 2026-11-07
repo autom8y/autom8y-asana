@@ -11,7 +11,9 @@ already-proven onboarding primitives around the operator-gated Cloudflare deploy
   assert exclusive tenant-binding -> mint + PIN the capability slug (once; SLUG-1) ->
   host-stage into the WAVE-SHARED deploy root (every office of a wave accumulates into
   ONE root; slug dirs are collision-free by ``_SLUG_RE`` and ``stage_deck_bundle`` is
-  accumulation-proven) -> commit the manifest at ``PRODUCED`` -> **SURFACE the exact
+  accumulation-proven) -> render the staged deck in a headless browser and assert it (D10(b),
+  ``render_check``; a refusal removes the never-deployed slug dir) -> commit the manifest at
+  ``PRODUCED`` -> **SURFACE the exact
   ``wrangler pages deploy`` command and HALT**. The reserved CF lever is printed, NEVER
   executed — and the batch surfaces it ONCE per wave, only after the fail-closed
   deploy-root guard passes (deploy_root_guard).
@@ -32,6 +34,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import os
+import shutil
 import tempfile
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -74,6 +77,10 @@ from autom8_asana.automation.workflows.onboarding_walkthrough.personalization_ga
 from autom8_asana.automation.workflows.onboarding_walkthrough.producer import (
     freeze_walkthrough_deck,
 )
+from autom8_asana.automation.workflows.onboarding_walkthrough.render_check import (
+    RenderReceipt,
+    check_staged_deck,
+)
 from autom8_asana.automation.workflows.onboarding_walkthrough.template_comment import (
     TemplateCommentRefused,
     _mask_guid,
@@ -112,7 +119,8 @@ class OfficeRunResult:
 
     ``outcome`` is one of ``"produced"`` | ``"already_produced"`` (Phase-1) |
     ``"posted"`` | ``"dry_run"`` | ``"already_done"`` (Phase-2). ``wrangler_command`` is the
-    surfaced reserved-lever command on Phase-1 (``None`` on Phase-2).
+    surfaced reserved-lever command on Phase-1 (``None`` on Phase-2). ``render_receipt`` is
+    the D10(b) rendered-deck check that passed on Phase-1 (``None`` on Phase-2).
     """
 
     play_gid: str
@@ -126,6 +134,8 @@ class OfficeRunResult:
     # Phase-2: the composed text of each comment (link / template / card), so a dry run shows
     # EXACTLY what --execute would post. Empty on Phase-1.
     previews: dict[str, str] = field(default_factory=dict)
+    # Phase-1: the passing rendered-deck receipt (browser path, kind, version, outcome).
+    render_receipt: RenderReceipt | None = None
 
 
 def _now() -> str:
@@ -223,6 +233,38 @@ def _assert_staged_in_root(deploy_root: Path, *, slug: str, frozen_sha256: str) 
         )
 
 
+def _render_check_or_unstage(
+    deploy_root: Path,
+    *,
+    play_gid: str,
+    slug: str,
+    office_guid_sha256: str,
+    clinic: str,
+) -> RenderReceipt:
+    """Run the D10(b) rendered-deck check on a deck staged THIS run; unstage it on failure.
+
+    Only for the produce path, where the deck has never been deployed. Any exception
+    (``BrowserUnavailable``, ``RenderCheckRefused``, or anything else) removes
+    ``<deploy_root>/<slug>`` and re-raises. The log line carries the gid, the slug and the
+    reason code only: never a clinic name or an address.
+    """
+    try:
+        return check_staged_deck(
+            deploy_root, slug, office_guid_sha256=office_guid_sha256, clinic=clinic
+        )
+    except BaseException as exc:
+        reason = getattr(exc, "reason", None) or type(exc).__name__
+        shutil.rmtree(Path(deploy_root) / slug, ignore_errors=False)
+        logger.error(
+            "floodgates_render_check_refused",
+            play_gid=play_gid,
+            slug=slug,
+            reason=reason,
+            staged_dir_removed=True,
+        )
+        raise
+
+
 async def _run_produce(
     client: AsanaClient,
     *,
@@ -260,6 +302,14 @@ async def _run_produce(
         _assert_staged_in_root(
             deploy_root, slug=existing.slug, frozen_sha256=existing.frozen_sha256
         )
+        # D10(b) again on the bytes that are about to be re-surfaced. A refusal raises but
+        # does NOT delete: a PRODUCED deck may already be live, so only the command is withheld.
+        receipt = check_staged_deck(
+            deploy_root,
+            existing.slug,
+            office_guid_sha256=existing.office_guid_sha256,
+            clinic=existing.clinic,
+        )
         return OfficeRunResult(
             play_gid=play_gid,
             phase=existing.phase,
@@ -269,6 +319,7 @@ async def _run_produce(
             deploy_root=str(deploy_root),
             wrangler_command=_surface_wrangler_command(deploy_root, project_name),
             posts=dict(existing.posts),
+            render_receipt=receipt,
         )
 
     # 1. Positive selection (name + ACTIVE membership) — reuse link_on_play preflight.
@@ -325,13 +376,27 @@ async def _run_produce(
     finally:
         artifact.unlink(missing_ok=True)
 
+    # 8b. D10(b): render the staged deck over localhost in a headless browser and assert it,
+    #     BEFORE PRODUCED. On ANY failure (incl. BrowserUnavailable or an interrupt) remove the
+    #     slug dir: it has never been deployed, and a leftover dir would be published by the
+    #     next wave deploy. No state is saved, so an existing (pre-PRODUCED) manifest with a
+    #     pinned slug stays exactly as it was.
+    office_guid_sha256 = hashlib.sha256(office_guid.encode()).hexdigest()
+    receipt = _render_check_or_unstage(
+        deploy_root,
+        play_gid=play_gid,
+        slug=slug,
+        office_guid_sha256=office_guid_sha256,
+        clinic=client_name,
+    )
+
     deck_url = f"https://{DECK_HOST}/{slug}/"
     # 9. Commit PRODUCED (atomic per-office manifest; never the full guid at rest — record the
     #    forensic mask AND the full-strength SHA-256 identity digest the ★C-1 guard decides on).
     state = OfficeState(
         play_gid=play_gid,
         office_guid_masked=_mask_guid(office_guid),
-        office_guid_sha256=hashlib.sha256(office_guid.encode()).hexdigest(),
+        office_guid_sha256=office_guid_sha256,
         clinic=client_name,
         slug=slug,
         deck_url=deck_url,
@@ -356,6 +421,7 @@ async def _run_produce(
         deploy_root=str(deploy_root),
         wrangler_command=_surface_wrangler_command(deploy_root, project_name),
         posts=dict(state.posts),
+        render_receipt=receipt,
     )
 
 

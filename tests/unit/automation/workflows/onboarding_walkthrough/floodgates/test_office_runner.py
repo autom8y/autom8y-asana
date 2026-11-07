@@ -18,6 +18,9 @@ The load-bearing RED teeth:
 * **D9 name confirmation** (``TestD9NameConfirmation``): produce stops unless the PLAY title's
   clinic part, the parent Business name and ``--clinic`` agree; it freezes the canonical
   Business name, and the already-produced path re-checks against the frozen name.
+* **D10(b) rendered-deck check** (``TestD10bRenderCheck``): produce renders the staged deck
+  before PRODUCED; a refusal removes the never-deployed slug dir and saves no state, and the
+  already-produced path re-runs the check but never deletes a deck that may be live.
 """
 
 from __future__ import annotations
@@ -29,7 +32,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from autom8_asana.automation.workflows.onboarding_walkthrough import office_resolution
+from autom8_asana.automation.workflows.onboarding_walkthrough import (
+    office_resolution,
+    render_check,
+)
 from autom8_asana.automation.workflows.onboarding_walkthrough.floodgates import (
     office_runner as orunner,
 )
@@ -110,6 +116,17 @@ def _seed_produced(
     return state
 
 
+def _receipt(slug: str = SLUG) -> render_check.RenderReceipt:
+    return render_check.RenderReceipt(
+        slug=slug,
+        browser_path="/opt/synthetic/chrome-headless-shell",
+        browser_kind="headless-shell",
+        browser_version="Synthetic Headless 1.0",
+        checked_at="2026-11-07T00:00:00+00:00",
+        outcome="pass",
+    )
+
+
 def _play_title(clinic_part: str) -> str:
     return f"PLAY: Custom Calendar Integration — {clinic_part}"
 
@@ -159,6 +176,16 @@ def _produce_patches(
         patch.object(orunner, "freeze_walkthrough_deck", new=AsyncMock(side_effect=_fake_freeze))
     )
     m["mint"] = stack.enter_context(patch.object(orunner, "mint_slug", return_value=SLUG))
+    # D10(b): the render check is faked (no browser in unit tests). ``create=True`` lets the
+    # stack load against a runner that predates the check (the teeth-proof RED).
+    m["render"] = stack.enter_context(
+        patch.object(
+            orunner,
+            "check_staged_deck",
+            create=True,
+            side_effect=lambda _root, slug, **_kw: _receipt(slug),
+        )
+    )
     # posters + curl must never be reached in Phase-1 (the HALT).
     m["link"] = stack.enter_context(patch.object(orunner, "post_link_on_play", new=AsyncMock()))
     m["template"] = stack.enter_context(
@@ -844,3 +871,168 @@ class TestD9NameConfirmation:
         assert ascii(D9_CLINIC) in str(excinfo.value)  # the frozen name is the --clinic witness
         m["freeze"].assert_not_awaited()
         m["mint"].assert_not_called()
+
+
+# ============================================================ D10(b) rendered-deck check (RED teeth)
+
+# Synthetic names only (this repo is public).
+D10_CLINIC = "Juniper Ridge Dental"
+
+
+class TestD10bRenderCheck:
+    """Produce renders the staged deck before PRODUCED (FORK-S2 (c), produce step 8b).
+
+    The refusal tests catch the exception and assert the cleanup FIRST, so against a runner
+    that predates the check they FAIL on "the staged dir survived" (the teeth-proof RED).
+    """
+
+    async def _produce(self, tmp_path, store, deploy_base, m_overrides=None):
+        with ExitStack() as stack:
+            m = _produce_patches(stack, names={PLAY_GID: (D10_CLINIC, D10_CLINIC)})
+            for name, kwargs in (m_overrides or {}).items():
+                m[name].configure_mock(**kwargs)
+            raised: BaseException | None = None
+            try:
+                result = await run_office(
+                    _mock_client(),
+                    play_gid=PLAY_GID,
+                    clinic=D10_CLINIC,
+                    phase="produce",
+                    store=store,
+                    deploy_base=deploy_base,
+                )
+            except Exception as exc:  # noqa: BLE001 -- the test asserts on it below
+                raised, result = exc, None
+        return m, result, raised
+
+    async def test_produce_checks_once_with_frozen_sha_and_canonical_clinic(self, tmp_path) -> None:
+        """GREEN: the check runs ONCE, on the wave root and the minted slug, with the sha of
+        the office guid and the clinic that was frozen; the result carries the receipt."""
+        store = _store(tmp_path)
+        deploy_base = tmp_path / "deploy"
+        m, result, raised = await self._produce(tmp_path, store, deploy_base)
+        assert raised is None
+        assert result is not None
+        assert result.outcome == "produced"
+        m["render"].assert_called_once()
+        args, kwargs = m["render"].call_args
+        assert args == (deploy_base, SLUG)
+        assert kwargs == {
+            "office_guid_sha256": hashlib.sha256(GUID.encode()).hexdigest(),
+            "clinic": D10_CLINIC,
+        }
+        assert kwargs["clinic"] == m["freeze"].await_args.kwargs["client_name"]
+        assert result.render_receipt == _receipt(SLUG)
+        state = store.load(PLAY_GID)
+        assert state is not None
+        assert state.phase is Phase.PRODUCED
+        assert (deploy_base / SLUG / "index.html").is_file()
+
+    @pytest.mark.parametrize(
+        "exc",
+        [
+            render_check.RenderCheckRefused("foreign_address", "masked detail"),
+            render_check.BrowserUnavailable("browser_not_found", "no browser found"),
+        ],
+        ids=["RenderCheckRefused", "BrowserUnavailable"],
+    )
+    async def test_refusal_removes_staged_dir_saves_no_state_and_reraises(
+        self, tmp_path, exc
+    ) -> None:
+        """RED: the check refuses after staging. The never-deployed slug dir is GONE (it would
+        ride the next wave deploy), no state file exists, and the same exception surfaces."""
+        store = _store(tmp_path)
+        deploy_base = tmp_path / "deploy"
+        m, result, raised = await self._produce(
+            tmp_path, store, deploy_base, {"render": {"side_effect": exc}}
+        )
+        assert not (deploy_base / SLUG).exists(), "the staged dir survived the refusal"
+        assert not store.path_for(PLAY_GID).exists(), "state was saved despite the refusal"
+        assert raised is exc
+        assert result is None
+        # The refusal came AFTER staging: freeze and mint ran, and the root itself survives.
+        m["freeze"].assert_awaited_once()
+        m["mint"].assert_called_once()
+        assert (deploy_base / "_headers").is_file()
+
+    async def test_unexpected_error_from_check_also_unstages(self, tmp_path) -> None:
+        """ANY exception from the check unstages, not only the two named refusals."""
+        store = _store(tmp_path)
+        deploy_base = tmp_path / "deploy"
+        boom = OSError("synthetic render crash")
+        _m, _result, raised = await self._produce(
+            tmp_path, store, deploy_base, {"render": {"side_effect": boom}}
+        )
+        assert not (deploy_base / SLUG).exists()
+        assert not store.path_for(PLAY_GID).exists()
+        assert raised is boom
+
+    async def test_refusal_on_pinned_slug_unstages_but_keeps_existing_state(self, tmp_path) -> None:
+        """A prior partial run left a PENDING manifest with a pinned slug. The re-run re-stages
+        into that slug; a refusal removes the dir and leaves the manifest byte-identical."""
+        store = _store(tmp_path)
+        deploy_base = tmp_path / "deploy"
+        pinned = "0123456789abcdef0123456789abcdef"
+        seeded = _seed_produced(store, frozen_sha256="0" * 64, clinic=D10_CLINIC)
+        seeded.phase = Phase.PENDING
+        seeded.slug = pinned
+        store.save(seeded)
+        before = store.path_for(PLAY_GID).read_bytes()
+        m, _result, raised = await self._produce(
+            tmp_path,
+            store,
+            deploy_base,
+            {"render": {"side_effect": render_check.RenderCheckRefused("empty_interp", "x")}},
+        )
+        assert isinstance(raised, render_check.RenderCheckRefused)
+        m["mint"].assert_not_called()  # the pinned slug was reused
+        assert m["render"].call_args.args == (deploy_base, pinned)
+        assert not (deploy_base / pinned).exists()
+        assert store.path_for(PLAY_GID).read_bytes() == before
+
+    async def test_already_produced_rechecks_with_frozen_identity_and_carries_receipt(
+        self, tmp_path
+    ) -> None:
+        """GREEN: the re-surface path re-runs the check with the manifest's sha and clinic
+        (the full guid is never at rest), and the result carries the receipt."""
+        store = _store(tmp_path)
+        deploy_base = tmp_path / "deploy"
+        body = b"<html>staged deck</html>"
+        (deploy_base / SLUG).mkdir(parents=True)
+        (deploy_base / SLUG / "index.html").write_bytes(body)
+        seeded = _seed_produced(
+            store, frozen_sha256=hashlib.sha256(body).hexdigest(), clinic=D10_CLINIC
+        )
+        m, result, raised = await self._produce(tmp_path, store, deploy_base)
+        assert raised is None
+        assert result is not None
+        assert result.outcome == "already_produced"
+        m["render"].assert_called_once_with(
+            deploy_base,
+            SLUG,
+            office_guid_sha256=seeded.office_guid_sha256,
+            clinic=seeded.clinic,
+        )
+        assert result.render_receipt == _receipt(SLUG)
+
+    async def test_already_produced_refusal_raises_without_deleting_or_changing_state(
+        self, tmp_path
+    ) -> None:
+        """RED: a PRODUCED deck may already be live, so a refusal on the re-surface path raises
+        (no deploy command) but leaves the staged dir and the manifest exactly as they were."""
+        store = _store(tmp_path)
+        deploy_base = tmp_path / "deploy"
+        body = b"<html>staged deck</html>"
+        (deploy_base / SLUG).mkdir(parents=True)
+        (deploy_base / SLUG / "index.html").write_bytes(body)
+        _seed_produced(store, frozen_sha256=hashlib.sha256(body).hexdigest(), clinic=D10_CLINIC)
+        before = store.path_for(PLAY_GID).read_bytes()
+        refusal = render_check.RenderCheckRefused("prepared_for_missing", "x")
+        m, result, raised = await self._produce(
+            tmp_path, store, deploy_base, {"render": {"side_effect": refusal}}
+        )
+        assert raised is refusal, "the already-produced path re-surfaced without the check"
+        assert result is None
+        assert (deploy_base / SLUG / "index.html").read_bytes() == body
+        assert store.path_for(PLAY_GID).read_bytes() == before
+        m["freeze"].assert_not_awaited()

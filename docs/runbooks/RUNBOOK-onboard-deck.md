@@ -36,7 +36,8 @@ just onboard-deck-post <play_gid>                  # 4. post the three comments 
 
 - **Step 0 is read-only.** Check the suggested name before step 1. The name you pass to step 1 is printed in the deck ("Prepared for …") and in the rep template, and it can't be changed after step 1 without starting over.
 - **Step 1 checks the deploy folder first.** It refuses before building anything if the folder would fail the deploy guard. A brand-new, empty folder is refused too, so always point it at the deck-host checkout.
-- **Step 2** refuses if wrangler's project-local cache names any Cloudflare account other than `DECK_HOST_CF_ACCOUNT_ID`.
+- **Step 1 then renders the staged deck in a headless browser** and checks what a client would see: exactly this clinic's forwarding address, the confirmed name after "Prepared for", and no unfilled field. It refuses if no browser is found, and prints a `[render]` line naming the browser it used.
+- **Step 2 re-runs the render check first**, on every staged deck, before it calls wrangler. It also refuses if wrangler's project-local cache names any Cloudflare account other than `DECK_HOST_CF_ACCOUNT_ID`.
 - **Step 3** prints exactly what step 4 will post. Read it before step 4.
 - **Step 4** exits non-zero if no contact card was posted. A re-run, or a run on an office that is already done, skips comments that are already there and exits 0.
 
@@ -51,6 +52,8 @@ Copy the entry shape from the previous entry.
 |---|---|
 | `D9: name mismatch …` or `D9: … has no Business parent` | The title, the Business name and the name you passed disagree, or the PLAY has no parent Business. On a mismatch the `[failed]` line prints all three names. Fix the Asana record or pass the matching name. If you can't tell which name is right, ask the operator; don't work around it. A re-run of an office that was already produced is checked against the name it was built with. |
 | `REFUSED` from the produce pre-flight | The deploy folder isn't clean. Point `DECK_HOST_DIR` at the deck-host checkout and check its `public/` holds only `_headers` and slug folders. |
+| `[browser_unavailable]` or `[browser_override_invalid]` (`BrowserUnavailable`) | No Chrome, Chromium or headless shell found. Stop and ask the operator; never download one. |
+| Any other `[<reason>]` from the render check (`RenderCheckRefused`) | The staged deck failed the rendered check; the reason code is in the message. On a first produce the staged folder was removed: fix the cause and run step 1 again. On an office that was already produced, nothing was removed (the deck may be live) and no deploy command was printed; ask the operator. |
 | `already produced … does not exist` | An earlier produce used a different folder. Re-run with that folder, or copy its slug folder over. |
 | Wrong clinic name after step 1 | Before step 2 only: remove that office's state file in `AUTOM8_FLOODGATES_STATE_DIR` and its new slug folder in `public/`, then run step 1 again. |
 | Cloudflare `Authentication error` | Wrong account or an expired login. Run `wrangler whoami` with `CLOUDFLARE_API_TOKEN` unset. |

@@ -172,7 +172,9 @@ class BrowserOverrideInvalid(BrowserUnavailable):
 def _refuse(
     reason: str, message: str, *, cls: type[RenderCheckRefused] = RenderCheckRefused
 ) -> NoReturn:
-    logger.error("render_check_refused", reason=reason, detail=message)
+    # Reason code only: the detail can carry the clinic name (clinic_missing), which stays
+    # out of the structured log (D12; the operator reads it from the raised message).
+    logger.error("render_check_refused", reason=reason)
     raise cls(reason, message)
 
 
@@ -607,7 +609,9 @@ def render_gate(deploy_base: Path, state_dir: Path) -> list[RenderReceipt]:
         message = f"{len(refused)} of {len(receipts)} staged deck(s) refused: " + " | ".join(
             refused
         )
-        logger.error("render_gate_refused", reason="deck_refused", detail=message)
+        logger.error(
+            "render_gate_refused", reason="deck_refused", refused=len(refused), total=len(receipts)
+        )
         raise RenderGateRefused("deck_refused", message, receipts)
     if not receipts:
         message = (

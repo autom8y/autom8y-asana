@@ -750,7 +750,9 @@ class TestResumePreview:
 class TestClinicSuggestion:
     def test_parse_play_title(self) -> None:
         f = fbatch.clinic_from_play_name
-        assert f("PLAY: Custom Calendar Integration — Maple Grove Wellness") == "Maple Grove Wellness"
+        assert (
+            f("PLAY: Custom Calendar Integration — Maple Grove Wellness") == "Maple Grove Wellness"
+        )
         assert f("PLAY: Custom Calendar Integration - Acme Dental") == "Acme Dental"
         assert f("PLAY: Custom Calendar Integration — - Acme") == "Acme"  # stacked separators
         assert f("PLAY: Custom Calendar Integration —  Acme   Dental ") == "Acme Dental"
@@ -840,3 +842,103 @@ class TestCliD9Refusal:
         assert "wrangler pages deploy" not in out
         logged = [c.kwargs for c in logger.warning.call_args_list]
         assert logged == [{"play_gid": "A", "error": "ClinicNameMismatch"}]
+
+
+class TestCliD10bRender:
+    """D10(b) at the CLI: a produce report prints one ``[render]`` line per ok office with a
+    receipt, and a render refusal is a failed office whose log event carries no clinic name."""
+
+    def _receipt(self, slug: str):
+        from autom8_asana.automation.workflows.onboarding_walkthrough.render_check import (
+            RenderReceipt,
+        )
+
+        return RenderReceipt(
+            slug=slug,
+            browser_path="/opt/synthetic/chrome-headless-shell",
+            browser_kind="headless-shell",
+            browser_version="Synthetic Headless 1.0",
+            checked_at="2026-11-07T00:00:00+00:00",
+            outcome="pass",
+        )
+
+    def _report(self, outcome: str, *, with_receipt: bool) -> BatchReport:
+        def _office(gid: str, slug: str, receipt: bool) -> OfficeReport:
+            result = SimpleNamespace(
+                play_gid=gid,
+                phase=Phase.PRODUCED,
+                outcome=outcome,
+                wrangler_command=None,
+                posts={"link": None, "template": None, "card": None},
+                previews={},
+                render_receipt=self._receipt(slug) if receipt else None,
+            )
+            return OfficeReport(gid, "ok", outcome=outcome, result=result)  # type: ignore[arg-type]
+
+        return BatchReport(
+            offices=[
+                _office("A", "a" * 32, with_receipt),
+                _office("B", "b" * 32, False),  # control: no receipt -> no line
+                OfficeReport("C", "failed", error="[foreign_address] refused"),
+            ]
+        )
+
+    def test_produce_prints_one_render_line_per_receipt(self, tmp_path, capsys) -> None:
+        fbatch._write_report(
+            self._report("produced", with_receipt=True), phase="produce", deploy_base=tmp_path
+        )
+        out = capsys.readouterr().out
+        expected = f"[render] A {self._receipt('a' * 32).line()}"
+        assert expected in out
+        assert "path='/opt/synthetic/chrome-headless-shell'" in expected
+        assert "browser=headless-shell" in expected
+        assert "version='Synthetic Headless 1.0'" in expected
+        assert "outcome=pass" in expected
+        assert out.count("[render]") == 1  # B has no receipt, C failed
+
+    def test_resume_prints_no_render_line(self, tmp_path, capsys) -> None:
+        fbatch._write_report(
+            self._report("posted", with_receipt=True), phase="resume", deploy_base=tmp_path
+        )
+        assert "[render]" not in capsys.readouterr().out
+
+    def test_render_refusal_is_red_and_logs_reason_code_not_clinic(self, tmp_path, capsys) -> None:
+        """A render refusal is a failed office (exit 1, no deploy command). The message may
+        carry the clinic name (clinic_missing): it goes to the [failed] line only, and the
+        structured log gets the type and reason code."""
+        from autom8_asana.automation.workflows.onboarding_walkthrough.render_check import (
+            RenderCheckRefused,
+        )
+
+        root = _make_shared_root(tmp_path, [])
+        refusal = RenderCheckRefused(
+            "clinic_missing", "rendered body lacks 'Prepared for Juniper Ridge Dental'"
+        )
+        with (
+            patch.object(fbatch, "AsanaClient"),
+            patch.object(fbatch, "run_office", new=AsyncMock(side_effect=refusal)),
+            patch.object(fbatch, "logger") as logger,
+        ):
+            rc = fbatch.main(
+                [
+                    "--phase",
+                    "produce",
+                    "--office",
+                    "A",
+                    "--clinic",
+                    "Juniper Ridge Dental",
+                    "--deploy-base",
+                    str(root),
+                    "--state-dir",
+                    str(tmp_path / "state"),
+                ]
+            )
+        out = capsys.readouterr().out
+        assert rc == 1
+        failed = next(line for line in out.splitlines() if line.startswith("[failed] A"))
+        assert "[clinic_missing]" in failed
+        assert "wrangler pages deploy" not in out
+        assert "[render]" not in out
+        logged = [c.kwargs for c in logger.warning.call_args_list]
+        assert logged == [{"play_gid": "A", "error": "RenderCheckRefused[clinic_missing]"}]
+        assert "Juniper" not in repr(logged)
