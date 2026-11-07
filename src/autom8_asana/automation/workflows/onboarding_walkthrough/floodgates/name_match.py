@@ -47,7 +47,14 @@ __all__ = [
     "clinic_from_play_name",
 ]
 
-_ZERO_WIDTH = dict.fromkeys(map(ord, "\u200b\u200c\u200d\u2060\ufeff"))
+# Zero-width characters that never render. U+200D (zero-width joiner) is NOT in this set:
+# it binds emoji sequences, so stripping it would freeze a different glyph sequence than
+# the Business name shows. A ZWJ-only difference therefore refuses (D1).
+_ZERO_WIDTH = dict.fromkeys(map(ord, "\u200b\u200c\u2060\ufeff"))
+# Whitespace that renders as a plain gap: ASCII whitespace plus the two no-break spaces.
+# Not str.split(): that folds every Unicode White_Space character, including U+1680
+# (Ogham space mark), which has a visible glyph.
+_PLAIN_WHITESPACE = re.compile(r"[ \t\n\r\f\v\u00a0\u202f]+")
 _LEADING_SEPARATORS = re.compile(r"^[\s—–:-]+")
 
 
@@ -64,7 +71,7 @@ def clinic_from_play_name(name: str | None) -> str | None:
     if match is None:
         return None
     rest = name[match.end() :].translate(_ZERO_WIDTH)
-    rest = " ".join(_LEADING_SEPARATORS.sub("", rest).split())
+    rest = _PLAIN_WHITESPACE.sub(" ", _LEADING_SEPARATORS.sub("", rest)).strip()
     return rest or None
 
 
@@ -75,7 +82,7 @@ def canon(s: str | None) -> str:
     every visible character survive, so they still count as a mismatch.
     """
     s = unicodedata.normalize("NFC", s or "").translate(_ZERO_WIDTH)
-    return " ".join(s.split())
+    return _PLAIN_WHITESPACE.sub(" ", s).strip()
 
 
 class ClinicNameMismatch(RuntimeError):

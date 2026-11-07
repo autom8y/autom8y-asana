@@ -30,6 +30,7 @@ import urllib.request
 import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING
+from unittest.mock import patch
 
 import pytest
 
@@ -109,6 +110,25 @@ def _refusal(visible: str, *, sha: str = OWN_SHA, clinic: str = CLIENT_NAME) -> 
 class TestAssertRenderedDeck:
     def test_green_passes(self) -> None:
         assert_rendered_deck(_green_body(), office_guid_sha256=OWN_SHA, clinic=CLIENT_NAME)
+
+    def test_refusal_log_event_carries_reason_only_never_the_clinic(self) -> None:
+        """The clinic_missing detail names the clinic; the structured log must not (D12).
+        Pins the logger call so a mutant that logs the full message fails here."""
+        clinic = "Another Synthetic Clinic"
+        with patch.object(render_check, "logger") as logger:
+            with pytest.raises(RenderCheckRefused) as info:
+                assert_rendered_deck(_green_body(), office_guid_sha256=OWN_SHA, clinic=clinic)
+        assert info.value.reason == "clinic_missing"
+        assert logger.error.called
+        for call in logger.error.call_args_list:
+            flat = (
+                " ".join(str(a) for a in call.args)
+                + " "
+                + " ".join(f"{k}={v}" for k, v in call.kwargs.items())
+            )
+            assert clinic not in flat, "the structured log carried the clinic name"
+            assert CLIENT_NAME not in flat
+        assert all(set(c.kwargs) <= {"reason"} for c in logger.error.call_args_list)
 
     def test_green_with_uppercase_own_address_passes(self) -> None:
         # The harvest is case-insensitive and lowercased: a case-variant of OWN is OWN.

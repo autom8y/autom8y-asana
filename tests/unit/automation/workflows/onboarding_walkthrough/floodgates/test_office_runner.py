@@ -955,6 +955,26 @@ class TestD10bRenderCheck:
         m["mint"].assert_called_once()
         assert (deploy_base / "_headers").is_file()
 
+    async def test_interrupt_during_check_also_unstages(self, tmp_path) -> None:
+        """A KeyboardInterrupt (not an Exception) during the check still removes the staged dir
+        and saves no state: the cleanup catches BaseException. Kills the except-Exception mutant."""
+        store = _store(tmp_path)
+        deploy_base = tmp_path / "deploy"
+        with ExitStack() as stack:
+            m = _produce_patches(stack, names={PLAY_GID: (D10_CLINIC, D10_CLINIC)})
+            m["render"].configure_mock(side_effect=KeyboardInterrupt())
+            with pytest.raises(KeyboardInterrupt):
+                await run_office(
+                    _mock_client(),
+                    play_gid=PLAY_GID,
+                    clinic=D10_CLINIC,
+                    phase="produce",
+                    store=store,
+                    deploy_base=deploy_base,
+                )
+        assert not (deploy_base / SLUG).exists(), "the staged dir survived the interrupt"
+        assert not store.path_for(PLAY_GID).exists()
+
     async def test_unexpected_error_from_check_also_unstages(self, tmp_path) -> None:
         """ANY exception from the check unstages, not only the two named refusals."""
         store = _store(tmp_path)

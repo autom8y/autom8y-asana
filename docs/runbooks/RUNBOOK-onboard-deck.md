@@ -49,6 +49,8 @@ just onboard-deck-post <play_gid>                  # 4. post the three comments 
 ## Afterwards
 
 Add the new slug to the deck-host ledger (`config/deck-manifest.json`) and commit it there.
+The entry must carry `frozen_sha256` (the sha256 printed by step 1 and stored in the run state): step 2
+verifies every live deck against that field and refuses with `ledger_sha_missing` when it is absent.
 Copy the entry shape from the previous entry.
 
 ## If something fails

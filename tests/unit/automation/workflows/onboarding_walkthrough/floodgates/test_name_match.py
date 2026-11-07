@@ -76,6 +76,17 @@ class TestCanon:
     def test_keeps_visible_differences(self) -> None:
         assert canon("Harbor Light chiropractic") != canon(NAME)  # case is visible
         assert canon("Ｈarbor Light Chiropractic") != canon(NAME)  # full-width (no NFKC)
+        # U+1680 (Ogham space mark) has a visible glyph: str.split() would fold it, canon does not.
+        assert canon("Harbor\u1680Light Chiropractic") != canon(NAME)
+
+    def test_no_break_spaces_fold_to_a_plain_gap(self) -> None:
+        assert canon("Harbor\u00a0Light\u202fChiropractic") == NAME
+
+    def test_zero_width_joiner_is_kept_so_emoji_sequences_survive(self) -> None:
+        # A ZWJ binds an emoji sequence; stripping it would freeze a different glyph sequence.
+        joined = "Harbor Light \U0001f469\u200d\u2695\ufe0f"
+        assert "\u200d" in canon(joined)
+        assert canon(joined) != canon(joined.replace("\u200d", ""))  # ZWJ-only difference refuses
 
 
 # ------------------------------------------------------------------------------- PASS
