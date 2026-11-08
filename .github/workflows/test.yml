@@ -218,6 +218,7 @@ jobs:
             exit 1
           fi
           export CODEARTIFACT_AUTH_TOKEN
+          echo "::add-mask::${CODEARTIFACT_AUTH_TOKEN}"
           echo "UV_EXTRA_INDEX_URL=https://aws:${CODEARTIFACT_AUTH_TOKEN}@autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" >> "$GITHUB_ENV"
 
       - name: Install uv
@@ -366,6 +367,7 @@ jobs:
             exit 1
           fi
           export CODEARTIFACT_AUTH_TOKEN
+          echo "::add-mask::${CODEARTIFACT_AUTH_TOKEN}"
           echo "UV_EXTRA_INDEX_URL=https://aws:${CODEARTIFACT_AUTH_TOKEN}@autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" >> "$GITHUB_ENV"
 
       - name: Install uv
@@ -572,6 +574,7 @@ jobs:
             exit 1
           fi
           export CODEARTIFACT_AUTH_TOKEN
+          echo "::add-mask::${CODEARTIFACT_AUTH_TOKEN}"
           echo "UV_EXTRA_INDEX_URL=https://aws:${CODEARTIFACT_AUTH_TOKEN}@autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" >> "$GITHUB_ENV"
 
       - name: Install uv
