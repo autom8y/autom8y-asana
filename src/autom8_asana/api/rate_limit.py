@@ -335,6 +335,9 @@ def _get_rate_limit_string() -> str:
 # warns once when the named file is absent; that warning is expected here.
 LIMITER_CONFIG_FILENAME = "/nonexistent/autom8-asana/slowapi-limiter-settings"
 
+# In-process storage, matching the per-process limits documented above.
+LIMITER_STORAGE_URI = "memory://"
+
 
 def _build_limiter() -> Limiter:
     with warnings.catch_warnings():
@@ -347,6 +350,8 @@ def _build_limiter() -> Limiter:
             default_limits=[_get_rate_limit_string],
             enabled=True,
             config_filename=LIMITER_CONFIG_FILENAME,
+            # Explicit, so RATELIMIT_* environment settings cannot redirect storage.
+            storage_uri=LIMITER_STORAGE_URI,
         )
 
 
