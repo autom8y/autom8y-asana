@@ -761,6 +761,13 @@ async def rate_limit_exceeded_namespace_handler(
     except Exception:  # noqa: BLE001 -- metrics emission is fire-and-forget
         pass
 
+    # Log the namespace only, never the key: it makes per-namespace 429s
+    # readable from logs where the metric series is not scraped.
+    logger.info(
+        "rate_limit_exceeded",
+        extra={"namespace": namespace, "method": request.method},
+    )
+
     # Delegate to SlowAPI's default handler. Lazy import keeps slowapi
     # off the module-load critical path.
     from slowapi import _rate_limit_exceeded_handler

@@ -39,6 +39,9 @@ build/
 **/.env
 **/.env.*
 **/.envrc
+**/*.env
+**/env.*
+**/*.env.*
 *.pem
 *.key
 
