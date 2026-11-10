@@ -244,8 +244,8 @@ def _get_rate_limit_key(request: Request) -> str:
        limits.
     3. **IP fallback**: unauthenticated requests (e.g. ``/docs``) and
        JWT-shaped tokens that were not verified return ``"ip:{addr}"``. The
-       health probes (``/health``, ``/ready``, ``/health/deps``) are exempt
-       from the limiter and never reach this function.
+       ``/health`` and ``/ready`` probes are exempt from the limiter and never
+       reach this function; ``/health/deps`` is limited and keys by IP.
 
     Args:
         request: FastAPI request object.

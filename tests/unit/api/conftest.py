@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient
 
 from autom8_asana.api.dependencies import AuthContext, get_auth_context
 from autom8_asana.api.main import create_app
+from autom8_asana.api.routes.health import reset_readiness_dependency_cache
 from autom8_asana.auth.bot_pat import clear_bot_pat_cache
 from autom8_asana.auth.dual_mode import AuthMode
 from autom8_asana.auth.jwt_validator import reset_auth_client
@@ -135,14 +136,18 @@ def reset_singletons() -> Generator[None, None, None]:
 
     Note: SystemContext.reset_all() (root conftest) handles singleton
     reset. This fixture adds API-specific auth cache clearing and
-    EntityProjectRegistry population that API route tests depend on.
+    EntityProjectRegistry population that API route tests depend on. It
+    also clears the /ready dependency cache, so a JWKS result cached by one
+    test is never served to the next.
     """
     clear_bot_pat_cache()
     reset_auth_client()
+    reset_readiness_dependency_cache()
     _populate_test_registry()
     yield
     clear_bot_pat_cache()
     reset_auth_client()
+    reset_readiness_dependency_cache()
 
 
 @pytest.fixture

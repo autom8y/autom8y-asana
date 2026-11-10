@@ -1,11 +1,13 @@
-"""Health probes are exempt from the SlowAPI rate limiter (D-AF3 part 1).
+"""The liveness and readiness probes are exempt from the rate limiter (D-AF3 part 1).
 
 Policy under test:
 
-- ``/health``, ``/ready`` and ``/health/deps`` are never answered 429 by the
-  limiter, however many requests one client sends.
-- Every other route keeps the global default limit. The teeth twin below sends
-  the same volume to a limited route and must see 429.
+- ``/health`` (container liveness) and ``/ready`` (the ALB target-group probe)
+  are never answered 429 by the limiter, however many requests one client
+  sends.
+- ``/health/deps`` is NOT exempt. It stays under the default limit, as does
+  every other route. The teeth twins below send the same volume to limited
+  routes and must see 429.
 
 SlowAPI records an exemption by the handler's ``"{module}.{function name}"``
 string, so a rename or a move silently restores the limit. The pinned names
@@ -13,9 +15,8 @@ below fail loudly in that case. Update them in the same change as any rename.
 
 These tests drive the app built by ``create_app()`` with its real middleware
 stack and the real module-level limiter. Only two things are stubbed: the
-default limit is lowered so the volume stays small, and the readiness and
-dependency probes' outbound JWKS client is replaced so no request leaves the
-process.
+default limit is lowered so the volume stays small, and the probes' outbound
+JWKS client is replaced so no request leaves the process.
 """
 
 from __future__ import annotations
@@ -25,6 +26,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 from fastapi.testclient import TestClient
+from slowapi.middleware import _get_route_name
 
 from autom8_asana.api import rate_limit
 from autom8_asana.api.main import create_app
@@ -32,14 +34,19 @@ from autom8_asana.api.rate_limit import limiter
 from autom8_asana.api.routes import health
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Callable, Iterator
+
+    from fastapi import FastAPI
 
 # Path -> the exact handler name SlowAPI matches against its exempt set.
 PINNED_EXEMPT_PROBES: dict[str, str] = {
     "/health": "autom8_asana.api.routes.health.health_check",
     "/ready": "autom8_asana.api.routes.health.readiness_check",
-    "/health/deps": "autom8_asana.api.routes.health.deps_check",
 }
+
+# Limited on purpose: the dependency probe keeps the default limit.
+DEPS_PROBE_PATH = "/health/deps"
+DEPS_PROBE_NAME = "autom8_asana.api.routes.health.deps_check"
 
 # A JWT-excluded route with no route-level limit, so the global default applies.
 LIMITED_PATH = "/docs"
@@ -92,6 +99,14 @@ def _flood(client: TestClient, path: str) -> list[int]:
     return [client.get(path).status_code for _ in range(VOLUME)]
 
 
+def _endpoints(app: FastAPI, path: str) -> list[Callable[..., Any]]:
+    return [
+        route.endpoint
+        for route in app.routes
+        if getattr(route, "path", None) == path and hasattr(route, "endpoint")
+    ]
+
+
 # ---------------------------------------------------------------------------
 # (a) Name pinning
 # ---------------------------------------------------------------------------
@@ -105,34 +120,44 @@ def test_probe_handler_name_is_in_exempt_set(path: str, name: str) -> None:
 @pytest.mark.parametrize(("path", "name"), sorted(PINNED_EXEMPT_PROBES.items()))
 def test_built_app_serves_probe_with_pinned_handler(path: str, name: str) -> None:
     """The endpoint the middleware resolves for each probe has the pinned name."""
-    from slowapi.middleware import _get_route_name
-
-    app = create_app()
-    endpoints = [
-        route.endpoint
-        for route in app.routes
-        if getattr(route, "path", None) == path and hasattr(route, "endpoint")
-    ]
+    endpoints = _endpoints(create_app(), path)
 
     assert len(endpoints) == 1, (path, endpoints)
     assert _get_route_name(endpoints[0]) == name
 
 
-def test_limited_route_is_not_exempt() -> None:
-    """The teeth twin's route must stay under the limit, or the twin proves nothing."""
+def test_only_the_pinned_probes_are_exempt() -> None:
+    """No other route of the built app is exempt, /health/deps included."""
     app = create_app()
-    names = {
-        f"{route.endpoint.__module__}.{route.endpoint.__name__}"
+    exempt_served = {
+        _get_route_name(endpoint)
         for route in app.routes
-        if getattr(route, "path", None) == LIMITED_PATH and hasattr(route, "endpoint")
+        if hasattr(route, "endpoint")
+        for endpoint in [route.endpoint]
+        if _get_route_name(endpoint) in limiter._exempt_routes
     }
 
-    assert names
-    assert not names & limiter._exempt_routes
+    assert exempt_served == set(PINNED_EXEMPT_PROBES.values())
+
+
+def test_deps_probe_is_not_exempt() -> None:
+    endpoints = _endpoints(create_app(), DEPS_PROBE_PATH)
+
+    assert len(endpoints) == 1, endpoints
+    assert _get_route_name(endpoints[0]) == DEPS_PROBE_NAME
+    assert DEPS_PROBE_NAME not in limiter._exempt_routes
+
+
+def test_docs_route_exists_so_the_teeth_twin_is_not_vacuous() -> None:
+    """If docs were turned off, the /docs twin would 404 rather than test the limit."""
+    endpoints = _endpoints(create_app(), LIMITED_PATH)
+
+    assert len(endpoints) == 1, endpoints
+    assert _get_route_name(endpoints[0]) not in limiter._exempt_routes
 
 
 # ---------------------------------------------------------------------------
-# (b, c) Two-sided behavior
+# (b) Two-sided behavior
 # ---------------------------------------------------------------------------
 
 
@@ -145,9 +170,10 @@ def test_probe_flood_from_one_client_is_never_answered_429(client: TestClient, p
     assert _bucket_hits() == {}
 
 
-def test_same_flood_to_a_limited_route_is_answered_429(client: TestClient) -> None:
-    """Teeth twin: the identical volume to a limited route trips the limit."""
-    statuses = _flood(client, LIMITED_PATH)
+@pytest.mark.parametrize("path", [LIMITED_PATH, DEPS_PROBE_PATH])
+def test_same_flood_to_a_limited_route_is_answered_429(client: TestClient, path: str) -> None:
+    """Teeth twins: the identical volume to a limited route trips the limit."""
+    statuses = _flood(client, path)
 
-    assert statuses[:TINY_LIMIT] == [200] * TINY_LIMIT, statuses
+    assert 429 not in statuses[:TINY_LIMIT], statuses
     assert statuses[TINY_LIMIT:] == [429] * (VOLUME - TINY_LIMIT), statuses

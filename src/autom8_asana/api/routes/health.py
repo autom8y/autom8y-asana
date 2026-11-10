@@ -22,9 +22,11 @@ Per PRD-S2S-001 (NFR-OPS-002):
 
 from __future__ import annotations
 
+import asyncio
 import enum
 import os
 import time
+from typing import TYPE_CHECKING, Generic, TypeVar
 
 from autom8y_http import (
     Autom8yHttpClient,
@@ -36,7 +38,11 @@ from autom8y_log import get_logger
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
+from autom8_asana.api.health_models import CheckResult, HealthStatus
 from autom8_asana.api.rate_limit import exempt_from_rate_limit
+
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
 
 # Import version directly to avoid circular import
 # (api/__init__.py imports from main.py which imports routes)
@@ -49,8 +55,10 @@ router = APIRouter(tags=["health"])
 
 # Rate-limit exemption (D-AF3 part 1).
 #
-# The three probes below are exempt from the SlowAPI limiter, so a flood of
-# other traffic from one address can never get a probe answered 429. Each
+# ``/health`` (container liveness) and ``/ready`` (the ALB target-group probe)
+# are exempt from the SlowAPI limiter, so a flood of other traffic from one
+# address can never get either answered 429. ``/health/deps`` is NOT exempt; it
+# stays under the default limit. Each exempt
 # probe is decorated with ``@exempt_from_rate_limit`` (a typed wrapper around
 # ``limiter.exempt``) UNDER its ``@router.get``, so the router registers the
 # exempt wrapper as the endpoint.
@@ -201,6 +209,181 @@ def is_workflow_configs_registered() -> bool | None:
     return _workflow_configs_registered
 
 
+# --- /ready outbound dependency cache (D-AF3 part 1) ---
+# /ready is unauthenticated and exempt from the rate limiter, and it makes an
+# outbound JWKS request. To keep a probe flood from becoming an outbound flood,
+# the JWKS result used by /ready is cached for READY_DEPENDENCY_TTL_SECONDS and
+# fetched single-flight: concurrent callers share one in-flight round.
+#
+# Only the outbound JWKS check is cached. The preload state, the workflow
+# config flag and the bot PAT presence check are local reads and run live on
+# every call, so a preload transition (for example to FAILED) shows on the very
+# next /ready. A check that RAISES is never cached; a failure RESULT (degraded,
+# timeout) is cached like any other result and expires at the TTL.
+
+READY_DEPENDENCY_TTL_SECONDS = 5.0
+_DEPENDENCY_PROBE_TIMEOUT_SECONDS = 2.0
+
+_T = TypeVar("_T")
+
+
+class _SingleFlightTTLCache(Generic[_T]):
+    """Cache one async result for a fixed TTL, computing it single-flight.
+
+    - A stored result is returned until ``ttl_seconds`` after it was produced.
+    - While a computation is running, every caller awaits that same
+      computation instead of starting another.
+    - If the computation raises, nothing is stored; every caller waiting on it
+      gets the exception and the next call starts a new computation.
+    """
+
+    def __init__(self, ttl_seconds: float, clock: Callable[[], float] = time.monotonic) -> None:
+        self._ttl_seconds = ttl_seconds
+        self._clock = clock
+        self._entry: tuple[float, _T] | None = None  # (expires_at, value)
+        self._inflight: asyncio.Task[_T] | None = None
+
+    def reset(self) -> None:
+        """Drop any stored result and forget any in-flight computation."""
+        self._entry = None
+        self._inflight = None
+
+    async def get(self, compute: Callable[[], Awaitable[_T]]) -> _T:
+        entry = self._entry
+        if entry is not None and self._clock() < entry[0]:
+            return entry[1]
+        inflight = self._inflight
+        if (
+            inflight is None
+            or inflight.done()
+            or inflight.get_loop() is not asyncio.get_running_loop()
+        ):
+            inflight = asyncio.ensure_future(self._fill(compute))
+            self._inflight = inflight
+        # shield: one caller being cancelled does not cancel the shared round.
+        return await asyncio.shield(inflight)
+
+    async def _fill(self, compute: Callable[[], Awaitable[_T]]) -> _T:
+        try:
+            value = await compute()
+        finally:
+            if self._inflight is asyncio.current_task():
+                self._inflight = None
+        self._entry = (self._clock() + self._ttl_seconds, value)
+        return value
+
+
+async def _probe_jwks() -> CheckResult:
+    """JWKS reachability probe for /ready (promoted from /health/deps)."""
+    jwks_url = os.environ.get(
+        "AUTH_JWKS_URL",
+        "https://auth.api.autom8y.io/.well-known/jwks.json",
+    )
+    t0 = time.monotonic()
+    _jwks_config = HttpClientConfig(
+        timeout=_DEPENDENCY_PROBE_TIMEOUT_SECONDS,
+        enable_retry=False,
+        enable_circuit_breaker=False,
+    )
+    try:
+        async with Autom8yHttpClient(_jwks_config) as client:
+            async with client.raw() as raw_client:
+                response = await raw_client.get(jwks_url)
+            latency = (time.monotonic() - t0) * 1000
+            if response.status_code == 200:
+                data = response.json()
+                if "keys" in data and isinstance(data["keys"], list):
+                    return CheckResult(
+                        status=HealthStatus.OK,
+                        latency_ms=round(latency, 1),
+                    )
+                return CheckResult(
+                    status=HealthStatus.DEGRADED,
+                    latency_ms=round(latency, 1),
+                    detail={"error": "invalid_response"},
+                )
+            return CheckResult(
+                status=HealthStatus.DEGRADED,
+                latency_ms=round(latency, 1),
+                detail={"error": f"http_{response.status_code}"},
+            )
+    except TimeoutException:
+        latency = (time.monotonic() - t0) * 1000
+        return CheckResult(
+            status=HealthStatus.DEGRADED,
+            latency_ms=round(latency, 1),
+            detail={"error": "timeout"},
+        )
+    except RequestError:
+        latency = (time.monotonic() - t0) * 1000
+        return CheckResult(
+            status=HealthStatus.DEGRADED,
+            latency_ms=round(latency, 1),
+            detail={"error": "connection_error"},
+        )
+    except Exception:  # noqa: BLE001
+        latency = (time.monotonic() - t0) * 1000
+        return CheckResult(
+            status=HealthStatus.DEGRADED,
+            latency_ms=round(latency, 1),
+            detail={"error": "unexpected"},
+        )
+
+
+async def _probe_bot_pat() -> CheckResult:
+    """Bot PAT configuration presence check (local; never logs the value)."""
+    bot_pat = os.environ.get("ASANA_PAT", "")
+    if bot_pat and len(bot_pat) >= 10:
+        return CheckResult(
+            status=HealthStatus.OK,
+            detail={"configured": True},
+        )
+    return CheckResult(
+        status=HealthStatus.DEGRADED,
+        detail={"configured": False},
+    )
+
+
+async def _run_with_timeout(
+    coro: Awaitable[CheckResult],
+    timeout: float = _DEPENDENCY_PROBE_TIMEOUT_SECONDS,
+) -> CheckResult:
+    try:
+        return await asyncio.wait_for(coro, timeout=timeout)
+    except TimeoutError:
+        return CheckResult(
+            status=HealthStatus.DEGRADED,
+            detail={"error": "timeout"},
+        )
+
+
+async def _ready_jwks_round() -> CheckResult:
+    """One outbound JWKS round for /ready, bounded by the probe timeout."""
+    return await _run_with_timeout(_probe_jwks())
+
+
+_ready_jwks_cache: _SingleFlightTTLCache[CheckResult] = _SingleFlightTTLCache(
+    READY_DEPENDENCY_TTL_SECONDS
+)
+
+
+async def _ready_jwks_check() -> CheckResult:
+    """The JWKS result for /ready: cached, single-flight, never caching a raise."""
+    try:
+        return await _ready_jwks_cache.get(_ready_jwks_round)
+    except Exception:  # BROAD-CATCH: degrade, and nothing was cached
+        logger.exception("readiness_jwks_check_raised")
+        return CheckResult(
+            status=HealthStatus.DEGRADED,
+            detail={"error": "unexpected"},
+        )
+
+
+def reset_readiness_dependency_cache() -> None:
+    """Clear the /ready dependency cache. For tests."""
+    _ready_jwks_cache.reset()
+
+
 @router.get(
     "/health",
     summary="Check application liveness",
@@ -257,13 +440,7 @@ async def readiness_check() -> JSONResponse:
         - 200: All critical checks pass — service can handle requests.
         - 503: At least one critical dependency unavailable.
     """
-    import asyncio
-
-    from autom8_asana.api.health_models import (
-        CheckResult,
-        HealthStatus,
-        readiness_response,
-    )
+    from autom8_asana.api.health_models import readiness_response
 
     checks: dict[str, CheckResult] = {}
 
@@ -325,86 +502,10 @@ async def readiness_check() -> JSONResponse:
         )
 
     # --- Deep connectivity checks (SP-L3-1 D4) ---
-    # Run JWKS and PAT checks concurrently with individual 2s timeouts.
-    async def _probe_jwks() -> CheckResult:
-        """JWKS reachability probe (promoted from /health/deps)."""
-        jwks_url = os.environ.get(
-            "AUTH_JWKS_URL",
-            "https://auth.api.autom8y.io/.well-known/jwks.json",
-        )
-        t0 = time.monotonic()
-        _jwks_config = HttpClientConfig(
-            timeout=2.0, enable_retry=False, enable_circuit_breaker=False
-        )
-        try:
-            async with Autom8yHttpClient(_jwks_config) as client:
-                async with client.raw() as raw_client:
-                    response = await raw_client.get(jwks_url)
-                latency = (time.monotonic() - t0) * 1000
-                if response.status_code == 200:
-                    data = response.json()
-                    if "keys" in data and isinstance(data["keys"], list):
-                        return CheckResult(
-                            status=HealthStatus.OK,
-                            latency_ms=round(latency, 1),
-                        )
-                    return CheckResult(
-                        status=HealthStatus.DEGRADED,
-                        latency_ms=round(latency, 1),
-                        detail={"error": "invalid_response"},
-                    )
-                return CheckResult(
-                    status=HealthStatus.DEGRADED,
-                    latency_ms=round(latency, 1),
-                    detail={"error": f"http_{response.status_code}"},
-                )
-        except TimeoutException:
-            latency = (time.monotonic() - t0) * 1000
-            return CheckResult(
-                status=HealthStatus.DEGRADED,
-                latency_ms=round(latency, 1),
-                detail={"error": "timeout"},
-            )
-        except RequestError:
-            latency = (time.monotonic() - t0) * 1000
-            return CheckResult(
-                status=HealthStatus.DEGRADED,
-                latency_ms=round(latency, 1),
-                detail={"error": "connection_error"},
-            )
-        except Exception:  # noqa: BLE001
-            latency = (time.monotonic() - t0) * 1000
-            return CheckResult(
-                status=HealthStatus.DEGRADED,
-                latency_ms=round(latency, 1),
-                detail={"error": "unexpected"},
-            )
-
-    async def _probe_bot_pat() -> CheckResult:
-        """Bot PAT configuration presence check (promoted from /health/deps)."""
-        bot_pat = os.environ.get("ASANA_PAT", "")
-        if bot_pat and len(bot_pat) >= 10:
-            return CheckResult(
-                status=HealthStatus.OK,
-                detail={"configured": True},
-            )
-        return CheckResult(
-            status=HealthStatus.DEGRADED,
-            detail={"configured": False},
-        )
-
-    # Run deep probes concurrently with 2s individual timeouts
-    async def _run_with_timeout(coro: object, timeout: float = 2.0) -> CheckResult:
-        try:
-            return await asyncio.wait_for(coro, timeout=timeout)  # type: ignore[arg-type]
-        except TimeoutError:
-            return CheckResult(
-                status=HealthStatus.DEGRADED,
-                detail={"error": "timeout"},
-            )
-
+    # JWKS is outbound and comes from the single-flight TTL cache above; the
+    # bot PAT presence check is local and runs live.
     jwks_result, pat_result = await asyncio.gather(
-        _run_with_timeout(_probe_jwks()),
+        _ready_jwks_check(),
         _run_with_timeout(_probe_bot_pat()),
     )
     checks["jwks"] = jwks_result
@@ -426,7 +527,6 @@ async def readiness_check() -> JSONResponse:
     summary="Check dependency health",
     response_description="Dependency health status with per-check results",
 )
-@exempt_from_rate_limit
 async def deps_check() -> JSONResponse:
     """Dependency probe — checks JWKS reachability and bot PAT configuration.
 
@@ -447,11 +547,7 @@ async def deps_check() -> JSONResponse:
         - 200: All checks healthy or degraded (non-critical).
         - 503: At least one critical dependency unavailable.
     """
-    from autom8_asana.api.health_models import (
-        CheckResult,
-        HealthStatus,
-        deps_response,
-    )
+    from autom8_asana.api.health_models import deps_response
 
     checks: dict[str, CheckResult] = {}
 
@@ -540,6 +636,7 @@ __all__ = [
     "get_preload_detail",
     "get_preload_state",
     "is_cache_ready",
+    "reset_readiness_dependency_cache",
     "router",
     "set_cache_degraded",
     "set_cache_failed",
