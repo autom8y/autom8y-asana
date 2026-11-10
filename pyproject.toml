@@ -221,6 +221,131 @@ follow_imports = "silent"
 
 # All ignore_errors overrides removed — mypy strict enforced on all modules
 
+# Import-linter layer contracts for the D6 trigger package (TDD-asana-bench-D6-shadow-
+# receiver section 2; A C-12). CI runs them from pytest: tests/arch/test_import_contracts.py.
+# Locally: `cd src && lint-imports --config ../pyproject.toml --no-cache`.
+#
+# allow_indirect_imports = true on every contract: the contracts forbid DIRECT imports only.
+# The decide path must reach the Asana transport through trigger.ports (resolver_adapter
+# calls resolve_business_gid with ReadOnlyAsana), so a transitive check would flag the
+# design itself. The transitive guard is the runtime check in each adapter's constructor
+# (`type(client) is ReadOnlyAsana` / `WebhooksClient`), proven by fixture R-A5b.
+#
+# A forbidden contract whose source module does not exist yet is a configuration error,
+# so contracts whose sources have not landed are held in [tool.importlinter-pending]
+# below. The test fails as soon as one of their modules appears, until the contract is
+# moved here.
+[tool.importlinter]
+root_package = "autom8_asana"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+id = "trigger-aws-only-in-stores"
+name = "trigger-aws-only-in-stores"
+type = "forbidden"
+source_modules = ["autom8_asana.trigger"]
+forbidden_modules = ["boto3", "aiobotocore"]
+allow_indirect_imports = true
+# The two stores are the only AWS writers (TDD section 2). Their direct imports are the
+# exception. These lines match nothing until the stores land, so unmatched-ignore
+# alerting stays off; the PR that lands both stores sets it to "error".
+ignore_imports = [
+    "autom8_asana.trigger.hook_store -> boto3",
+    "autom8_asana.trigger.hook_store -> aiobotocore",
+    "autom8_asana.trigger.hook_registry -> boto3",
+    "autom8_asana.trigger.hook_registry -> aiobotocore",
+]
+unmatched_ignore_imports_alerting = "none"
+
+# Contracts whose source modules have not landed yet. Not read by import-linter. Each
+# entry has the same keys as a live contract, plus `lands_with`: the PR that moves it into
+# [tool.importlinter] (drop `lands_with` when moving it). The module-name patterns that
+# detect a landing are in tests/arch/test_import_contracts.py (LANDING_PATTERNS).
+#
+# Forbidden list (W P13). Paths are the real write-capable or credential surfaces here:
+#   autom8_asana.client          the full AsanaClient facade
+#   autom8_asana.clients         every resource client, including the full-CRUD
+#                                clients.webhooks, the data-service client, and
+#                                clients.data._operator_mint (operator token mint)
+#   autom8_asana.transport       the raw Asana HTTP transport behind the facade
+#   autom8_asana.batch           the /batch bulk-write client
+#   autom8_asana.persistence     the save session (Asana write orchestration)
+#   autom8_asana.auth.service_token   TokenManager service-token exchange
+#   autom8_asana.auth.business_token  per-business token exchange client
+#   autom8y_core                 holds TokenManager (external: root package only)
+#   autom8y_http                 the outbound HTTP client every service client is built on
+#   boto3, aiobotocore           AWS SDKs; the only path to SNS from this repo
+#   sqlalchemy, asyncpg, psycopg, psycopg2, pymysql, aiomysql   SQL drivers (none used today)
+#   twilio, facebook_business    Twilio and Meta SDKs (none used today)
+# No Webflow, Meta, Twilio or SNS client module exists in this repo; outbound calls to
+# them would go through autom8y_http or boto3, which are forbidden.
+[[tool.importlinter-pending.contracts]]
+id = "trigger-decide-readonly"
+name = "trigger-decide-readonly"
+type = "forbidden"
+# Goes live with only the sources that exist; later sources are added as they land.
+lands_with = "the first of A3 receiver / A4 decision engine to land one of these sources"
+source_modules = [
+    "autom8_asana.trigger.decision",
+    "autom8_asana.trigger.tag_registry",
+    "autom8_asana.trigger.sweeper",
+    "autom8_asana.trigger.resolver_adapter",
+    "autom8_asana.api.routes.asana_hook",
+]
+forbidden_modules = [
+    "autom8_asana.client",
+    "autom8_asana.clients",
+    "autom8_asana.transport",
+    "autom8_asana.batch",
+    "autom8_asana.persistence",
+    "autom8_asana.auth.service_token",
+    "autom8_asana.auth.business_token",
+    "autom8y_core",
+    "autom8y_http",
+    "boto3",
+    "aiobotocore",
+    "sqlalchemy",
+    "asyncpg",
+    "psycopg",
+    "psycopg2",
+    "pymysql",
+    "aiomysql",
+    "twilio",
+    "facebook_business",
+]
+allow_indirect_imports = true
+
+# Same forbidden list. The one allowed Asana surface, trigger.ports.WebhooksClient, is
+# not on it; the full-CRUD clients.webhooks is.
+[[tool.importlinter-pending.contracts]]
+id = "trigger-registration-webhooks-only"
+name = "trigger-registration-webhooks-only"
+type = "forbidden"
+lands_with = "A2 registration"
+source_modules = ["autom8_asana.trigger.registration"]
+forbidden_modules = [
+    "autom8_asana.client",
+    "autom8_asana.clients",
+    "autom8_asana.transport",
+    "autom8_asana.batch",
+    "autom8_asana.persistence",
+    "autom8_asana.auth.service_token",
+    "autom8_asana.auth.business_token",
+    "autom8y_core",
+    "autom8y_http",
+    "boto3",
+    "aiobotocore",
+    "sqlalchemy",
+    "asyncpg",
+    "psycopg",
+    "psycopg2",
+    "pymysql",
+    "aiomysql",
+    "twilio",
+    "facebook_business",
+]
+allow_indirect_imports = true
+
 [tool.ruff]
 line-length = 100
 target-version = "py312"

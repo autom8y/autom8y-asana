@@ -47,6 +47,7 @@ rules:
         - "**/src/autom8_asana/services/"
         - "**/src/autom8_asana/lifecycle/"
         - "**/src/autom8_asana/automation/"
+        - "**/src/autom8_asana/trigger/"
       exclude:
         - "**/tests/**"
         - "**/test_*.py"
