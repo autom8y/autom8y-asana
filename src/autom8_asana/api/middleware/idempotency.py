@@ -486,7 +486,7 @@ def _get_service_name(request: Request) -> str:
 
     Canonical SA-identity fields (same precedence rate_limit.py uses for the
     SA rate-limit namespace — ``service_account_id`` then ``client_id`` — see
-    rate_limit.py module docstring and ``_decode_jwt_sa_identity``):
+    rate_limit.py module docstring and ``_verified_identity_key``):
 
       1. ``service_account_id`` (canonical sa.yaml_id). Read from the dumped
          ``claims_dict`` for forward-compat: the validated ``ServiceClaims``
