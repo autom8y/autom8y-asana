@@ -285,8 +285,11 @@ def ensure_rate_limit_runs_after_auth(app: Starlette) -> None:
     from slowapi.middleware import SlowAPIMiddleware
 
     stack = app.user_middleware
-    rate_idx = [i for i, mw in enumerate(stack) if mw.cls is SlowAPIMiddleware]
-    auth_idx = [i for i, mw in enumerate(stack) if mw.cls is JWTAuthMiddleware]
+    # Compare as plain objects: Starlette types ``Middleware.cls`` as a
+    # factory protocol, which does not overlap a concrete middleware class.
+    classes: list[object] = [mw.cls for mw in stack]
+    rate_idx = [i for i, cls in enumerate(classes) if cls is SlowAPIMiddleware]
+    auth_idx = [i for i, cls in enumerate(classes) if cls is JWTAuthMiddleware]
     if len(rate_idx) != 1 or len(auth_idx) != 1:
         raise RuntimeError(
             "rate-limit ordering: expected exactly one SlowAPIMiddleware and one "
@@ -296,7 +299,8 @@ def ensure_rate_limit_runs_after_auth(app: Starlette) -> None:
     if rate_idx[0] > auth_idx[0]:
         return
     rate_mw = stack.pop(rate_idx[0])
-    new_auth_idx = next(i for i, mw in enumerate(stack) if mw.cls is JWTAuthMiddleware)
+    remaining: list[object] = [mw.cls for mw in stack]
+    new_auth_idx = next(i for i, cls in enumerate(remaining) if cls is JWTAuthMiddleware)
     stack.insert(new_auth_idx + 1, rate_mw)
 
 
