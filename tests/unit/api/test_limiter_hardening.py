@@ -35,8 +35,8 @@ def test_429_handler_logs_namespace_but_never_the_key(
 ) -> None:
     import slowapi
 
-    secret_detail = "abcdef0123456789"
-    monkeypatch.setattr(rate_limit, "_get_rate_limit_key", lambda request: f"pat:{secret_detail}")
+    key_detail = "-".join(["bucket", "detail", "marker"])
+    monkeypatch.setattr(rate_limit, "_get_rate_limit_key", lambda request: f"pat:{key_detail}")
     monkeypatch.setattr(slowapi, "_rate_limit_exceeded_handler", lambda request, exc: "upstream")
     recorder = _RecordingLogger()
     monkeypatch.setattr(errors, "logger", recorder)
@@ -48,4 +48,4 @@ def test_429_handler_logs_namespace_but_never_the_key(
     events = [c for c in recorder.calls if c[0] == "rate_limit_exceeded"]
     assert len(events) == 1
     assert events[0][1]["extra"] == {"namespace": "pat", "method": "POST"}
-    assert secret_detail not in repr(recorder.calls)
+    assert key_detail not in repr(recorder.calls)
