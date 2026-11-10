@@ -87,6 +87,9 @@ from .routes import (
 
 logger = get_logger(__name__)
 
+# Default idempotency store backend: passthrough (no store-and-replay).
+DEFAULT_IDEMPOTENCY_BACKEND = "noop"
+
 # ---------------------------------------------------------------------------
 # OpenAPI security classification sets (ADR-SPRINT1-001: tag-based)
 #
@@ -397,7 +400,11 @@ def create_app() -> FastAPI:
         NoopIdempotencyStore,
     )
 
-    idempotency_backend = os.environ.get("IDEMPOTENCY_STORE_BACKEND", "dynamodb")
+    # Store-and-replay is opt-in. IdempotencyMiddleware runs before request
+    # authentication in this middleware stack, so the passthrough store is the
+    # default until the middleware runs after authentication. Set
+    # IDEMPOTENCY_STORE_BACKEND=dynamodb (or memory) to opt in.
+    idempotency_backend = os.environ.get("IDEMPOTENCY_STORE_BACKEND", DEFAULT_IDEMPOTENCY_BACKEND)
     idempotency_store: DynamoDBIdempotencyStore | InMemoryIdempotencyStore | NoopIdempotencyStore
     if idempotency_backend == "dynamodb":
         table_name = os.environ.get("IDEMPOTENCY_TABLE_NAME", "autom8-idempotency-keys")
