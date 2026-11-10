@@ -22,15 +22,19 @@ Token classes
 
 Policy
 ------
-* User and operator tokens are refused on every authenticated route.
+* User and operator tokens are refused on every authenticated route. The
+  operator token is minted with the fleet audience
+  (``https://api.autom8y.io``) rather than the data-plane audience live
+  operator tokens carry: it is the worst case, not the live one.
 * Agent tokens are refused on every authenticated route except
   ``AGENT_ADMIT_ROUTES``. The route dependency is the refusing layer, which is
   why no route may rely on the JWT middleware alone.
 * An agent token never reaches a handler outside ``AGENT_ADMIT_ROUTES``, and
   never produces a server error on any route.
 * Public routes ignore any presented credential.
-* Agent expectations are strict xfails until SDK agent support lands; the
-  admission expectations are strict xfails until agent admission lands.
+* Agent and operator expectations are strict xfails until SDK support for
+  that token class lands; the admission expectations are strict xfails until
+  agent admission lands.
 
 How requests are measured
 -------------------------
@@ -418,6 +422,7 @@ _KID = "route-guard-test-kid"
 SDK_HAS_AGENT_CLAIMS = hasattr(sdk_claims, "AgentClaims")
 SDK_HAS_OPERATOR_CLAIMS = hasattr(sdk_claims, "OperatorClaims")
 _PENDING_SDK_AGENT_SUPPORT = "xfail until SDK agent support lands"
+_PENDING_SDK_OPERATOR_SUPPORT = "xfail until SDK operator support lands"
 
 
 @dataclass
@@ -509,6 +514,8 @@ def credentials(keypair: RSAKeyPairFixture) -> Credentials:
         "permissions": ["read:data", "write:data"],
         "token_type": "user_access",
     }
+    # Minted with the fleet audience on purpose: the worst case, not the
+    # audience live operator tokens carry.
     operator_claims = {
         **base,
         "sub": f"operator:{uuid.uuid4()}",
@@ -666,8 +673,10 @@ _REFUSAL_STATUSES: dict[TokenClass, frozenset[int]] = {
 _NON_AGENT_CLASS_PARAMS = [
     pytest.param(
         c,
-        marks=pytest.mark.skipif(
-            not SDK_HAS_OPERATOR_CLAIMS, reason="requires SDK operator support"
+        marks=pytest.mark.xfail(
+            condition=not SDK_HAS_OPERATOR_CLAIMS,
+            strict=True,
+            reason=_PENDING_SDK_OPERATOR_SUPPORT,
         ),
     )
     if c is TokenClass.OPERATOR_JWT
