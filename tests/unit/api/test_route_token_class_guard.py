@@ -13,32 +13,24 @@ token classes each route admits. It fails when:
 Token classes
 -------------
 ``ANONYMOUS``          no credential.
-``SERVICE_JWT``        service-to-service JWT (parses as ``ServiceClaims``).
-``ASANA_PAT``          Asana personal access token (no dots), PAT pass-through.
+``SERVICE_JWT``        service-to-service JWT.
+``ASANA_PAT``          Asana personal access token, PAT pass-through.
 ``WEBHOOK_URL_TOKEN``  the inbound webhook ``?token=`` URL token, no bearer.
+``USER_JWT``           interactive user JWT (``token_type="user_access"``).
+``OPERATOR_JWT``       machine-operator JWT (``token_type="operator_access"``).
 ``AGENT_JWT``          delegated-agent JWT (``token_type="agent_access"``).
 
-Agent policy (target state after the autom8y-auth 4.4 upgrade)
---------------------------------------------------------------
-``AGENT_JWT`` is admitted on exactly three authenticated routes
-(``AGENT_ADMIT_ROUTES``) and refused with 401 on every other authenticated
-route, before any handler runs. Agent admission is NOT implemented yet, so the
-three admit expectations are ``xfail(strict=True)``: they turn into failures
-(XPASS) the moment admission lands, which forces whoever lands it to remove the
-marker and confirm the target. Public routes ignore any presented credential
-and are outside the agent policy.
-
-Why the agent class needs its own guard
----------------------------------------
-In autom8y-auth 4.4, ``AgentClaims`` is a sibling of ``ServiceClaims`` under
-``BaseClaims``, not a subclass. ``AuthClient.validate_service_token`` refuses an
-agent token by ``isinstance``, but ``JWTAuthMiddleware`` only calls
-``validate_from_header`` and does not check the claims type. So after the
-upgrade the middleware lets an agent token through on protected paths, and the
-route's own dependency (``require_service_claims`` / ``get_auth_context``) is
-the only thing that refuses it. A route protected by the middleware alone
-(``Mechanism.MIDDLEWARE_ONLY``) would admit agents to its handler; the table
-refuses to carry such a route.
+Policy
+------
+* User and operator tokens are refused on every authenticated route.
+* Agent tokens are refused on every authenticated route except
+  ``AGENT_ADMIT_ROUTES``. The route dependency is the refusing layer, which is
+  why no route may rely on the JWT middleware alone.
+* An agent token never reaches a handler outside ``AGENT_ADMIT_ROUTES``, and
+  never produces a server error on any route.
+* Public routes ignore any presented credential.
+* Agent expectations are strict xfails until SDK agent support lands; the
+  admission expectations are strict xfails until agent admission lands.
 
 How requests are measured
 -------------------------
@@ -47,9 +39,9 @@ the real auth dependency subtrees (``get_auth_context``,
 ``require_service_claims``, ``verify_webhook_token`` and anything that depends
 on them, such as the write-authorization gate). Only the handler body and the
 route's non-auth parameters are replaced, by a sentinel that records that it
-ran. So "admitted" means the sentinel ran (200) and "refused" means it did not
-(401). No handler body runs, so no request reaches Asana or a database.
-Tokens are signed with a test RSA key; the JWKS lookup is patched to serve it.
+ran. So "admitted" means the sentinel ran and "refused" means it did not. No
+handler body runs, so no request reaches Asana or a database. Tokens are
+signed with a test RSA key; the JWKS lookup is patched to serve it.
 """
 
 from __future__ import annotations
@@ -104,6 +96,8 @@ class TokenClass(StrEnum):
     SERVICE_JWT = "service_jwt"
     ASANA_PAT = "asana_pat"
     WEBHOOK_URL_TOKEN = "webhook_url_token"
+    USER_JWT = "user_jwt"
+    OPERATOR_JWT = "operator_jwt"
     AGENT_JWT = "agent_jwt"
 
 
@@ -115,8 +109,7 @@ class Mechanism(StrEnum):
     # JWT middleware enforced AND require_service_claims in the chain.
     SERVICE_JWT = "service_jwt"
     # JWT middleware excluded, require_service_claims in the chain. The
-    # dependency alone authenticates; the middleware's business-scope
-    # precedence check does not run on this route.
+    # dependency alone authenticates this route.
     SERVICE_JWT_DEPENDENCY_ONLY = "service_jwt_dependency_only"
     # JWT middleware excluded, get_auth_context only: PAT pass-through or JWT.
     DUAL_MODE_PAT_TREE = "dual_mode_pat_tree"
@@ -126,7 +119,8 @@ class Mechanism(StrEnum):
     # JWT middleware excluded, verify_webhook_token in the chain.
     WEBHOOK_URL_TOKEN = "webhook_url_token"
     # JWT middleware enforced and NO auth dependency. Not allowed in the table:
-    # on autom8y-auth >= 4.4 the middleware admits agent tokens on its own.
+    # the route dependency is the layer that refuses agent tokens, so a route
+    # without one has nothing that refuses them.
     MIDDLEWARE_ONLY = "middleware_only"
 
 
@@ -160,7 +154,7 @@ _ANY = frozenset(TokenClass)
 # Key: "METHOD /path/template". Value: (mechanism, token classes admitted).
 # Adding a route to the app without adding it here fails the guard. Adding a
 # token class here that the route's wiring does not admit fails the guard.
-# AGENT_JWT appears only on AGENT_ADMIT_ROUTES (post-upgrade target).
+# AGENT_JWT appears only on AGENT_ADMIT_ROUTES (the admission target).
 # ---------------------------------------------------------------------------
 
 ROUTE_TOKEN_TABLE: dict[str, tuple[Mechanism, frozenset[TokenClass]]] = {
@@ -252,8 +246,8 @@ ROUTE_TOKEN_TABLE: dict[str, tuple[Mechanism, frozenset[TokenClass]]] = {
     "GET /v1/identity-supply/{offer_gid}": (Mechanism.SERVICE_JWT, _S),
 }
 
-# The post-upgrade agent admission target. Pinned separately so that widening
-# agent admission requires editing two places on purpose, not one by accident.
+# The agent admission target. Pinned separately so that widening agent
+# admission requires editing two places on purpose, not one by accident.
 AGENT_ADMIT_ROUTES: frozenset[str] = frozenset(
     {
         "POST /v1/intake/business",
@@ -262,11 +256,7 @@ AGENT_ADMIT_ROUTES: frozenset[str] = frozenset(
     }
 )
 
-_AGENT_ADMISSION_PENDING = (
-    "Target state after the autom8y-auth 4.4 upgrade: agent_access tokens are "
-    "admitted on this route. Admission is not implemented yet; remove this "
-    "marker when it lands."
-)
+_AGENT_ADMISSION_PENDING = "xfail until agent admission lands on this route"
 
 
 # ---------------------------------------------------------------------------
@@ -383,7 +373,7 @@ def test_route_mechanism_matches_the_table(walked: dict[str, RouteInfo]) -> None
 
 
 def test_no_route_is_protected_by_the_middleware_alone(walked: dict[str, RouteInfo]) -> None:
-    """A JWT-middleware-only route would admit agent tokens after the upgrade."""
+    """Every authenticated route carries a route dependency that can refuse."""
     middleware_only = sorted(
         k for k, i in walked.items() if i.mechanism is Mechanism.MIDDLEWARE_ONLY
     )
@@ -425,12 +415,18 @@ def test_agent_is_admitted_on_exactly_three_authenticated_routes() -> None:
 
 _KID = "route-guard-test-kid"
 
+SDK_HAS_AGENT_CLAIMS = hasattr(sdk_claims, "AgentClaims")
+SDK_HAS_OPERATOR_CLAIMS = hasattr(sdk_claims, "OperatorClaims")
+_PENDING_SDK_AGENT_SUPPORT = "xfail until SDK agent support lands"
+
 
 @dataclass
 class Credentials:
     service_jwt: str
-    agent_jwt_list_scope: str
-    agent_jwt_string_scope: str
+    user_jwt: str
+    operator_jwt: str
+    agent_jwt_minted: str
+    agent_jwt_alternate: str
     asana_pat: str
     webhook_url_token: str
 
@@ -482,17 +478,6 @@ def _install_sentinels(app: FastAPI, reached: Reached) -> None:
         )
 
 
-# autom8y-auth >= 4.4 parses agent tokens into ``AgentClaims``. Older releases
-# have no agent branch: a list-scope agent token fails ServiceClaims parsing
-# with a pydantic error the middleware does not catch (HTTP 500 on every path),
-# and a string-scope agent token parses AS ServiceClaims and is admitted
-# wherever a service JWT is. The agent expectations below are the post-upgrade
-# target; on an older SDK they are strict xfails, so the upgrade itself flips
-# them and any marker left behind fails loudly as XPASS.
-SDK_HAS_AGENT_CLAIMS = hasattr(sdk_claims, "AgentClaims")
-_PRE_UPGRADE = "installed autom8y-auth has no AgentClaims (pre-4.4); see SDK_HAS_AGENT_CLAIMS"
-
-
 @pytest.fixture(scope="module")
 def keypair() -> RSAKeyPairFixture:
     return RSAKeyPairFixture()
@@ -515,8 +500,25 @@ def credentials(keypair: RSAKeyPairFixture) -> Credentials:
         "business_id": business_id,
         "permissions": [],
     }
-    # Shape the auth service mints for delegated agents: scope as a JSON list.
-    agent_claims: dict[str, Any] = {
+    user_claims = {
+        **base,
+        "sub": str(uuid.uuid4()),
+        "email": "user@example.com",
+        "business_id": business_id,
+        "roles": ["admin"],
+        "permissions": ["read:data", "write:data"],
+        "token_type": "user_access",
+    }
+    operator_claims = {
+        **base,
+        "sub": f"operator:{uuid.uuid4()}",
+        "permissions": ["analytics:aggregate"],
+        "token_type": "operator_access",
+    }
+    # The two agent token forms differ only in how the delegated grants are
+    # written: "minted" is the form the auth service issues today, "alternate"
+    # is the other form the claims model accepts. Both must be treated alike.
+    agent_minted: dict[str, Any] = {
         **base,
         "sub": str(uuid.uuid4()),
         "business_id": business_id,
@@ -526,13 +528,14 @@ def credentials(keypair: RSAKeyPairFixture) -> Credentials:
         "delegation_session_id": str(uuid.uuid4()),
         "scope": ["intake:write"],
     }
-    # RFC 6749 shape the 4.4 SDK also accepts: string scope plus scopes list.
-    agent_string_scope = {**agent_claims, "scope": "intake:write", "scopes": ["intake:write"]}
+    agent_alternate = {**agent_minted, "scope": "intake:write", "scopes": ["intake:write"]}
     pem = keypair.private_key_pem
     return Credentials(
         service_jwt=create_test_token(pem, _KID, service_claims),
-        agent_jwt_list_scope=create_test_token(pem, _KID, agent_claims),
-        agent_jwt_string_scope=create_test_token(pem, _KID, agent_string_scope),
+        user_jwt=create_test_token(pem, _KID, user_claims),
+        operator_jwt=create_test_token(pem, _KID, operator_claims),
+        agent_jwt_minted=create_test_token(pem, _KID, agent_minted),
+        agent_jwt_alternate=create_test_token(pem, _KID, agent_alternate),
         asana_pat="1/" + secrets.token_hex(12),
         webhook_url_token=secrets.token_urlsafe(24),
     )
@@ -593,6 +596,16 @@ def _concrete_path(path: str) -> str:
     return re.sub(r"\{[^}]+\}", "1", path)
 
 
+def _bearer_for(token_class: TokenClass, creds: Credentials) -> str | None:
+    return {
+        TokenClass.SERVICE_JWT: creds.service_jwt,
+        TokenClass.ASANA_PAT: creds.asana_pat,
+        TokenClass.USER_JWT: creds.user_jwt,
+        TokenClass.OPERATOR_JWT: creds.operator_jwt,
+        TokenClass.AGENT_JWT: creds.agent_jwt_minted,
+    }.get(token_class)
+
+
 def _request(
     client: TestClient,
     method: str,
@@ -604,19 +617,16 @@ def _request(
 ) -> Any:
     headers: dict[str, str] = {}
     params: dict[str, str] = {}
-    if token_class is TokenClass.SERVICE_JWT:
-        headers["Authorization"] = f"Bearer {creds.service_jwt}"
-    elif token_class is TokenClass.ASANA_PAT:
-        headers["Authorization"] = f"Bearer {creds.asana_pat}"
-    elif token_class is TokenClass.AGENT_JWT:
-        headers["Authorization"] = f"Bearer {agent_token or creds.agent_jwt_list_scope}"
-    elif token_class is TokenClass.WEBHOOK_URL_TOKEN:
+    bearer = agent_token if token_class is TokenClass.AGENT_JWT and agent_token else None
+    bearer = bearer or _bearer_for(token_class, creds)
+    if bearer is not None:
+        headers["Authorization"] = f"Bearer {bearer}"
+    if token_class is TokenClass.WEBHOOK_URL_TOKEN:
         params["token"] = creds.webhook_url_token
     return client.request(method, _concrete_path(path), headers=headers, params=params)
 
 
 _ALL_KEYS = sorted(ROUTE_TOKEN_TABLE)
-_NON_AGENT_CLASSES = [c for c in TokenClass if c is not TokenClass.AGENT_JWT]
 
 
 def test_concrete_paths_route_to_their_own_route(walked_app: FastAPI) -> None:
@@ -632,7 +642,7 @@ def test_concrete_paths_route_to_their_own_route(walked_app: FastAPI) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Behavioral guard: non-agent token classes (current state == target state)
+# Behavioral guard: non-agent token classes
 #
 # One test per token class walks every route and reports every disagreement at
 # once, so a failure names all drifted routes rather than the first one.
@@ -647,13 +657,34 @@ def _outcome(response: Any, reached: Reached, path: str) -> str:
     return f"refused {response.status_code}"
 
 
-@pytest.mark.parametrize("token_class", _NON_AGENT_CLASSES, ids=str)
+# A token without a business is refused by the app's business requirement
+# before the route dependency runs; both answers are refusals at authentication.
+_REFUSAL_STATUSES: dict[TokenClass, frozenset[int]] = {
+    TokenClass.OPERATOR_JWT: frozenset({400, 401}),
+}
+
+_NON_AGENT_CLASS_PARAMS = [
+    pytest.param(
+        c,
+        marks=pytest.mark.skipif(
+            not SDK_HAS_OPERATOR_CLAIMS, reason="requires SDK operator support"
+        ),
+    )
+    if c is TokenClass.OPERATOR_JWT
+    else c
+    for c in TokenClass
+    if c is not TokenClass.AGENT_JWT
+]
+
+
+@pytest.mark.parametrize("token_class", _NON_AGENT_CLASS_PARAMS, ids=str)
 def test_non_agent_token_class_admission_matches_table(
     token_class: TokenClass,
     harness: tuple[TestClient, Reached],
     credentials: Credentials,
 ) -> None:
     client, reached = harness
+    refusal = _REFUSAL_STATUSES.get(token_class, frozenset({401}))
     disagreements: dict[str, str] = {}
     for key in _ALL_KEYS:
         method, path = key.split(" ", 1)
@@ -668,8 +699,8 @@ def test_non_agent_token_class_admission_matches_table(
             ok = status == 200 and reached == [path]
             want = "admitted"
         else:
-            ok = status == 401 and not reached
-            want = "refused 401"
+            ok = status in refusal and not reached
+            want = f"refused {sorted(refusal)}"
         if not ok:
             disagreements[key] = f"want {want}, got {_outcome(response, reached, path)}"
     assert not disagreements, f"{token_class}: {disagreements}"
@@ -677,15 +708,11 @@ def test_non_agent_token_class_admission_matches_table(
 
 # ---------------------------------------------------------------------------
 # Behavioral guard: agent tokens
-#
-# Two agent token shapes are probed. "list_scope" is the shape the auth service
-# mints today (scope as a JSON list). "string_scope" is the RFC 6749 shape
-# (string scope plus a scopes list) that the 4.4 SDK also accepts.
 # ---------------------------------------------------------------------------
 
-_AGENT_SHAPES = ["list_scope", "string_scope"]
+_AGENT_SHAPES = ["minted", "alternate"]
 
-_REFUSE_KEYS = sorted(
+_NON_ADMIT_KEYS = sorted(
     k
     for k, (m, _a) in ROUTE_TOKEN_TABLE.items()
     if m is not Mechanism.PUBLIC and k not in AGENT_ADMIT_ROUTES
@@ -694,7 +721,7 @@ _PUBLIC_KEYS = sorted(k for k, (m, _a) in ROUTE_TOKEN_TABLE.items() if m is Mech
 
 
 def _agent_token(creds: Credentials, shape: str) -> str:
-    return creds.agent_jwt_list_scope if shape == "list_scope" else creds.agent_jwt_string_scope
+    return creds.agent_jwt_minted if shape == "minted" else creds.agent_jwt_alternate
 
 
 def _agent_request(
@@ -712,85 +739,104 @@ def _agent_request(
     )
 
 
-def _shapes(*pre_upgrade_failing: str) -> list[Any]:
-    """Agent shapes, with a strict pre-upgrade xfail on the named ones.
-
-    Measured on autom8y-auth 4.1.0 (the reasons are recorded in each test).
-    On an SDK with ``AgentClaims`` the marker condition is false and every
-    shape must pass outright.
-    """
+def _shapes(*hard: str) -> list[Any]:
+    """Agent shapes. Shapes named in ``hard`` are hard checks everywhere; the
+    rest are strict xfails until SDK agent support lands."""
     return [
-        pytest.param(
+        shape
+        if shape in hard
+        else pytest.param(
             shape,
             marks=pytest.mark.xfail(
-                condition=not SDK_HAS_AGENT_CLAIMS, strict=True, reason=_PRE_UPGRADE
+                condition=not SDK_HAS_AGENT_CLAIMS,
+                strict=True,
+                reason=_PENDING_SDK_AGENT_SUPPORT,
             ),
         )
-        if shape in pre_upgrade_failing
-        else shape
         for shape in _AGENT_SHAPES
     ]
 
 
-@pytest.mark.parametrize("shape", _shapes("string_scope"))
-def test_agent_token_never_reaches_a_refuse_route_handler(
+@pytest.mark.parametrize("shape", _shapes("minted"))
+def test_agent_token_never_reaches_a_non_admit_handler(
     shape: str,
     harness: tuple[TestClient, Reached],
     credentials: Credentials,
 ) -> None:
-    """No agent token reaches a handler outside the admit set.
-
-    Pre-upgrade failure (string_scope): 4.1.0 parses the token as
-    ServiceClaims, so every service-JWT route admits it.
-    """
     client, reached = harness
     leaked = {}
-    for key in _REFUSE_KEYS:
+    for key in _NON_ADMIT_KEYS:
         response = _agent_request(client, key, credentials, shape, reached)
         if reached:
             leaked[key] = _outcome(response, reached, key.split(" ", 1)[1])
     assert not leaked, f"agent ({shape}) reached handlers: {leaked}"
 
 
-@pytest.mark.parametrize("shape", _shapes("list_scope", "string_scope"))
-def test_agent_token_is_refused_with_401_on_refuse_routes(
+@pytest.mark.parametrize("shape", _shapes("minted"))
+def test_agent_token_does_not_reach_admit_handlers_before_admission(
     shape: str,
     harness: tuple[TestClient, Reached],
     credentials: Credentials,
 ) -> None:
-    """Refusal is a clean 401 at authentication.
+    """Pins today's state on the admit routes: no agent reaches their handlers.
 
-    Pre-upgrade failures: list_scope gets HTTP 500 (an uncaught pydantic
-    error in the middleware); string_scope is admitted as a service token.
+    Remove this test in the same change that removes the admission xfail on
+    ``test_agent_token_is_admitted_on_target_routes``.
     """
     client, reached = harness
+    leaked = {}
+    for key in sorted(AGENT_ADMIT_ROUTES):
+        response = _agent_request(client, key, credentials, shape, reached)
+        if reached:
+            leaked[key] = _outcome(response, reached, key.split(" ", 1)[1])
+    assert not leaked, f"agent ({shape}) reached admit handlers before admission: {leaked}"
+
+
+@pytest.mark.parametrize("shape", _shapes())
+def test_agent_token_is_refused_with_401_on_non_admit_routes(
+    shape: str,
+    harness: tuple[TestClient, Reached],
+    credentials: Credentials,
+) -> None:
+    client, reached = harness
     wrong = {}
-    for key in _REFUSE_KEYS:
+    for key in _NON_ADMIT_KEYS:
         response = _agent_request(client, key, credentials, shape, reached)
         if response.status_code != 401 or reached:
             wrong[key] = _outcome(response, reached, key.split(" ", 1)[1])
     assert not wrong, f"agent ({shape}) not refused with 401: {wrong}"
 
 
-@pytest.mark.parametrize("shape", _shapes("list_scope"))
-def test_agent_token_on_public_routes_is_ignored(
+@pytest.mark.parametrize("shape", _shapes())
+def test_agent_token_never_causes_a_server_error(
     shape: str,
     harness: tuple[TestClient, Reached],
     credentials: Credentials,
 ) -> None:
-    """A credential presented to a public route must not break the route.
+    """Every mounted route answers an agent token without a server error.
 
-    Pre-upgrade failure (list_scope): the middleware still validates a bearer
-    token on excluded paths, and the uncaught pydantic error is HTTP 500,
-    including on /health and /ready.
+    Public routes answer exactly as they do for an anonymous request.
+    Authenticated routes outside the admit set refuse with 401 or 403. The admit
+    routes only need to avoid a server error here; their admission expectations live
+    in their own tests.
     """
     client, reached = harness
     wrong = {}
-    for key in _PUBLIC_KEYS:
+    for key in _ALL_KEYS:
+        method, path = key.split(" ", 1)
         response = _agent_request(client, key, credentials, shape, reached)
-        if response.status_code >= 400:
-            wrong[key] = f"status {response.status_code}"
-    assert not wrong, f"agent ({shape}) on public routes: {wrong}"
+        status = response.status_code
+        if key in _PUBLIC_KEYS:
+            reached.clear()
+            anonymous = _request(client, method, path, TokenClass.ANONYMOUS, credentials)
+            if status != anonymous.status_code or status >= 400:
+                wrong[key] = f"status {status}, anonymous {anonymous.status_code}"
+        elif key in AGENT_ADMIT_ROUTES:
+            if status >= 500:
+                wrong[key] = f"status {status}"
+        elif status not in (401, 403) or reached:
+            wrong[key] = _outcome(response, reached, path)
+    assert not wrong, f"agent ({shape}): {wrong}"
 
 
 @pytest.mark.parametrize("shape", _AGENT_SHAPES)
@@ -807,11 +853,7 @@ def test_agent_token_is_admitted_on_target_routes(
     harness: tuple[TestClient, Reached],
     credentials: Credentials,
 ) -> None:
-    """Admitted means: the handler ran AND the middleware saw AgentClaims.
-
-    The claims-type check keeps a pre-upgrade SDK from passing this for the
-    wrong reason (a string-scope agent token admitted as a service token).
-    """
+    """Admitted means the handler ran and the request was seen as an agent."""
     client, reached = harness
     path = key.split(" ", 1)[1]
     response = _agent_request(client, key, credentials, shape, reached)
