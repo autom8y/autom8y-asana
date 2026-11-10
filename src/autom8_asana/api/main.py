@@ -53,7 +53,7 @@ from .config import get_settings
 from .errors import register_exception_handlers
 from .lifespan import lifespan
 from .middleware import RequestIDMiddleware
-from .rate_limit import limiter
+from .rate_limit import ensure_rate_limit_runs_after_auth, limiter
 from .routes import (
     admin_router,
     dataframes_router,
@@ -537,6 +537,11 @@ def create_app() -> FastAPI:
             Middleware(IdempotencyMiddleware, store=idempotency_store),
         ],
     )
+
+    # Rate limiting must key on VERIFIED identity, so SlowAPI has to run inside
+    # JWTAuthMiddleware. The factory registers them in an order that leaves
+    # SlowAPI outside JWT; this restores the order the factory documents.
+    ensure_rate_limit_runs_after_auth(app)
 
     # Register domain-specific Prometheus metrics on the default registry.
     try:

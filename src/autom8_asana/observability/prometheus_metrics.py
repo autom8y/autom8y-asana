@@ -296,14 +296,14 @@ def record_rate_limit_429(namespace: str) -> None:
     Per observability-plan.md §1.3 (Alert A3 — SA-BUCKET-429 fires when
     namespace=='sa' rate exceeds 1/min sustained for 2min). Namespace is
     the prefix of the rate-limit key returned by
-    ``_get_rate_limit_key`` (sa / pat / ip).
+    ``_get_rate_limit_key`` (sa / jwt / pat / ip).
 
     Args:
-        namespace: Key namespace prefix ("sa" | "pat" | "ip" | "other").
+        namespace: Key namespace prefix ("sa" | "jwt" | "pat" | "ip" | "other").
             Unknown values are accepted; the dashboard surfaces them under
             the "other" tile so the operator catches unexpected key shapes.
     """
-    safe_ns = namespace if namespace in {"sa", "pat", "ip"} else "other"
+    safe_ns = namespace if namespace in {"sa", "jwt", "pat", "ip"} else "other"
     RATE_LIMIT_429_BY_NAMESPACE.labels(namespace=safe_ns).inc()
 
 

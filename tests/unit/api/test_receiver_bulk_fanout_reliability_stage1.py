@@ -50,9 +50,10 @@ import pytest
 def _make_jwt(payload: dict[str, object]) -> str:
     """Construct a syntactically valid JWT (no signature verification needed).
 
-    The rate-limit key function only DECODES the payload (it does not verify
-    signature/audience/expiry — that happens later in the route auth
-    dependency). Tests fabricate the payload to control identity claims.
+    The signature is fake. The rate-limit key function trusts the payload only
+    when it matches the verified claims on ``request.state.claims``, which the
+    unit tests supply directly. Tests fabricate the payload to control
+    identity claims.
     """
     header = (
         base64.urlsafe_b64encode(json.dumps({"alg": "RS256", "typ": "JWT"}).encode())
@@ -132,10 +133,22 @@ def _make_sa_service_token_payload(
     return payload
 
 
-def _make_request_with_auth(token: str | None = None) -> MagicMock:
-    """Construct a minimal FastAPI Request stub for the rate-limit key func."""
+def _service_claims(payload: dict[str, object]) -> object:
+    """Build SDK ``ServiceClaims`` as ``JWTAuthMiddleware`` would after verifying."""
+    from autom8y_auth import ServiceClaims
+
+    return ServiceClaims.model_validate(payload)
+
+
+def _make_request_with_auth(token: str | None = None, *, claims: object = None) -> MagicMock:
+    """Construct a minimal FastAPI Request stub for the rate-limit key func.
+
+    ``claims`` stands in for the verified claims ``JWTAuthMiddleware`` stores on
+    ``request.state.claims``. Leave it None to model an unverified request.
+    """
     req = MagicMock()
     req.headers = {"authorization": f"Bearer {token}"} if token else {}
+    req.state = SimpleNamespace(claims=claims)
     # get_remote_address inspects request.client.host
     req.client = SimpleNamespace(host="127.0.0.1")
     req.scope = {"type": "http", "client": ("127.0.0.1", 12345), "headers": []}
@@ -263,83 +276,98 @@ class TestSurfaceFRetryAfterHeader:
 
 
 class TestSurfaceERateLimitSAExemption:
-    """Surface E — SA-class JWTs route to ``sa:asana-dataframe-resolver`` namespace.
+    """Surface E — verified resolver SA JWTs route to ``sa:asana-dataframe-resolver``.
 
-    Acceptance: 'E': integration test confirms bearer token matching SA pattern
-    routes to sa: namespace bucket; per-namespace rate-limit metric labels
-    emit correctly.
+    Acceptance: 'E': a bearer token for the resolver SA routes to the sa:
+    namespace bucket; per-namespace rate-limit metric labels emit correctly.
 
     qa-adversary FG-1 fix (2026-05-31): all tests use the production-realistic
     ``ServiceTokenPayload`` claim shape via ``_make_sa_service_token_payload``.
-    The originally-shipped tests used a synthesized ``{"service_name": ...}``
-    payload that does NOT exist in production tokens — they passed against the
-    broken implementation precisely because both used the wrong claim name.
+
+    Verified-identity keying (2026-11-10): the key function reads only claims
+    the auth middleware verified for this request's own token. These unit
+    tests stand in for the middleware by placing SDK ``ServiceClaims`` on
+    ``request.state.claims``. Tokens with no verified claims never reach the
+    SA or jwt: namespaces. The full middleware-stack tests live in
+    ``test_rate_limit_verified_key.py``.
     """
 
     def test_sa_jwt_routes_to_sa_namespace(self) -> None:
-        """A production-shape SA JWT (service_account_id claim) → sa: namespace.
-
-        Constructs a ServiceTokenPayload-shaped dict matching
-        autom8y-auth claims.py:80-98 AND token_service.py:700-771 emission.
-        The canonical SA identity carrier is ``service_account_id``
-        (= sa.yaml_id), NOT ``service_name``.
-        """
+        """A verified production-shape SA JWT (service_account_id claim) → sa:."""
         from autom8_asana.api.rate_limit import (
             SA_RATE_LIMIT_NAMESPACE,
             _get_rate_limit_key,
         )
 
-        sa_jwt = _make_jwt(_make_sa_service_token_payload(yaml_id="asana-dataframe-resolver"))
-        request = _make_request_with_auth(sa_jwt)
+        payload = _make_sa_service_token_payload(yaml_id="asana-dataframe-resolver")
+        request = _make_request_with_auth(_make_jwt(payload), claims=_service_claims(payload))
 
         key = _get_rate_limit_key(request)
 
         assert key == SA_RATE_LIMIT_NAMESPACE
 
     def test_sa_jwt_business_scoped_routes_to_sa_namespace(self) -> None:
-        """Business-scoped SA token (with business_id claim) → sa: namespace.
+        """A verified business-scoped SA token (business_id claim) → sa: namespace.
 
-        Tokens issued via ``_finalise_business_issuance`` carry an additional
-        business_id claim. The rate-limit bucket selection MUST be insensitive
-        to the business_id — what matters is the service_account_id identity.
+        Bucket selection for the resolver SA is insensitive to business_id —
+        what matters is the verified service_account_id identity.
         """
         from autom8_asana.api.rate_limit import (
             SA_RATE_LIMIT_NAMESPACE,
             _get_rate_limit_key,
         )
 
-        sa_jwt = _make_jwt(
-            _make_sa_service_token_payload(
-                yaml_id="asana-dataframe-resolver",
-                business_id=str(uuid.uuid4()),
-            )
+        payload = _make_sa_service_token_payload(
+            yaml_id="asana-dataframe-resolver",
+            business_id=str(uuid.uuid4()),
         )
-        request = _make_request_with_auth(sa_jwt)
+        request = _make_request_with_auth(_make_jwt(payload), claims=_service_claims(payload))
 
         key = _get_rate_limit_key(request)
 
         assert key == SA_RATE_LIMIT_NAMESPACE
 
-    def test_non_sa_jwt_routes_to_pat_namespace(self) -> None:
-        """An SA JWT for a DIFFERENT yaml_id → pat: namespace (fallthrough).
-
-        The rate-limit key function only special-cases the
-        ``asana-dataframe-resolver`` SA. Other SAs (with different
-        service_account_id values) fall through to pat:{prefix} —
-        preserving the existing contract for non-resolver callers.
-        """
+    def test_unverified_sa_jwt_does_not_route_to_sa_namespace(self) -> None:
+        """A resolver-claiming JWT with NO verified claims → ip:, never sa:."""
         from autom8_asana.api.rate_limit import _get_rate_limit_key
 
-        other_jwt = _make_jwt(_make_sa_service_token_payload(yaml_id="some-other-sa"))
-        request = _make_request_with_auth(other_jwt)
+        sa_jwt = _make_jwt(_make_sa_service_token_payload(yaml_id="asana-dataframe-resolver"))
+        request = _make_request_with_auth(sa_jwt)
 
         key = _get_rate_limit_key(request)
 
-        assert key.startswith("pat:")
-        assert key != "sa:asana-dataframe-resolver"
+        assert key == "ip:127.0.0.1"
+
+    def test_resolver_claim_on_token_not_bound_to_verified_claims_is_not_sa(self) -> None:
+        """Verified claims for one token do not lend identity to another token.
+
+        The presented token claims the resolver identity, but the verified
+        claims on request.state belong to a different token (different sub).
+        The key must not be taken from the presented token.
+        """
+        from autom8_asana.api.rate_limit import _get_rate_limit_key
+
+        verified_payload = _make_sa_service_token_payload(yaml_id="some-other-sa")
+        presented = _make_jwt(_make_sa_service_token_payload(yaml_id="asana-dataframe-resolver"))
+        request = _make_request_with_auth(presented, claims=_service_claims(verified_payload))
+
+        key = _get_rate_limit_key(request)
+
+        assert key == "ip:127.0.0.1"
+
+    def test_non_sa_jwt_routes_to_verified_jwt_namespace(self) -> None:
+        """A verified SA JWT for a DIFFERENT yaml_id → jwt:{service_account_id}."""
+        from autom8_asana.api.rate_limit import _get_rate_limit_key
+
+        payload = _make_sa_service_token_payload(yaml_id="some-other-sa")
+        request = _make_request_with_auth(_make_jwt(payload), claims=_service_claims(payload))
+
+        key = _get_rate_limit_key(request)
+
+        assert key == "jwt:some-other-sa"
 
     def test_pat_token_routes_to_pat_namespace(self) -> None:
-        """Asana PAT (no dots) → pat:{prefix} namespace, unchanged."""
+        """Asana PAT (no dots) → pat:{keyed hash} namespace, never the raw token."""
         from autom8_asana.api.rate_limit import _get_rate_limit_key
 
         # Asana PAT format: 0/xxxxxxxx, no dots
@@ -348,6 +376,18 @@ class TestSurfaceERateLimitSAExemption:
         key = _get_rate_limit_key(request)
 
         assert key.startswith("pat:")
+        assert "0/abcdef" not in key
+
+    def test_pats_sharing_a_prefix_get_different_buckets(self) -> None:
+        """Two PATs with the same first 8 characters get different keys."""
+        from autom8_asana.api.rate_limit import _get_rate_limit_key
+
+        key_a = _get_rate_limit_key(_make_request_with_auth("1/12345678:aaaaaaaaaaaa"))
+        key_b = _get_rate_limit_key(_make_request_with_auth("1/12345678:bbbbbbbbbbbb"))
+
+        assert key_a.startswith("pat:")
+        assert key_b.startswith("pat:")
+        assert key_a != key_b
 
     def test_no_auth_falls_back_to_ip_namespace(self) -> None:
         """Unauthenticated requests fall back to ip: namespace, unchanged."""
@@ -359,12 +399,10 @@ class TestSurfaceERateLimitSAExemption:
 
         assert key.startswith("ip:")
 
-    def test_malformed_jwt_falls_back_to_pat_namespace(self) -> None:
-        """A JWT-shaped token with malformed payload silently falls through.
+    def test_malformed_jwt_falls_back_to_ip_namespace(self) -> None:
+        """A JWT-shaped token with a malformed payload and no verified claims → ip:.
 
-        Guards against AttributeError / decode errors at key-time —
-        misclassification as PAT preserves the global ceiling for that caller
-        (which then fails at the route's auth dependency anyway).
+        Guards against decode errors at key time.
         """
         from autom8_asana.api.rate_limit import _get_rate_limit_key
 
@@ -373,7 +411,7 @@ class TestSurfaceERateLimitSAExemption:
 
         key = _get_rate_limit_key(request)
 
-        assert key.startswith("pat:")
+        assert key == "ip:127.0.0.1"
 
     def test_sa_namespace_limit_string_is_high_ceiling(self) -> None:
         """SA_NAMESPACE_LIMIT exposes the high-ceiling string for route decoration.
@@ -403,122 +441,76 @@ class TestSurfaceERateLimitSAExemption:
         # Default per api/config.py:56-60
         assert result == "100/minute"
 
-    def test_is_sa_token_recognizes_production_shape_sa_jwt(self) -> None:
-        """_is_sa_token returns True for production-shape resolver SA JWT.
-
-        FG-1 anti-regression: the test JWT carries the REAL
-        ``service_account_id`` claim (per autom8y-auth claims.py:80-98),
-        NOT the synthesized ``service_name`` key that the originally-shipped
-        broken implementation also looked for. This test would FAIL against
-        the broken implementation.
-        """
-        from autom8_asana.api.rate_limit import _is_sa_token
-
-        sa_jwt = _make_jwt(_make_sa_service_token_payload(yaml_id="asana-dataframe-resolver"))
-        assert _is_sa_token(f"Bearer {sa_jwt}") is True
-
-    def test_is_sa_token_rejects_non_sa_jwt(self) -> None:
-        """_is_sa_token returns False for JWTs with other service_account_id."""
-        from autom8_asana.api.rate_limit import _is_sa_token
-
-        other_jwt = _make_jwt(_make_sa_service_token_payload(yaml_id="some-other-service"))
-        assert _is_sa_token(f"Bearer {other_jwt}") is False
-
-    def test_is_sa_token_rejects_pat(self) -> None:
-        """_is_sa_token returns False for PAT tokens (no JWT structure)."""
-        from autom8_asana.api.rate_limit import _is_sa_token
-
-        assert _is_sa_token("Bearer 0/abcdefghijklmnop") is False
-
-    def test_is_sa_token_rejects_missing_auth(self) -> None:
-        """_is_sa_token returns False when no auth header present."""
-        from autom8_asana.api.rate_limit import _is_sa_token
-
-        assert _is_sa_token("") is False
-        assert _is_sa_token("Bearer ") is False
-
     # ------------------------------------------------------------------
     # FG-1 explicit regression tests — REQUIRED by qa-adversary
     # ------------------------------------------------------------------
 
     def test_fg1_legacy_service_name_only_payload_does_not_route_to_sa(self) -> None:
-        """A token carrying ONLY a (non-emitted) service_name key → pat: namespace.
+        """A verified token carrying ONLY a (non-emitted) service_name key → not sa:.
 
         FG-1 regression: the broken sprint-1 implementation read
-        ``payload.get("service_name")`` — which would have matched a token
-        constructed with that key. This test verifies that AFTER the fix,
-        such a token (which production never emits) does NOT route to sa:
-        because the canonical ``service_account_id`` claim is absent.
-
-        This is the test that would have CAUGHT the original bug in CI.
+        ``payload.get("service_name")``. ``service_name`` is not a JWT claim,
+        so even a verified token carrying it must not route to sa:.
         """
         from autom8_asana.api.rate_limit import _get_rate_limit_key
 
-        # Synthesize a "wrong-shape" token that ONLY carries the legacy
-        # mis-named key — what the broken implementation would have matched.
-        wrong_shape_jwt = _make_jwt(
-            {
-                "sub": "service-account-uuid",
-                "service_name": "asana-dataframe-resolver",  # NOT a real JWT claim
-                "iss": "auth.api.autom8y.io",
-            }
+        wrong_shape_payload = {
+            "sub": "service-account-uuid",
+            "service_name": "asana-dataframe-resolver",  # NOT a real JWT claim
+            "iss": "auth.api.autom8y.io",
+            "exp": 9999999999,
+            "iat": 1700000000,
+        }
+        request = _make_request_with_auth(
+            _make_jwt(wrong_shape_payload), claims=_service_claims(wrong_shape_payload)
         )
-        request = _make_request_with_auth(wrong_shape_jwt)
 
         key = _get_rate_limit_key(request)
 
-        # The fixed implementation looks for service_account_id ONLY.
-        # service_name is not a JWT claim — token MUST fall through to pat:.
         assert key != "sa:asana-dataframe-resolver"
-        assert key.startswith("pat:")
+        assert key == "jwt:service-account-uuid"
 
     def test_fg1_db_fallback_token_with_null_service_account_id_falls_through(
         self,
     ) -> None:
-        """Tokens for db_fallback SA rows carry service_account_id=null.
+        """Verified db_fallback SA tokens carry service_account_id=null.
 
-        Per token_service.py:754-758 docstring: "For db_fallback rows (yaml_id
-        IS NULL), service_account_id is None. Downstream consumers that rely
-        on the claim MUST treat None as a classifier — 'satellite is not in
-        the YAML registry yet' — rather than as a validation failure."
-
-        Our receiver SA is registered in the YAML, so this case should NEVER
-        fire for asana-dataframe-resolver in production. But the bucket
-        selector MUST handle it gracefully (fall through to pat:, not crash).
+        Per token_service.py:754-758, None is a classifier ("satellite is not
+        in the YAML registry yet"), not a validation failure. The bucket
+        selector must handle it (fall through to the next identity tier, the
+        verified client_id) without crashing or routing to sa:.
         """
         from autom8_asana.api.rate_limit import _get_rate_limit_key
 
-        # yaml_id=None simulates a db_fallback issuance.
-        db_fallback_jwt = _make_jwt(_make_sa_service_token_payload(yaml_id=None))
-        request = _make_request_with_auth(db_fallback_jwt)
+        payload = _make_sa_service_token_payload(yaml_id=None)
+        request = _make_request_with_auth(_make_jwt(payload), claims=_service_claims(payload))
 
         key = _get_rate_limit_key(request)
 
-        # Null service_account_id → not the resolver → pat: fallthrough.
         assert key != "sa:asana-dataframe-resolver"
-        assert key.startswith("pat:")
+        assert key == "jwt:asana-dataframe-resolver-client"
 
     def test_fg1_jwt_with_no_identity_claims_at_all_falls_through(self) -> None:
-        """A JWT with only standard claims (sub/iss/exp) → pat: namespace.
+        """A verified JWT with only standard claims (sub/iss/exp/iat) → jwt:{sub}.
 
-        Defensive: a malformed token missing all SA identity claims must not
-        crash or accidentally route to sa: (e.g., on a None comparison bug).
+        Defensive: a token missing all SA identity claims must not crash or
+        accidentally route to sa: (e.g., on a None comparison bug).
         """
         from autom8_asana.api.rate_limit import _get_rate_limit_key
 
-        no_identity_jwt = _make_jwt(
-            {
-                "sub": str(uuid.uuid4()),
-                "iss": "https://auth.api.autom8y.io",
-                "exp": 9999999999,
-            }
-        )
-        request = _make_request_with_auth(no_identity_jwt)
+        sub = str(uuid.uuid4())
+        payload = {
+            "sub": sub,
+            "iss": "https://auth.api.autom8y.io",
+            "exp": 9999999999,
+            "iat": 1700000000,
+        }
+        request = _make_request_with_auth(_make_jwt(payload), claims=_service_claims(payload))
 
         key = _get_rate_limit_key(request)
 
         assert key != "sa:asana-dataframe-resolver"
-        assert key.startswith("pat:")
+        assert key == f"jwt:{sub}"
 
 
 # ===========================================================================
@@ -983,7 +975,8 @@ class TestSurface5RateLimit429NamespaceHandler:
         # Build an app + request with a production-shape SA JWT.
         # FG-1 fix: use service_account_id (the real claim), not the
         # synthesized service_name key that the broken sprint-1 read.
-        sa_jwt = _make_jwt(_make_sa_service_token_payload(yaml_id="asana-dataframe-resolver"))
+        sa_payload = _make_sa_service_token_payload(yaml_id="asana-dataframe-resolver")
+        sa_jwt = _make_jwt(sa_payload)
 
         # SlowAPI's default handler inspects request.app.state.limiter and
         # request.state.view_rate_limit. Provide minimal stubs that let
@@ -998,7 +991,12 @@ class TestSurface5RateLimit429NamespaceHandler:
         limiter_stub._inject_headers = lambda resp, _vrl: resp
         request.app = MagicMock()
         request.app.state = SimpleNamespace(limiter=limiter_stub)
-        request.state = SimpleNamespace(view_rate_limit=None, request_id="0011223344556677")
+        request.state = SimpleNamespace(
+            view_rate_limit=None,
+            request_id="0011223344556677",
+            # Verified claims, as JWTAuthMiddleware stores them.
+            claims=_service_claims(sa_payload),
+        )
 
         # Build a fake RateLimitExceeded with a detail attribute.
         exc = MagicMock()
