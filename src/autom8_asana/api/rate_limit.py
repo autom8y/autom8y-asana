@@ -60,7 +60,8 @@ import hmac
 import json
 import os
 import warnings
-from typing import Any
+from collections.abc import Callable
+from typing import Any, TypeVar, cast
 
 from autom8y_auth import ServiceClaims
 from autom8y_log import get_logger
@@ -241,8 +242,10 @@ def _get_rate_limit_key(request: Request) -> str:
        distinct PAT gets its own bucket, and PATs that share a prefix do not
        share a bucket. Per ADR-ASANA-002, different PATs have independent
        limits.
-    3. **IP fallback**: unauthenticated requests (e.g. ``/health``) and
-       JWT-shaped tokens that were not verified return ``"ip:{addr}"``.
+    3. **IP fallback**: unauthenticated requests (e.g. ``/docs``) and
+       JWT-shaped tokens that were not verified return ``"ip:{addr}"``. The
+       health probes (``/health``, ``/ready``, ``/health/deps``) are exempt
+       from the limiter and never reach this function.
 
     Args:
         request: FastAPI request object.
@@ -367,6 +370,26 @@ def get_limiter() -> Limiter:
     return limiter
 
 
+_HandlerT = TypeVar("_HandlerT", bound=Callable[..., Any])
+
+
+def exempt_from_rate_limit(handler: _HandlerT) -> _HandlerT:
+    """Exempt a route handler from every limit on :data:`limiter`.
+
+    A typed wrapper around ``limiter.exempt`` (slowapi's decorator is
+    unannotated). Apply it UNDER the route decorator, so the router registers
+    the exempt wrapper as the endpoint.
+
+    SlowAPI records the exemption as ``"{module}.{function name}"`` of the
+    handler and ``SlowAPIMiddleware`` matches the endpoint by that string, so
+    renaming or moving an exempt handler silently restores its limit. Pin the
+    name in a test.
+    """
+    # slowapi 0.1.9 ships Limiter.exempt without annotations; this is the one
+    # place that call is made.
+    return cast("_HandlerT", limiter.exempt(handler))  # type: ignore[no-untyped-call]
+
+
 __all__ = [
     "SA_NAMESPACE_LIMIT",
     "SA_RATE_LIMIT_NAMESPACE",
@@ -375,6 +398,7 @@ __all__ = [
     "VERIFIED_JWT_NAMESPACE",
     "_get_rate_limit_key",
     "ensure_rate_limit_runs_after_auth",
+    "exempt_from_rate_limit",
     "get_limiter",
     "limiter",
 ]

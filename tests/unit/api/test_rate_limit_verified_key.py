@@ -58,8 +58,10 @@ _KID = "rate-limit-test-kid"
 # SlowAPIMiddleware applies the default limit to it.
 _PROTECTED_PATH = "/v1/resolve/unit"
 # JWT-excluded route: the JWT middleware verifies a token if one is present
-# but lets unverifiable requests through, so they reach the limiter.
-_EXCLUDED_PATH = "/health"
+# but lets unverifiable requests through, so they reach the limiter. The
+# health probes are JWT-excluded too, but they are also exempt from the
+# limiter (D-AF3 part 1), so they cannot serve as this route.
+_EXCLUDED_PATH = "/docs"
 _CLIENT_IP = "testclient"
 
 

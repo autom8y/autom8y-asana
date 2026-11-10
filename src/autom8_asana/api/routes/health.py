@@ -36,6 +36,8 @@ from autom8y_log import get_logger
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
+from autom8_asana.api.rate_limit import exempt_from_rate_limit
+
 # Import version directly to avoid circular import
 # (api/__init__.py imports from main.py which imports routes)
 API_VERSION = "0.1.0"
@@ -44,6 +46,20 @@ SERVICE_NAME = "asana"
 logger = get_logger("autom8_asana.health")
 
 router = APIRouter(tags=["health"])
+
+# Rate-limit exemption (D-AF3 part 1).
+#
+# The three probes below are exempt from the SlowAPI limiter, so a flood of
+# other traffic from one address can never get a probe answered 429. Each
+# probe is decorated with ``@exempt_from_rate_limit`` (a typed wrapper around
+# ``limiter.exempt``) UNDER its ``@router.get``, so the router registers the
+# exempt wrapper as the endpoint.
+#
+# SlowAPI records the exemption as ``"{module}.{function name}"`` and
+# ``SlowAPIMiddleware`` matches the endpoint by that string. Renaming a probe
+# or moving it to another module silently puts it back under the limit. The
+# names are pinned by ``tests/unit/api/test_health_limiter_exempt.py``; update
+# that test in the same change as any rename.
 
 # --- Cache Readiness State (FR-004; WS-A Finding-1 fail-closed) ---
 # Three-way preload outcome model. Prior to fail-closed hardening this was a
@@ -190,6 +206,7 @@ def is_workflow_configs_registered() -> bool | None:
     summary="Check application liveness",
     response_description="Application liveness status",
 )
+@exempt_from_rate_limit
 async def health_check() -> JSONResponse:
     """Liveness probe — pure liveness, no I/O, always 200.
 
@@ -219,6 +236,7 @@ async def health_check() -> JSONResponse:
     summary="Check service readiness",
     response_description="Service readiness status with dependency connectivity",
 )
+@exempt_from_rate_limit
 async def readiness_check() -> JSONResponse:
     """Readiness probe — deep connectivity checks for critical dependencies.
 
@@ -408,6 +426,7 @@ async def readiness_check() -> JSONResponse:
     summary="Check dependency health",
     response_description="Dependency health status with per-check results",
 )
+@exempt_from_rate_limit
 async def deps_check() -> JSONResponse:
     """Dependency probe — checks JWKS reachability and bot PAT configuration.
 
