@@ -225,11 +225,13 @@ follow_imports = "silent"
 # receiver section 2; A C-12). CI runs them from pytest: tests/arch/test_import_contracts.py.
 # Locally: `cd src && lint-imports --config ../pyproject.toml --no-cache`.
 #
-# allow_indirect_imports = true on every contract: the contracts forbid DIRECT imports only.
+# allow_indirect_imports = true on the three TDD contracts: they forbid DIRECT imports only.
 # The decide path must reach the Asana transport through trigger.ports (resolver_adapter
 # calls resolve_business_gid with ReadOnlyAsana), so a transitive check would flag the
-# design itself. The transitive guard is the runtime check in each adapter's constructor
-# (`type(client) is ReadOnlyAsana` / `WebhooksClient`), proven by fixture R-A5b.
+# design itself. The planned transitive guard is a runtime check in each adapter's
+# constructor (`type(client) is ReadOnlyAsana` / `WebhooksClient`, fixture R-A5b). That
+# check is NOT in place yet: it lands with the adapters in A2 (registration) and A3
+# (receiver). Until then, the only transitive rule is trigger-no-mint-transitive below.
 #
 # A forbidden contract whose source module does not exist yet is a configuration error,
 # so contracts whose sources have not landed are held in [tool.importlinter-pending]
@@ -257,10 +259,26 @@ ignore_imports = [
 ]
 unmatched_ignore_imports_alerting = "none"
 
+# No trigger module may reach a token-mint or token-exchange client by ANY import path,
+# direct or indirect. This is the one transitive contract. Note that
+# automation.workflows.leads_consumer imports auth.business_token directly, so no trigger
+# module may import leads_consumer either.
+[[tool.importlinter.contracts]]
+id = "trigger-no-mint-transitive"
+name = "trigger-no-mint-transitive"
+type = "forbidden"
+source_modules = ["autom8_asana.trigger"]
+forbidden_modules = [
+    "autom8_asana.auth.business_token",
+    "autom8_asana.auth.service_token",
+    "autom8_asana.clients.data._operator_mint",
+]
+allow_indirect_imports = false
+
 # Contracts whose source modules have not landed yet. Not read by import-linter. Each
 # entry has the same keys as a live contract, plus `lands_with`: the PR that moves it into
-# [tool.importlinter] (drop `lands_with` when moving it). The module-name patterns that
-# detect a landing are in tests/arch/test_import_contracts.py (LANDING_PATTERNS).
+# [tool.importlinter] (drop `lands_with` when moving it). Which contract owns each trigger
+# module is declared in tests/arch/test_import_contracts.py (MODULE_CONTRACTS).
 #
 # Forbidden list (W P13). Paths are the real write-capable or credential surfaces here:
 #   autom8_asana.client          the full AsanaClient facade
