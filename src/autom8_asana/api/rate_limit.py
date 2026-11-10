@@ -59,6 +59,7 @@ import hashlib
 import hmac
 import json
 import os
+import warnings
 from typing import Any
 
 from autom8y_auth import ServiceClaims
@@ -327,11 +328,29 @@ def _get_rate_limit_string() -> str:
 # config-resolution time per LimitGroup.__iter__ (slowapi/wrappers.py:94).
 # Per-key dynamic limits are only safely supported via @limiter.limit(...)
 # decoration on routes (which goes through _dynamic_route_limits + with_request).
-limiter = Limiter(
-    key_func=_get_rate_limit_key,
-    default_limits=[_get_rate_limit_string],
-    enabled=True,
-)
+#
+# config_filename: without it, Limiter loads settings from a dotenv file in the
+# working directory whenever one exists. Limiter settings come from code and
+# the environment only, so point it at a fixed path that never exists. Starlette
+# warns once when the named file is absent; that warning is expected here.
+LIMITER_CONFIG_FILENAME = "/nonexistent/autom8-asana/slowapi-limiter-settings"
+
+
+def _build_limiter() -> Limiter:
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message=f"Config file '{LIMITER_CONFIG_FILENAME}' not found.",
+        )
+        return Limiter(
+            key_func=_get_rate_limit_key,
+            default_limits=[_get_rate_limit_string],
+            enabled=True,
+            config_filename=LIMITER_CONFIG_FILENAME,
+        )
+
+
+limiter = _build_limiter()
 
 
 def get_limiter() -> Limiter:
