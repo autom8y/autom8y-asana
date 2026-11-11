@@ -82,7 +82,9 @@ MODULE_CONTRACTS: dict[str, frozenset[str]] = {
     TRIGGER_PACKAGE: _IN_TRIGGER,
     f"{TRIGGER_PACKAGE}.hook_store": _IN_TRIGGER,
     f"{TRIGGER_PACKAGE}.hook_registry": _IN_TRIGGER,
-    f"{TRIGGER_PACKAGE}.ports": _IN_TRIGGER,
+    f"{TRIGGER_PACKAGE}.hook_environment": _IN_TRIGGER,
+    f"{TRIGGER_PACKAGE}.ports_webhooks": _IN_TRIGGER,
+    f"{TRIGGER_PACKAGE}.ports_readonly": _IN_TRIGGER,
     f"{TRIGGER_PACKAGE}.signature": _IN_TRIGGER,
     f"{TRIGGER_PACKAGE}.watched_projects": _IN_TRIGGER,
     f"{TRIGGER_PACKAGE}.liveness": _IN_TRIGGER,
@@ -351,7 +353,7 @@ def test_every_governed_module_is_mapped_and_bound() -> None:
         (f"{TRIGGER_PACKAGE}.engine", "is not in MODULE_CONTRACTS"),
         (f"{TRIGGER_PACKAGE}.decision_record", "is not in MODULE_CONTRACTS"),
         (f"{HOOK_ROUTE}", f"{DECIDE}'] is pending"),
-        (f"{TRIGGER_PACKAGE}.registration", f"{REGISTRATION}'] is pending"),
+        (f"{TRIGGER_PACKAGE}.sweeper", f"{DECIDE}'] is pending"),
     ],
 )
 def test_planted_unmapped_or_unbound_module_fails(planted: str, expected: str) -> None:
@@ -467,7 +469,7 @@ def _build_synthetic(
         _write_module(tmp_path, forbidden, '"""Forbidden stand-in."""\n')
     # Where the contract allows indirect imports, the ports adapter imports the full client:
     # an indirect path that must stay allowed. A transitive contract allows no such path.
-    ports = f"{SYNTHETIC_ROOT}.trigger.ports"
+    ports = f"{SYNTHETIC_ROOT}.trigger.ports_webhooks"
     ports_body = "".join(f"import {f}\n" for f in internal_forbidden) if allows_indirect else ""
     _write_module(tmp_path, ports, ports_body)
     _write_module(
