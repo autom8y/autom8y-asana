@@ -127,6 +127,13 @@ _SANCTIONED_IO_TO_THREAD: dict[str, str] = {
     "autom8_asana/clients/attachments.py": (
         "blocking attachment file I/O (read_bytes/open/write/close) — I/O offload"
     ),
+    # D6 webhook registration: the hook registry (DynamoDB) and hook store
+    # (Secrets Manager) adapters are synchronous boto3 clients. Each offload is one
+    # network call (get/put/conditional update/delete) — I/O, never a CPU merge
+    # (trigger/registration.py:156,177,198,209,323-389,410-543,597,625).
+    "autom8_asana/trigger/registration.py": (
+        "blocking boto3 DynamoDB/Secrets Manager calls for webhook registration — I/O offload"
+    ),
     # S3 persistence I/O via boto3 (put/get/delete/list + client init). This is the
     # SAME default-pool co-tenant the CPU gate is sized to protect, not a CPU merge
     # (storage.py:457,525,592,653,1171).
