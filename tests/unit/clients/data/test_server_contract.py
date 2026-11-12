@@ -39,7 +39,7 @@ from autom8_asana.clients.data.models import InsightsMetadata, InsightsResponse
 WIRE_FORMAT_FIXTURE = {
     "data": [
         {
-            "office_phone": "+19259998806",
+            "office_phone": "+19255550103",
             "vertical": "chiropractic",
             "spend": 1500.00,
             "leads": 25,
@@ -71,7 +71,7 @@ WIRE_FORMAT_FIXTURE = {
 WIRE_FORMAT_FIXTURE_CACHED = {
     "data": [
         {
-            "office_phone": "+19259998806",
+            "office_phone": "+19255550103",
             "vertical": "chiropractic",
             "spend": 1500.00,
             "leads": 25,
@@ -219,7 +219,7 @@ class TestClientParsesServerWireFormat:
 
         assert len(result.data) == 1
         row = result.data[0]
-        assert row["office_phone"] == "+19259998806"
+        assert row["office_phone"] == "+19255550103"
         assert row["vertical"] == "chiropractic"
         assert row["spend"] == 1500.00
         assert row["leads"] == 25

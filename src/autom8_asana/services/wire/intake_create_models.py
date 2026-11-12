@@ -95,7 +95,7 @@ class IntakeContact(BaseModel):
     phone: LeadPhoneField | None = Field(
         default=None,
         description="Phone number in E.164 format.",
-        examples=["+19259998806"],
+        examples=["+19255550103"],
     )
     timezone: str | None = Field(
         default=None,
@@ -147,7 +147,7 @@ class IntakeBusinessCreateRequest(BaseModel):
     )
     office_phone: OfficePhoneField = Field(
         description="Primary office phone number in E.164 format.",
-        examples=["+19259998806"],
+        examples=["+19255550103"],
     )
 
     # Enrichment data

@@ -39,7 +39,7 @@ class BusinessResolveRequest(BaseModel):
 
     office_phone: OfficePhoneField = Field(
         description="Office phone number in E.164 format. Primary lookup key.",
-        examples=["+19259998806"],
+        examples=["+19255550103"],
     )
     vertical: str | None = Field(
         default=None,
@@ -75,7 +75,7 @@ class BusinessResolveResponse(BaseModel):
     office_phone: OfficePhoneField | None = Field(
         default=None,
         description="Office phone echoed back for request correlation.",
-        examples=["+19259998806"],
+        examples=["+19255550103"],
     )
     vertical: str | None = Field(
         default=None, description="Resolved business vertical.", examples=["chiro"]
@@ -268,7 +268,7 @@ class BusinessByEmailResolveResponse(BaseModel):
             "Business onto the contact row. Null unless found=True. Feed this "
             "to POST /v1/resolve/business for the full business record."
         ),
-        examples=["+19259998806"],
+        examples=["+19255550103"],
     )
     vertical: str | None = Field(
         default=None,
