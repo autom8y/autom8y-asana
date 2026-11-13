@@ -71,31 +71,34 @@ def _registrar(port: Any, registry: Any, store: Any, clock: FakeClock, **kw: Any
 # ---------------------------------------------------------------------------
 
 
-def test_ra5b_full_asana_client_refused_at_construction(
+def test_full_asana_client_is_refused_at_construction(
     registry: InMemoryHookRegistry, store: InMemoryKeyHookStore, clock: FakeClock
 ) -> None:
+    """R-A5b (D6 TDD fixture or review id)."""
     full = AsanaClient.__new__(AsanaClient)
     with pytest.raises(RegistrationRefused):
         _registrar(full, registry, store, clock)
 
 
-def test_ra5b_sdk_full_crud_webhooks_client_refused(
+def test_sdk_webhooks_client_with_full_crud_is_refused(
     fake_asana: FakeAsana,
     registry: InMemoryHookRegistry,
     store: InMemoryKeyHookStore,
     clock: FakeClock,
 ) -> None:
+    """R-A5b (D6 TDD fixture or review id)."""
     with pytest.raises(RegistrationRefused):
         _registrar(sdk_client_backed_by(fake_asana), registry, store, clock)
     assert fake_asana.calls == []
 
 
-def test_ra5b_twin_narrow_port_constructs(
+def test_narrow_webhooks_port_constructs(
     port: WebhooksClient,
     registry: InMemoryHookRegistry,
     store: InMemoryKeyHookStore,
     clock: FakeClock,
 ) -> None:
+    """R-A5b twin (D6 TDD fixture or review id)."""
     assert isinstance(_registrar(port, registry, store, clock), Registrar)
 
 
@@ -124,9 +127,10 @@ async def test_register_mapped_project_goes_active(
     assert create["filters"] == [dict(TRIGGER_FILTERS[k]) for k in BOTH]
 
 
-async def test_a2_4_no_map_row_makes_zero_asana_calls(
+async def test_project_without_a_trigger_map_row_makes_zero_asana_calls(
     registrar: Registrar, fake_asana: FakeAsana, registry: InMemoryHookRegistry
 ) -> None:
+    """auth A2-4 (D6 TDD fixture or review id)."""
     project = project_with()  # no trigger-map row
     outcome = await registrar.register_project(project)
     assert outcome.status is RegistrationStatus.NO_MAP_ROW
@@ -137,16 +141,19 @@ async def test_a2_4_no_map_row_makes_zero_asana_calls(
 
 
 @pytest.mark.parametrize("kind", list(TriggerKind))
-async def test_a2_4_twin_one_kind_registers_only_that_filter(
+async def test_one_trigger_kind_registers_only_its_filter(
     kind: TriggerKind, registrar: Registrar, fake_asana: FakeAsana
 ) -> None:
+    """auth A2-4 twin (D6 TDD fixture or review id)."""
     outcome = await registrar.register_project(project_with(kind))
     assert outcome.status is RegistrationStatus.ACTIVE
     (create,) = fake_asana.create_calls()
     assert create["filters"] == [dict(TRIGGER_FILTERS[kind])]
 
 
-def test_a2_4_shipped_map_is_empty_so_nothing_registers() -> None:
+def test_shipped_trigger_map_is_empty_so_nothing_registers() -> None:
+    """auth A2-4 (D6 TDD fixture or review id)."""
+
     class Source:
         def get_primary_gid(self, entity_type: EntityType) -> str:
             return runtime_gid()
@@ -206,7 +213,7 @@ async def test_shadow_off_builds_nothing_and_calls_nothing(fake_asana: FakeAsana
     assert fake_asana.calls == []
 
 
-def test_c1_shadow_off_refuses_registrar_and_reconciler(
+def test_shadow_off_refuses_the_registrar_and_the_reconciler(
     port: WebhooksClient,
     registry: InMemoryHookRegistry,
     store: InMemoryKeyHookStore,
@@ -214,6 +221,7 @@ def test_c1_shadow_off_refuses_registrar_and_reconciler(
     registrar: Registrar,
     fake_asana: FakeAsana,
 ) -> None:
+    """warden C-1 (D6 TDD fixture or review id)."""
     with pytest.raises(ShadowRegistrationDisabled):
         _registrar(port, registry, store, clock, environ={"ASANA_HOOK_ENVIRONMENT": "test"})
     with pytest.raises(ShadowRegistrationDisabled):
@@ -221,7 +229,8 @@ def test_c1_shadow_off_refuses_registrar_and_reconciler(
     assert fake_asana.calls == []
 
 
-def test_c1_project_list_is_asset_edit_and_offer_only() -> None:
+def test_watched_projects_are_asset_edit_and_offer_only() -> None:
+    """warden C-1 (D6 TDD fixture or review id)."""
     assert WATCHED_ENTITY_TYPES == (EntityType.ASSET_EDIT, EntityType.OFFER)
     asked: list[EntityType] = []
 
@@ -235,13 +244,14 @@ def test_c1_project_list_is_asset_edit_and_offer_only() -> None:
     assert asked == [EntityType.ASSET_EDIT, EntityType.OFFER]
 
 
-async def test_c1_twin_shadow_on_builds_and_reconciles(
+async def test_shadow_on_builds_and_reconciles(
     port: WebhooksClient,
     registry: InMemoryHookRegistry,
     store: InMemoryKeyHookStore,
     clock: FakeClock,
     fake_asana: FakeAsana,
 ) -> None:
+    """warden C-1 twin (D6 TDD fixture or review id)."""
     project = project_with(TriggerKind.COMPLETION)
     reconciler = build_shadow_registration(
         environ=SHADOW_TEST_ENV,
@@ -260,7 +270,8 @@ async def test_c1_twin_shadow_on_builds_and_reconciles(
     assert len(fake_asana.create_calls()) == 1
 
 
-def test_c1_shadow_on_with_refused_marker_fails_startup() -> None:
+def test_shadow_on_with_a_refused_marker_fails_startup() -> None:
+    """warden C-1 (D6 TDD fixture or review id)."""
     with pytest.raises(HookEnvironmentRefused):
         build_shadow_registration(
             environ={"ASANA_HOOK_SHADOW_ENABLED": "1"},
@@ -469,12 +480,13 @@ async def test_registration_with_a_failing_store_never_goes_active(
 # ---------------------------------------------------------------------------
 
 
-async def test_or1_timeout_after_create_is_adopted(
+async def test_webhook_created_before_a_timeout_is_adopted(
     registrar: Registrar,
     registry: InMemoryHookRegistry,
     store: InMemoryKeyHookStore,
     fake_asana: FakeAsana,
 ) -> None:
+    """OR-1 (D6 TDD fixture or review id)."""
     fake_asana.mode = "timeout_after_create"
     project = project_with(TriggerKind.COMPLETION)
     outcome = await registrar.register_project(project)
@@ -485,13 +497,14 @@ async def test_or1_timeout_after_create_is_adopted(
     assert store.has_value(outcome.handle)
 
 
-async def test_or1_unadoptable_is_deleted_with_key_last(
+async def test_unadoptable_webhook_is_deleted_with_its_key_last(
     registrar: Registrar,
     registry: InMemoryHookRegistry,
     store: InMemoryKeyHookStore,
     fake_asana: FakeAsana,
     events: list[tuple[str, str]],
 ) -> None:
+    """OR-1 (D6 TDD fixture or review id)."""
     project = project_with(TriggerKind.COMPLETION)
     first = await registrar.register_project(project)  # holds the ACTIVE row
     fake_asana.mode = "timeout_after_create"
@@ -508,9 +521,10 @@ async def test_or1_unadoptable_is_deleted_with_key_last(
     assert all(w["target"].endswith(first.handle) for w in fake_asana.webhooks.values())
 
 
-async def test_or1_timeout_before_create_leaves_no_webhook(
+async def test_timeout_before_create_leaves_no_webhook(
     registrar: Registrar, registry: InMemoryHookRegistry, fake_asana: FakeAsana
 ) -> None:
+    """OR-1 (D6 TDD fixture or review id)."""
     fake_asana.mode = "timeout_before_create"
     outcome = await registrar.register_project(project_with(TriggerKind.COMPLETION))
     assert outcome.status is RegistrationStatus.CREATE_UNKNOWN_DELETED
@@ -519,13 +533,13 @@ async def test_or1_timeout_before_create_leaves_no_webhook(
     assert fake_asana.webhooks == {}
 
 
-async def test_or1_key_kept_while_webhook_delete_fails(
+async def test_key_is_kept_while_the_webhook_delete_fails(
     registry: InMemoryHookRegistry,
     store: InMemoryKeyHookStore,
     fake_asana: FakeAsana,
     clock: FakeClock,
 ) -> None:
-    """Key last: a failed webhook delete never leaves a live webhook without its value."""
+    """OR-1: Key last: a failed webhook delete never leaves a live webhook without its value."""
 
     async def refuse_delete(gid: str) -> None:
         raise AsanaError("refused", status_code=403)
