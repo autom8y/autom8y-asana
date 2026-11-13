@@ -118,6 +118,33 @@ def _bindings(tree: ast.AST, package: str) -> dict[str, str]:
     return bound
 
 
+def _sys_names(tree: ast.AST) -> set[str]:
+    """Local names bound to the ``sys`` module (``import sys``, ``import sys as x``)."""
+    names = {"sys"}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "sys":
+                    names.add(alias.asname or "sys")
+    return names
+
+
+def _is_dynamic_sys(node: ast.expr) -> bool:
+    """``__import__('sys')`` or ``import_module('sys')``: a call that returns ``sys``."""
+    if not isinstance(node, ast.Call):
+        return False
+    func = node.func
+    name = func.id if isinstance(func, ast.Name) else getattr(func, "attr", None)
+    return name in _DYNAMIC and "sys" in _string_arg(node)
+
+
+def _chain_base(node: ast.Attribute) -> ast.expr:
+    current: ast.expr = node
+    while isinstance(current, ast.Attribute):
+        current = current.value
+    return current
+
+
 def _chain(node: ast.Attribute) -> tuple[str | None, list[str]]:
     attrs: list[str] = []
     current: ast.expr = node
@@ -165,6 +192,7 @@ def violations(source: str, filename: str = "<planted>") -> list[str]:
     tree = ast.parse(source, filename=filename)
     package = _package_of(filename)
     bound = _bindings(tree, package)
+    sys_names = _sys_names(tree)
     owner = _enclosing_functions(tree)
     found: list[str] = []
     for node in ast.walk(tree):
@@ -190,7 +218,9 @@ def violations(source: str, filename: str = "<planted>") -> list[str]:
             if node.attr in _FORBIDDEN_ATTRIBUTES:
                 found.append(f"{line} attribute .{node.attr}")
             root, attrs = _chain(node)
-            if root == "sys" and attrs[:1] == ["modules"]:
+            if attrs[:1] == ["modules"] and (
+                root in sys_names or _is_dynamic_sys(_chain_base(node))
+            ):
                 site = (filename, owner.get(id(node), ""))
                 if site not in _SANCTIONED_MODULE_CACHE:
                     found.append(f"{line} module-cache lookup sys.modules")
@@ -203,6 +233,16 @@ def violations(source: str, filename: str = "<planted>") -> list[str]:
             name = func.id if isinstance(func, ast.Name) else getattr(func, "attr", None)
             if name not in _DYNAMIC:
                 continue
+            if (
+                name == "getattr"
+                and node.args
+                and (
+                    (isinstance(node.args[0], ast.Name) and node.args[0].id in sys_names)
+                    or _is_dynamic_sys(node.args[0])
+                )
+                and "modules" in _string_arg(node)
+            ):
+                found.append(f"{line} module-cache lookup getattr(sys, 'modules')")
             target_package = _package_kwarg(node, package)
             for value in _string_arg(node):
                 resolved = _resolve_string(value, target_package)
@@ -282,6 +322,11 @@ PLANTED = {
     "module-cache-index": "import sys\nm = sys.modules['autom8_asana.auth']\n",
     "module-cache-get": "import sys\nm = sys.modules.get('somewhere')\n",
     "module-cache-from-sys": "from sys import modules\nm = modules['x']\n",
+    "module-cache-sys-alias": "import sys as system\nm = system.modules['autom8_asana.auth']\n",
+    "module-cache-getattr": "import sys\nm = getattr(sys, 'modules')['x']\n",
+    "module-cache-getattr-alias": "import sys as s\nm = getattr(s, 'modules')['x']\n",
+    "module-cache-dunder-import": "m = __import__('sys').modules['x']\n",
+    "module-cache-import-module": "import importlib\nm = importlib.import_module('sys').modules['x']\n",
     "star-import": "from autom8_asana.errors import *\n",
     "star-import-relative": "from .hook_store import *\n",
 }
@@ -325,6 +370,8 @@ def test_clean_twin_passes() -> None:
         "from autom8_asana.errors import AsanaError\n"
         "from .hook_store import handle_fingerprint\n"
         "import boto3\n"
+        "import sys as system\n"
+        "argv = system.argv\n"
         "c = boto3.client('dynamodb')\n"
         "v = getattr(obj, 'name', None)\n"
         '"""A docstring may say AsanaClient."""\n'
