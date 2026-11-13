@@ -44,7 +44,7 @@ class MatchingQueryRequest(BaseModel):
     phone: LeadPhoneField | None = Field(
         default=None,
         description="Business phone number in E.164 format.",
-        examples=["+19259998806"],
+        examples=["+19255550103"],
     )
     email: str | None = Field(
         default=None,

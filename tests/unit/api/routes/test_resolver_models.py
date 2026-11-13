@@ -40,18 +40,18 @@ class TestResolutionCriterion:
 
     def test_phone_valid_e164(self) -> None:
         """Valid E.164 phone passes validation."""
-        crit = ResolutionCriterion(phone="+19259998806")
-        assert crit.phone == "+19259998806"
+        crit = ResolutionCriterion(phone="+19255550103")
+        assert crit.phone == "+19255550103"
 
     def test_phone_invalid_format_rejected(self) -> None:
         """Non-E.164 phone is rejected by pattern validation."""
         with pytest.raises(ValidationError):
-            ResolutionCriterion(phone="925-999-8806")
+            ResolutionCriterion(phone="925-555-0103")
 
     def test_phone_missing_plus_rejected(self) -> None:
         """Phone without leading + is rejected."""
         with pytest.raises(ValidationError):
-            ResolutionCriterion(phone="19259998806")
+            ResolutionCriterion(phone="19255550103")
 
     def test_phone_too_short_rejected(self) -> None:
         """Phone with fewer than 7 digits after + is rejected."""
@@ -65,18 +65,18 @@ class TestResolutionCriterion:
 
     def test_strip_phone_whitespace_trailing(self) -> None:
         """Trailing whitespace on phone is stripped before validation."""
-        crit = ResolutionCriterion(phone="+19259998806  ")
-        assert crit.phone == "+19259998806"
+        crit = ResolutionCriterion(phone="+19255550103  ")
+        assert crit.phone == "+19255550103"
 
     def test_strip_phone_whitespace_leading(self) -> None:
         """Leading whitespace on phone is stripped before validation."""
-        crit = ResolutionCriterion(phone="  +19259998806")
-        assert crit.phone == "+19259998806"
+        crit = ResolutionCriterion(phone="  +19255550103")
+        assert crit.phone == "+19255550103"
 
     def test_strip_phone_whitespace_newline(self) -> None:
         """Newline in phone string is stripped before validation."""
-        crit = ResolutionCriterion(phone="+19259998806\n")
-        assert crit.phone == "+19259998806"
+        crit = ResolutionCriterion(phone="+19255550103\n")
+        assert crit.phone == "+19255550103"
 
     def test_strip_contact_phone_whitespace(self) -> None:
         """contact_phone also has whitespace stripped."""
@@ -91,9 +91,9 @@ class TestResolutionCriterion:
     def test_extra_fields_allowed(self) -> None:
         """Dynamic schema columns are accepted (extra=allow)."""
         crit = ResolutionCriterion.model_validate(
-            {"phone": "+19259998806", "mrr": 500, "stripe_id": "cus_abc123"}
+            {"phone": "+19255550103", "mrr": 500, "stripe_id": "cus_abc123"}
         )
-        assert crit.phone == "+19259998806"
+        assert crit.phone == "+19255550103"
         # Extra fields accessible via model_extra
         assert crit.model_extra is not None
         assert crit.model_extra["mrr"] == 500
@@ -101,7 +101,7 @@ class TestResolutionCriterion:
 
     def test_vertical_field(self) -> None:
         """vertical field works for scope narrowing."""
-        crit = ResolutionCriterion(phone="+19259998806", vertical="chiro")
+        crit = ResolutionCriterion(phone="+19255550103", vertical="chiro")
         assert crit.vertical == "chiro"
 
     def test_offer_fields(self) -> None:
@@ -127,7 +127,7 @@ class TestResolutionRequest:
 
     def test_minimal_valid(self) -> None:
         """Request with one criterion and defaults."""
-        req = ResolutionRequest(criteria=[ResolutionCriterion(phone="+19259998806")])
+        req = ResolutionRequest(criteria=[ResolutionCriterion(phone="+19255550103")])
         assert len(req.criteria) == 1
         assert req.fields is None
         assert req.active_only is True  # FR-1 intentional default

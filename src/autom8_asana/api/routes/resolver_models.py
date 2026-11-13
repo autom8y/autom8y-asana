@@ -58,7 +58,7 @@ class ResolutionCriterion(BaseModel):
     phone: E164PhoneField | None = Field(
         default=None,
         description="E.164 formatted phone number for unit/business resolution.",
-        examples=["+19259998806"],
+        examples=["+19255550103"],
         json_schema_extra={"pattern": r"^\+[1-9]\d{6,14}$"},
     )
     vertical: str | None = Field(

@@ -29,13 +29,13 @@ class TestBusinessResolveRequest:
 
     def test_minimal_valid(self) -> None:
         """Request with only office_phone (required)."""
-        req = BusinessResolveRequest(office_phone="+19259998806")
-        assert req.office_phone == "+19259998806"
+        req = BusinessResolveRequest(office_phone="+19255550103")
+        assert req.office_phone == "+19255550103"
         assert req.vertical is None
 
     def test_with_vertical(self) -> None:
         """Request with vertical filter."""
-        req = BusinessResolveRequest(office_phone="+19259998806", vertical="chiro")
+        req = BusinessResolveRequest(office_phone="+19255550103", vertical="chiro")
         assert req.vertical == "chiro"
 
     def test_missing_office_phone_raises(self) -> None:
@@ -47,13 +47,13 @@ class TestBusinessResolveRequest:
 
     def test_frozen(self) -> None:
         """BusinessResolveRequest is frozen."""
-        req = BusinessResolveRequest(office_phone="+19259998806")
+        req = BusinessResolveRequest(office_phone="+19255550103")
         with pytest.raises(ValidationError):
             req.office_phone = "+14155551234"  # type: ignore[misc]
 
     def test_model_dump_round_trip(self) -> None:
         """model_dump -> model_validate round-trip."""
-        req = BusinessResolveRequest(office_phone="+19259998806", vertical="dental")
+        req = BusinessResolveRequest(office_phone="+19255550103", vertical="dental")
         restored = BusinessResolveRequest.model_validate(req.model_dump())
         assert restored.office_phone == req.office_phone
         assert restored.vertical == req.vertical
@@ -73,7 +73,7 @@ class TestBusinessResolveResponse:
             found=True,
             task_gid="1234567890123456",
             name="Acme Chiropractic",
-            office_phone="+19259998806",
+            office_phone="+19255550103",
             vertical="chiro",
             company_id="b1c2d3e4-f5a6-7890-bcde-f12345678901",
             has_unit=True,

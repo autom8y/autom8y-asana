@@ -142,11 +142,11 @@ class TestIntakeContact:
         contact = IntakeContact(
             name="Dr. Jane Smith",
             email="jane@acmechiro.com",
-            phone="+19259998806",
+            phone="+19255550103",
             timezone="America/Los_Angeles",
         )
         assert contact.email == "jane@acmechiro.com"
-        assert contact.phone == "+19259998806"
+        assert contact.phone == "+19255550103"
 
     def test_frozen(self) -> None:
         """IntakeContact is frozen."""
@@ -205,7 +205,7 @@ class TestIntakeBusinessCreateRequest:
         """Smallest valid request payload."""
         return {
             "name": "Acme Chiropractic",
-            "office_phone": "+19259998806",
+            "office_phone": "+19255550103",
             "contact": {"name": "Dr. Jane Smith"},
             "vertical": "chiro",
         }
@@ -214,7 +214,7 @@ class TestIntakeBusinessCreateRequest:
         """Minimal request has correct defaults."""
         req = IntakeBusinessCreateRequest.model_validate(self._minimal_payload())
         assert req.name == "Acme Chiropractic"
-        assert req.office_phone == "+19259998806"
+        assert req.office_phone == "+19255550103"
         assert req.vertical == "chiro"
         assert req.contact.name == "Dr. Jane Smith"
         # Defaults

@@ -44,14 +44,14 @@ class TestMatchingQueryRequest:
 
     def test_with_phone(self) -> None:
         """Request with phone for exact matching."""
-        req = MatchingQueryRequest(phone="+19259998806")
-        assert req.phone == "+19259998806"
+        req = MatchingQueryRequest(phone="+19255550103")
+        assert req.phone == "+19255550103"
 
     def test_with_all_identity_fields(self) -> None:
         """Request with all identity fields populated."""
         req = MatchingQueryRequest(
             name="Acme",
-            phone="+19259998806",
+            phone="+19255550103",
             email="contact@acme.com",
             domain="acme.com",
         )

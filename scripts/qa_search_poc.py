@@ -5,7 +5,7 @@ This script validates the Search Interface implementation against real Asana dat
 per TDD-search-interface requirements.
 
 Test Criteria:
-- office_phone: +19259998806
+- office_phone: +19255550103
 - vertical: chiropractic
 
 NOTE: The default DataFrame builder does NOT include custom fields.
@@ -45,7 +45,7 @@ if TYPE_CHECKING:
 OFFERS_PROJECT_GID = "1143843662099250"
 
 # Test criteria per handoff
-TEST_OFFICE_PHONE = "+19259998806"
+TEST_OFFICE_PHONE = "+19255550103"
 TEST_VERTICAL = "chiropractic"
 
 
@@ -433,7 +433,7 @@ async def test_edge_cases(
     print("\n[Edge 5] Special characters in search value")
     result = await search.find_async(
         OFFERS_PROJECT_GID,
-        {"Office Phone": "+1 (925) 999-8806"},  # Different format
+        {"Office Phone": "+1 (925) 555-0103"},  # Different format
     )
 
     results["passed"].append("special_chars_in_value_accepted")
