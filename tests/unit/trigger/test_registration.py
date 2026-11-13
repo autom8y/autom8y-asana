@@ -171,7 +171,8 @@ def test_section_move_filter_and_completion_filter_shapes() -> None:
 # ---------------------------------------------------------------------------
 
 
-async def test_c1_shadow_off_builds_nothing_and_calls_nothing(fake_asana: FakeAsana) -> None:
+async def test_shadow_off_builds_nothing_and_calls_nothing(fake_asana: FakeAsana) -> None:
+    """warden C-1, warden-bench F-6 flag variants (D6 TDD fixture or review id)."""
     built: list[str] = []
 
     def factory(name: str) -> Any:
@@ -181,10 +182,15 @@ async def test_c1_shadow_off_builds_nothing_and_calls_nothing(fake_asana: FakeAs
 
         return make
 
+    # warden-bench F-6 on #541: "true", "1 " and "1\n" are not exactly "1".
     for environ in (
         {},
         {"ASANA_HOOK_ENVIRONMENT": "production"},
         {"ASANA_HOOK_SHADOW_ENABLED": "0"},
+        {"ASANA_HOOK_SHADOW_ENABLED": "true"},
+        {"ASANA_HOOK_SHADOW_ENABLED": "1 "},
+        {"ASANA_HOOK_SHADOW_ENABLED": "1\n"},
+        {"ASANA_HOOK_SHADOW_ENABLED": "", "ASANA_HOOK_ENVIRONMENT": "test"},
     ):
         result = build_shadow_registration(
             environ=environ,
@@ -280,9 +286,10 @@ async def _handshake(
     )
 
 
-async def test_hs1_unknown_handle_is_404_without_echo(
+async def test_handshake_for_an_unknown_handle_is_404_without_echo(
     registry: InMemoryHookRegistry, store: InMemoryKeyHookStore, clock: FakeClock, hex_handle: str
 ) -> None:
+    """HS-1 (D6 TDD fixture or review id)."""
     result = await _handshake(registry, store, clock, hex_handle, runtime_hook_value())
     assert (result.status_code, result.reason, result.echo) == (
         404,
@@ -294,9 +301,10 @@ async def test_hs1_unknown_handle_is_404_without_echo(
     assert store.values == {}
 
 
-async def test_hs1_expired_pending_is_403_without_echo(
+async def test_handshake_for_an_expired_pending_handle_is_403_without_echo(
     registry: InMemoryHookRegistry, store: InMemoryKeyHookStore, clock: FakeClock, hex_handle: str
 ) -> None:
+    """HS-1 (D6 TDD fixture or review id)."""
     registry.put_pending(handle=hex_handle, resource_gid=runtime_gid(), now=int(clock()))
     clock.now += 61
     result = await _handshake(registry, store, clock, hex_handle, runtime_hook_value())
@@ -306,25 +314,27 @@ async def test_hs1_expired_pending_is_403_without_echo(
     assert record is not None and record.state is HookState.PENDING
 
 
-async def test_hs1_active_handle_is_403_without_echo(
+async def test_handshake_for_an_active_handle_is_403_without_echo(
     registrar: Registrar,
     registry: InMemoryHookRegistry,
     store: InMemoryKeyHookStore,
     clock: FakeClock,
 ) -> None:
+    """HS-1 (D6 TDD fixture or review id)."""
     outcome = await registrar.register_project(project_with(TriggerKind.COMPLETION))
     result = await _handshake(registry, store, clock, outcome.handle, runtime_hook_value())
     assert result.status_code == 403 and result.echo is None
 
 
 @pytest.mark.parametrize("header", [None, "", "short", "has a space in it ok", "x" * 257])
-async def test_hs1_malformed_header_is_403_and_leaves_pending(
+async def test_malformed_handshake_header_is_403_and_leaves_the_hook_pending(
     header: str | None,
     registry: InMemoryHookRegistry,
     store: InMemoryKeyHookStore,
     clock: FakeClock,
     hex_handle: str,
 ) -> None:
+    """HS-1 (D6 TDD fixture or review id)."""
     registry.put_pending(handle=hex_handle, resource_gid=runtime_gid(), now=int(clock()))
     result = await _handshake(registry, store, clock, hex_handle, header)
     assert (result.status_code, result.reason, result.echo) == (
@@ -336,9 +346,10 @@ async def test_hs1_malformed_header_is_403_and_leaves_pending(
     assert record is not None and record.state is HookState.PENDING
 
 
-async def test_hs1_twin_pending_echoes_and_stores(
+async def test_handshake_for_a_pending_handle_echoes_and_stores_the_value(
     registry: InMemoryHookRegistry, store: InMemoryKeyHookStore, clock: FakeClock, hex_handle: str
 ) -> None:
+    """HS-1 twin (D6 TDD fixture or review id)."""
     registry.put_pending(handle=hex_handle, resource_gid=runtime_gid(), now=int(clock()))
     value = runtime_hook_value()
     result = await _handshake(registry, store, clock, hex_handle, value)
@@ -349,9 +360,10 @@ async def test_hs1_twin_pending_echoes_and_stores(
     assert record is not None and record.state is HookState.HANDSHAKEN
 
 
-async def test_hs2_second_handshake_is_403_and_compromised(
+async def test_second_handshake_is_403_and_marks_the_hook_compromised(
     registry: InMemoryHookRegistry, store: InMemoryKeyHookStore, clock: FakeClock, hex_handle: str
 ) -> None:
+    """HS-2 (D6 TDD fixture or review id)."""
     registry.put_pending(handle=hex_handle, resource_gid=runtime_gid(), now=int(clock()))
     first = await _handshake(registry, store, clock, hex_handle, runtime_hook_value())
     second = await _handshake(registry, store, clock, hex_handle, runtime_hook_value())
@@ -366,9 +378,10 @@ async def test_hs2_second_handshake_is_403_and_compromised(
     assert [e for e in store.events if e[0] == "store_create"] == [("store_create", hex_handle)]
 
 
-async def test_hs2_twin_one_handshake_is_not_compromised(
+async def test_a_single_handshake_leaves_the_hook_handshaken(
     registry: InMemoryHookRegistry, store: InMemoryKeyHookStore, clock: FakeClock, hex_handle: str
 ) -> None:
+    """HS-2 twin (D6 TDD fixture or review id)."""
     registry.put_pending(handle=hex_handle, resource_gid=runtime_gid(), now=int(clock()))
     assert (
         await _handshake(registry, store, clock, hex_handle, runtime_hook_value())
@@ -377,10 +390,10 @@ async def test_hs2_twin_one_handshake_is_not_compromised(
     assert record is not None and record.state is HookState.HANDSHAKEN
 
 
-async def test_hs2_lost_conditional_race_is_second_handshake(
+async def test_handshake_that_loses_the_conditional_move_counts_as_the_second(
     registry: InMemoryHookRegistry, store: InMemoryKeyHookStore, clock: FakeClock, hex_handle: str
 ) -> None:
-    """A handshake that read `pending` but lost the conditional move is the second one."""
+    """HS-2: A handshake that read `pending` but lost the conditional move is the second one."""
     registry.put_pending(handle=hex_handle, resource_gid=runtime_gid(), now=int(clock()))
     real_get = registry.get_hook
     reads = {"n": 0}
@@ -401,9 +414,10 @@ async def test_hs2_lost_conditional_race_is_second_handshake(
     assert record is not None and record.state is HookState.COMPROMISED
 
 
-async def test_hs3_handshake_reads_are_consistent(
+async def test_handshake_reads_the_registry_with_consistent_reads(
     registry: InMemoryHookRegistry, store: InMemoryKeyHookStore, clock: FakeClock, hex_handle: str
 ) -> None:
+    """HS-3 (D6 TDD fixture or review id)."""
     registry.put_pending(handle=hex_handle, resource_gid=runtime_gid(), now=int(clock()))
     seen: list[dict[str, Any]] = []
     real = registry._client.get_item
@@ -418,9 +432,10 @@ async def test_hs3_handshake_reads_are_consistent(
     assert seen and all(call["ConsistentRead"] is True for call in seen)
 
 
-async def test_hs4_store_failure_is_500_no_echo_failed(
+async def test_handshake_store_failure_is_500_with_no_echo_and_marks_failed(
     registry: InMemoryHookRegistry, clock: FakeClock, hex_handle: str
 ) -> None:
+    """HS-4, A C-2 (D6 TDD fixture or review id)."""
     failing = InMemoryKeyHookStore(environ={"ASANA_HOOK_ENVIRONMENT": "test"}, fail_create=True)
     registry.put_pending(handle=hex_handle, resource_gid=runtime_gid(), now=int(clock()))
     result = await _handshake(registry, failing, clock, hex_handle, runtime_hook_value())
@@ -433,9 +448,10 @@ async def test_hs4_store_failure_is_500_no_echo_failed(
     assert record is not None and record.state is HookState.FAILED
 
 
-async def test_hs4_registration_with_failing_store_never_goes_active(
+async def test_registration_with_a_failing_store_never_goes_active(
     port: WebhooksClient, registry: InMemoryHookRegistry, clock: FakeClock, fake_asana: FakeAsana
 ) -> None:
+    """HS-4 (D6 TDD fixture or review id)."""
     failing = InMemoryKeyHookStore(environ={"ASANA_HOOK_ENVIRONMENT": "test"}, fail_create=True)
     fake_asana.store = failing
     reg = _registrar(port, registry, failing, clock)
@@ -551,6 +567,63 @@ async def test_reconciler_skips_when_lease_held(
     assert (await reconciler.run_once()).ran, "an expired lease is taken over"
 
 
+class _Boom(RuntimeError):
+    pass
+
+
+async def test_run_forever_releases_the_lease_on_an_unexpected_exception(
+    registrar: Registrar, registry: InMemoryHookRegistry, clock: FakeClock
+) -> None:
+    """warden-bench F-6: an exception ends run_forever, and the lease is released anyway."""
+    import asyncio
+
+    reconciler = Reconciler(
+        registrar=registrar,
+        registry=registry,
+        projects=(project_with(TriggerKind.COMPLETION),),
+        clock=clock,
+        environ=SHADOW_TEST_ENV,
+    )
+
+    async def explode() -> Any:
+        assert registry.acquire_lease(owner=reconciler.owner, now=int(clock()), duration_s=360)
+        raise _Boom("unexpected")
+
+    reconciler.run_once = explode  # type: ignore[method-assign]
+    with pytest.raises(_Boom):
+        await reconciler.run_forever(asyncio.Event())
+    # Released: another owner takes it at once, without waiting for expiry.
+    assert registry.acquire_lease(owner="next-task", now=int(clock()), duration_s=360)
+
+
+async def test_run_forever_releases_the_lease_on_a_clean_stop(
+    registrar: Registrar, registry: InMemoryHookRegistry, clock: FakeClock
+) -> None:
+    """warden-bench F-6 twin (D6 TDD fixture or review id)."""
+    import asyncio
+
+    reconciler = Reconciler(
+        registrar=registrar, registry=registry, projects=(), clock=clock, environ=SHADOW_TEST_ENV
+    )
+    stop = asyncio.Event()
+
+    async def once_then_stop() -> Any:
+        assert registry.acquire_lease(owner=reconciler.owner, now=int(clock()), duration_s=360)
+        stop.set()
+
+    reconciler.run_once = once_then_stop  # type: ignore[method-assign]
+    await reconciler.run_forever(stop)
+    assert registry.acquire_lease(owner="next-task", now=int(clock()), duration_s=360)
+
+
+async def test_a_held_lease_blocks_another_owner(
+    registry: InMemoryHookRegistry, clock: FakeClock
+) -> None:
+    """warden-bench F-6 teeth: Without a release, the next owner is refused until expiry: the probe has teeth."""
+    assert registry.acquire_lease(owner="first", now=int(clock()), duration_s=360)
+    assert not registry.acquire_lease(owner="next-task", now=int(clock()), duration_s=360)
+
+
 async def test_reconcile_replaces_unhealthy_hook_and_retires_old(
     registrar: Registrar,
     registry: InMemoryHookRegistry,
@@ -612,6 +685,28 @@ async def test_reconcile_retires_our_stale_orphan(
     assert orphan not in fake_asana.webhooks
     record = registry.get_hook(hex_handle)
     assert record is not None and record.state is HookState.REMOVED
+
+
+def test_registration_never_logs_the_handle() -> None:
+    """auth-bench A3-1: no logger call in registration passes the handle as a value.
+
+    Log lines carry ``handle_fp`` (hook_store.handle_fingerprint), never the handle.
+    """
+    tree = ast.parse(Path(registration_module.__file__).read_text())
+    calls = 0
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+            if getattr(node.func.value, "id", None) == "logger":
+                calls += 1
+                for value in ast.walk(node):
+                    if isinstance(value, ast.Dict):
+                        for key, item in zip(value.keys, value.values):
+                            if isinstance(item, ast.Name) and item.id in ("handle", "active"):
+                                raise AssertionError(ast.unparse(node))
+                            assert not (isinstance(key, ast.Constant) and key.value == "handle"), (
+                                ast.unparse(node)
+                            )
+    assert calls > 10, "positive control: the scan saw registration's logger calls"
 
 
 def test_handshake_value_never_logged() -> None:

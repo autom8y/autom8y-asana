@@ -24,9 +24,11 @@ Current routes:
 - Intake create router (/v1/intake/business, /v1/intake/route) - S2S only (business creation + routing)
 - Matching router (/v1/matching/query) - S2S only (business matching, hidden from schema)
 - Identity supply router (/v1/identity-supply/{offer_gid}) - S2S only (id-walk evidence read)
+- Asana hook router (/api/v1/webhooks/asana/{handle}) - Asana webhook HMAC only (D6 shadow, dark)
 """
 
 from .admin import router as admin_router
+from .asana_hook import router as asana_hook_router
 from .dataframes import router as dataframes_router
 from .entity_write import router as entity_write_router
 from .exports import (
@@ -61,6 +63,7 @@ from .workspaces import router as workspaces_router
 
 __all__ = [
     "admin_router",
+    "asana_hook_router",
     "dataframes_router",
     "entity_write_router",
     "exports_router_api_v1",

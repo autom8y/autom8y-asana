@@ -24,7 +24,11 @@ What these tests hold:
   whose contract is still pending fails the suite until the contract is moved into
   ``[tool.importlinter]``. An absent external forbidden package must be one of the
   declared known-absent names, so a misspelled name cannot sit unbound.
+* Every forbidden list is pinned name by name (auth-bench A3-5), so deleting
+  ``botocore`` or the bot-token module from a contract fails the suite.
 * If import-linter is not installed these tests FAIL; they never skip.
+
+Since A3 every contract is live; ``[tool.importlinter-pending]`` is empty.
 
 Every import-linter run is a subprocess on the current interpreter with an explicit
 ``PYTHONPATH``, so the graph is built from this checkout's ``src/`` and no conftest fixture
@@ -85,7 +89,10 @@ MODULE_CONTRACTS: dict[str, frozenset[str]] = {
     f"{TRIGGER_PACKAGE}.hook_environment": _IN_TRIGGER,
     f"{TRIGGER_PACKAGE}.ports_webhooks": _IN_TRIGGER,
     f"{TRIGGER_PACKAGE}.ports_readonly": _IN_TRIGGER,
-    f"{TRIGGER_PACKAGE}.signature": _IN_TRIGGER,
+    # A3: the route's request path. Listed in trigger-decide-readonly as well, a tightening
+    # of the TDD section 2 table (see pyproject.toml).
+    f"{TRIGGER_PACKAGE}.signature": _IN_TRIGGER | {DECIDE},
+    f"{TRIGGER_PACKAGE}.receiver": _IN_TRIGGER | {DECIDE},
     f"{TRIGGER_PACKAGE}.watched_projects": _IN_TRIGGER,
     f"{TRIGGER_PACKAGE}.liveness": _IN_TRIGGER,
     f"{TRIGGER_PACKAGE}.registration": _IN_TRIGGER | {REGISTRATION},
@@ -112,6 +119,49 @@ KNOWN_ABSENT_EXTERNALS = frozenset(
         "facebook_business",
     }
 )
+
+# auth-bench A3-5: every forbidden list, pinned name by name. Deleting an entry from a
+# contract in pyproject.toml (botocore, the bot-token module, anything) fails
+# test_forbidden_lists_are_pinned; adding one means adding it here in the same change.
+_W_P13_FORBIDDEN = frozenset(
+    {
+        "autom8_asana.client",
+        "autom8_asana.clients",
+        "autom8_asana.transport",
+        "autom8_asana.batch",
+        "autom8_asana.persistence",
+        "autom8_asana.auth.service_token",
+        "autom8_asana.auth.business_token",
+        "autom8_asana.auth.bot_pat",
+        "autom8y_core",
+        "autom8y_http",
+        "boto3",
+        "botocore",
+        "aiobotocore",
+        "sqlalchemy",
+        "asyncpg",
+        "psycopg",
+        "psycopg2",
+        "pymysql",
+        "aiomysql",
+        "twilio",
+        "facebook_business",
+    }
+)
+PINNED_FORBIDDEN: dict[str, frozenset[str]] = {
+    AWS: frozenset({"boto3", "botocore", "aiobotocore"}),
+    NO_MINT: frozenset(
+        {
+            "autom8_asana.auth.business_token",
+            "autom8_asana.auth.service_token",
+            "autom8_asana.clients.data._operator_mint",
+        }
+    ),
+    REGISTRATION: _W_P13_FORBIDDEN,
+    DECIDE: _W_P13_FORBIDDEN,
+}
+# The names auth-bench A3-5 called out, asserted on their own so a reader sees them.
+CALLED_OUT_NAMES = frozenset({"botocore", "autom8_asana.auth.bot_pat"})
 
 _PENDING_ONLY_KEYS = frozenset({"lands_with"})
 _BROKEN_PAIR = re.compile(r"^(\S+) is not allowed to import (\S+):$", re.MULTILINE)
@@ -248,6 +298,32 @@ def test_contract_set_matches_design() -> None:
         )
 
 
+def test_forbidden_lists_are_pinned() -> None:
+    """auth-bench A3-5: each contract's forbidden list equals its pinned set, exactly."""
+    _require_import_linter()
+    by_name = {c["name"]: c for c in _all_contracts()}
+    assert set(by_name) == set(PINNED_FORBIDDEN)
+    for name, pinned in PINNED_FORBIDDEN.items():
+        listed = by_name[name]["forbidden_modules"]
+        assert len(listed) == len(set(listed)), f"{name}: duplicate forbidden entry"
+        assert set(listed) == pinned, (
+            f"{name}: missing {sorted(pinned - set(listed))}, "
+            f"unexpected {sorted(set(listed) - pinned)}"
+        )
+    for name in (REGISTRATION, DECIDE):
+        assert set(by_name[name]["forbidden_modules"]) >= CALLED_OUT_NAMES, name
+
+
+@pytest.mark.parametrize("dropped", sorted(CALLED_OUT_NAMES | {"boto3", "autom8_asana.clients"}))
+def test_dropping_a_forbidden_name_is_detected(dropped: str) -> None:
+    """Teeth for A3-5: a decide contract missing one pinned name fails the pin check."""
+    contract = next(c for c in _all_contracts() if c["name"] == DECIDE)
+    weakened = [m for m in contract["forbidden_modules"] if m != dropped]
+    assert len(weakened) == len(contract["forbidden_modules"]) - 1, dropped
+    assert set(weakened) != PINNED_FORBIDDEN[DECIDE]
+    assert set(contract["forbidden_modules"]) == PINNED_FORBIDDEN[DECIDE], "twin: real list"
+
+
 def test_no_wildcard_source_expressions() -> None:
     """A wildcard source that matches nothing resolves to no modules, a vacuous pass."""
     _require_import_linter()
@@ -352,10 +428,13 @@ def test_every_governed_module_is_mapped_and_bound() -> None:
     [
         (f"{TRIGGER_PACKAGE}.engine", "is not in MODULE_CONTRACTS"),
         (f"{TRIGGER_PACKAGE}.decision_record", "is not in MODULE_CONTRACTS"),
-        (f"{HOOK_ROUTE}", f"{DECIDE}'] is pending"),
-        (f"{TRIGGER_PACKAGE}.sweeper", f"{DECIDE}'] is pending"),
+        # Since A3 the decide contract is live: an A4 module that lands without being added
+        # to its sources is flagged by coverage, not by a pending contract.
+        (f"{TRIGGER_PACKAGE}.decision", f"MODULE_CONTRACTS declares ['{AWS}', '{DECIDE}'"),
+        (f"{TRIGGER_PACKAGE}.resolver_adapter", "covered by live contracts"),
     ],
 )
+@pytest.mark.subprocess
 def test_planted_unmapped_or_unbound_module_fails(planted: str, expected: str) -> None:
     """A planted module is flagged; the real tree without it is the clean twin."""
     _require_import_linter()

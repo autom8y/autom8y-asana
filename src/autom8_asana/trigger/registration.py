@@ -7,7 +7,14 @@ asana-webhook-hook-custody-20261110 (write-once value, key deleted last).
 DARK. Nothing in production constructs these objects in this PR. :class:`Registrar` and
 :class:`Reconciler` refuse to construct unless ``ASANA_HOOK_SHADOW_ENABLED`` is exactly
 ``"1"``, and :func:`build_shadow_registration` returns ``None`` with the flag off, before
-it calls any factory. The HTTP route that calls :func:`handle_handshake` lands in A3.
+it calls any factory. The HTTP route that calls :func:`handle_handshake` landed in A3
+(``api/routes/asana_hook.py``, through ``trigger.receiver``), behind the same flag.
+
+The handle is never logged (auth-bench A3-1): every log line here carries
+``handle_fp``, a short one-way digest (``hook_store.handle_fingerprint``).
+
+``Reconciler.run_forever`` releases its lease however it ends, including on an unexpected
+exception (warden-bench F-6 on #541).
 
 Registration sequence (section 3):
 
@@ -53,7 +60,7 @@ from autom8_asana.trigger.hook_registry import (
     HookRegistryError,
     HookState,
 )
-from autom8_asana.trigger.hook_store import HookStoreError
+from autom8_asana.trigger.hook_store import HookStoreError, handle_fingerprint
 from autom8_asana.trigger.ports_webhooks import (
     WebhookCallFailed,
     WebhookCallOutcomeUnknown,
@@ -157,9 +164,9 @@ async def _flag_compromised(registry: HookRegistryPort, handle: str, now: int) -
     except HookRegistryError as exc:
         logger.error(
             "hook_handshake_compromise_mark_failed",
-            extra={"handle": handle, "error_type": type(exc).__name__},
+            extra={"handle_fp": handle_fingerprint(handle), "error_type": type(exc).__name__},
         )
-    logger.error("hook_handshake_compromised", extra={"handle": handle})
+    logger.error("hook_handshake_compromised", extra={"handle_fp": handle_fingerprint(handle)})
 
 
 async def handle_handshake(
@@ -176,21 +183,31 @@ async def handle_handshake(
     # Consistent read: a handshake resolves on any task, never from a snapshot (HS-3).
     record = await asyncio.to_thread(registry.get_hook, handle, consistent=True)
     if record is None:
-        logger.warning("hook_handshake_refused", extra={"handle": handle, "reason": "unknown"})
+        logger.warning(
+            "hook_handshake_refused",
+            extra={"handle_fp": handle_fingerprint(handle), "reason": "unknown"},
+        )
         return HandshakeResult(404, HandshakeReason.UNKNOWN_HANDLE)
     if record.handshaken_at is not None or record.state in (HookState.HANDSHAKEN, HookState.ACTIVE):
         if record.state not in (HookState.COMPROMISED, HookState.REMOVED):
             await _flag_compromised(registry, handle, now)
         return HandshakeResult(403, HandshakeReason.SECOND_HANDSHAKE)
     if record.state is not HookState.PENDING:
-        logger.warning("hook_handshake_refused", extra={"handle": handle, "reason": "not_pending"})
+        logger.warning(
+            "hook_handshake_refused",
+            extra={"handle_fp": handle_fingerprint(handle), "reason": "not_pending"},
+        )
         return HandshakeResult(403, HandshakeReason.NOT_PENDING)
     if now >= record.expires_at:
-        logger.warning("hook_handshake_refused", extra={"handle": handle, "reason": "expired"})
+        logger.warning(
+            "hook_handshake_refused",
+            extra={"handle_fp": handle_fingerprint(handle), "reason": "expired"},
+        )
         return HandshakeResult(403, HandshakeReason.EXPIRED)
     if hook_header is None or not HOOK_HEADER_PATTERN.fullmatch(hook_header):
         logger.warning(
-            "hook_handshake_refused", extra={"handle": handle, "reason": "header_invalid"}
+            "hook_handshake_refused",
+            extra={"handle_fp": handle_fingerprint(handle), "reason": "header_invalid"},
         )
         return HandshakeResult(403, HandshakeReason.HEADER_INVALID)
 
@@ -217,18 +234,21 @@ async def handle_handshake(
         # BROAD-CATCH: fail-closed -- ANY store failure is `failed`, 500, no echo (A C-2).
         logger.error(
             "hook_handshake_store_failed",
-            extra={"handle": handle, "error_type": type(exc).__name__},
+            extra={"handle_fp": handle_fingerprint(handle), "error_type": type(exc).__name__},
         )
         try:
             await asyncio.to_thread(registry.mark_failed, handle=handle, now=now)
         except HookRegistryError as mark_exc:
             logger.error(
                 "hook_handshake_fail_mark_failed",
-                extra={"handle": handle, "error_type": type(mark_exc).__name__},
+                extra={
+                    "handle_fp": handle_fingerprint(handle),
+                    "error_type": type(mark_exc).__name__,
+                },
             )
         return HandshakeResult(500, HandshakeReason.STORE_FAILED)
 
-    logger.info("hook_handshake_echoed", extra={"handle": handle})
+    logger.info("hook_handshake_echoed", extra={"handle_fp": handle_fingerprint(handle)})
     return HandshakeResult(200, HandshakeReason.ECHOED, echo=hook_header)
 
 
@@ -327,8 +347,13 @@ class Registrar:
             try:
                 await asyncio.to_thread(self._registry.mark_removed, handle=handle, now=self._now())
             except HookRegistryConflict:
-                logger.warning("hook_retire_mark_conflict", extra={"handle": handle})
-        logger.info("hook_retired", extra={"handle": handle, "webhook_gid": webhook_gid})
+                logger.warning(
+                    "hook_retire_mark_conflict", extra={"handle_fp": handle_fingerprint(handle)}
+                )
+        logger.info(
+            "hook_retired",
+            extra={"handle_fp": handle_fingerprint(handle), "webhook_gid": webhook_gid},
+        )
 
     # -- create ---------------------------------------------------------------
 
@@ -354,7 +379,11 @@ class Registrar:
         except (WebhookCallOutcomeUnknown, TimeoutError) as exc:
             logger.warning(
                 "hook_create_unknown",
-                extra={"handle": handle, "project_gid": gid, "error_type": type(exc).__name__},
+                extra={
+                    "handle_fp": handle_fingerprint(handle),
+                    "project_gid": gid,
+                    "error_type": type(exc).__name__,
+                },
             )
             await asyncio.to_thread(
                 self._registry.mark_create_unknown, handle=handle, now=self._now()
@@ -364,7 +393,11 @@ class Registrar:
             # Definite refusal: Asana holds no webhook for this handle.
             logger.error(
                 "hook_create_refused",
-                extra={"handle": handle, "project_gid": gid, "status_code": exc.status_code},
+                extra={
+                    "handle_fp": handle_fingerprint(handle),
+                    "project_gid": gid,
+                    "status_code": exc.status_code,
+                },
             )
             await self._fail_without_webhook(handle)
             return RegistrationOutcome(gid, handle, RegistrationStatus.FAILED)
@@ -382,7 +415,9 @@ class Registrar:
             try:
                 await asyncio.to_thread(self._registry.mark_failed, handle=handle, now=self._now())
             except HookRegistryConflict:
-                logger.warning("hook_fail_mark_conflict", extra={"handle": handle})
+                logger.warning(
+                    "hook_fail_mark_conflict", extra={"handle_fp": handle_fingerprint(handle)}
+                )
             # The handshake stored a value but Asana refused the create: no webhook will
             # ever use it.
             if record.handshaken_at is not None:
@@ -416,7 +451,11 @@ class Registrar:
         ):
             logger.error(
                 "hook_confirm_mismatch",
-                extra={"handle": handle, "project_gid": gid, "webhook_gid": webhook_gid},
+                extra={
+                    "handle_fp": handle_fingerprint(handle),
+                    "project_gid": gid,
+                    "webhook_gid": webhook_gid,
+                },
             )
             await self.retire(handle, webhook_gid)
             return RegistrationOutcome(gid, handle, RegistrationStatus.CONFIRM_MISMATCH)
@@ -428,7 +467,8 @@ class Registrar:
         except HookStoreError as exc:
             # The tag is metadata, never used for verification; webhook_gid is in D-1.
             logger.warning(
-                "hook_tag_failed", extra={"handle": handle, "error_type": type(exc).__name__}
+                "hook_tag_failed",
+                extra={"handle_fp": handle_fingerprint(handle), "error_type": type(exc).__name__},
             )
 
         try:
@@ -443,11 +483,16 @@ class Registrar:
             )
         except HookRegistryConflict:
             # Another hook holds the project's ACTIVE row (W F-6b): this one goes.
-            logger.error("hook_activate_conflict", extra={"handle": handle, "project_gid": gid})
+            logger.error(
+                "hook_activate_conflict",
+                extra={"handle_fp": handle_fingerprint(handle), "project_gid": gid},
+            )
             await self.retire(handle, webhook_gid)
             return RegistrationOutcome(gid, handle, RegistrationStatus.ACTIVE_CONFLICT)
 
-        logger.info("hook_active", extra={"handle": handle, "project_gid": gid})
+        logger.info(
+            "hook_active", extra={"handle_fp": handle_fingerprint(handle), "project_gid": gid}
+        )
         if replacing is not None and replacing != handle:
             old = await asyncio.to_thread(self._registry.get_hook, replacing, consistent=True)
             await self.retire(replacing, old.webhook_gid if old is not None else None)
@@ -509,7 +554,10 @@ class Registrar:
         if active is None:
             outcomes.append(await self.register_project(project))
         elif not await self._is_healthy(active, gid):
-            logger.warning("hook_unhealthy", extra={"handle": active, "project_gid": gid})
+            logger.warning(
+                "hook_unhealthy",
+                extra={"handle_fp": handle_fingerprint(active), "project_gid": gid},
+            )
             outcomes.append(await self.register_project(project, replacing=active))
 
         current = await asyncio.to_thread(self._registry.get_active_handle, gid, consistent=True)
@@ -616,13 +664,32 @@ class Reconciler:
         return report
 
     async def run_forever(self, stop: asyncio.Event) -> None:
-        while not stop.is_set():
-            await self.run_once()
+        """Reconcile every interval until ``stop`` is set.
+
+        The lease is released however the loop ends: a clean stop, cancellation, or an
+        unexpected exception (warden-bench F-6). A failed release is logged and never
+        hides the exception that ended the loop.
+        """
+        try:
+            while not stop.is_set():
+                await self.run_once()
+                try:
+                    await asyncio.wait_for(stop.wait(), timeout=self._interval_s)
+                except TimeoutError:
+                    continue
+        finally:
             try:
-                await asyncio.wait_for(stop.wait(), timeout=self._interval_s)
-            except TimeoutError:
-                continue
-        await asyncio.to_thread(self._registry.release_lease, owner=self._owner)
+                await asyncio.to_thread(self._registry.release_lease, owner=self._owner)
+            except HookRegistryError as exc:
+                logger.error(
+                    "hook_reconcile_lease_release_failed",
+                    extra={"error_type": type(exc).__name__},
+                )
+
+    @property
+    def owner(self) -> str:
+        """The lease owner. The sweeper runs under this same lease (S TM-12)."""
+        return self._owner
 
 
 def build_shadow_registration(
