@@ -14,8 +14,10 @@ PR, which is why the route is dark when deployed.
 
 from __future__ import annotations
 
+import ast
 import asyncio
 import importlib.util
+import inspect
 import json
 import secrets
 from types import SimpleNamespace
@@ -480,6 +482,37 @@ def test_openapi_documents_the_signature_scheme_not_the_url_token() -> None:
     assert {"WebhookToken": []} in inbound["security"], "twin: /inbound keeps its URL token"
 
 
+def test_openapi_declares_the_hook_operation_not_idempotent() -> None:
+    """warden A3-9: a second handshake marks the hook compromised, so a retry is not safe."""
+    operation = create_app().openapi()["paths"][HOOK_PATH]["post"]
+    assert operation["x-fleet-idempotency"]["idempotent"] is False
+
+
+def _router_constructions(source: str) -> int:
+    return sum(
+        1
+        for node in ast.walk(ast.parse(source))
+        if isinstance(node, ast.Call)
+        and (getattr(node.func, "id", None) or getattr(node.func, "attr", None)) == "APIRouter"
+    )
+
+
+def test_the_exempt_hook_module_builds_one_router_with_one_route() -> None:
+    """The module is exempt from the SecureRouter guard by name, so it may hold only this route."""
+    from autom8_asana.api.routes import asana_hook
+
+    source = inspect.getsource(asana_hook)
+    assert _router_constructions(source) == 1
+    routers = [value for value in vars(asana_hook).values() if isinstance(value, APIRouter)]
+    assert routers == [asana_hook.router]
+    assert [(sorted(r.methods), r.path) for r in asana_hook.router.routes] == [
+        (["POST"], HOOK_PATH)
+    ]
+    # Teeth: a second router planted in the same source is counted.
+    planted = source + "\nother = APIRouter(prefix='/api/v1/other')\n"
+    assert _router_constructions(planted) == 2
+
+
 def test_scope_row_advertises_no_scope_for_the_hook() -> None:
     """W F-16 (D6 TDD fixture or review id)."""
     assert _resolve_scopes_for_operation(HOOK_PATH, "post") == []
@@ -573,3 +606,10 @@ def test_hook_value_and_signature_appear_only_in_the_one_echo_header(
     for handle in (hex_handle, harness.hook.handle):
         assert handle not in surfaces["logs"]
         assert handle not in captured.out and handle not in captured.err
+    # A part of a handle is a handle too: no 12-character window of it appears either.
+    for handle in (hex_handle, harness.hook.handle):
+        windows = {handle[i : i + 12] for i in range(len(handle) - 11)}
+        for name in ("logs", "stdout", "stderr"):
+            assert not any(window in surfaces[name] for window in windows), (
+                f"part of a handle leaked into {name}"
+            )

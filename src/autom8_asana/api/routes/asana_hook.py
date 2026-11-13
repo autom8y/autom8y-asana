@@ -157,7 +157,10 @@ def _raise_for(result: ReceiveResult) -> NoReturn:
             {"type": "dynamodb", "target": "hook_registry.delivery"},
             {"type": "secrets_manager", "target": "webhook_hook_value"},
         ],
-        "x-fleet-idempotency": {"idempotent": True, "key_source": "event-content-sha256"},
+        # Not idempotent as one operation: a second handshake to a live handle
+        # marks the hook compromised. Deliveries are de-duplicated inside the
+        # receiver by event content, which does not license a caller to retry.
+        "x-fleet-idempotency": {"idempotent": False, "key_source": None},
     },
 )
 @exempt_from_rate_limit

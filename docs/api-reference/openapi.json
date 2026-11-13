@@ -8785,8 +8785,7 @@
           "asana-hook"
         ],
         "x-fleet-idempotency": {
-          "idempotent": true,
-          "key_source": "event-content-sha256"
+          "idempotent": false
         },
         "x-fleet-side-effects": [
           {
