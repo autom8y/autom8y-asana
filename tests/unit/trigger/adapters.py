@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any
 from autom8_asana.trigger.hook_environment import require_test_adapter_environment
 from autom8_asana.trigger.hook_registry import HookRegistry
 from autom8_asana.trigger.hook_store import (
+    HookStoreReadFailed,
     HookStoreWriteFailed,
     HookValueAlreadyStored,
     hook_secret_name,
@@ -73,7 +74,8 @@ class InMemoryKeyHookStore:
 
     ``events`` is shared with the fake Asana so tests can assert call order (OR-1: the
     stored value is deleted LAST). ``fail_create`` makes the handshake's store write fail
-    (HS-4).
+    (HS-4). ``fail_read`` makes the receiver's key read fail (SM-1, A C-8); ``reads``
+    counts key reads (KS-1).
     """
 
     environ: Mapping[str, str]
@@ -82,6 +84,8 @@ class InMemoryKeyHookStore:
     values: dict[str, str] = field(default_factory=dict, repr=False)
     tags: dict[str, dict[str, str]] = field(default_factory=dict)
     on_create: Callable[[str], None] | None = None
+    fail_read: bool = False
+    reads: int = 0
 
     def __post_init__(self) -> None:
         require_test_adapter_environment(consumer="in_memory_key_hook_store", environ=self.environ)
@@ -106,3 +110,17 @@ class InMemoryKeyHookStore:
 
     def has_value(self, handle: str) -> bool:
         return hook_secret_name(handle) in self.values
+
+    def read_hook_value(self, *, handle: str) -> str:
+        self.reads += 1
+        self.events.append(("store_read", handle))
+        if self.fail_read:
+            raise HookStoreReadFailed("simulated read failure", error_code="InternalServiceError")
+        value = self.values.get(hook_secret_name(handle))
+        if value is None:
+            raise HookStoreReadFailed("no entry", error_code="ResourceNotFoundException")
+        return value
+
+    def put_for_test(self, handle: str, value: str) -> None:
+        """Seed a stored value without the handshake (receiver tests)."""
+        self.values[hook_secret_name(handle)] = value

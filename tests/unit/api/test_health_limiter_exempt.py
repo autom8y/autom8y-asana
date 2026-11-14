@@ -44,6 +44,13 @@ PINNED_EXEMPT_PROBES: dict[str, str] = {
     "/ready": "autom8_asana.api.routes.health.readiness_check",
 }
 
+# The one non-probe exemption: the D6 Asana webhook target, so a valid delivery is never
+# answered 429 (TDD-asana-bench-D6-shadow-receiver section 4, TM-4; RL-1 and RL-2 live in
+# tests/unit/api/routes/test_asana_hook_route.py).
+PINNED_EXEMPT_HOOK: dict[str, str] = {
+    "/api/v1/webhooks/asana/{handle}": "autom8_asana.api.routes.asana_hook.receive_asana_hook",
+}
+
 # Limited on purpose: the dependency probe keeps the default limit.
 DEPS_PROBE_PATH = "/health/deps"
 DEPS_PROBE_NAME = "autom8_asana.api.routes.health.deps_check"
@@ -127,7 +134,10 @@ def test_built_app_serves_probe_with_pinned_handler(path: str, name: str) -> Non
 
 
 def test_only_the_pinned_probes_are_exempt() -> None:
-    """No other route of the built app is exempt, /health/deps included."""
+    """No other route of the built app is exempt, /health/deps included.
+
+    The pinned set is the two probes plus the D6 webhook target, and nothing else.
+    """
     app = create_app()
     exempt_served = {
         _get_route_name(endpoint)
@@ -137,7 +147,7 @@ def test_only_the_pinned_probes_are_exempt() -> None:
         if _get_route_name(endpoint) in limiter._exempt_routes
     }
 
-    assert exempt_served == set(PINNED_EXEMPT_PROBES.values())
+    assert exempt_served == set(PINNED_EXEMPT_PROBES.values()) | set(PINNED_EXEMPT_HOOK.values())
 
 
 def test_deps_probe_is_not_exempt() -> None:

@@ -3743,6 +3743,12 @@
       }
     },
     "securitySchemes": {
+      "AsanaHookSignature": {
+        "description": "Asana webhook signature: lowercase hex HMAC-SHA256 of the raw request body, keyed by the value Asana sent in the registration handshake. Verified with a constant-time compare before the body is parsed.",
+        "in": "header",
+        "name": "X-Hook-Signature",
+        "type": "apiKey"
+      },
       "OAuth2Asana": {
         "description": "OAuth2 Client Credentials flow for the Asana service. Scopes document the authorization requirements per operation. Use PersonalAccessToken or ServiceJWT for actual authentication until OAuth2 enforcement is live.",
         "flows": {
@@ -8628,6 +8634,171 @@
         ]
       }
     },
+    "/api/v1/webhooks/asana/{handle}": {
+      "post": {
+        "description": "Asana webhook target. Signature-authenticated; no JWT, no URL token.\n\nA request carrying ``X-Hook-Secret`` is a handshake: 200 echoes the value in the\n``X-Hook-Secret`` response header, once, for a pending handle. Every other request is\na delivery: it is verified against ``X-Hook-Signature`` over the raw body, persisted,\nand answered 200; the decision runs after the response. Refusals: 401 for any\nsignature failure, 403 for an inactive hook, 404 for an unknown handle, 413 over\n256 KiB, 415 for a compressed body, 500 when a dependency fails (Asana retries).",
+        "operationId": "receive_asana_hook_api_v1_webhooks_asana__handle__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "handle",
+            "required": true,
+            "schema": {
+              "title": "Handle",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "A handshake echoed (empty body, X-Hook-Secret header), or a delivery verified and persisted"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The verified body is not an event batch"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 401 Receive Asana Hook Api V1 Webhooks Asana  Handle  Post"
+                }
+              }
+            },
+            "description": "Unauthorized -- AUTH-TEB (JWTAuthMiddleware) or application-layer error"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 403 Receive Asana Hook Api V1 Webhooks Asana  Handle  Post"
+                }
+              }
+            },
+            "description": "Forbidden -- AUTH-TEB-004 (JWTAuthMiddleware) or application-layer error"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unknown handle, or the receiver is off"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Body over 256 KiB"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Content-Encoding other than identity"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Handshake bucket exhausted (never sent for a delivery)"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Key read, registry read or persist failed; Asana retries"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The receiver is on but not built"
+          }
+        },
+        "security": [
+          {
+            "AsanaHookSignature": []
+          }
+        ],
+        "summary": "Receive an Asana webhook delivery or handshake (D6 shadow, signature auth)",
+        "tags": [
+          "asana-hook"
+        ],
+        "x-fleet-idempotency": {
+          "idempotent": false
+        },
+        "x-fleet-side-effects": [
+          {
+            "target": "hook_registry.delivery",
+            "type": "dynamodb"
+          },
+          {
+            "target": "webhook_hook_value",
+            "type": "secrets_manager"
+          }
+        ]
+      }
+    },
     "/api/v1/webhooks/inbound": {
       "post": {
         "description": "Receive an Asana Rules action POST containing a full task JSON payload.\n\nThis endpoint is designed to be registered as an Asana Rules action\ntarget. Asana POSTs the full task JSON when a rule fires. The endpoint\naccepts the payload, enqueues background processing, and returns 200\nimmediately so Asana does not retry.\n\n**Authentication**: URL token via ``?token=<secret>`` query parameter.\nThe token is verified with a timing-safe comparison against\n``ASANA_WEBHOOK_INBOUND_TOKEN``. Requests without a valid token receive\n401.\n\n**Background processing** (after response is sent):\n1. Cache invalidation — evicts stale TASK/SUBTASKS/DETECTION entries\n   if the inbound ``modified_at`` is newer than the cached version.\n2. Dispatch — routes the parsed task to the registered handler\n   (no-op in V1; GAP-03 provides a real implementation).\n\nPer PRD-GAP-02:\n- Empty bodies are accepted (200) and silently ignored.\n- Payloads without a ``gid`` field return 400.\n- Dispatch errors do not affect the HTTP response.\n\nAccepts empty bodies gracefully. Uses URL token auth (?token=), not\nBearer auth. Background dispatch is async -- the 200 response is sent\nbefore cache invalidation or dispatch completes.\n\nArgs:\n    request: FastAPI request for raw body access.\n    background_tasks: FastAPI BackgroundTasks for async processing.\n    _token: Verified URL token (presence confirms authentication).\n\nReturns:\n    - 200: ``{\"status\": \"accepted\"}`` — payload received and enqueued.\n    - 400: Malformed JSON or missing ``gid`` field.\n    - 401: Missing or invalid URL token.\n    - 503: Webhook endpoint not configured (token env var absent).",
@@ -10535,6 +10706,10 @@
     {
       "description": "Receive inbound task notifications from Asana Rules actions. The /inbound endpoint accepts full task JSON payloads, verifies a URL token (timing-safe), and enqueues background processing for cache invalidation and dispatch. Returns 200 immediately to prevent Asana retries. Authentication via ?token= query parameter.",
       "name": "webhooks"
+    },
+    {
+      "description": "Asana webhook target for the D6 shadow receiver, one handle per registered webhook: POST /api/v1/webhooks/asana/{handle}. A request carrying X-Hook-Secret is the registration handshake. Every other request is a delivery, authenticated by Asana's HMAC-SHA256 of the raw body in X-Hook-Signature, then persisted and decided after the response. Shadow only: it takes no action. Answers 404 unless the shadow receiver is enabled. Not JWT and not a URL token.",
+      "name": "asana-hook"
     },
     {
       "description": "Offer activity timeline reporting for the Business Offers project. Computes active_section_days and billable_section_days per offer by replaying Asana section history over a date range. Results are cached after first computation (warm path < 2s). Requires PAT Bearer authentication.",

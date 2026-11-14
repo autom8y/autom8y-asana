@@ -124,6 +124,13 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     ),
     "POST /api/v1/exports": "schemathesis-contract-cleanup-WIP: violation",
     "POST /api/v1/webhooks/inbound": "schemathesis-contract-cleanup-WIP: violation",
+    # D6 shadow receiver (dark). The fuzz app does not set ASANA_HOOK_SHADOW_ENABLED, so
+    # the route answers every request 404 before reading anything (warden F-1). Positive
+    # data is therefore rejected by design. Its behavior is covered by
+    # tests/unit/api/routes/test_asana_hook_route.py through the full app.
+    "POST /api/v1/webhooks/asana/{handle}": (
+        "D6 dark route: 404 for every request while the shadow flag is unset, by design"
+    ),
     "GET /api/v1/workflows/": "schemathesis-contract-cleanup-WIP: violation",
     "POST /api/v1/workflows/{workflow_id}/invoke": "schemathesis-contract-cleanup-WIP: violation",
     "GET /api/v1/offers/section-timelines": "schemathesis-contract-cleanup-WIP: violation",
