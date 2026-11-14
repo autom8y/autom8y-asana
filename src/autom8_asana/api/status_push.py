@@ -170,9 +170,10 @@ async def push_account_status_snapshot(trigger: str) -> None:
     delegates to the EXISTING shared orchestrator
     (``_push_account_status_for_completed_entities``) -- the same code the
     Lambda lane runs, so snapshots are equivalent across lanes. Using the full
-    registry set (not a "completed" list) is correct here: cache misses are
-    already skipped per-entity by the orchestrator, and SWR-refreshed frames
-    are picked up on later cycles.
+    registry set (not a "completed" list) is correct here: a cache miss of any
+    other entity is skipped per-entity by the orchestrator, a Unit cache miss
+    withholds the whole snapshot, and SWR-refreshed frames are picked up on
+    later cycles.
 
     Pushes are always the FULL aggregated snapshot: the receiver is a
     transactional snapshot-replace, so a partial (per-frame) push would

@@ -387,9 +387,10 @@ def _gids(entity_type: str) -> str | None:
     return known.get(entity_type)
 
 
-async def _run_status_push(
+async def _run_status_push_with_metrics(
     frames: dict[str, object], completed: tuple[str, ...] = ("unit", "offer")
 ):
+    """Run the real orchestrator; return the push, logger and emit_metric mocks."""
     from unittest.mock import create_autospec
 
     from autom8y_log import LoggerProtocol
@@ -404,7 +405,7 @@ async def _run_status_push(
             new_callable=AsyncMock,
             return_value=True,
         ) as mock_push,
-        patch("autom8_asana.lambda_handlers.push_orchestrator.emit_metric"),
+        patch("autom8_asana.lambda_handlers.push_orchestrator.emit_metric") as emit,
         patch(
             "autom8_asana.lambda_handlers.push_orchestrator.logger",
             new=create_autospec(LoggerProtocol, instance=True),
@@ -416,6 +417,13 @@ async def _run_status_push(
             cache=_frames_cache(frames),
             invocation_id="test-inv",
         )
+    return mock_push, log, emit
+
+
+async def _run_status_push(
+    frames: dict[str, object], completed: tuple[str, ...] = ("unit", "offer")
+):
+    mock_push, log, _ = await _run_status_push_with_metrics(frames, completed)
     return mock_push, log
 
 
@@ -536,3 +544,223 @@ class TestUnitActivityAtThePushSeam:
             for c in log.warning.call_args_list
             if c.args[0] == "status_push_snapshot_withheld"
         ] == [1]
+
+
+def _skip_metric_reasons(emit) -> list[str]:
+    """The skip_reason of every StatusPushSkipped emit, in order."""
+    return [
+        (c.kwargs.get("dimensions") or {}).get("skip_reason")
+        for c in emit.call_args_list
+        if c.args and c.args[0] == "StatusPushSkipped"
+    ]
+
+
+def _withheld_entry_counts(log) -> list[int]:
+    return [
+        c.kwargs["extra"]["entry_count"]
+        for c in log.warning.call_args_list
+        if c.args[0] == "status_push_snapshot_withheld"
+    ]
+
+
+def _sales():
+    import polars as pl
+
+    return pl.DataFrame({"office_phone": ["+15550100003"], "section": ["ACTIVE"]})
+
+
+class TestUnitCacheMissWithholds:
+    """A Unit cache miss loses the Unit rows: the other entity's rows never go out alone."""
+
+    async def test_a_unit_cache_miss_withholds_the_snapshot_and_counts_it(self) -> None:
+        mock_push, log, emit = await _run_status_push_with_metrics(
+            {"offer": _offers(["ACTIVE"]), "sales": _sales()},
+            completed=("unit", "sales", "offer"),
+        )
+
+        mock_push.assert_not_awaited()
+        assert _skip_reasons(log) == ["unit_frame_unavailable"]
+        assert _withheld_entry_counts(log) == [1]
+        assert _skip_metric_reasons(emit) == ["unit_activity_unavailable"]
+
+    async def test_a_unit_hit_pushes_with_the_other_entitys_rows(self) -> None:
+        mock_push, log, emit = await _run_status_push_with_metrics(
+            {"unit": _units(), "offer": _offers(["ACTIVE"]), "sales": _sales()},
+            completed=("unit", "sales", "offer"),
+        )
+
+        mock_push.assert_awaited_once()
+        entries = mock_push.call_args.kwargs["entries"]
+        assert sorted((e["pipeline_type"], e["phone"]) for e in entries) == [
+            ("sales", "+15550100003"),
+            ("unit", "+15550100001"),
+        ]
+        assert _skip_reasons(log) == []
+        assert _withheld_entry_counts(log) == []
+        assert _skip_metric_reasons(emit) == []
+
+
+# ---------------------------------------------------------------------------
+# The products null share: a present but mostly-null column withholds
+# ---------------------------------------------------------------------------
+
+
+def _unit_population(null_products: int, total: int = 100):
+    """``total`` marketing Units in Engaged, each with an ACTIVE Offer.
+
+    The first ``null_products`` Units have a null ``products`` value. Every Unit
+    has an ACTIVE Offer, so a null Unit that pushed would prove a guessed branch.
+    """
+    import polars as pl
+
+    phones = [f"+1555010{i:04d}" for i in range(total)]
+    units = pl.DataFrame(
+        {
+            "office_phone": phones,
+            "vertical": ["dental"] * total,
+            "section": ["Engaged"] * total,
+            "products": [None] * null_products + [["Meta Marketing"]] * (total - null_products),
+        },
+        schema={
+            "office_phone": pl.Utf8,
+            "vertical": pl.Utf8,
+            "section": pl.Utf8,
+            "products": pl.List(pl.Utf8),
+        },
+    )
+    offers = pl.DataFrame(
+        {"office_phone": phones, "vertical": ["dental"] * total, "section": ["ACTIVE"] * total},
+        schema={"office_phone": pl.Utf8, "vertical": pl.Utf8, "section": pl.Utf8},
+    )
+    return units, offers, phones
+
+
+class TestProductsNullShare:
+    """Refuse when more than half the Units have null products (exactly half passes)."""
+
+    async def test_a_present_all_null_column_is_withheld_and_counted(self) -> None:
+        units, offers, _ = _unit_population(null_products=100)
+        assert "products" in units.columns
+
+        mock_push, log, emit = await _run_status_push_with_metrics({"unit": units, "offer": offers})
+
+        mock_push.assert_not_awaited()
+        assert _skip_reasons(log) == [
+            "products is null for 100 of 100 units, more than the 50% limit"
+        ]
+        assert _withheld_entry_counts(log) == [0]
+        assert _skip_metric_reasons(emit) == ["unit_activity_unavailable"]
+
+    async def test_just_over_the_limit_is_withheld(self) -> None:
+        units, offers, _ = _unit_population(null_products=51)
+
+        mock_push, log, emit = await _run_status_push_with_metrics({"unit": units, "offer": offers})
+
+        mock_push.assert_not_awaited()
+        assert _skip_reasons(log) == [
+            "products is null for 51 of 100 units, more than the 50% limit"
+        ]
+        assert _skip_metric_reasons(emit) == ["unit_activity_unavailable"]
+
+    async def test_exactly_half_null_is_at_the_limit_and_pushes(self) -> None:
+        """The boundary: 50 of 100 is not MORE than half, so the frame is read."""
+        units, offers, phones = _unit_population(null_products=50)
+
+        mock_push, log, emit = await _run_status_push_with_metrics({"unit": units, "offer": offers})
+
+        mock_push.assert_awaited_once()
+        entries = mock_push.call_args.kwargs["entries"]
+        assert sorted(e["phone"] for e in entries) == phones[50:]
+        assert {e["account_activity"] for e in entries} == {"active"}
+        assert _skip_reasons(log) == []
+        assert _skip_metric_reasons(emit) == []
+
+    async def test_just_under_the_limit_pushes_and_null_units_get_no_activity(self) -> None:
+        units, offers, phones = _unit_population(null_products=49)
+
+        mock_push, log, emit = await _run_status_push_with_metrics({"unit": units, "offer": offers})
+
+        mock_push.assert_awaited_once()
+        pushed = sorted(e["phone"] for e in mock_push.call_args.kwargs["entries"])
+        assert pushed == phones[49:]
+        assert set(pushed).isdisjoint(phones[:49])
+        assert _skip_reasons(log) == []
+        assert _skip_metric_reasons(emit) == []
+
+    async def test_a_real_shape_mix_pushes_every_resolved_unit_and_no_null_one(self) -> None:
+        """Mostly marketing, a few non-marketing, many with no products, two null."""
+        import polars as pl
+
+        marketing = ["Meta Marketing"]
+        rows: list[tuple[str, str, list[str] | None, str | None]] = [
+            # (phone last-4, own section, products, Offer section)
+            ("0201", "Engaged", marketing, "ACTIVE"),
+            ("0202", "Active", marketing, "ACTIVE"),
+            ("0203", "Month 1", marketing, "STAGED"),
+            ("0204", "Engaged", marketing, "MANUAL"),
+            ("0205", "Scheduled", marketing, "ACTIVE"),
+            ("0206", "Paused", marketing, "OPTIMIZE - Human Review"),
+            ("0207", "Onboarding", marketing, "IMPLEMENTING"),
+            ("0208", "Engaged", marketing, "NEW LAUNCH REVIEW"),
+            ("0209", "Active", marketing, "INACTIVE"),
+            ("0210", "Active", marketing, None),
+            ("0211", "Active", ["Videography"], "INACTIVE"),
+            ("0212", "Month 1", [], None),
+            ("0213", "Active", [], None),
+            ("0214", "Consulting", [], None),
+            ("0215", "Onboarding", [], None),
+            ("0216", "Delayed", [], None),
+            ("0217", "Paused", [], None),
+            ("0218", "Cancelled", [], None),
+            ("0219", "Active", None, "ACTIVE"),
+            ("0220", "Onboarding", None, "IMPLEMENTING"),
+        ]
+        phone = "+1555010{}".format
+        units = pl.DataFrame(
+            {
+                "office_phone": [phone(r[0]) for r in rows],
+                "vertical": ["dental"] * len(rows),
+                "section": [r[1] for r in rows],
+                "products": [r[2] for r in rows],
+            },
+            schema={
+                "office_phone": pl.Utf8,
+                "vertical": pl.Utf8,
+                "section": pl.Utf8,
+                "products": pl.List(pl.Utf8),
+            },
+        )
+        offer_rows = [(phone(r[0]), r[3]) for r in rows if r[3] is not None]
+        offers = pl.DataFrame(
+            {
+                "office_phone": [p for p, _ in offer_rows],
+                "vertical": ["dental"] * len(offer_rows),
+                "section": [s for _, s in offer_rows],
+            },
+            schema={"office_phone": pl.Utf8, "vertical": pl.Utf8, "section": pl.Utf8},
+        )
+
+        mock_push, log, emit = await _run_status_push_with_metrics({"unit": units, "offer": offers})
+
+        mock_push.assert_awaited_once()
+        pushed = {e["phone"]: e["account_activity"] for e in mock_push.call_args.kwargs["entries"]}
+        assert pushed == {
+            phone("0201"): "active",
+            phone("0202"): "active",
+            phone("0203"): "active",
+            phone("0204"): "active",
+            phone("0205"): "active",
+            phone("0206"): "active",
+            phone("0207"): "activating",
+            phone("0208"): "activating",
+            phone("0211"): "active",
+            phone("0212"): "active",
+            phone("0213"): "active",
+            phone("0214"): "active",
+            phone("0215"): "activating",
+            phone("0216"): "activating",
+        }
+        assert phone("0219") not in pushed
+        assert phone("0220") not in pushed
+        assert _skip_reasons(log) == []
+        assert _skip_metric_reasons(emit) == []

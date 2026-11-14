@@ -56,6 +56,13 @@ SKIP_REASON_URL_ABSENT = "url_absent"
 # The value stays reserved in the closed enum; nothing emits it today.
 SKIP_REASON_INVALID_KEY = "invalid_key"
 SKIP_REASON_THREE_WAY_DENOMINATOR_NULL = "three_way_denominator_null"
+# unit_activity_unavailable: the orchestrator withheld the whole snapshot because
+# its Unit rows could not be computed (a Unit cache miss, no usable Offer frame,
+# a column the rule reads is missing, the products column is mostly null, or the
+# Unit extraction raised). The receiver replaces the full snapshot, so the push is
+# skipped and the receiver keeps its last good one. Emitted once per withheld
+# snapshot (push_orchestrator), never per cause.
+SKIP_REASON_UNIT_ACTIVITY_UNAVAILABLE = "unit_activity_unavailable"
 
 # StatusPushRowsSkipped skip_class dimension values (closed enum). Per-row
 # snapshot guards (sprint-C6): a single defective row must be dropped

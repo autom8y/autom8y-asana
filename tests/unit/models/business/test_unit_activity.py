@@ -16,6 +16,7 @@ from autom8_asana.models.business.activity import (
     AccountActivity,
 )
 from autom8_asana.models.business.unit_activity import (
+    PRODUCTS_NULL_SHARE_LIMIT,
     SETTLED_OFFER_SECTIONS,
     UNIT_ACTIVITY_COLUMN,
     UnitActivityInputError,
@@ -355,3 +356,52 @@ class TestWithUnitActivity:
         offers = _offers([(PHONE_A, "dental", "ACTIVE")]).drop("section")
         with pytest.raises(UnitActivityInputError, match="section"):
             with_unit_activity(units, offers)
+
+
+def _null_share_frames(null_products: int, total: int) -> tuple[pl.DataFrame, pl.DataFrame]:
+    """``total`` non-marketing Units in Active; the first ``null_products`` are null."""
+    rows = [
+        (f"+1555010{i:04d}", "dental", "Active", None if i < null_products else NON_MARKETING)
+        for i in range(total)
+    ]
+    return _units(rows), _offers([(PHONE_A, "dental", "ACTIVE")])
+
+
+class TestProductsNullShareLimit:
+    def test_the_limit_is_half(self) -> None:
+        assert PRODUCTS_NULL_SHARE_LIMIT == 0.5
+
+    def test_a_present_all_null_column_is_refused(self) -> None:
+        units, offers = _null_share_frames(null_products=4, total=4)
+        assert units["products"].null_count() == units.height
+        with pytest.raises(UnitActivityInputError, match="products is null for 4 of 4 units"):
+            with_unit_activity(units, offers)
+
+    @pytest.mark.parametrize(
+        ("null_products", "refused"),
+        [(49, False), (50, False), (51, True)],
+        ids=["just-under", "exactly-half-is-read", "just-over"],
+    )
+    def test_refused_only_when_more_than_half_are_null(
+        self, null_products: int, refused: bool
+    ) -> None:
+        units, offers = _null_share_frames(null_products=null_products, total=100)
+        if refused:
+            with pytest.raises(UnitActivityInputError, match="more than the 50% limit"):
+                with_unit_activity(units, offers)
+            return
+        out = with_unit_activity(units, offers)
+        activity = out[UNIT_ACTIVITY_COLUMN].to_list()
+        assert activity[:null_products] == [None] * null_products
+        assert activity[null_products:] == ["active"] * (100 - null_products)
+
+    def test_an_empty_unit_frame_is_read(self) -> None:
+        units, offers = _null_share_frames(null_products=0, total=0)
+        assert with_unit_activity(units, offers).height == 0
+
+    def test_empty_lists_are_not_null(self) -> None:
+        """A Unit with no products is a resolved value, so it never counts toward the limit."""
+        rows = [(f"+1555010{i:04d}", "dental", "Active", NO_PRODUCTS) for i in range(3)]
+        rows.append((PHONE_B, "dental", "Active", None))
+        out = with_unit_activity(_units(rows), _offers([(PHONE_A, "dental", "ACTIVE")]))
+        assert out[UNIT_ACTIVITY_COLUMN].to_list() == ["active", "active", "active", None]

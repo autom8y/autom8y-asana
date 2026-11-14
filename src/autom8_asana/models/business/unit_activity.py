@@ -18,7 +18,9 @@ The ratified rule
   (UM:1207-1210), which an empty list fails, so legacy reads its own section.
 - A Unit whose ``products`` value is **missing** (null: the field did not
   resolve) has no activity. Which branch applies is unknown, and guessing would
-  push a confidently wrong row.
+  push a confidently wrong row. When more than half the Units are missing it
+  (``PRODUCTS_NULL_SHARE_LIMIT``), the frame itself is refused: the field failed
+  to resolve, and no Unit's activity can be read from it.
 
 "Marketing" means a product whose name contains ``marketing``, case-insensitive.
 
@@ -58,6 +60,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "MARKETING_PRODUCT_MARKER",
+    "PRODUCTS_NULL_SHARE_LIMIT",
     "SETTLED_OFFER_SECTIONS",
     "UNIT_ACTIVITY_COLUMN",
     "UnitActivityInputError",
@@ -75,6 +78,17 @@ UNIT_ACTIVITY_COLUMN = "unit_activity"
 
 #: A Unit is a marketing Unit when a product's name contains this, any case.
 MARKETING_PRODUCT_MARKER = "marketing"
+
+#: The share of Units whose ``products`` value is null above which the Unit frame
+#: cannot ground Unit activity at all. The rule: refuse when strictly more than
+#: this share is null (an all-null column included); exactly half still passes.
+#: A null value means the field did not resolve. A failed resolution of the
+#: Products field is frame-wide, so it reads as an all-null column. An empty
+#: selection is an empty list, not null, so the healthy null share is near zero.
+#: Half leaves a wide margin on both sides: it cannot be reached by stray nulls,
+#: and it is still crossed by any failure that hits most of the frame. Under it,
+#: the null Units get no activity and the rest of the frame is read.
+PRODUCTS_NULL_SHARE_LIMIT = 0.5
 
 #: Offer sections settled for the Unit read and absent from OFFER_CLASSIFIER.
 #: LAUNCH ERROR and SYSTEM ERROR are not live sections today, but legacy names
@@ -207,6 +221,21 @@ def _require_columns(df: pl.DataFrame, columns: tuple[str, ...], frame: str) -> 
         raise UnitActivityInputError(f"the {frame} frame lacks column(s) {missing}")
 
 
+def _require_products_resolved(unit_df: pl.DataFrame) -> None:
+    """Refuse a Unit frame whose ``products`` column is mostly or wholly null.
+
+    The share is taken over every row of the Unit frame. An empty frame has no
+    nulls and passes. See ``PRODUCTS_NULL_SHARE_LIMIT`` for the rule.
+    """
+    unit_count = unit_df.height
+    null_count = int(unit_df["products"].null_count())
+    if null_count > PRODUCTS_NULL_SHARE_LIMIT * unit_count:
+        raise UnitActivityInputError(
+            f"products is null for {null_count} of {unit_count} units, "
+            f"more than the {PRODUCTS_NULL_SHARE_LIMIT:.0%} limit"
+        )
+
+
 def _offer_key(phone: Any, vertical: Any) -> tuple[str, str] | None:
     if not phone:
         return None
@@ -222,8 +251,11 @@ def with_unit_activity(unit_df: pl.DataFrame, offer_df: pl.DataFrame) -> pl.Data
 
     Raises:
         UnitActivityInputError: when either frame lacks a column the rule reads,
-            or the Offer frame is empty. An empty Offer frame cannot ground any
-            marketing Unit, so the caller must not push a reading built on it.
+            the Offer frame is empty, or ``products`` is null for more than
+            ``PRODUCTS_NULL_SHARE_LIMIT`` of the Units. An empty Offer frame
+            cannot ground any marketing Unit, and a mostly-null ``products``
+            column cannot tell which branch any Unit takes, so the caller must
+            not push a reading built on either.
     """
     import polars as pl
 
@@ -231,6 +263,7 @@ def with_unit_activity(unit_df: pl.DataFrame, offer_df: pl.DataFrame) -> pl.Data
     _require_columns(offer_df, _OFFER_COLUMNS, "offer")
     if offer_df.height == 0:
         raise UnitActivityInputError("the offer frame has no rows")
+    _require_products_resolved(unit_df)
 
     offer_sections: dict[tuple[str, str], list[str]] = {}
     for phone, vertical, section in offer_df.select(_OFFER_COLUMNS).iter_rows():

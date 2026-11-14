@@ -8,7 +8,7 @@ indistinguishable in CloudWatch.
 The counter is additive observability ONLY -- it MUST NOT change push behavior
 (every return value below is asserted identical to pre-change behavior).
 
-Each of the four skip_reason values carries a TWO-SIDED pair:
+Each emitted skip_reason value carries a TWO-SIDED pair:
   (+) positive: drive the exact skip precondition; assert
       StatusPushSkipped{skip_reason=X} == 1 AND that StatusPushSuccess/Failure
       were NOT emitted.
@@ -22,10 +22,13 @@ Contract (N1 §B-1):
   value        = 1
   dimension    = skip_reason in
                  {feature_disabled, url_absent, invalid_key,
-                  three_way_denominator_null}
+                  three_way_denominator_null, unit_activity_unavailable}
                  invalid_key is RETIRED (PT-CI-03 A109): the status push now mints
                  with its own account, so missing credentials are a named mint
                  failure, not a skip. The value stays reserved; nothing emits it.
+                 unit_activity_unavailable: the orchestrator withheld the whole
+                 snapshot because its Unit rows could not be computed; emitted
+                 once per withheld snapshot.
 """
 
 from __future__ import annotations
@@ -316,6 +319,94 @@ class TestThreeWayDenominatorNullSkip:
 
         assert "three_way_denominator_null" not in _reasons_emitted(emit)
         # the happy path still emits its success counter (behavior unchanged)
+        assert "StatusPushSuccess" in [c.args[0] for c in emit.call_args_list if c.args]
+
+
+# ===========================================================================
+# Orchestrator-seam skip -- unit_activity_unavailable. The snapshot is
+# withheld because its Unit rows could not be computed. Driven through the
+# REAL Unit activity step (no passthrough fake) from real frames.
+# ===========================================================================
+
+
+def _unit_project_gid() -> str:
+    from autom8_asana.services.gid_push import PIPELINE_TYPE_BY_PROJECT_GID
+
+    return next(g for g, kind in PIPELINE_TYPE_BY_PROJECT_GID.items() if kind == "unit")
+
+
+async def _drive_unit_push(frames: dict[str, Any]) -> MagicMock:
+    """Run the real orchestrator over ``frames`` (entity type -> frame or None)."""
+    from autom8_asana.lambda_handlers.push_orchestrator import (
+        _push_account_status_for_completed_entities,
+    )
+
+    def _entry(project_gid: str, entity_type: str) -> Any:
+        df = frames.get(entity_type)
+        if df is None:
+            return None
+        entry = MagicMock()
+        entry.dataframe = df
+        return entry
+
+    cache = MagicMock()
+    cache.get_async = AsyncMock(side_effect=_entry)
+    gids = {"unit": _unit_project_gid(), "offer": "offer-project"}
+
+    with (
+        patch(
+            "autom8_asana.services.gid_push.push_status_to_data_service",
+            new=AsyncMock(return_value=True),
+        ),
+        patch("autom8_asana.lambda_handlers.push_orchestrator.emit_metric") as emit,
+    ):
+        await _push_account_status_for_completed_entities(
+            completed_entities=["unit", "offer"],
+            get_project_gid=gids.get,
+            cache=cache,
+            invocation_id="test-inv",
+        )
+    return emit
+
+
+def _marketing_unit_frames() -> dict[str, Any]:
+    import polars as pl
+
+    return {
+        "unit": pl.DataFrame(
+            {
+                "office_phone": ["+15550100001"],
+                "vertical": ["dental"],
+                "section": ["Engaged"],
+                "products": [["Meta Marketing"]],
+            }
+        ),
+        "offer": pl.DataFrame(
+            {"office_phone": ["+15550100001"], "vertical": ["dental"], "section": ["ACTIVE"]}
+        ),
+    }
+
+
+class TestUnitActivityUnavailableSkip:
+    """skip_reason = unit_activity_unavailable (the snapshot is withheld)."""
+
+    async def test_positive_withheld_snapshot_emits_skip_exactly_once(self) -> None:
+        """No Offer frame: the Unit rows cannot be computed, so nothing is pushed."""
+        frames = _marketing_unit_frames()
+        frames["offer"] = None
+
+        emit = await _drive_unit_push(frames)
+
+        _assert_skip_contract(emit, "unit_activity_unavailable")
+        names = [c.args[0] for c in emit.call_args_list if c.args]
+        assert "StatusPushSuccess" not in names
+        assert "StatusPushFailure" not in names
+
+    async def test_negative_does_not_emit_when_unit_activity_is_computed(self) -> None:
+        """No-defect variant: both frames present -> pushed, no withhold skip."""
+        emit = await _drive_unit_push(_marketing_unit_frames())
+
+        assert "unit_activity_unavailable" not in _reasons_emitted(emit)
         assert "StatusPushSuccess" in [c.args[0] for c in emit.call_args_list if c.args]
 
 
