@@ -12,11 +12,25 @@ are absent from the built wheel and the image, and not importable from the image
   does not resolve.
 
 PM-4 (auth A2 condition, teeth per auth A2-3): no adapter registry, entry point, default
-instance or ``dependency_overrides`` in ``src/``. The AST half scans ``trigger/`` and the
-named wiring modules (package root, entrypoint, the API app and its dependencies). The
-entry-point half reads package metadata (``[project.scripts]``, ``[project.gui-scripts]``,
-``[project.entry-points.*]``), which is what hatch writes into the wheel's
-``entry_points.txt``. Each check has a planted violation that it must flag.
+instance or ``dependency_overrides`` in ``src/``.
+
+* The AST half scans EVERY module under ``src/``, recursively (warden-bench F-3 on #541:
+  ``api/lifespan.py`` and ``api/startup.py`` are where wiring would go; auth-bench A3-3:
+  all of ``src/``). It flags an import from ``tests``, ``dependency_overrides``, a name or
+  string naming an adapter, a CLASS DEFINITION named like an adapter (auth-bench A3-3),
+  and module-level default instances and registries of the D6 classes. The one sanctioned
+  ``tests`` import is the substrate-v2 operator tool's use of
+  ``tests.harness.substrate_gate`` (``substrate/live.py``, ``substrate/parity_run.py``);
+  it is pinned by file, and no other ``tests`` import passes.
+* The entry-point half reads package metadata (``[project.scripts]``,
+  ``[project.gui-scripts]``, ``[project.entry-points.*]``), which is what hatch writes into
+  the wheel's ``entry_points.txt``. It also asserts the metadata declares no DYNAMIC entry
+  points or scripts (``[project] dynamic``) and that no build hook is configured that
+  could add one (``[tool.hatch.build.hooks]``, per-target ``hooks``,
+  ``[tool.hatch.metadata.hooks]``, a ``hatch_build.py``), and that the build backend is
+  plain hatchling with no hook plugin (auth-bench A3-3).
+
+Each check has a planted violation that it must flag.
 """
 
 from __future__ import annotations
@@ -46,12 +60,31 @@ CONSTRUCTED_NAMES = frozenset(
         "Reconciler",
         "WebhooksClient",
         "build_shadow_registration",
+        "ShadowReceiver",
+        "Sweeper",
+        "build_shadow_receiver",
         "InMemoryHookRegistry",
         "InMemoryKeyHookStore",
     }
 )
-# The wiring modules PM-4 scans besides trigger/ (where an override or default would go).
-WIRING_MODULES = ("__init__.py", "entrypoint.py", "api/main.py", "api/dependencies.py")
+# Modules PM-4 must reach (positive controls for the recursive scan; warden F-3).
+REQUIRED_SCANNED = (
+    "autom8_asana/__init__.py",
+    "autom8_asana/entrypoint.py",
+    "autom8_asana/api/main.py",
+    "autom8_asana/api/dependencies.py",
+    "autom8_asana/api/lifespan.py",
+    "autom8_asana/api/startup.py",
+    "autom8_asana/trigger/registration.py",
+    "autom8_asana/trigger/receiver.py",
+    "autom8_asana/api/routes/asana_hook.py",
+)
+# The one sanctioned src -> tests import (the substrate-v2 operator tool; see the mypy
+# override in pyproject.toml). Pinned by file; the module must sit under this prefix.
+SANCTIONED_TESTS_IMPORTS: dict[str, str] = {
+    "autom8_asana/substrate/live.py": "tests.harness.substrate_gate",
+    "autom8_asana/substrate/parity_run.py": "tests.harness.substrate_gate",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -85,7 +118,8 @@ def _pyproject() -> dict[str, Any]:
         return tomllib.load(fh)
 
 
-def test_pm2_adapters_absent_from_wheel_sources() -> None:
+def test_adapters_are_absent_from_the_wheel_sources() -> None:
+    """PM-2 (D6 TDD fixture or review id)."""
     config = _pyproject()
     packages = config["tool"]["hatch"]["build"]["targets"]["wheel"]["packages"]
     assert "src/autom8_asana" in packages, "positive control: the real package is packaged"
@@ -103,7 +137,8 @@ def test_pm2_adapters_absent_from_wheel_sources() -> None:
     ],
     ids=["packages-tests", "force-include", "only-include", "whole-tree", "discovery"],
 )
-def test_pm2_planted_wheel_source_is_flagged(wheel: dict[str, Any]) -> None:
+def test_planted_wheel_source_covering_the_adapters_is_flagged(wheel: dict[str, Any]) -> None:
+    """PM-2 teeth (D6 TDD fixture or review id)."""
     planted = {"tool": {"hatch": {"build": {"targets": {"wheel": wheel}}}}}
     assert wheel_violations(planted), wheel
 
@@ -131,7 +166,8 @@ def image_violations(dockerfile: str) -> list[str]:
     return found
 
 
-def test_pm2_adapters_absent_from_image() -> None:
+def test_adapters_are_absent_from_the_image() -> None:
+    """PM-2 (D6 TDD fixture or review id)."""
     dockerfile = (REPO / "Dockerfile").read_text()
     assert "COPY --link src ./src" in dockerfile, "positive control: the image copies src"
     assert image_violations(dockerfile) == []
@@ -146,7 +182,8 @@ def test_pm2_adapters_absent_from_image() -> None:
         "COPY ./ /app",
     ],
 )
-def test_pm2_planted_image_copy_is_flagged(line: str) -> None:
+def test_planted_image_copy_covering_the_adapters_is_flagged(line: str) -> None:
+    """PM-2 teeth (D6 TDD fixture or review id)."""
     assert image_violations(f"FROM base\n{line}\n") == [line]
 
 
@@ -180,11 +217,13 @@ def _probe(pythonpath: Path, cwd: Path) -> str:
     return proc.stdout.strip()
 
 
-def test_pm2_not_importable_from_the_image_path(tmp_path: Path) -> None:
+def test_adapters_are_not_importable_from_the_image_path(tmp_path: Path) -> None:
+    """PM-2 (D6 TDD fixture or review id)."""
     assert _probe(SRC, tmp_path) == "ABSENT"
 
 
-def test_pm2_twin_present_in_the_test_tree(tmp_path: Path) -> None:
+def test_adapters_are_importable_from_the_test_tree(tmp_path: Path) -> None:
+    """PM-2 twin (D6 TDD fixture or review id)."""
     assert (REPO / ADAPTER_FILE).is_file()
     assert _probe(REPO, tmp_path) == "FOUND"
 
@@ -201,17 +240,26 @@ def _called_name(node: ast.AST) -> str | None:
     return None
 
 
+def _tests_import_sanctioned(filename: str, module: str) -> bool:
+    prefix = SANCTIONED_TESTS_IMPORTS.get(filename)
+    return prefix is not None and (module == prefix or module.startswith(prefix + "."))
+
+
 def src_violations(source: str, filename: str = "<planted>") -> list[str]:
     tree = ast.parse(source, filename=filename)
     found: list[str] = []
     for node in ast.walk(tree):
         line = f"{filename}:{getattr(node, 'lineno', 0)}"
         if isinstance(node, ast.ImportFrom) and (node.module or "").split(".")[0] == "tests":
-            found.append(f"{line} imports from tests")
+            if not _tests_import_sanctioned(filename, node.module or ""):
+                found.append(f"{line} imports from tests")
         elif isinstance(node, ast.Import) and any(
-            a.name.split(".")[0] == "tests" for a in node.names
+            a.name.split(".")[0] == "tests" and not _tests_import_sanctioned(filename, a.name)
+            for a in node.names
         ):
             found.append(f"{line} imports tests")
+        elif isinstance(node, ast.ClassDef) and node.name in ADAPTER_NAMES - {"adapters"}:
+            found.append(f"{line} defines adapter class {node.name}")
         elif isinstance(node, ast.Attribute) and node.attr == "dependency_overrides":
             found.append(f"{line} dependency_overrides")
         elif isinstance(node, ast.Name) and node.id in ADAPTER_NAMES - {"adapters"}:
@@ -235,16 +283,29 @@ def src_violations(source: str, filename: str = "<planted>") -> list[str]:
 
 
 def _scanned_modules() -> list[Path]:
-    trigger = sorted((PACKAGE / "trigger").glob("*.py"))
-    assert PACKAGE / "trigger" / "registration.py" in trigger, "positive control"
-    return trigger + [PACKAGE / name for name in WIRING_MODULES]
+    modules = sorted(SRC.rglob("*.py"))
+    scanned = {path.relative_to(SRC).as_posix() for path in modules}
+    missing = [name for name in REQUIRED_SCANNED if name not in scanned]
+    assert missing == [], f"positive control: the recursive scan misses {missing}"
+    return modules
 
 
-def test_pm4_src_has_no_adapter_wiring() -> None:
+def test_src_has_no_adapter_wiring() -> None:
+    """PM-4, warden-bench F-3, auth-bench A3-3 (D6 TDD fixture or review id)."""
     found: list[str] = []
     for path in _scanned_modules():
-        found += src_violations(path.read_text(), str(path.relative_to(SRC)))
+        found += src_violations(path.read_text(), path.relative_to(SRC).as_posix())
     assert found == [], "\n".join(found)
+
+
+def test_sanctioned_tests_imports_are_real_and_narrow() -> None:
+    """PM-4: Each pinned src -> tests import exists, and the same import elsewhere is flagged."""
+    for filename, prefix in SANCTIONED_TESTS_IMPORTS.items():
+        assert prefix in (SRC / filename).read_text(), f"stale sanction: {filename}"
+        planted = f"from {prefix}.parity import x\n"
+        assert src_violations(planted, filename) == []
+        assert src_violations(planted, "autom8_asana/api/lifespan.py"), filename
+    assert src_violations("from tests.unit.trigger import adapters\n", filename)
 
 
 PLANTED_SRC = {
@@ -254,15 +315,22 @@ PLANTED_SRC = {
     "default-reconciler": "RECONCILER = build_shadow_registration(environ={})\n",
     "adapter-registry": "ADAPTERS = {'test': InMemoryHookRegistry, 'production': HookRegistry}\n",
     "string-registry": "PLUGINS = {'test': 'tests.unit.trigger.adapters:InMemoryKeyHookStore'}\n",
+    # auth-bench A3-3: a class named like an adapter, defined in src.
+    "class-definition": "class InMemoryHookRegistry:\n    pass\n",
+    "class-definition-nested": "def f():\n    class InMemoryKeyHookStore:\n        pass\n",
+    "default-receiver": "RECEIVER = build_shadow_receiver(environ={})\n",
+    "default-sweeper": "from x import Sweeper\nSWEEPER = Sweeper()\n",
 }
 
 
 @pytest.mark.parametrize("name", sorted(PLANTED_SRC))
-def test_pm4_planted_src_violation_is_flagged(name: str) -> None:
+def test_planted_src_violation_is_flagged(name: str) -> None:
+    """PM-4 teeth, auth-bench A3-3 (D6 TDD fixture or review id)."""
     assert src_violations(PLANTED_SRC[name]), name
 
 
-def test_pm4_twin_clean_source_passes() -> None:
+def test_clean_construction_source_passes_the_wiring_scan() -> None:
+    """PM-4 twin (D6 TDD fixture or review id)."""
     clean = "from x import HookStore\n\ndef build() -> HookStore:\n    return HookStore()\n"
     assert src_violations(clean) == []
 
@@ -286,10 +354,84 @@ def entry_point_violations(pyproject: dict[str, Any]) -> list[str]:
     return found
 
 
-def test_pm4_package_metadata_has_no_adapter_entry_point() -> None:
+def test_package_metadata_has_no_adapter_entry_point() -> None:
+    """PM-4 (D6 TDD fixture or review id)."""
     config = _pyproject()
     assert config["project"]["scripts"], "positive control: the metadata has entry points"
     assert entry_point_violations(config) == []
+
+
+_ENTRY_POINT_FIELDS = frozenset({"scripts", "gui-scripts", "entry-points"})
+
+
+def dynamic_entry_point_violations(pyproject: dict[str, Any], repo: Path) -> list[str]:
+    """auth-bench A3-3: nothing can add an entry point at build time."""
+    found: list[str] = []
+    dynamic = set(pyproject.get("project", {}).get("dynamic", []) or [])
+    if dynamic & _ENTRY_POINT_FIELDS:
+        found.append(f"[project] dynamic declares {sorted(dynamic & _ENTRY_POINT_FIELDS)}")
+    hatch = pyproject.get("tool", {}).get("hatch", {})
+    if hatch.get("build", {}).get("hooks"):
+        found.append("[tool.hatch.build.hooks] is configured")
+    for target, cfg in hatch.get("build", {}).get("targets", {}).items():
+        if isinstance(cfg, dict) and cfg.get("hooks"):
+            found.append(f"[tool.hatch.build.targets.{target}.hooks] is configured")
+    if hatch.get("metadata", {}).get("hooks"):
+        found.append("[tool.hatch.metadata.hooks] is configured")
+    build = pyproject.get("build-system", {})
+    if build.get("build-backend") != "hatchling.build":
+        found.append(f"build backend is {build.get('build-backend')!r}, not hatchling.build")
+    extra = [r for r in build.get("requires", []) if not str(r).startswith("hatchling")]
+    if extra:
+        found.append(f"build-system requires more than hatchling: {extra}")
+    if (repo / "hatch_build.py").exists():
+        found.append("hatch_build.py exists (hatch's default custom build hook)")
+    return found
+
+
+def test_no_dynamic_entry_points_or_build_hooks() -> None:
+    """PM-4, auth-bench A3-3 (D6 TDD fixture or review id)."""
+    config = _pyproject()
+    assert config["build-system"]["build-backend"] == "hatchling.build", "positive control"
+    assert dynamic_entry_point_violations(config, REPO) == []
+
+
+@pytest.mark.parametrize(
+    "planted",
+    [
+        {"project": {"dynamic": ["entry-points"]}},
+        {"project": {"dynamic": ["version", "scripts"]}},
+        {"tool": {"hatch": {"build": {"hooks": {"custom": {}}}}}},
+        {"tool": {"hatch": {"build": {"targets": {"wheel": {"hooks": {"custom": {}}}}}}}},
+        {"tool": {"hatch": {"metadata": {"hooks": {"custom": {}}}}}},
+        {"build-system": {"build-backend": "setuptools.build_meta"}},
+        {"build-system": {"build-backend": "hatchling.build", "requires": ["hatchling", "x"]}},
+    ],
+    ids=[
+        "dynamic-entry-points",
+        "dynamic-scripts",
+        "build-hook",
+        "target-hook",
+        "metadata-hook",
+        "other-backend",
+        "hook-plugin",
+    ],
+)
+def test_planted_dynamic_entry_point_or_build_hook_is_flagged(
+    planted: dict[str, Any], tmp_path: Path
+) -> None:
+    """PM-4 teeth, auth-bench A3-3 (D6 TDD fixture or review id)."""
+    base: dict[str, Any] = {"build-system": {"build-backend": "hatchling.build"}}
+    config = {**base, **planted}
+    assert dynamic_entry_point_violations(config, tmp_path), planted
+
+
+def test_planted_hatch_build_file_is_flagged(tmp_path: Path) -> None:
+    """PM-4 teeth, auth-bench A3-3 (D6 TDD fixture or review id)."""
+    config = {"build-system": {"build-backend": "hatchling.build", "requires": ["hatchling"]}}
+    assert dynamic_entry_point_violations(config, tmp_path) == [], "twin: clean tree"
+    (tmp_path / "hatch_build.py").write_text("")
+    assert dynamic_entry_point_violations(config, tmp_path)
 
 
 @pytest.mark.parametrize(
@@ -310,5 +452,6 @@ def test_pm4_package_metadata_has_no_adapter_entry_point() -> None:
     ],
     ids=["adapter-plugin", "trigger-plugin", "trigger-script", "adapter-gui-script"],
 )
-def test_pm4_planted_entry_point_is_flagged(project: dict[str, Any]) -> None:
+def test_planted_adapter_entry_point_is_flagged(project: dict[str, Any]) -> None:
+    """PM-4 teeth (D6 TDD fixture or review id)."""
     assert entry_point_violations({"project": project})

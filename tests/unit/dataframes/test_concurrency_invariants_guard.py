@@ -134,6 +134,19 @@ _SANCTIONED_IO_TO_THREAD: dict[str, str] = {
     "autom8_asana/trigger/registration.py": (
         "blocking boto3 DynamoDB/Secrets Manager calls for webhook registration — I/O offload"
     ),
+    # D6 receiver (A3): the same two synchronous boto3 adapters on the delivery path. Each
+    # offload is one network call: the key read, the HOOK state read, the conditional DLV
+    # put and claim, the LIVE touch, the ACTIVE reads for the index snapshot. I/O, never a
+    # CPU merge (trigger/receiver.py ShadowReceiver._read_key, refresh_index, receive,
+    # _touch; drive_delivery, _abandon).
+    "autom8_asana/trigger/receiver.py": (
+        "blocking boto3 DynamoDB/Secrets Manager calls on the webhook delivery path — I/O offload"
+    ),
+    # D6 sweeper (A3): lease acquire/release and the undecided-index Query, one boto3
+    # DynamoDB call each (trigger/sweeper.py Sweeper.run_once, run_forever).
+    "autom8_asana/trigger/sweeper.py": (
+        "blocking boto3 DynamoDB lease and index-query calls for the delivery sweeper — I/O offload"
+    ),
     # S3 persistence I/O via boto3 (put/get/delete/list + client init). This is the
     # SAME default-pool co-tenant the CPU gate is sized to protect, not a CPU merge
     # (storage.py:457,525,592,653,1171).

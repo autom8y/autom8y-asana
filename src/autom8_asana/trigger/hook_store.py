@@ -22,10 +22,20 @@ Gates, in order, before any AWS call (the auth precedent, sa_pointer_store.py):
 
 Every refusal raises a typed error and makes no AWS call. The value is never logged and
 never appears in an exception message.
+
+Reads (A3, the receiver's key cache, TDD section 4 steps 5 and 6) pass the same gates as
+writes: :meth:`HookStore.read_hook_value` reads only on exactly ``production`` with the
+task-role check passing. Any read failure raises :class:`HookStoreReadFailed`, which the
+receiver answers with 500, never 401 and never a fallback key (A C-8).
+
+The handle is never logged (auth-bench A3-1). Log lines carry :func:`handle_fingerprint`,
+a short one-way digest, so lines about one hook can be joined without a log reader
+learning the handle.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -46,6 +56,11 @@ logger = get_logger(__name__)
 STORE_PREFIX: Final[str] = "autom8y/asana/webhook-hook/"
 HANDLE_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[0-9a-f]{32}$")
 RECOVERY_WINDOW_DAYS: Final[int] = 7
+
+# auth-bench A3-1: a short one-way digest of the handle for log lines. 12 hex characters
+# (48 bits) of a domain-separated SHA-256; the handle itself carries 128 random bits.
+_FINGERPRINT_DOMAIN: Final[bytes] = b"autom8y-asana-hook-handle:"
+_FINGERPRINT_CHARS: Final[int] = 12
 
 # Tags the IAM CreateSecret condition requires (custody ruling section 4).
 TAG_SERVICE: Final[str] = "asana"
@@ -87,6 +102,24 @@ class HookStoreWriteFailed(HookStoreError):
 
 class HookValueAlreadyStored(HookStoreWriteFailed):
     """A value already exists for this handle. The value is write-once."""
+
+
+class HookStoreReadFailed(HookStoreError):
+    """The read failed, the entry is missing, or it is malformed. Never carries the value."""
+
+    def __init__(self, message: str, *, error_code: str | None = None) -> None:
+        self.error_code = error_code
+        super().__init__(message)
+
+
+def handle_fingerprint(handle: str) -> str:
+    """A short one-way digest of ``handle`` for log lines (auth-bench A3-1).
+
+    The handle is never logged. The fingerprint lets an operator join the lines about one
+    hook, and it cannot be turned back into the handle.
+    """
+    digest = hashlib.sha256(_FINGERPRINT_DOMAIN + str(handle).encode("utf-8", "replace"))
+    return digest.hexdigest()[:_FINGERPRINT_CHARS]
 
 
 def hook_secret_name(handle: str) -> str:
@@ -215,7 +248,11 @@ class HookStore:
             code = _error_code(exc)
             logger.error(
                 "hook_store_create_failed",
-                extra={"handle": handle, "error_code": code, "error_type": type(exc).__name__},
+                extra={
+                    "handle_fp": handle_fingerprint(handle),
+                    "error_code": code,
+                    "error_type": type(exc).__name__,
+                },
             )
             if code == "ResourceExistsException":
                 raise HookValueAlreadyStored(
@@ -224,7 +261,7 @@ class HookStore:
             raise HookStoreWriteFailed(
                 f"CreateSecret failed ({code or type(exc).__name__})", error_code=code
             ) from None
-        logger.info("hook_store_created", extra={"handle": handle})
+        logger.info("hook_store_created", extra={"handle_fp": handle_fingerprint(handle)})
 
     def tag_webhook_gid(self, *, handle: str, webhook_gid: str) -> None:
         """Add the ``webhook_gid`` tag after create-webhook returns (ruling section 2)."""
@@ -237,7 +274,11 @@ class HookStore:
             code = _error_code(exc)
             logger.error(
                 "hook_store_tag_failed",
-                extra={"handle": handle, "error_code": code, "error_type": type(exc).__name__},
+                extra={
+                    "handle_fp": handle_fingerprint(handle),
+                    "error_code": code,
+                    "error_type": type(exc).__name__,
+                },
             )
             raise HookStoreWriteFailed(
                 f"TagResource failed ({code or type(exc).__name__})", error_code=code
@@ -257,14 +298,69 @@ class HookStore:
             # BROAD-CATCH: boundary -- not-found is a value, anything else is typed.
             code = _error_code(exc)
             if code == "ResourceNotFoundException":
-                logger.info("hook_store_delete_absent", extra={"handle": handle})
+                logger.info(
+                    "hook_store_delete_absent", extra={"handle_fp": handle_fingerprint(handle)}
+                )
                 return False
             logger.error(
                 "hook_store_delete_failed",
-                extra={"handle": handle, "error_code": code, "error_type": type(exc).__name__},
+                extra={
+                    "handle_fp": handle_fingerprint(handle),
+                    "error_code": code,
+                    "error_type": type(exc).__name__,
+                },
             )
             raise HookStoreWriteFailed(
                 f"DeleteSecret failed ({code or type(exc).__name__})", error_code=code
             ) from None
-        logger.info("hook_store_deleted", extra={"handle": handle})
+        logger.info("hook_store_deleted", extra={"handle_fp": handle_fingerprint(handle)})
         return True
+
+    def read_hook_value(self, *, handle: str) -> str:
+        """Read the handshake value stored for ``handle`` (the receiver's key, A3).
+
+        The same gates as every write run first: exactly ``production`` and the task-role
+        check, before any AWS call. Every SDK or transport failure, a missing entry and a
+        malformed entry raise :class:`HookStoreReadFailed`. The value is never logged and
+        never appears in an exception message.
+        """
+        name = hook_secret_name(handle)
+        client = self._permit("read")
+        try:
+            response = client.get_secret_value(SecretId=name)
+        except Exception as exc:  # noqa: BLE001
+            # BROAD-CATCH: boundary -- every SDK or transport failure is a typed read
+            # failure, code only. The receiver answers it with 500, never 401 (A C-8).
+            code = _error_code(exc)
+            logger.error(
+                "hook_store_read_failed",
+                extra={
+                    "handle_fp": handle_fingerprint(handle),
+                    "error_code": code,
+                    "error_type": type(exc).__name__,
+                },
+            )
+            raise HookStoreReadFailed(
+                f"read failed ({code or type(exc).__name__})", error_code=code
+            ) from None
+        value = _stored_hook_value(response)
+        if value is None:
+            logger.error(
+                "hook_store_read_failed",
+                extra={"handle_fp": handle_fingerprint(handle), "error_code": "malformed_entry"},
+            )
+            raise HookStoreReadFailed("the stored entry is malformed", error_code="malformed_entry")
+        return value
+
+
+def _stored_hook_value(response: Any) -> str | None:
+    """The ``hook_value`` field of a read response, or ``None`` when it is malformed."""
+    raw = response.get("SecretString") if isinstance(response, dict) else None
+    if not isinstance(raw, str):
+        return None
+    try:
+        body = json.loads(raw)
+    except ValueError:
+        return None
+    value = body.get("hook_value") if isinstance(body, dict) else None
+    return value if isinstance(value, str) and value else None

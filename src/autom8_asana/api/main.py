@@ -56,6 +56,7 @@ from .middleware import RequestIDMiddleware
 from .rate_limit import ensure_rate_limit_runs_after_auth, limiter
 from .routes import (
     admin_router,
+    asana_hook_router,
     dataframes_router,
     entity_write_router,
     exports_router_api_v1,
@@ -120,6 +121,11 @@ _PAT_TAGS: frozenset[str] = frozenset(
 
 # Tags whose operations use URL token auth (query parameter)
 _TOKEN_TAGS: frozenset[str] = frozenset({"webhooks"})
+
+# D6 (TDD-asana-bench-D6-shadow-receiver section 4): the Asana webhook target authenticates
+# with Asana's per-webhook HMAC (X-Hook-Signature over the raw body). It is NOT the URL
+# token above, so it carries its own tag and its own documented scheme.
+_HOOK_SIGNATURE_TAGS: frozenset[str] = frozenset({"asana-hook"})
 
 # Tags whose operations require S2S JWT auth
 _S2S_TAGS: frozenset[str] = frozenset(
@@ -193,6 +199,10 @@ _SCOPE_RULES: list[tuple[str, list[str], list[str]]] = [
     ("/api/v1/exports", ["exports:read"], ["exports:read"]),
     ("/v1/exports", ["exports:read"], ["exports:read"]),
     ("/api/v1/workflows", ["workflows:execute"], ["workflows:execute"]),
+    # D6 hook row (warden F-16): the Asana webhook target checks Asana's HMAC, never an
+    # OAuth scope, so it advertises none. It sits BEFORE the /api/v1/webhooks row because
+    # the first matching prefix wins.
+    ("/api/v1/webhooks/asana/", [], []),
     ("/api/v1/webhooks", ["webhooks:receive"], ["webhooks:receive"]),
     ("/v1/resolve", ["resolver:read"], ["resolver:read"]),
     ("/v1/query", ["query:read"], ["query:read"]),
@@ -316,6 +326,14 @@ _TAG_DESCRIPTIONS: dict[str, str] = {
         "for cache invalidation and dispatch. "
         "Returns 200 immediately to prevent Asana retries. "
         "Authentication via ?token= query parameter."
+    ),
+    "asana-hook": (
+        "Asana webhook target for the D6 shadow receiver, one handle per registered "
+        "webhook: POST /api/v1/webhooks/asana/{handle}. A request carrying X-Hook-Secret "
+        "is the registration handshake. Every other request is a delivery, authenticated "
+        "by Asana's HMAC-SHA256 of the raw body in X-Hook-Signature, then persisted and "
+        "decided after the response. Shadow only: it takes no action. Answers 404 unless "
+        "the shadow receiver is enabled. Not JWT and not a URL token."
     ),
     "offers": (
         "Offer activity timeline reporting for the Business Offers project. "
@@ -462,7 +480,9 @@ def create_app() -> FastAPI:
         + [
             # asana has redoc enabled
             "/redoc",
-            # Webhooks: URL-token auth via ?token=, not Bearer
+            # Webhooks: never Bearer. /inbound is URL-token auth via ?token=; the D6
+            # /asana/{handle} target is Asana's HMAC (X-Hook-Signature). RT-1 pins the
+            # prefix to exactly those two routes, so nothing else rides this exclusion.
             "/api/v1/webhooks/*",
             # PAT-tag route trees (handled by dual-mode get_auth_context DI)
             "/api/v1/tasks/*",
@@ -523,6 +543,9 @@ def create_app() -> FastAPI:
             RouterMount(router=query_router),
             RouterMount(router=admin_router),
             RouterMount(router=webhooks_router),
+            # D6 shadow receiver (dark): POST /api/v1/webhooks/asana/{handle}. Same
+            # JWT-excluded prefix as /inbound; its auth is Asana's HMAC (RT-1 pins the set).
+            RouterMount(router=asana_hook_router),
             RouterMount(router=workflows_router),
             RouterMount(router=entity_write_router),
             RouterMount(router=section_timelines_router),
@@ -670,6 +693,20 @@ def create_app() -> FastAPI:
                     },
                 ),
                 SecurityScheme(
+                    "AsanaHookSignature",
+                    {
+                        "type": "apiKey",
+                        "in": "header",
+                        "name": "X-Hook-Signature",
+                        "description": (
+                            "Asana webhook signature: lowercase hex HMAC-SHA256 of the"
+                            " raw request body, keyed by the value Asana sent in the"
+                            " registration handshake. Verified with a constant-time"
+                            " compare before the body is parsed."
+                        ),
+                    },
+                ),
+                SecurityScheme(
                     "WebhookToken",
                     {
                         "type": "apiKey",
@@ -688,6 +725,7 @@ def create_app() -> FastAPI:
             tag_classification=TagClassification(
                 no_auth_tags=_NO_AUTH_TAGS,
                 scheme_tag_map={
+                    "AsanaHookSignature": _HOOK_SIGNATURE_TAGS,
                     "WebhookToken": _TOKEN_TAGS,
                     "ServiceJWT": _S2S_TAGS,
                     "PersonalAccessToken": _PAT_TAGS,

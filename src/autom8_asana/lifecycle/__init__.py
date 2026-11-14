@@ -6,6 +6,11 @@ PipelineConversionRule behavior.
 Entry points:
 - LifecycleEngine.handle_transition_async() for transitions
 - AutomationDispatch.dispatch_async() for webhook routing
+
+The unmounted ``POST /api/v1/webhooks/asana`` route that lived in ``lifecycle/webhook.py``
+was deleted with the D6 receiver (TDD-asana-bench-D6-shadow-receiver section 2, W F-14).
+It had no auth and took caller-supplied tags. The webhooks prefix now holds exactly
+``/inbound`` and ``/asana/{handle}`` (RT-1).
 """
 
 from autom8_asana.lifecycle.completion import (
@@ -54,11 +59,6 @@ from autom8_asana.lifecycle.seeding import (
     AutoCascadeSeeder,
     SeedingResult,
 )
-from autom8_asana.lifecycle.webhook import (
-    AsanaWebhookPayload,
-    WebhookResponse,
-    router,
-)
 from autom8_asana.lifecycle.wiring import (
     DependencyWiringService,
     WiringResult,
@@ -96,10 +96,6 @@ __all__ = [
     "WiringResult",
     "ReopenResult",
     "SeedingResult",
-    # Webhook
-    "AsanaWebhookPayload",
-    "WebhookResponse",
-    "router",
     # Init Action Handlers
     "InitActionHandler",
     "CommentHandler",

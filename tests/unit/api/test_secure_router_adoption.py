@@ -24,6 +24,10 @@ two files retained raw ``APIRouter``:
   not Bearer JWT, so SecureRouter's JWT security scheme metadata would be
   actively wrong for the OpenAPI spec. Documented inline at webhooks.py:36-38.
 
+Added later: ``asana_hook.py``, the D6 shadow receiver. Asana's HMAC
+signature over the raw body is its authentication, not Bearer JWT and not
+the URL token, and it shares the ``/api/v1/webhooks`` prefix.
+
 The test protects against a future engineer reintroducing a raw APIRouter
 in a business-logic route without realizing the sweep.
 """
@@ -69,6 +73,12 @@ EXEMPT_MODULES: dict[str, str] = {
     # app level (see api/main.py:299). See webhooks.py:36-38 for the inline
     # SC-02 exemption note and OQ-3 in the fleet-api-sovereignty TDD.
     "webhooks.py": "SC-02 HMAC URL-token auth (not Bearer JWT)",
+    # The D6 shadow receiver authenticates each delivery by Asana's HMAC
+    # signature over the raw body, not Bearer JWT and not the URL token. It
+    # shares the /api/v1/webhooks/* prefix, which JWTAuthMiddleware excludes
+    # at the app level. SecureRouter would put a JWT requirement into the
+    # spec that the route does not use.
+    "asana_hook.py": "D6 receiver: Asana HMAC over the raw body (not Bearer JWT)",
 }
 
 

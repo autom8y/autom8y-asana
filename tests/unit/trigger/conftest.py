@@ -20,6 +20,7 @@ from moto import mock_aws
 from autom8_asana.clients.webhooks import WebhooksClient as SdkWebhooksClient
 from autom8_asana.core.types import EntityType
 from autom8_asana.errors import AsanaError, NotFoundError
+from autom8_asana.trigger.hook_registry import HookState
 from autom8_asana.trigger.ports_webhooks import WebhooksClient
 from autom8_asana.trigger.registration import Registrar, handle_handshake
 from autom8_asana.trigger.watched_projects import TriggerKind, WatchedProject
@@ -44,8 +45,23 @@ def runtime_hook_value() -> str:
     return secrets.token_urlsafe(32)
 
 
+def _real_logger_levels() -> frozenset[str]:
+    from autom8y_log import get_logger
+
+    real = get_logger("tests.unit.trigger.conftest")
+    names = ("debug", "info", "warning", "error", "exception", "critical")
+    return frozenset(name for name in names if callable(getattr(real, name, None)))
+
+
+_LOGGER_LEVELS = _real_logger_levels()
+
+
 class LogSpy:
-    """Captures ``logger.<level>(event, extra=...)`` calls (autom8y_log bypasses caplog)."""
+    """Captures ``logger.<level>(event, extra=...)`` calls (autom8y_log bypasses caplog).
+
+    It matches the real logger's interface (tests/CONVENTIONS.md rule 2): only the level
+    methods the real ``autom8y_log`` logger has are answered; any other attribute raises.
+    """
 
     def __init__(self) -> None:
         self.events: list[tuple[str, str, dict[str, Any]]] = []
@@ -57,6 +73,8 @@ class LogSpy:
         return record
 
     def __getattr__(self, level: str) -> Any:
+        if level not in _LOGGER_LEVELS:
+            raise AttributeError(f"the real logger has no {level!r}")
         return self._record(level)
 
     def named(self, event: str) -> list[dict[str, Any]]:
@@ -274,3 +292,103 @@ def project_with(*kinds: TriggerKind) -> WatchedProject:
     return WatchedProject(
         entity_type=EntityType.OFFER, project_gid=runtime_gid(), trigger_kinds=tuple(kinds)
     )
+
+
+# ---------------------------------------------------------------------------
+# Receiver (A3) helpers. Every handle, gid and hook value is generated at runtime.
+# ---------------------------------------------------------------------------
+
+
+def sign(hook_value: str, body: bytes) -> str:
+    """Asana's X-Hook-Signature for ``body``: lowercase hex HMAC-SHA256."""
+    import hashlib
+    import hmac
+
+    return hmac.new(hook_value.encode("utf-8"), body, hashlib.sha256).hexdigest()
+
+
+def completion_event(
+    *, task_gid: str | None = None, user_gid: str | None = None, created_at: str | None = None
+) -> dict[str, Any]:
+    """A task-completion event in Asana's webhook event shape."""
+    return {
+        "action": "changed",
+        "resource": {"gid": task_gid or runtime_gid(), "resource_type": "task"},
+        "change": {"field": "completed", "action": "changed"},
+        "user": {"gid": user_gid or runtime_gid(), "resource_type": "user"},
+        "created_at": created_at or "2026-11-13T19:00:00.000Z",
+    }
+
+
+def batch(*events: dict[str, Any]) -> bytes:
+    import json
+
+    return json.dumps({"events": list(events)}).encode("utf-8")
+
+
+async def body_stream(*chunks: bytes) -> Any:
+    for chunk in chunks:
+        yield chunk
+
+
+@dataclass
+class ActiveHook:
+    handle: str
+    hook_value: str
+    project_gid: str
+
+
+def make_active_hook(registry: Any, store: Any, clock: FakeClock) -> ActiveHook:
+    """A hook in state ``active`` for a fresh project, with its value stored."""
+    handle = secrets.token_hex(16)
+    project_gid = runtime_gid()
+    now = int(clock())
+    registry.put_pending(handle=handle, resource_gid=project_gid, now=now)
+    registry.mark_handshaken(handle=handle, now=now)
+    registry.activate(
+        handle=handle,
+        project_gid=project_gid,
+        webhook_gid=runtime_gid(),
+        now=now,
+        from_state=HookState.HANDSHAKEN,
+        previous_handle=None,
+    )
+    value = runtime_hook_value()
+    store.put_for_test(handle, value)
+    return ActiveHook(handle=handle, hook_value=value, project_gid=project_gid)
+
+
+class RecordingDecider:
+    """Stands in for the A4 decision engine: records each claimed delivery it is handed."""
+
+    def __init__(self, outcome: Any = None, *, fail: bool = False) -> None:
+        from autom8_asana.trigger.receiver import DecideOutcome
+
+        self.outcome = outcome or DecideOutcome.DECIDED
+        self.fail = fail
+        self.calls: list[Any] = []
+
+    async def decide(self, delivery: Any) -> Any:
+        self.calls.append(delivery)
+        if self.fail:
+            raise RuntimeError("simulated decider failure")
+        return self.outcome
+
+
+class CallCounter:
+    """Wraps an object and counts calls to each of its methods (KS-1, F-1)."""
+
+    def __init__(self, inner: Any) -> None:
+        self._inner = inner
+        self.calls: list[str] = []
+
+    def __getattr__(self, name: str) -> Any:
+        attr = getattr(self._inner, name)
+        if not callable(attr):
+            return attr
+
+        def counted(*args: Any, **kwargs: Any) -> Any:
+            self.calls.append(name)
+            return attr(*args, **kwargs)
+
+        return counted
