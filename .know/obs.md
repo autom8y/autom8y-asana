@@ -1,522 +1,444 @@
 ---
 domain: obs
-generated_at: "2026-10-05T03:31:41Z"
+generated_at: "2026-11-14T18:16:48Z"
 expires_after: "7d"
 source_scope:
-  - "./src/autom8_asana/__init__.py"
-  - "./src/autom8_asana/client.py"
-  - "./src/autom8_asana/config.py"
-  - "./src/autom8_asana/entrypoint.py"
-  - "./src/autom8_asana/errors.py"
-  - "./src/autom8_asana/settings.py"
-  - "./src/autom8_asana/storage_namespace.py"
+  - "./src/**/*.py"
+  - "./app/**/*.py"
   - "./pyproject.toml"
-  - "./.ledge/specs/cache-freshness-observability.md"
-  - "./.ledge/specs/cache-freshness-runbook.md"
 generator: theoros
-source_hash: "af02adbfdcc62241eb90f3f1ed940f657a8fadc0e5166d4a754969b32f486458"
-confidence: 0.78
+source_hash: "gitidx-v1:5a15438a45d829aa10eb9e8b5c92b387fa17dfd228b999cba199073a9191b1e9"
+source_commit: "584c8f79b5f7d0087a28a982a3ed4290cb98647d"
+evidence_hash: "gitidx-v1:afa4bc27138c2e0115cdec15692fac0ee688dc7e0121cf211cff4aae1636d183"
+anchor_source: "stamp-pin"
+stamp: {pin_id: "d55b30ac3e8e8159", pin_commit: "584c8f79b5f7d0087a28a982a3ed4290cb98647d", body_sha256: "8dfe113390a5a76903b87507f98546638a5b3347b16bd50999db4acea82f40fc"}
+confidence: 0.80
 format_version: "1.0"
 update_mode: "full"
 incremental_cycle: 0
 max_incremental_cycles: 3
-observed_ref: "origin/main@c29f58f4"
+observed_ref: "origin/main@584c8f79"
 ---
 
 # Codebase Observability
 
-> Observed at `origin/main` = `c29f58f4` (detached worktree). Code/IaC is the authority; every AWS statement is labelled **LIVE-OBSERVED** with a timestamp (read-only `aws cloudwatch` / `aws logs` calls, account <acct>, us-east-1, 2026-10-05 ~03:15-03:55Z). Anything not directly read is labelled **UV-P** (unverified, with the method that would verify it). Paths are relative to the repo root unless prefixed `monorepo:` (the `autom8y` parent repo, NOT in this checkout).
+> Observed at `origin/main@584c8f79` (clean detached worktree; 3,056 tracked files after the env/secret name floor, including 628 Python files under `src/`, 50 under `mcp/`, 845 under `tests/` and 8 files under `terraform/`). Method: AST walks of `src/` and `mcp/` for metric, span and `emit_metric` call sites (constants resolved), a stdlib line search over the manifest file list, a per-package regex coverage sweep, a read of every Terraform and alarm-bearing file, and a read of each emitter module named below. This pass made no outward or live calls, so no statement here is about live AWS, Grafana or AMP state; live facts recorded by the prior pass (2026-10-05) are not carried forward and are listed under Knowledge Gaps. Code and IaC at this ref are the authority. Paths are relative to the repo root; `monorepo:` means the `autom8y` parent repo, which is not in this checkout.
 
-**Vendor / stack detection**: observability stack detected (OTel SDK imports, `prometheus_client`, CloudWatch, AMP remote-write). Four live push/pull surfaces plus one ship-dark surface:
+**Stack detection (pre-check)**: observability stack detected. Signals: OpenTelemetry imports in `src/` and `mcp/`, `prometheus_client` in `src/autom8_asana/observability/prometheus_metrics.py:20`, CloudWatch `put_metric_data` at 6 call sites, an AMP remote-write emitter (`src/autom8_asana/lambda_handlers/offer_warm_amp.py`), a prior `.know/obs.md`. No Grafana, Prometheus server, Datadog, New Relic, Honeycomb, Loki, Tempo, Mimir or Pyroscope config file exists in the manifest (checked by file-name pattern), and the compose and Docker files carry no collector or backend service.
 
-| # | Surface | Protocol class | Where bound | State at `c29f58f4` |
-|---|---------|----------------|-------------|---------------------|
-| P1 | OTel traces via `autom8y-telemetry[aws,fastapi,otlp,remote-write]>=0.10.0` | push OTLP (exporter, endpoint, auth all SDK-managed) | `pyproject.toml:41`, `api/main.py:941` | Endpoint/headers/sampler NOT declared anywhere in-repo (UV-P) |
-| P2 | Prometheus text exposition at `/metrics` | scrape-pull | `instrument_app(...)` `api/main.py:941`; 22 domain series in `api/metrics.py` | Scraper identity not in-repo (UV-P) |
-| P3 | CloudWatch `PutMetricData` (6 emitter sites) | vendor-native push, IAM role | see §Signal Pipe Contracts | LIVE (ECS + Lambda) but Lambda fleet dark since 2026-09-05 (OBS-LAMBDA-DARK-001) |
-| P4 | AMP Prometheus remote-write (SigV4) | remote-write | `lambda_handlers/offer_warm_amp.py:65-148` | Flag-gated default OFF; live arming UV-P |
-| P5 | CloudWatch EMF JSON to stdout | log-driver extraction | `api/metrics.py:354-425` | Ship-dark (`RECEIVER_SLI_EMF_ENABLED` unset): LIVE-OBSERVED zero metrics in `Autom8y/AsanaReceiverSLI` |
-| P6 | MCP sidecar spans | OTel API only (no SDK/exporter) | `mcp/asana_mcp/observability.py:579-603`, `mcp/pyproject.toml:36-37` | Spans are no-ops unless a host installs a TracerProvider (code-inferred) |
+**Surfaces at a glance**
 
-**Deployment modes**: ECS/FastAPI service `autom8y-asana-service` (Prometheus + OTel + log-metric-filters); Lambda family (`src/autom8_asana/lambda_handlers/`, 21 modules; CloudWatch + `autom8y_telemetry.aws`); MCP stdio/HTTP sidecar (`mcp/`); CLI (`python -m autom8_asana.metrics`, CloudWatch batch).
+| # | Surface | Protocol class | Bound at | State at this ref |
+|---|---------|----------------|----------|-------------------|
+| P1 | OTel traces and HTTP server metrics via `autom8y-telemetry[aws,fastapi,otlp,remote-write]>=0.10.0` | SDK-managed push (exporter, endpoint, auth not declared in-repo) | `pyproject.toml:41`, `src/autom8_asana/api/main.py:953` | Exporter and sampler configuration invisible from the repo |
+| P2 | Prometheus text exposition at `/metrics` | scrape-pull | `instrument_app(...)` at `src/autom8_asana/api/main.py:953`; 22 domain series in `src/autom8_asana/observability/prometheus_metrics.py` | Scraper identity not in-repo |
+| P3 | CloudWatch `PutMetricData` | vendor-native HTTPS, IAM role | 6 direct call sites plus the `emit_metric` helper | Emitting code present; live state not checkable |
+| P4 | AMP Prometheus remote-write | remote-write, SigV4 | `src/autom8_asana/lambda_handlers/offer_warm_amp.py:65` | Flag-gated, default OFF |
+| P5 | CloudWatch EMF JSON line on stdout | log-driver extraction | `src/autom8_asana/observability/prometheus_metrics.py:373` | Ship-dark (flag default OFF) |
+| P6 | MCP sidecar spans | OTel API only | `mcp/asana_mcp/observability.py:579` | No SDK or exporter in the runtime dependency set |
+| P7 | CloudWatch Logs metric filters (log to metric) | in-AWS | 3 filter resources in `terraform/services/asana/` | Code-of-record only; no apply pipeline in this repo |
 
-**Headline (read this first)**
-1. The 2026-05-08 headline gap (OBS-EXPORTS-001) is CLOSED in-repo: `exports.request` span, 3-4 structured logs and 4 Prometheus series now ship (`api/routes/exports.py:352`, `api/metrics.py:724-760`).
-2. The alarm plane is the weak surface, not the instrumentation plane. LIVE-OBSERVED: of 73 asana-named alarms, 16 are in ALARM, 20 have `ActionsEnabled=false` (7 of those in ALARM, including the SEV-1 `autom8y-asana-story-warm-dead`), 9 have zero `AlarmActions`, 9 of 71 metric alarms have **zero datapoints in 390 days**, and 8 more have not seen a datapoint in >30 days.
-3. The whole Lambda family stopped emitting between 2026-09-04T10Z and 2026-09-05T08Z (LIVE-OBSERVED last `AWS/Lambda Invocations` datapoints) and has been dark ~29 days at observation time; the ECS service kept emitting. Nothing in this repo can say whether that is intended.
-4. Only 9 of the 18 alarm instances the in-repo Terraform defines exist live; 2 live alarms (PROV-8, PROV-9) have no in-repo Terraform; the other 62 of the 73 asana-named live alarms are not defined in this repo's Terraform (authorship UV-P: presumed monorepo, which was not read). There is no apply pipeline in this repo (`terraform/services/asana/story_warm_dead_alarm.tf:53-58`).
-
----
-
-## OBS-EXPORTS-001: Exports Route Instrumentation Gap (P2)
-
-**Status**: CLOSED in-repo (was OPEN at 8980bcd7 on 2026-05-08; closed 2026-06-01, branch `sre-ob2-exports-observability-2026-06-01`). Residual (SLO targets + burn-rate rules) is cross-repo.
-
-### Anchor (current)
-- Span: one `exports.request` span wraps the shared `export_handler`, `record_exception=False, set_status_on_exception=False` (`api/routes/exports.py:352-356`); tracer from `autom8y_telemetry.get_tracer` (`api/routes/exports.py:44,101`). Both delegating routes (`post_export_v1`, `post_export_api_v1`) inherit it.
-- Structured logs: `exports_section_default_injected` (`exports.py:393`), `exports_date_filter_applied` (`:416`), `exports_identity_rows_suppressed` (`:512`), `exports_handler_complete` (`:565-566`), plus three helper warnings in `api/routes/_exports_helpers.py:130,161,188` and `exports_left_preservation_guard_noop` (`exports.py:283`).
-- Metrics (all in `api/metrics.py`): `autom8y_asana_exports_request_duration_seconds` Histogram `{entity_type,format}` (`:724-729`); `..._predicate_split_outcome_total` Counter `{entity_type,date_filter_applied,section_default_applied}` (`:736-740`); `..._identity_rows_suppressed_total` Counter `{entity_type}` (`:745-749`); `autom8y_asana_exports_rows` Histogram `{entity_type,stage}` (`:755-760`). Recording sites `exports.py:550-581`. `exports_format_negotiation_fallback_total` was deliberately dropped (no real seam; note at `api/metrics.py:762-768`).
-- Downstream consumer (LIVE-OBSERVED 2026-10-05): the log event `exports_handler_complete` is turned into CloudWatch metric `autom8y/asana-exports ExportsHandlerComplete` by a **log metric filter** `autom8-asana-exports-request-presence` on `/ecs/autom8y-asana-service` (filter pattern `{ $.event = "exports_handler_complete" }`). That filter is NOT defined in this repo's Terraform (UV-P: monorepo). The metric has 1321 hourly datapoints in 55d, last value 0.0 at 2026-10-04T23:15-04:00 (the filter emits dense zeros), so it is alive.
-
-### Residual
-- Alarm `autom8-asana-exports-request-presence-DMS` is LIVE-OBSERVED in ALARM since 2026-06-12 with `ActionsEnabled=false`; it asserts Sum<1 over 12x2h periods (`breaching` on missing). It cannot page anyone.
-- SLO targets / burn-rate alert rules for `/v1/exports`: none defined anywhere in this repo (0 `.tf` mention exports).
-- Verified risk reduction: regression in `_walk_predicate`/date translation is no longer 100% reactive (span attributes + per-request histograms exist). Still no alert reads the duration histogram.
-
----
-
-## OBS-LAMBDA-DARK-001: The Lambda fleet stopped emitting ~2026-09-05 (NEW, P1 for the alarm plane)
-
-- LIVE-OBSERVED 2026-10-05 ~03:30Z, `get-metric-statistics` period 3600, last non-empty hour (UTC): `autom8-asana-cache-warmer` Invocations 2026-09-05T06:00Z; `-cache-warmer-bulk` 2026-09-05T08:00Z; `-prov-sweep` 2026-09-05T06:00Z; `-scheduling-stratum-snapshot` 2026-09-05T05:00Z; `-insights-export` 2026-09-04T10:00Z. `Autom8y/SubstrateProvability EvaluatorHeartbeat{environment=production}` last 2026-09-05T06:00Z. `autom8y/cache-warmer StoryWarmSuccess{environment=staging}` last 2026-09-05T06:00Z.
-- Alarm consequence (LIVE-OBSERVED): `asana-PROV-2-heartbeat-absence` ALARM since 2026-09-05 (correctly), `asana-stratum-producer-dead`, `-substrate-stale`, `-universe-collapse`, `asana-r7-evaluator-dead`, five `*-lambda-liveness` alarms, `autom8y-asana-story-warm-dead` all ALARM with state-change dates 2026-09-05..09-13.
-- The ECS service is NOT dark: `AWS/ECS CPUUtilization` for `autom8y-asana-service` has data to 2026-10-04T23:15-04:00; `OfferFrameAgeSeconds{project_gid=1143843662099250}` (ECS-emitted via log filter) has data to the same hour.
-- What the repo can and cannot say: nothing in `c29f58f4` documents a deliberate pause. Whether EventBridge rules are DISABLED or the functions were removed is **UV-P** (method: `aws events list-rules` + `aws lambda get-function`). The related memory note (operator) of an intake outage since 2026-09-26 is a different surface.
-- Implication for every Lambda-sourced SLI/alarm below: "OK" alarm states on Lambda-sourced metrics with `notBreaching` after 2026-09-05 are OK-by-absence, not OK-by-evidence.
-
----
+**Deployment modes**: ECS FastAPI service (`src/autom8_asana/entrypoint.py` ECS branch, `src/autom8_asana/api/main.py` `create_app`); Lambda family (`src/autom8_asana/lambda_handlers/`, 21 modules, 11 entry-point handlers); MCP sidecar (`mcp/asana_mcp/`, `mcp/serve_stdio.py`); CLIs (`python -m autom8_asana.metrics`, polling and backfill CLIs). `src/autom8_asana/entrypoint.py:15-31` has its own print-based JSON `log()` that does not use the `autom8y_log` SDK.
 
 ## Instrumentation Depth
 
-### SDK Adoption
+### SDK adoption
 
-`autom8y-telemetry[aws,fastapi,otlp,remote-write]>=0.10.0` (`pyproject.toml:41`; was `[otlp,fastapi,aws]>=0.6.1` in the prior pass), `autom8y-http[otel]>=0.6.0` (`:22`), `opentelemetry-instrumentation-httpx>=0.42b0` (`:26`), `autom8y-log>=0.7.0,<1.0.0` (`:24`). `autom8y_telemetry` is imported in 21 source modules; `opentelemetry` directly in 14 (lazy `from opentelemetry import trace` to read the current span).
+Dependency floors (`pyproject.toml`): `autom8y-telemetry[aws,fastapi,otlp,remote-write]>=0.10.0` (`:41`), `autom8y-http[otel]>=0.6.0` (`:22`), `opentelemetry-instrumentation-httpx>=0.42b0` (`:26`), `autom8y-log>=0.7.0,<1.0.0` (`:24`). The comment block at `pyproject.toml:27-40` records why each floor exists: 0.6.0 for `trace_computation`, 0.8.0 for the `route_class` metric label, 0.10.0 for the `autom8y_build_info` emitting floor and `RemoteWriteConfig`. `autom8y_telemetry` is imported in 20 `src/` modules and `opentelemetry` directly in 14 (AST and line search over `src/`, `mcp/`).
 
 | Surface | Mechanism | Anchor |
 |---------|-----------|--------|
-| FastAPI app (ECS) | `instrument_app(app, InstrumentationConfig(service_name="asana"))`: MetricsMiddleware outermost + `/metrics` mount; explicit `service_name="asana"` is load-bearing for per-service SLI selection | `api/main.py:48,941` |
-| Business metric compute | `@trace_computation("metric.compute", record_dataframe_shape=True, df_param="df")` | `metrics/compute.py:19-21` |
-| DataFrame cache | `@trace_computation("cache.get")` | `cache/integration/dataframe_cache.py:241` |
-| Progressive builder | `@trace_computation("progressive.build")` | `dataframes/builders/progressive.py:1004` |
-| Query engine | `entity.query_rows` (`query/engine.py:129`), `entity.query_aggregate` (`:383`), `predicate.compile` (`query/compiler.py:164`), `entity.join` (`query/join.py:90`), `data_service.fetch_join` (`query/fetcher.py:40`) | |
-| Query service | `entity_query.get_dataframe` | `services/query_service.py:586` |
-| Strategy resolution | manual spans `strategy.resolution.resolve` / `.resolve_group` (records exception + `StatusCode.ERROR`) | `services/universal_strategy.py:201,330,358-359` |
-| Resolver route | manual span `resolver.entities.resolve` | `api/routes/resolver.py:351` |
-| Exports route | manual span `exports.request` | `api/routes/exports.py:352` |
-| Payment reconciliation | `@trace_reconciliation("payment_reconciliation.process_entity")` | `automation/workflows/payment_reconciliation/workflow.py:164` |
-| Lambda entry points | `@instrument_lambda` | see Lambda table |
-| Outbound HTTP | global `HTTPXClientInstrumentor().instrument()` at lifespan start, `ImportError` degrades to a warning | `api/lifespan.py:135-137` |
-| MCP sidecar | per-tool `execute_tool {name}` span (`gen_ai.*` + `com.autom8y.mcp.*` attrs), per-client `HTTPXClientInstrumentor().instrument_client(ctx.http)` | `mcp/asana_mcp/observability.py:579-603,754-774` |
+| FastAPI app (ECS) | `instrument_app(app, InstrumentationConfig(service_name="asana"))`: adds `MetricsMiddleware` as the outermost layer and mounts `/metrics`. The explicit `service_name="asana"` is load-bearing: without it the HTTP duration metric labels default to a generic service name and the per-service SLI is unselectable | `src/autom8_asana/api/main.py:48,941-953` |
+| Request-ID middleware | `RequestIDMiddleware` writes `request.state.request_id` and the `X-Request-ID` response header | `src/autom8_asana/api/main.py:604`, `src/autom8_asana/api/middleware/core.py:63-98` |
+| Business metric compute | `@trace_computation("metric.compute", ...)` | `src/autom8_asana/metrics/compute.py:19` |
+| Cache read | `@trace_computation("cache.get", engine="autom8y-asana")` | `src/autom8_asana/cache/integration/dataframe_cache.py:241` |
+| Progressive builder | `@trace_computation("progressive.build")` | `src/autom8_asana/dataframes/builders/progressive.py:1004` |
+| Query layer | `entity.query_rows` (`src/autom8_asana/query/engine.py:129`), `entity.query_aggregate` (`src/autom8_asana/query/engine.py:383`), `predicate.compile` (`src/autom8_asana/query/compiler.py:164`), `entity.join` (`src/autom8_asana/query/join.py:90`), `data_service.fetch_join` (`src/autom8_asana/query/fetcher.py:40`), `entity_query.get_dataframe` (`src/autom8_asana/services/query_service.py:586`); all under `src/autom8_asana/` | decorator sites |
+| Strategy resolution | manual spans `strategy.resolution.resolve` and `.resolve_group` | `src/autom8_asana/services/universal_strategy.py:201,330` |
+| Resolver route | manual span `resolver.entities.resolve` | `src/autom8_asana/api/routes/resolver.py:351` |
+| Exports route | manual span `exports.request` with `record_exception=False, set_status_on_exception=False` | `src/autom8_asana/api/routes/exports.py:352-355` |
+| Payment reconciliation | `@trace_reconciliation("payment_reconciliation.process_entity")` | `src/autom8_asana/automation/workflows/payment_reconciliation/workflow.py:164` |
+| Lambda entry points | `@instrument_lambda` (SDK) | table below |
+| Outbound HTTP | global `HTTPXClientInstrumentor().instrument()` at lifespan start; `ImportError` degrades to a warning | `src/autom8_asana/api/lifespan.py:135-137` |
+| MCP sidecar | one `execute_tool {name}` span per tool call, per-client `HTTPXClientInstrumentor().instrument_client(ctx.http)` | `mcp/asana_mcp/observability.py:579-604,754-778` |
 
-**Spans per critical path**: request handlers (resolver, exports, query via engine/service), cache read (`cache.get`), build (`progressive.build`), resolution strategy, reconciliation workflow, Lambda invocation. Not span-covered: the generic bridge `execute_async` (see H-006 below), `api/routes/*` other than resolver/exports (rely on `instrument_app` HTTP server spans only), the account-status push loop, the MCP-to-satellite hop beyond header injection.
+Span totals (AST walk): 9 `@trace_computation` sites, 1 `@trace_reconciliation`, 4 manual `start_as_current_span` sites in `src/`, plus 1 in `mcp/`: 15 span-producing sites. Three modules enrich the current span without opening a new one (`src/autom8_asana/dataframes/builders/null_number_recovery.py:111`, `src/autom8_asana/dataframes/builders/post_build_population_receipt.py:36`, `src/autom8_asana/dataframes/builders/cascade_validator.py:20`).
 
-### Lambda entry-point instrumentation (denominator re-derived)
+### Lambda entry-point instrumentation
 
-Entry-point handler functions (`def handler(event, context)`) in `lambda_handlers/`: **11**. `@instrument_lambda` applied to **7**:
+Entry-point handlers: 11 (7 modules define `def handler(event, context)`; 4 more are `handler = create_workflow_handler(...)` assignments). `@instrument_lambda` covers 7:
 
 | Handler | Instrumented | Anchor |
 |---------|--------------|--------|
-| `cache_warmer` | yes (direct) | `lambda_handlers/cache_warmer.py:1273` |
-| `cache_invalidate` | yes (direct) | `cache_invalidate.py:298` |
-| `prov_sweep` | yes (direct) | `prov_sweep.py:221` |
-| `conversation_audit`, `insights_export`, `onboarding_walkthrough`, `payment_reconciliation` | yes (transitive via `create_workflow_handler`) | `workflow_handler.py:96`; `conversation_audit.py:52`, `insights_export.py:59`, `onboarding_walkthrough.py:118`, `payment_reconciliation.py:60` |
-| `scheduling_stratum_snapshot` | **NO** | `scheduling_stratum_snapshot.py:1245` |
-| `traffic_offer_divergence_tripwire` | **NO** | `traffic_offer_divergence_tripwire.py:1083` |
-| `enrollment_intent_bridge` | **NO** | `enrollment_intent_bridge.py:699` |
-| `leads_consumer` | **NO** | `leads_consumer.py:50` |
+| `cache_warmer` | yes | `src/autom8_asana/lambda_handlers/cache_warmer.py:1273` |
+| `cache_invalidate` | yes | `src/autom8_asana/lambda_handlers/cache_invalidate.py:298` |
+| `prov_sweep` | yes | `src/autom8_asana/lambda_handlers/prov_sweep.py:221` |
+| `conversation_audit`, `insights_export`, `onboarding_walkthrough`, `payment_reconciliation` | yes, via `create_workflow_handler` | `src/autom8_asana/lambda_handlers/workflow_handler.py:96`; assignments at `src/autom8_asana/lambda_handlers/conversation_audit.py:52`, `src/autom8_asana/lambda_handlers/insights_export.py:59`, `src/autom8_asana/lambda_handlers/onboarding_walkthrough.py:118`, `src/autom8_asana/lambda_handlers/payment_reconciliation.py:60` |
+| `scheduling_stratum_snapshot` | NO | `src/autom8_asana/lambda_handlers/scheduling_stratum_snapshot.py:1245` |
+| `traffic_offer_divergence_tripwire` | NO | `src/autom8_asana/lambda_handlers/traffic_offer_divergence_tripwire.py:1083` |
+| `enrollment_intent_bridge` | NO | `src/autom8_asana/lambda_handlers/enrollment_intent_bridge.py:699` |
+| `leads_consumer` | NO | `src/autom8_asana/lambda_handlers/leads_consumer.py:50` |
 
-Helper modules (not entry points): `cloudwatch.py`, `offer_warm_amp.py`, `story_warmer.py` (invoked from the warmer), `checkpoint.py`, `reconciliation_runner.py`, `pipeline_stage_aggregator.py`, `push_orchestrator.py`, `timeout.py`. [CORRECTION vs prior LAMBDA-OBS-001 "6 of 6": the entry-point set grew; 4 of 11 are now uninstrumented. The four uninstrumented handlers are exactly the ones whose alarms are the SEV-1 pagers (stratum, R7).]
+The four uninstrumented handlers do emit CloudWatch heartbeat or epoch metrics (see Metric inventory), so they are observable by metric but not by span. 7 of 11 is 63.6% span coverage at the entry-point level.
 
-### Auto-Instrumentation
+### Auto-instrumentation
 
-`HTTPXClientInstrumentor` (global, ECS) at `api/lifespan.py:135-137`; platform `autom8y-http[otel]` `InstrumentedTransport` adds transport-level propagation. The MCP wires the instrumentor per client (never default headers, to avoid stale-traceparent leakage): `mcp/asana_mcp/observability.py:754-774`. No other library instrumentors (no botocore/boto3, no redis, no SQLAlchemy/psycopg) are installed: S3 and Redis calls are not auto-traced.
+Only `HTTPXClientInstrumentor` is wired (global on ECS at `src/autom8_asana/api/lifespan.py:137`; per client in the MCP at `mcp/asana_mcp/observability.py:774`); `autom8y-http[otel]` adds transport-level propagation inside the SDK. No boto3/botocore, Redis, or database instrumentor appears in `pyproject.toml` or `src/`, so S3 and Redis calls are not auto-traced. The `src/autom8_asana/automation/workflows/bridge_base.py:191-197` comment still says `trace_computation` is unavailable in SDK 0.6.1; the pin is now 0.10.0 and `trace_computation` is imported in 8 modules (9 decorator sites), so the stated blocker is obsolete while the gap (no span on bridge `execute_async`) remains.
 
-### Trace Propagation
+### Trace propagation
 
-W3C `traceparent` injected on outbound httpx calls (ECS global instrumentor; MCP per-client). Inbound extraction is performed by the platform `instrument_app` middleware (SDK-internal, UV-P: not read here). The MCP test `mcp/tests/test_span_and_traceparent.py` proves span creation and header injection against an `InMemorySpanExporter` in a fake-collector setup; it is NOT evidence of a production cross-service trace. No sample production trace spanning MCP -> ALB -> satellite was obtained (UV-P: Tempo/OTLP backend identity unknown from this repo).
+Outbound W3C `traceparent` is injected by the httpx instrumentors named above. The only explicit `propagate.inject` is the MCP carrier path (`mcp/asana_mcp/observability.py:570-575`); there is no `propagate.extract` anywhere in `src/` or `mcp/`, so inbound extraction on the ECS app is delegated to `instrument_app` inside the SDK [INFERRED: SDK source not in this tree]. `mcp/tests/test_span_and_traceparent.py` and `mcp/tests/test_assembly_floor.py` prove span creation and header injection against an `InMemorySpanExporter`; that is a fake-collector test and is not evidence of a real cross-service trace. No sample production trace was obtained.
 
-### Log-Trace Correlation
+### MCP island
 
-- `add_otel_trace_ids` + `_filter_sensitive_data` passed as `additional_processors` at `api/lifespan.py:124-127` (imported `:15`). `core/logging.py:90-109` builds `LogConfig(backend="structlog", format="auto", intercept_stdlib=True)` and calls `reset_logging()` BEFORE configure so the custom processors are not dropped by SDK auto-config (fix PR #89; the prior pass recorded this as a root cause under LOG-TRACE-LAMBDA).
-- Per the prior RESOLVED record, `add_otel_trace_ids` is already in the SDK's default base chain, so Lambda logs carry `trace_id` when inside a span. Not re-verified against a live log line this pass (UV-P; method: `aws logs filter-log-events` on a `/aws/lambda/...` stream, which now has no recent events, see OBS-LAMBDA-DARK-001).
-- Import guard banning direct `structlog`/`logging`/`loguru`: `pyproject.toml:351-359` (ruff `flake8-tidy-imports.banned-api`). Exceptions still exist: `_defaults/log.py:9,54` (`logging.getLogger`, the SDK-default protocol shim), `cache/models/events.py:126` (docstring only).
-- `get_logger` is used in 251 of 610 `src` Python files.
-- The MCP has NO logging at all (`grep logging|get_logger mcp/asana_mcp/*.py` returns nothing): tool executions emit spans only.
-- Namespace gap persists: HTTP `X-Request-ID` (`uuid4().hex[:16]`, `api/middleware/core.py:92-96`) vs SDK `CorrelationContext` ids (`observability/correlation.py:14-33`) are not bridged.
+`mcp/pyproject.toml:36-37` lists `opentelemetry-api` and `opentelemetry-instrumentation-httpx`; `opentelemetry-sdk` appears only in the `dev` extra (`:49`). No `TracerProvider`, exporter or `set_tracer_provider` exists in `mcp/asana_mcp/` (line search). With only the API installed, `trace.get_tracer(...)` returns a no-op tracer, so the `gen_ai.*` and `com.autom8y.mcp.*` attributes (`mcp/asana_mcp/observability.py:125-134`) and the honesty attributes are produced but exported nowhere unless the host process installs a provider [INFERRED from OTel API semantics]. The MCP has no logging (no `logging` or `get_logger` use in `mcp/asana_mcp/`) and no metrics; refusals (`RateCapExceeded`, `asyncio.timeout` guard) attach `com.autom8y.mcp.refusal.cause` to the span only (`:670,:686`). The module self-describes as a reference-posture prototype (`:3`) with six listed shortcuts (`:35-60`). Opt-in content capture is `ASANA_MCP_OTEL_CAPTURE_CONTENT` (`:137`), default off.
+
+### Logging
+
+- Setup: `src/autom8_asana/core/logging.py:41-111` wraps `autom8y_log` (`LogConfig(backend="structlog", format="auto", intercept_stdlib=True)`), and calls `reset_logging()` before `configure_logging` so processors passed in are not dropped by the SDK's import-time auto-config (`:97-109`). The only runtime call is the ECS lifespan at `src/autom8_asana/api/lifespan.py:124-128` with `additional_processors=[add_otel_trace_ids, _filter_sensitive_data]`. Log level comes from `ApiSettings.log_level` (env `ASANA_API_LOG_LEVEL`, `src/autom8_asana/core/api_settings.py:63`); `debug` selects console format (`src/autom8_asana/api/lifespan.py:126`).
+- CLIs call `configure(...)` directly (`src/autom8_asana/automation/polling/cli.py:236`, `src/autom8_asana/automation/forwarding_stage_backfill/cli.py:197`, `src/autom8_asana/automation/polling/polling_scheduler.py:630`); the polling package also keeps a parallel `StructuredLogger` facade (`src/autom8_asana/automation/polling/structured_logger.py`) that delegates to the same SDK configure at `:95-98`.
+- No Lambda handler calls `configure()`. Lambda logs therefore ride the SDK's first-use auto-config and whatever `instrument_lambda` does inside the SDK; the satellite's `_filter_sensitive_data` redaction processor is wired on the ECS surface only [INFERRED: Lambda-side behavior depends on SDK code not in this tree].
+- Redaction: `SENSITIVE_FIELDS = {authorization, token, pat, password, secret}` substring match on log keys (`src/autom8_asana/api/middleware/core.py:32-56`).
+- Import ban: ruff `flake8-tidy-imports.banned-api` forbids `loguru`, `structlog`, stdlib `logging`, `logging.getLogger` and raw `httpx` (`pyproject.toml:510-522`). Stdlib `logging` still appears in `src/autom8_asana/_defaults/log.py:9,54` (the SDK-default provider shim). `get_logger` is referenced in 257 of 628 `src/` Python files (regex over the manifest).
+- Request access logging: `RequestLoggingMiddleware` is defined (`src/autom8_asana/api/middleware/core.py:101`) and re-exported but is not mounted by `create_app`; only `SecurityHeadersMiddleware`, `RequestIDMiddleware` and the idempotency middleware are added by this repo (`src/autom8_asana/api/main.py:591,604`, `extra_middleware` at `:543-545`). Whether `create_fleet_app` (external) mounts its own access log is not visible here.
+- Log-trace correlation: `add_otel_trace_ids` is wired on ECS only (`src/autom8_asana/api/lifespan.py:15,127`). `trace_id`/`span_id` appear as fields in `src/autom8_asana/observability/rail_delivery/delivery_receipt.py:78` and `src/autom8_asana/observability/rung_receipts/schema.py:209` as receipt data, not log correlation. HTTP `X-Request-ID` (16 hex chars, `src/autom8_asana/api/middleware/core.py:92`) and the SDK `CorrelationContext` ids (`src/autom8_asana/observability/correlation.py:14-33`) are separate namespaces and are not bridged.
+- Rate-limit 429 namespace logging (PR #537 range): `rate_limit_exceeded_namespace_handler` (`src/autom8_asana/api/errors.py:723`) computes the key namespace, calls `record_rate_limit_429(namespace)` (`:758-760`, fire-and-forget), then logs `rate_limit_exceeded` with only `namespace` and `method` (`:766-769`, never the key), then delegates to SlowAPI (`:773-775`). It is registered for `RateLimitExceeded` at `:818`. Namespaces: `sa` (`src/autom8_asana/api/rate_limit.py:83`), `jwt` (`:101`), `pat`, `ip`; the metric collapses anything else to `other` (`src/autom8_asana/observability/prometheus_metrics.py:306`).
 
 ### Sampling
 
-No sampler configured in-repo: no `OTEL_TRACES_SAMPLER*`, `OTEL_EXPORTER_*` or `OTEL_SERVICE_NAME` string appears in any `.py/.toml/.yml/.tf/Dockerfile/.env*` file (grep, 2026-10-05; only `ASANA_MCP_OTEL_CAPTURE_CONTENT` at `mcp/asana_mcp/observability.py:137` matches `OTEL_`). Sampling rate and exporter are delegated to `autom8y-telemetry` and the ECS task definition (UV-P; method: `aws ecs describe-task-definition`).
+No sampler is configured in-repo. A git-grep with the floor exclusions found no `OTEL_EXPORTER`, `OTEL_SERVICE_NAME`, `OTEL_TRACES` or `OTEL_RESOURCE` string in any non-test tracked file outside `.know/` and a prototype README (`prototypes/autom8y_telemetry/README.md:163`); the same command and pathspec found `ASR_AMP_EMIT_ENABLED` and `AMP_REMOTE_WRITE_ENDPOINT` in `src/autom8_asana/lambda_handlers/offer_warm_amp.py:31,90` (positive control). Sampling rate, exporter and endpoint are therefore delegated to the SDK and the deployed task or function environment.
 
-### MCP sidecar: instrumentation without a pipe (NEW, OBS-MCP-NOEXPORT-001)
+### Instrumentation gaps (measured)
 
-`mcp/pyproject.toml:36-37` depends on `opentelemetry-api` and `opentelemetry-instrumentation-httpx` only; `opentelemetry-sdk` is in the `dev` extra only (`:49`). No `TracerProvider`, exporter or `set_tracer_provider` exists in `mcp/asana_mcp/` (grep). With only the API installed, `tracer.start_as_current_span` is a no-op tracer: spans, gen_ai attributes and the honesty attributes (`com.autom8y.mcp.honesty.*`, `observability.py:117,132,603`) are produced but exported nowhere unless the host process installs a provider. The module self-describes as "REFERENCE-POSTURE PROTOTYPE ... NOT production code" (`observability.py:2-3`) with 6 listed shortcuts (S1-S6). No metrics, no logs. Rate-cap refusal (`RateCapExceeded`) and timeout guard (`asyncio.timeout`) attach refusal-cause attributes to the span only (`observability.py:670,686`), so the MCP's refusals have no counter.
+Per-package regex sweep over `src/autom8_asana/` (counts of non-trivial `.py` files with at least one logger call, span site, or metric emit; package init files under 5 non-empty lines are skipped; the metric regex is deliberately broad, so the metric column is an upper bound):
 
-### Known gaps registry for this criterion
-- H-006 (bridge_base): `automation/workflows/bridge_base.py:191-197` still carries the "trace_computation not available in 0.6.1" TODO; the dependency is now `>=0.10.0` and `trace_computation` is used in 8 other modules, so the stated blocker is obsolete while the gap (no span on `execute_async`) remains. Open.
-- Client libraries uninstrumented: S3 (boto3), Redis, Asana HTTP via SDK `AsanaClient` (covered only via global httpx instrumentor).
+| Package | Files | With logger | With span | With metric emit |
+|---------|-------|-------------|-----------|------------------|
+| `batch` | 3 | 0 | 0 | 0 |
+| `contracts`, `domain`, `patterns`, `readout` | 2, 3, 3, 4 | 0 | 0 | 0 |
+| `protocols` | 9 | 0 | 0 | 1 (the emitter port) |
+| `trigger` (dark D6 package) | 7 | 4 | 0 | 0 |
+| `lifecycle` | 18 | 15 | 0 | 2 |
+| `models` | 61 | 21 | 0 | 0 |
+| `persistence` | 20 | 6 | 0 | 0 |
+| `resolution` | 19 | 11 | 0 | 0 |
+| `api` | 63 | 36 | 3 | 8 |
+| `lambda_handlers` | 21 | 16 | 4 | 13 |
 
-**Completeness**: 80%. Grade B (see metadata). Basis: SDK/adoption/auto-instrumentation/log-correlation documented from code with anchors; no live trace or log-to-trace join sampled; sampler undocumented.
+Notable: `src/autom8_asana/trigger/` (the D6 webhook shadow receiver; its docstring states nothing in production constructs it, `src/autom8_asana/trigger/__init__.py:1-21`) has structured log events in `src/autom8_asana/trigger/hook_environment.py`, `src/autom8_asana/trigger/hook_registry.py`, `src/autom8_asana/trigger/hook_store.py` and `src/autom8_asana/trigger/registration.py` and no metric or span anywhere; `src/autom8_asana/trigger/ports_webhooks.py` and `src/autom8_asana/trigger/watched_projects.py` have no logging. The receiver route, signature check and decision engine are not yet in the tree, so there is no instrumented request path to compare. Other gaps: the generic bridge `execute_async` (no span); `AccountStatusPushLoop` (`src/autom8_asana/api/status_push.py:231`, 7 logger calls, no span or metric); the 4 uninstrumented Lambda handlers above; the whole `lifecycle/` engine (logs only; transitions persist to parquet via `StageTransitionEmitter`, `src/autom8_asana/lifecycle/observation.py`, which is a data record, not telemetry); S3 and Redis clients.
 
----
+**Completeness self-assessment**: SDK adoption, span inventory, Lambda coverage, logging setup, propagation and gaps are all documented from code with anchors. Not obtained: a sampled trace, a log-to-trace join, the sampler, and the exporter protocol.
 
 ## Credential Topology Integrity
 
-### Interpretation note
-The rubric contains an automatic-F floor for "multi-protocol binding with undeclared auth-routing-field axis". This pass interprets that clause as applying to a binding whose axis is silently omitted; the OTLP binding's axis is recorded below as **explicitly UV-P/BLOCKING** rather than omitted, so it is graded as a documented gap (D), not the F floor. A stricter reader would apply the floor; the metadata records both. The `credential-topology-matrix` schema file named in the criteria (`knossos/mena/pinakes/schemas/credential-topology-matrix.schema.yaml`) does not exist at that path on this machine, and no instance exists in the repo (`find . -iname '*credential-topology*'` finds only a `.ledge` receipt about the Asana PAT topology, unrelated to telemetry).
+### Interpretation and limits
 
-### Push-endpoint tuples: (protocol, scope, auth-routing-field)
+This section records, from code and non-floored config only, every telemetry binding the repo makes as a tuple of (protocol, scope, auth-routing-field), the env-var and settings NAMES that carry endpoints and auth, where each is read, and how each binds to its receiver. No value, token, account id or internal hostname is recorded. Two inputs the criterion asks for were not available: (a) the `credential-topology-matrix` schema file exists in the operator's pinakes skill directory but its file name matches the credential name floor, so it was not opened; no matrix instance exists in this repo (manifest search for the file-name pattern returned nothing); (b) the OTLP binding's routing axis is delegated to the SDK and is not declared anywhere in this tree. Per the rubric's floor clause, binding (b) is recorded as an explicitly declared unknown rather than an omitted axis; a stricter reader would apply the F floor to it.
 
-| ID | Endpoint / producer | protocol | scope | auth-routing-field | Credential source | Evidence |
-|----|---------------------|----------|-------|--------------------|-------------------|----------|
-| T1 | `cloudwatch.{region}.amazonaws.com` PutMetricData, ECS + Lambda emitters (`emit_metric`, `put_metric_data` x6) | vendor-native HTTPS, SigV4 | **namespace** (IAM `cloudwatch:namespace` StringEquals condition on the role) | IAM role identity + namespace string; there is no tenant/stack routing axis | ambient task/execution role, no static secret | `lambda_handlers/cloudwatch.py:27,68`; namespace-condition grant described at `lambda_handlers/cache_warmer.py:81-95` (cites monorepo `autom8y/asana/main.tf:1096`) |
-| T2 | AMP workspace remote-write (`AMP_REMOTE_WRITE_ENDPOINT`), series `autom8y_offer_warm_complete_timestamp{entity_type}` | Prometheus remote-write over HTTPS, snappy, SigV4 | workspace (encoded in endpoint URL) + region | SigV4 credential identity (execution role); workspace routing is the URL path (UV-P: value not in-repo) | `autom8y_telemetry.aws.remote_write.resolve_credentials()` | `lambda_handlers/offer_warm_amp.py:36-37,82-122`; gate `RemoteWriteConfig.from_env().is_active` (`ASR_AMP_EMIT_ENABLED` + `AMP_REMOTE_WRITE_ENDPOINT`), default OFF |
-| T3 | OTLP traces (and possibly metrics/logs), SDK-managed | OTLP push-HTTP or push-gRPC (UV-P which) | UV-P | **UV-P - BLOCKING**: the 2-axis bifurcation concern (gateway stack axis vs direct signal-instance axis) cannot be confirmed or excluded from this repo | SDK-resolved | no `OTEL_EXPORTER_OTLP_*` anywhere in repo; `pyproject.toml:41` extra `otlp` |
-| T4 | `/metrics` scrape | pull | local | none on producer side; scraper identity UV-P | n/a | `api/main.py:941` |
-| T5 | EMF line on stdout -> awslogs driver -> CloudWatch Logs extraction | log-driver | log group | IAM on the log group; extraction pipeline is cross-repo | n/a | `api/metrics.py:354-425`; LIVE-OBSERVED zero metrics in `Autom8y/AsanaReceiverSLI` |
-| T6 | Log-metric-filters (CloudWatch Logs -> metric) | in-AWS | log group | none (AWS-internal) | n/a | `terraform/services/asana/observability_alarms.tf:446-462,687-698`; `warmer_cache_degraded_alarm.tf:66-80`; LIVE-OBSERVED 3 filters on `/ecs/autom8y-asana-service`, 5 on `/aws/lambda/autom8-asana-cache-warmer` |
-| T7 | Alarm action targets (SNS) | SNS publish | topic | topic ARN | n/a | `story_warm_dead_alarm.tf:64-78`; `observability_alarms.tf:100-142` |
+### Push and pull bindings: (protocol, scope, auth-routing-field)
 
-SNS topics in use (LIVE-OBSERVED across 73 alarms): `autom8y-platform-alerts` (64 alarm-action bindings; notify tier, Slack lambda + email per `terraform.tfvars.example:20-27`, verified there 2026-08-11) and `autom8y-platform-sre-sev1` (16 bindings; paging tier, SMS+email per `story_warm_dead_alarm.tf:70-76`, verified 2026-08-14). Topic subscriptions were not re-queried this pass (UV-P; method `aws sns list-subscriptions-by-topic`).
+| ID | Binding | protocol | scope | auth-routing-field | Names read (where) |
+|----|---------|----------|-------|--------------------|--------------------|
+| T1 | CloudWatch `PutMetricData` from ECS and Lambda (6 call sites: `src/autom8_asana/cache/dataframe/coalescer.py:50`, `src/autom8_asana/lambda_handlers/cloudwatch.py:68`, `src/autom8_asana/metrics/cloudwatch_emit.py:217`, `src/autom8_asana/substrate/observe.py:519,673`, `src/autom8_asana/substrate/serve.py:341`, all under `src/autom8_asana/`) | vendor-native HTTPS, SigV4 | CloudWatch metric namespace (literal per emitter) | ambient task or execution role identity; a datapoint's alarm binding is the exact triple (namespace, metric name, dimension set), with no tenant or stack axis | `ASANA_CW_NAMESPACE` and `ASANA_CW_ENVIRONMENT` via `ObservabilitySettings` (`src/autom8_asana/settings.py:766-796`, prefix at `:783`, alias at `:791`, default `staging` at `:794`); `AWS_REGION` or `ASANA_CACHE_S3_REGION` (`src/autom8_asana/metrics/cloudwatch_emit.py:116`, `src/autom8_asana/substrate/observe.py:459`) |
+| T2 | AMP Prometheus remote-write of `autom8y_offer_warm_complete_timestamp{entity_type}` | Prometheus remote-write over HTTPS, snappy, SigV4 | AMP workspace plus region, encoded in the endpoint | SigV4 identity from `resolve_credentials()` (`src/autom8_asana/lambda_handlers/offer_warm_amp.py:108,125-132`); workspace routing is the endpoint URL | `ASR_AMP_EMIT_ENABLED`, `AMP_REMOTE_WRITE_ENDPOINT`, `AWS_REGION`, all read inside the SDK's `RemoteWriteConfig.from_env()` (`src/autom8_asana/lambda_handlers/offer_warm_amp.py:30-32,87`); gate is `cfg.is_active` (`:88-100`) |
+| T3 | OTLP traces (and any metrics or logs the SDK exports) | push-HTTP or push-gRPC, not determinable from this repo | not determinable | not determinable (declared unknown; see limits) | no name read in-repo; `pyproject.toml:41` extra `otlp` |
+| T4 | `/metrics` scrape | pull | in-process default registry | none on the producer side in-repo; whether `/metrics` is JWT-excluded depends on the external `DEFAULT_EXCLUDE_PATHS` (`src/autom8_asana/api/main.py:46,461`); the repo adds only `/redoc`, webhook, and PAT-route exclusions (`:462-479`) | none |
+| T5 | EMF line to stdout, extracted by the log driver | log-driver | log group, plus EMF namespace `Autom8y/AsanaReceiverSLI` and dimension `arm` | log-group IAM; extraction pipeline is not in this repo | `RECEIVER_SLI_EMF_ENABLED` read at call time (`src/autom8_asana/observability/prometheus_metrics.py:355-370`) |
+| T6 | CloudWatch Logs metric filters to alarms | in-AWS | log group | none (AWS-internal) | variable `asana_service_log_group` (`terraform/services/asana/observability_alarms.tf:438-442`), `warmer_log_groups` (`terraform/services/asana/warmer_cache_degraded_alarm.tf:48-60`) |
+| T7 | Alarm action targets | SNS publish | SNS topic | topic identifier supplied by variable | `ticket_sns_topic_arn`, `page_sns_topic_arn`, `create_ticket_topic` (`terraform/services/asana/observability_alarms.tf:94-142`), `story_warm_dead_notify_topic_arn` and `story_warm_dead_page_topic_arn` (`terraform/services/asana/story_warm_dead_alarm.tf:64-78`), `warmer_cache_degraded_topic_arn` (`terraform/services/asana/warmer_cache_degraded_alarm.tf:37-46`); the three non-AL defaults are literal topic identifiers in the `.tf` and are not transcribed here |
+| T8 | CI red-detector: nightly live smoke publishes to the notify-tier SNS topic when red | SNS publish from a GitHub Actions job | the fleet notify topic | a long-lived key pair "bridged" from a CI secret in Secrets Manager into step outputs (masked), because the OIDC role cannot read the durable-cache S3 path; the OIDC role itself is chosen by repo variables `LIVE_SMOKE_ROLE` or `AWS_ACCOUNT_ID` | `.github/workflows/nightly-live-smoke.yml:113-146` (OIDC and bridge), `:257-277` (page-on-red), env names `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` at the page step; the header (`:60-72`) states the exit plan (delete the bridge when a dedicated smoke role exists) and an honest limit: a failure before the bridge step cannot page |
+| T9 | MCP traceparent hop to the satellite | W3C trace context over httpx | per-request header on `ctx.http` | none of its own; the traced hop is authenticated by the MCP's S2S token mint (`mcp/asana_mcp/bridge.py`), which is not a telemetry credential | `ASANA_MCP_BASE_URL`, `AUTOM8Y_ASANA_URL` (`mcp/asana_mcp/settings.py:39-40`) |
 
-### Expected success / failure responses per tuple
-- T1: success = HTTP 200 with empty body; failure shapes: `AccessDenied` when the namespace is outside the IAM condition (silent drop - `emit_metric` swallows the exception and logs `metric_emit_error`, `cloudwatch.py:79-85`), `NoRegionError` at client creation (also swallowed, `:60-66`). Failure is **observable only in logs**, never as a metric. Precedent: the DMS `LastSuccessTimestamp` was silently denied until the namespace was re-pointed to the granted one (comment `cache_warmer.py:81-95`, "C2 fix").
-- T2: success = 2xx from the AMP workspace; failure is deliberately loud: error log `offer_warm_amp_failed_no_credentials` / `offer_warm_amp_emission_failed` plus CloudWatch counter `OfferWarmAmpFailed{entity_type,reason}` (`offer_warm_amp.py:106-148,153-184`). Disabled = silent `debug` skip (`:84-99`), by design: absence is caught by a downstream freshness alert (monorepo, UV-P).
-- T3/T4/T5: not observable from this repo.
+Other telemetry-adjacent env names (not credentials): `ASANA_API_LOG_LEVEL`, `ASANA_API_DEBUG` (`src/autom8_asana/core/api_settings.py:63-72`); `ASANA_SLI_HEARTBEAT_DISABLED` (`src/autom8_asana/api/sli_heartbeat.py:93`); `SUBSTRATE_PROV_ENVIRONMENT`, `SUBSTRATE_V2_S3_BUCKET` (`src/autom8_asana/lambda_handlers/prov_sweep.py:180-181`); `AUTOM8_LEADS_BRIDGE_ENABLED` (`src/autom8_asana/lambda_handlers/leads_consumer.py:38`); `TRAFFIC_OFFER_DIVERGENCE_*` (`src/autom8_asana/lambda_handlers/traffic_offer_divergence_tripwire.py:120-136`); `ASANA_MCP_RATE_*` and `ASANA_MCP_PAT_*` (`mcp/asana_mcp/observability.py:159-165`). `LOG_LEVEL`, `LOG_FORMAT`, `NO_COLOR`, `FORCE_COLOR` are documented as SDK-read overrides (`src/autom8_asana/core/logging.py:11-14`).
 
-### Bind-time fixture
-None for any tuple. T1 binds lazily on first emit (`cloudwatch.py:21-28`, cached module global). T2 resolves credentials per call (`offer_warm_amp.py:106`) and has a unit canary (`tests/unit/lambda_handlers/test_offer_warm_amp.py`, two-sided per module docstring `:20-24`); that tests series name/label, not credential validity. No equivalent for T1/T3.
+### Matrix cross-reference and bind-time fixtures
 
-### Bake-at-apply and rotation
-- T1/T2 use role identity: no secret to rotate in-repo; rotation = IAM policy change in the monorepo (cross-repo debt, no ledger pointer in this repo).
-- Namespace/dimension literals are **baked in two places** and must match by convention: the Lambda env `ASANA_CW_NAMESPACE` / `ASANA_CW_ENVIRONMENT` (`settings.py:766-790`) and the alarm definitions. `ASANA_CW_ENVIRONMENT` defaults to `"staging"` (`settings.py:793-795`); a Lambda that omits it stamps `environment=staging` on every metric. Live evidence: `autom8y-asana-story-warm-dead` deliberately alarms on `environment=staging` because the PRODUCTION warmer carries that label (`story_warm_dead_alarm.tf:33-41`); the stratum producer was fixed 2026-08-06 (`scheduling_stratum_snapshot.py:245-251`). `WarmSuccess`/`WarmFailure` LIVE-OBSERVED exist ONLY under `environment=staging` (129 and 11 day-buckets in the last 200d) and zero under `production`.
-- Namespace tri-partition (documented in ADR-006/ADR-007, `.ledge/decisions/`): `autom8/lambda` (default), `autom8y/cache-warmer` (lowercase, coalescer + warmer runtime), `Autom8y/...` (Pascal: freshness probe, substrate, bridge fleet). Six places hard-code a namespace; a rename silently un-wires alarms (see GAP-012 in design-constraints).
+- Matrix entries: none in this repo (BLOCKING per the rubric for every row above).
+- Bind-time fixtures that do exist are name-and-dimension binding tests, not credential validity tests: `tests/unit/substrate/test_observe.py:784` (`test_terraform_alarms_bind_to_emitted_metric_identities`, a textual parse of the `.tf` diffed against `build_metric_data`) pins namespace, metric name and dimension-key set for the substrate alarms; `tests/unit/lambda_handlers/test_scheduling_stratum_snapshot_durability.py:338` pins the stratum `ALARM_BOUND_METRICS` set against its monorepo alarm half; `tests/unit/lambda_handlers/test_offer_warm_amp.py` guards the AMP series name and label; `tests/unit/api/test_receiver_sli_emf_export.py` covers the EMF document; `tests/unit/api/test_build_info_seal.py` seals `autom8y_build_info`. No fixture validates T1, T3 or T8 at bind time, and none exercises a known-bad credential.
+
+### Expected success and failure responses per tuple
+
+- T1: success is a normal `put_metric_data` return. Every failure collapses into a swallowed exception and a warning log: `metric_emit_error` (`src/autom8_asana/lambda_handlers/cloudwatch.py:79-85`), `coalescer_dedup_metric_failed` (`src/autom8_asana/cache/dataframe/coalescer.py:65`), `substrate_provability_emit_failed` (`src/autom8_asana/substrate/observe.py:525`), `substrate_data_quality_emit_failed` (`:678`), `substrate_serve_emit_failed` (`src/autom8_asana/substrate/serve.py:344`), or a stderr line in the CLI (`src/autom8_asana/metrics/cloudwatch_emit.py:228`). An access-denied on an out-of-grant namespace, a missing region, and a throttle are indistinguishable at the metric layer; only logs carry them. Precedent: the comment at `src/autom8_asana/lambda_handlers/cache_warmer.py:81-96` records that the dead-man timestamp was once emitted to a namespace outside the role's grant and silently dropped until the namespace was resolved from settings (`_dms_namespace`, `:99-107`).
+- T2: success is a 2xx from the workspace. Failure is deliberately loud: error logs `offer_warm_amp_failed_no_credentials` (`:132`) and `offer_warm_amp_emission_failed` (`:151`) plus the CloudWatch counter `OfferWarmAmpFailed{entity_type, reason}` with `reason` in `no_credentials` or `push_failed` (`:173`). Disabled or unconfigured is a debug-level skip, `offer_warm_amp_skipped_disabled` (`:94`).
+- T3, T4, T6, T7: not observable from this repo. T5: the stdout write is wrapped so it never raises; a serialization failure logs `receiver_sli_emf_emit_failed` at debug (`src/autom8_asana/observability/prometheus_metrics.py:438-446`). T8: failure before the bridge step is documented as un-pageable.
+
+### Bake-at-apply coupling and rotation
+
+- T1 and T2 use role identity, so there is no secret to rotate in-repo; rotation is an IAM or deploy-environment change outside this tree (no debt-ledger pointer exists in this repo).
+- Namespace and `environment` literals are baked in three places that must agree by convention: the function or task env (`ASANA_CW_NAMESPACE`, `ASANA_CW_ENVIRONMENT`), the emitter constants, and the alarm definitions. `ASANA_CW_ENVIRONMENT` defaults to `staging` (`src/autom8_asana/settings.py:794`), so any function that omits it stamps `environment=staging` on every `emit_metric` datapoint. The repo documents this drift in two places: `terraform/services/asana/story_warm_dead_alarm.tf:33-41` hard-codes `environment = "staging"` on purpose because the production warmer is described as not setting the variable, and `src/autom8_asana/lambda_handlers/scheduling_stratum_snapshot.py:244-251` says the stratum producer was fixed by setting it in the paired infra change.
+- Namespaces are defined in 16 literal places in `src/` (list under Signal Pipe Contracts) plus 3 in Terraform; a rename on either side silently un-wires an alarm. Four modules state the byte-exact seam in comments: `src/autom8_asana/lambda_handlers/scheduling_stratum_snapshot.py:233-246`, `src/autom8_asana/lambda_handlers/traffic_offer_divergence_tripwire.py:160-166`, `src/autom8_asana/substrate/observe.py:400-404`, `src/autom8_asana/lambda_handlers/enrollment_intent_bridge.py:150-166` (the last states that no alarm half exists yet).
 
 ### 2-axis bifurcation check
-Within this repo's own surfaces the routing axis is uniform (IAM + namespace). The only place a bifurcation could exist is T3 vs T4/T2 on a shared receiver platform, and that cannot be evaluated here. Flagged, not resolved.
 
-**Completeness**: 62% (D). Basis: 6 of 7 tuples decomposed with evidence; OTLP axis unknown (BLOCKING); no matrix instance; no bind-time fixture; rotation documented only as role-identity.
+Within this repo every telemetry binding routes on the same axis (IAM identity plus namespace), so there is no protocol-level split of the kind the rubric describes; the OTLP axis cannot be evaluated here. A different, in-repo bifurcation exists on the dimension axis of the same receiver: `emit_metric` stamps `environment` from `ASANA_CW_ENVIRONMENT` (default `staging`, `src/autom8_asana/lambda_handlers/cloudwatch.py:52-54`), while the substrate emitters stamp `environment` from their own constructor argument defaulting to `production` (`src/autom8_asana/substrate/observe.py:415`, `src/autom8_asana/substrate/serve.py:233`, `SUBSTRATE_PROV_ENVIRONMENT` at `src/autom8_asana/lambda_handlers/prov_sweep.py:181`), and the matching alarm variable defaults to `production` (`terraform/services/asana/observability_alarms.tf:38-42`). A Lambda that emits through both paths can write the same logical `environment` dimension with two different values. This is flagged, not resolved.
 
----
+**Completeness self-assessment**: 8 of 9 bindings decomposed into tuples with in-repo evidence; the OTLP axis is declared unknown; no matrix instance or schema read; no credential-validity fixture exists.
 
 ## Signal Pipe Contracts
 
-### Per-signal-class contract table
+### Per-signal-class contract
 
-| Signal class | Producer side | Wire protocol | Endpoint | Auth surface | Consumer side | Hops / retry posture |
+| Signal class | Producer | Wire protocol | Endpoint / sink | Auth surface | Consumer | Hops and retry posture |
 |---|---|---|---|---|---|---|
-| Traces (ECS) | `autom8y_telemetry` OTel SDK, `@trace_computation` + manual spans | OTLP (HTTP vs gRPC UV-P) | UV-P (SDK-managed) | UV-P (T3) | UV-P (OTLP-compatible backend) | Direct push assumed; collector presence UV-P |
-| Traces (Lambda) | `@instrument_lambda` | UV-P (OTLP or X-Ray via SDK) | UV-P | UV-P | UV-P | Per-invocation flush UV-P |
-| Traces (MCP) | `opentelemetry-api` only | none (no exporter) | none | none | none unless host provider | 0 hops: no-op by default (OBS-MCP-NOEXPORT-001) |
-| Metrics (ECS, domain) | `prometheus_client` in-process registry, 22 series in `api/metrics.py` | scrape-pull text | `/metrics` mounted by `instrument_app` | none producer-side | unknown scraper (UV-P) | In-memory, fire-and-forget, no I/O (`api/metrics.py:7`) |
-| Metrics (ECS, platform) | `instrument_app` MetricsMiddleware: `autom8y_http_request_duration_seconds{service="asana",route_class}`, `autom8y_build_info` (SDK >=0.10.0) | scrape-pull | `/metrics` | none | monorepo SLO rules, e.g. `EcsServiceDenominatorAbsent{service=asana,slo=emitting_floor}` (`api/sli_heartbeat.py:3-12`; rule itself UV-P) | `SliHeartbeat` re-observes every 30s (`sli_heartbeat.py:62`) |
-| Metrics (CloudWatch, any mode) | 6 `put_metric_data` sites (below) | AWS JSON/HTTPS | `monitoring.{region}.amazonaws.com` | SigV4 IAM, namespace condition (T1) | CloudWatch + alarms | Synchronous, best-effort, exceptions swallowed to a warning log; no retry beyond botocore defaults |
-| Metrics (AMP) | `emit_offer_warm_complete` | remote-write snappy | `AMP_REMOTE_WRITE_ENDPOINT` | SigV4 (T2) | monorepo `slo_offer_freshness` recording rules + node-4 alerts (UV-P) | 1 hop, 1 POST/entity/success; failure -> `OfferWarmAmpFailed` CW counter |
-| Metrics (EMF) | `emit_receiver_sli_emf` | EMF JSON line on stdout | ECS awslogs -> CloudWatch Logs extraction | log-group IAM | deploy-gate / monorepo alarm (contract name `ADR-RECEIVER-SLI-METRIC-CONTRACT`, `api/metrics.py:352-355`) | Ship-dark; flag `RECEIVER_SLI_EMF_ENABLED` |
-| Logs | `autom8y_log` structlog, JSON when no TTY | stdout | ECS awslogs `/ecs/autom8y-asana-service`; Lambda `/aws/lambda/<fn>` | IAM | CloudWatch Logs; 3 metric filters ECS-side, 5 on the warmer Lambda log group (LIVE-OBSERVED) | 1 hop to CloudWatch; indexing/Insights downstream UV-P |
+| Traces (ECS) | `autom8y_telemetry` SDK, 9 `@trace_computation`, 1 `@trace_reconciliation`, 4 manual spans | SDK-managed OTLP (HTTP vs gRPC not determinable) | not declared in-repo | not declared in-repo (T3) | not determinable | direct push assumed; collector presence unknown |
+| Traces (Lambda) | `@instrument_lambda` on 7 of 11 handlers | SDK-managed | not declared in-repo | not declared in-repo | not determinable | per-invocation flush behavior is SDK-internal |
+| Traces (MCP) | `opentelemetry-api` only | none | none | none | none unless the host installs a provider | zero hops by default |
+| Metrics, domain (ECS) | `prometheus_client` default registry, 22 series | scrape-pull text | `/metrics` mounted by `instrument_app` | none producer-side (T4) | scraper not in-repo | in-memory, fire-and-forget (`src/autom8_asana/observability/prometheus_metrics.py:1-10`) |
+| Metrics, platform (ECS) | `instrument_app` `MetricsMiddleware`: `autom8y_http_request_duration_seconds` with `service="asana"` and `route_class`, a requests counter, an in-flight gauge, `autom8y_build_info` | scrape-pull | `/metrics` | none producer-side | monorepo SLO rules (not in this tree) | `SliHeartbeat` re-observes a probe-class sample every 30 s (`src/autom8_asana/api/sli_heartbeat.py:62,112-148`) |
+| Metrics, CloudWatch (ECS and Lambda) | `emit_metric` helper plus 5 direct `put_metric_data` sites | AWS JSON over HTTPS | CloudWatch in the function's region | SigV4 role (T1) | CloudWatch and alarms | synchronous, best-effort, exceptions swallowed to a warning log, no retry beyond SDK defaults, no buffer |
+| Metrics, AMP | `emit_offer_warm_complete` | remote-write, snappy | endpoint from env (T2) | SigV4 | monorepo recording rules (named in comments at `src/autom8_asana/lambda_handlers/offer_warm_amp.py:15-21`; not in this tree) | 1 hop, 1 POST per entity on `WarmResult.SUCCESS`; failure becomes the `OfferWarmAmpFailed` counter |
+| Metrics, EMF | `emit_receiver_sli_emf` | one JSON line on stdout | log driver then extraction | log-group IAM (T5) | deploy gate and monorepo alarm (contract name at `src/autom8_asana/observability/prometheus_metrics.py:352-354`) | off unless `RECEIVER_SLI_EMF_ENABLED` is truthy; swallows all errors |
+| Logs | `autom8y_log` structlog, JSON when no TTY | stdout | ECS log group named in `terraform/services/asana/observability_alarms.tf:438-442`; Lambda log groups named in `terraform/services/asana/warmer_cache_degraded_alarm.tf:55-59` | IAM | CloudWatch Logs; 3 metric-filter resources | 1 hop; indexing downstream not in-repo |
 | Profiles | none | n/a | n/a | n/a | n/a | n/a |
-| Events | EventBridge for bridge events (`_publish_bridge_event`, `workflow_handler.py:230,390`) - domain events, not telemetry | n/a | n/a | n/a | n/a | n/a |
+| Events | EventBridge domain events from `_publish_bridge_event` (`src/autom8_asana/lambda_handlers/workflow_handler.py:390`) | n/a | n/a | n/a | not telemetry | n/a |
 
-### CloudWatch `put_metric_data` sites (6 independent)
+Two synchronous CloudWatch calls sit on the ECS request path: `src/autom8_asana/api/routes/workflows.py:399` (once per workflow invoke, after the awaited workflow) and `src/autom8_asana/api/middleware/idempotency.py:787` (only on a finalize failure). Both call the blocking boto3 helper from async code; the Prometheus module's own contract is "no synchronous I/O" (`src/autom8_asana/observability/prometheus_metrics.py:7`), so these two are the exceptions.
 
-| # | Site | Namespace | Dimensions stamped | Anchor |
-|---|------|-----------|--------------------|--------|
-| 1 | CLI freshness probe (atomic 5-metric batch, ADR-006) | `Autom8y/FreshnessProbe` | `metric_name`, `project_gid` | `metrics/cloudwatch_emit.py:40,217` |
-| 2 | Shared Lambda/ECS helper `emit_metric` (13+ importers incl. `api/middleware/idempotency.py:787`, `services/gid_push.py:75`, `api/routes/workflows.py:399`) | `settings.observability.cloudwatch_namespace` = `autom8/lambda` default, overridable per call | **always** `environment` (default `"staging"`) + caller dims | `lambda_handlers/cloudwatch.py:31-85` |
-| 3 | Cache coalescer dedup | `autom8y/cache-warmer` | `coalescer_key` (unbounded cardinality) | `cache/dataframe/coalescer.py:30,50` |
-| 4 | Provability evaluator + data-quality emitter | `Autom8y/SubstrateProvability` | `environment` (+ `project_gid`,`entity_type` on `ArtifactProvable` only) | `substrate/observe.py:404,519,673` |
-| 5 | Serve-side refusal emitter | `Autom8y/SubstrateServe` | `environment`, `reason` | `substrate/serve.py:226,341` |
-| 6 | `autom8y_telemetry.aws` helpers: `emit_success_timestamp`, `emit_business_metric`, `instrument_lambda` | per caller (`dms_namespace`, `fleet_namespace`) | SDK-defined | `workflow_handler.py:300-390`, `cache_warmer.py:1420` |
+### Metric inventory (measured)
 
-Plus a log-derived metric family via CloudWatch Logs metric filters (T6) and the ship-dark EMF path. LIVE-OBSERVED namespace emptiness (list-metrics returns only metrics with data in the last ~2 weeks): `Autom8y/AsanaReceiverSLI` 0, `Autom8y/SubstrateServe` 0 (emitter `CloudWatchRefusalEmitter` is defined at `substrate/serve.py:269` and referenced by NO production wiring in `src/`; the default is `NullRefusalEmitter`), `Autom8y/AsanaIntakeCF` 0 (AL-6 filter/alarm not applied), `Autom8y/AsanaWarmerCache` 0 (expected: quiet when healthy), `autom8y/cache-warmer` only `CoalescerDedupCount` (Lambda family dark).
+**Prometheus domain series: 22** (AST walk of `src/autom8_asana/observability/prometheus_metrics.py`: 10 Counters, 6 Gauges, 6 Histograms). `src/autom8_asana/api/metrics.py` is now a re-export shim (`:1`) and `src/autom8_asana/api/main.py:555` imports it only to trigger registration.
 
-### Pipeline topology
-- ECS: app -> stdout -> awslogs -> CloudWatch Logs -> {metric filters -> CloudWatch metrics -> alarms -> SNS}; app -> `/metrics` -> scraper (UV-P); app -> OTLP (UV-P); app -> `put_metric_data` direct (coalescer, idempotency failure, gid_push, workflow route).
-- Lambda: handler -> `emit_metric`/SDK -> CloudWatch directly (1 hop); logs -> CloudWatch Logs -> metric filters; warmer -> AMP (flag-gated).
-- Buffering: none anywhere in-process; emission failures are logged (`metric_emit_error`) and dropped. CloudWatch is the only sink with a break-glass role (`OfferWarmAmpFailed`).
+| Series | Type | Labels | Defined | Emitted at |
+|---|---|---|---|---|
+| `autom8y_asana_dataframe_build_duration_seconds` | Histogram | entity_type | `:24` | no call site |
+| `autom8y_asana_dataframe_cache_operations_total` | Counter | entity_type, tier, result | `:31` | `src/autom8_asana/cache/integration/dataframe_cache.py:312,333,615,641,755` |
+| `autom8y_asana_dataframe_rows_cached` | Gauge | entity_type | `:37` | `src/autom8_asana/cache/integration/dataframe_cache.py:973` |
+| `autom8y_asana_dataframe_swr_refreshes_total` | Counter | entity_type, result | `:43` | `src/autom8_asana/cache/integration/dataframe_cache.py:1344` |
+| `autom8y_asana_dataframe_circuit_breaker_state` | Gauge | project_gid | `:49` | no call site |
+| `autom8y_asana_api_calls_total` | Counter | method, path_pattern, status_code | `:59` | no call site |
+| `autom8y_asana_api_call_duration_seconds` | Histogram | method, path_pattern | `:65` | no call site |
+| `autom8y_asana_cache_lookup_outcome_total` | Counter | entity_type, outcome | `:81` | `src/autom8_asana/services/universal_strategy.py:859,888` |
+| `autom8y_asana_build_coordinator_semaphore_utilization` | Gauge | none | `:90` | `src/autom8_asana/services/universal_strategy.py:1089,1109` |
+| `autom8y_asana_rate_limit_429_total` | Counter | namespace | `:98` | `src/autom8_asana/api/errors.py:760` |
+| `autom8y_asana_receiver_query_outcome_total` | Counter | entity_type, outcome | `:108` | `src/autom8_asana/api/routes/query.py:533` |
+| `autom8y_asana_receiver_query_fallback_cause_total` | Counter | entity_type, cause | `:140` | `src/autom8_asana/api/routes/query.py:535` |
+| `autom8y_asana_event_loop_lag_seconds` | Histogram | none | `:523` | `src/autom8_asana/api/event_loop_monitor.py:52,84` |
+| `autom8y_asana_cpu_thread_semaphore_in_use` / `_waiting` / `_max` | Gauge x3 | none | `:534,538,542` | `src/autom8_asana/dataframes/concurrency.py:82` |
+| `autom8y_asana_serving_stale_total` | Counter | entity_type | `:550` | `src/autom8_asana/cache/integration/dataframe_cache.py:764` |
+| `autom8y_asana_lkg_serve_age_seconds` | Histogram | entity_type | `:556` | `src/autom8_asana/cache/integration/dataframe_cache.py:764` |
+| `autom8y_asana_exports_request_duration_seconds` | Histogram | entity_type, format | `:724` | `src/autom8_asana/api/routes/exports.py:581` |
+| `autom8y_asana_exports_predicate_split_outcome_total` | Counter | entity_type, date_filter_applied, section_default_applied | `:736` | `src/autom8_asana/api/routes/exports.py:550` |
+| `autom8y_asana_exports_identity_rows_suppressed_total` | Counter | entity_type | `:745` | `src/autom8_asana/api/routes/exports.py:555` |
+| `autom8y_asana_exports_rows` | Histogram | entity_type, stage | `:755` | `src/autom8_asana/api/routes/exports.py:559` |
 
-### Contract-drift log (SCAR-style, cited)
-| ID | Drift | Receiver response / symptom | Resolution class |
-|----|-------|-----------------------------|------------------|
-| DRIFT-NS-DMS | Warmer DMS emitted to `Autom8y/AsanaCacheWarmer` while IAM grant allowed only the env namespace | silent `AccessDenied` swallowed; DMS alarm watched an empty namespace; orphan `autom8-asana-cache-warmer-DMS-24h` LIVE-OBSERVED in ALARM since 2026-06-04, last datapoint 2026-06-02 | re-bind (resolve namespace from settings, `cache_warmer.py:81-111`); orphan alarm retirement staged as L-7 (`observability_alarms.SURFACED.md`) |
-| DRIFT-ENV-STAGING | production Lambda stamps `environment=staging` | alarms bound to `production` read INSUFFICIENT_DATA/OK-by-absence | matrix update (alarm re-pointed to `staging`, `story_warm_dead_alarm.tf:33-41`) or env fix (stratum, 2026-08-06) |
-| DRIFT-DIM-WARMFAIL | Alarm `autom8-asana-cache-warmer-failure-offer` pins `{entity_type=offer}` but `emit_metric` always adds `environment` | zero datapoints in 390d (LIVE-OBSERVED); series exists only as `{environment=staging, entity_type=offer}` | UNRESOLVED (see OBS-DEAD-ALARMS-001) |
-| DRIFT-AL5-TIER | AL-5 filter pins event `dataframe_cache_memory_lkg_serve`; code builds the name as `f"dataframe_cache_{tier}_lkg_serve"` | an `s3`-tier LKG serve is invisible to AL-5 (code-inferred, `cache/integration/dataframe_cache.py:768` vs `observability_alarms.tf:451`) | OPEN |
-| DRIFT-BINDING | `ticket_sns_topic_arn` default `""` -> alarm with `AlarmActions=[]` | "alarm detects, notifies nobody" (SCAR-ALARM-BINDING-001, N=5) | structural cure `eb9dfc09` on main; default still non-enforcing (`observability_alarms.tf:144-153`) |
+Search of `src/` and `mcp/` (call sites and direct constant use) found no caller for the 4 series marked "no call site" or for their helpers `record_build_duration`, `record_circuit_breaker_state`, `record_api_call`; the same search shape found callers for the other recorders (positive control). Those 4 are defined, exported by the shim, and never incremented. Label vocabulary notes: S7 `cause` is closed to `cadence_503 | capacity_502 | honest_refusal | data_2xx` (`src/autom8_asana/observability/prometheus_metrics.py:154-162`, mapper `:177`); `record_rate_limit_429` folds unknown namespaces to `other` (`:306`). The honest-rate accessor `success_rate_with_stale_context` (`:650`) returns the success rate only together with `serving_stale_total`.
 
-**Completeness**: 80%. Grade B. Basis: all emitted signal classes have a documented producer->consumer contract; trace and scrape consumers remain UV-P; AMP live arming UV-P.
+**CloudWatch via `emit_metric` (`src/autom8_asana/lambda_handlers/cloudwatch.py:31`): 88 distinct metric names** across 14 emitting modules (AST walk of `emit_metric`, `_emit` and `_emit_status_push_skipped` call sites with module constants resolved: 86 names, plus the two names `SchedulingStratumSnapshotPushed` and `...DryRun` that come from one conditional expression at `src/autom8_asana/lambda_handlers/scheduling_stratum_snapshot.py:617`). The helper always stamps an `environment` dimension from `ASANA_CW_ENVIRONMENT` (`src/autom8_asana/lambda_handlers/cloudwatch.py:52-54`) and adds caller dimensions. Unit is `Count` unless noted.
 
----
-
-## Metric Inventory
-
-### ECS / Prometheus domain series (22, all in `api/metrics.py`; prior pass listed 7)
-
-| Series | Type | Labels | Line |
+| Emitter module (under `src/autom8_asana/`) | Namespace | Metric names (dimensions beyond `environment`) | First call lines |
 |---|---|---|---|
-| `autom8y_asana_dataframe_build_duration_seconds` | Histogram | entity_type | 24 |
-| `..._dataframe_cache_operations_total` | Counter | entity_type, tier, result | 31 |
-| `..._dataframe_rows_cached` | Gauge | entity_type | 37 |
-| `..._dataframe_swr_refreshes_total` | Counter | entity_type, result | 43 |
-| `..._dataframe_circuit_breaker_state` | Gauge | project_gid (0/1/2) | 49 |
-| `..._api_calls_total` / `..._api_call_duration_seconds` | Counter / Histogram | method, path_pattern, status_code | 59 / 65 |
-| `..._cache_lookup_outcome_total` | Counter | entity_type, outcome | 81 |
-| `..._build_coordinator_semaphore_utilization` | Gauge | none | 90 |
-| `..._rate_limit_429_total` | Counter | namespace (sa/pat/ip/other) | 98 |
-| `..._receiver_query_outcome_total` | Counter | entity_type, outcome (deploy-gate SLI denominator) | 108 |
-| `..._receiver_query_fallback_cause_total` | Counter | entity_type, cause (cadence_503 / capacity_502 / honest_refusal / data_2xx) | 140 |
-| `..._event_loop_lag_seconds` | Histogram | none (fed by `EventLoopLagMonitor`, `api/event_loop_monitor.py:31`) | 523 |
-| `..._cpu_thread_semaphore_{in_use,waiting,max}` | Gauge x3 | none | 534-542 |
-| `..._serving_stale_total` / `..._lkg_serve_age_seconds` | Counter / Histogram | entity_type | 550 / 556 |
-| `..._exports_request_duration_seconds`, `..._exports_predicate_split_outcome_total`, `..._exports_identity_rows_suppressed_total`, `..._exports_rows` | Histogram/Counter | see OBS-EXPORTS-001 | 724-760 |
+| `src/autom8_asana/lambda_handlers/cache_warmer.py` | settings default (see namespaces) | `WarmSuccess`, `WarmFailure`, `RowsWarmed`, `WarmDuration` (ms) all with `entity_type`; `CheckpointSaved`, `CheckpointResumed`, `WarmerCheckpointCleared`, `WarmerKeysCovered`, `WarmerKeysEnumerated`, `WarmerAimdEngaged`, `WarmerKeyBudgetExhausted`, `WarmerDeadlineYield`, `TotalDuration` (ms): 13 | `:439-1220` |
+| `src/autom8_asana/lambda_handlers/cloudwatch.py` | settings default | `WarmerCoverageRate` (Percent), emitted from `src/autom8_asana/lambda_handlers/cache_warmer.py:485` | `:109` |
+| `src/autom8_asana/lambda_handlers/story_warmer.py` | settings default | `StoryWarmEntityTaskCount`, `StoryWarmEntitySuccess`, `StoryWarmEntityFailure`, `StoryWarmEntityReached` (per-entity dimensions), `StoryWarmSuccess`, `StoryWarmFailure`, `StoriesWarmed`, `StoryWarmDuration` (ms): 8 | `:210-213,459-495` |
+| `src/autom8_asana/lambda_handlers/cache_invalidate.py` | settings default | `InvalidateSuccess` (`type`), `KeysCleared` (`tier`), `ProjectManifestInvalidated` (`project_gid`), `InvalidateFailure`, `InvalidateDuration` (ms): 5 | `:156-276` |
+| `src/autom8_asana/lambda_handlers/timeout.py` | settings default | `SelfContinuationInvoked` | `:133` |
+| `src/autom8_asana/lambda_handlers/workflow_handler.py` | settings default; `Autom8y/AsanaBridgeFleet` for `BridgeFleetHealth` | `WorkflowExecutionError`, `WorkflowExecutionCount`, `WorkflowValidationSkipped`, `WorkflowDuration` (Seconds), `WorkflowSuccessRate` (Percent), all with `workflow_id`; `BridgeFleetHealth` (`workflow_id`) | `:115-378` |
+| `src/autom8_asana/lambda_handlers/push_orchestrator.py` | settings default; fleet namespace for two | `GidPushSuccess`, `GidPushFailure` (`entity_type`), `StatusPushSuccess` (`entry_count`), `StatusPushFailure`; fleet: `StatusPushUnmappedEntities`, `StatusPushSkipped` (`skip_reason`) | `:92-252` |
+| `src/autom8_asana/services/gid_push.py` | `Autom8y/AsanaBridgeFleet` (`:44`) | `StatusPushSkipped` (`skip_reason`), `StatusPushRowsSkipped` (`skip_class`), `VocabSyncRefused`, `VocabSyncSkipped`, `VocabSyncContractParseFailed` (`field_key`), `VocabSyncDriftDetected` | `:75,1058-1311` |
+| `src/autom8_asana/lambda_handlers/offer_warm_amp.py` | settings default | `OfferWarmAmpFailed` (`entity_type`, `reason`) | `:173` |
+| `src/autom8_asana/lambda_handlers/scheduling_stratum_snapshot.py` | settings default, deliberately dimension-free apart from `environment` (`:244-251`) | 16 names: `...SnapshotRunEpoch`, `PushEpoch`, `PushFailed`, `Refused`, `Skipped`, `SchemaLag`, `ShadowRun`, `DegenerateSource`, `Error`, `...Pushed`/`DryRun` (carries `office_count`, unalarmable by construction per `:252-262`), `SchedulingStratumUniverseCensus`, `...UniverseDropped`, `...PostureSignalRows`, `...PostureUniverseRows`, `...StatusDrift` | `:290-371,459,617,1030-1270` |
+| `src/autom8_asana/lambda_handlers/enrollment_intent_bridge.py` | `Autom8y/AsanaEnrollmentBridge` (`:168`) | 16 names, constants at `:171-201` (`LastRunEpoch`, `EvaluationRefused`, `DeltaCeilingTripped`, `InScopeOffices`, `IntentDeltaCount`, `ConfigWritesApplied`, `NoopOffices`, `UnresolvedOfficeCount`, `NotConfiguredOfficeCount`, `EnrollmentPrereqRefusedCount` with `reason`, `WriteDeniedCount`, `InvalidPhoneFormatCount`, `BridgeErrorCount`, `GuidNullInScopeCount`, `RosterOnlyPhoneCount`, `StatusDriftPhoneCount`) | `:288-346,739` |
+| `src/autom8_asana/lambda_handlers/traffic_offer_divergence_tripwire.py` | `Autom8y/AsanaOfferDivergence` (`:166`) | 10 names: `LastRunEpoch`, `EvaluationRefused`, `TradingWithoutActiveOfferCount`, `NewlyTradingWithoutActiveOfferCount`, `ActiveOfferRosterSize`, `TradingWithoutActiveOfferBookings`, `TradingWithoutActiveOfferByClass` (`class`), `TrafficOfficesEvaluated`, `TrafficLegUnavailable` (`leg`), `TrafficOfferDivergenceError` | `:680-770,1107` |
+| `src/autom8_asana/api/routes/workflows.py` | settings default | `WorkflowInvokeCount` (`workflow_id`, `source`, `dry_run`) | `:399` |
+| `src/autom8_asana/api/middleware/idempotency.py` | settings default | `IdempotencyFinalizeFailure` (`endpoint`, `service_name`) | `:787` |
 
-Plus platform series from `instrument_app`: `autom8y_http_request_duration_seconds`/`_requests_total`/in-flight with `service="asana"` and `route_class` (needs autom8y-telemetry >=0.8.0, `pyproject.toml:30-33`), `autom8y_build_info` (>=0.10.0). The synthetic `route_class="probe"` series `/__sli_heartbeat__` is written every 30s by `SliHeartbeat` (`api/sli_heartbeat.py:62-85,140-146`; started at `api/lifespan.py:373-377`; disable env `ASANA_SLI_HEARTBEAT_DISABLED`); it exists solely so the monorepo emitting-floor dead-man can distinguish "idle" from "down" (`sli_heartbeat.py:1-30`), and is excluded from the business denominator by `route_class` (G-DENOM).
+Module-name pairs sum to 89; `StatusPushSkipped` is emitted from two modules into the same namespace, which gives the 88 distinct names. `WorkflowDuration` is also emitted a second time through the SDK helper `emit_business_metric` into the per-workflow namespace (`src/autom8_asana/lambda_handlers/workflow_handler.py:344-358`), with `EntitiesProcessed`.
 
-### CloudWatch metrics by namespace
+**Direct `put_metric_data` emitters: 20 series.**
 
-| Namespace | Metrics (emitter) | Alarmed live? (LIVE-OBSERVED 2026-10-05) |
+| Emitter | Namespace | Series (dimensions) | Anchor |
+|---|---|---|---|
+| Freshness probe CLI batch (single call per ADR-006) | `Autom8y/FreshnessProbe` (`src/autom8_asana/metrics/cloudwatch_emit.py:40`) | `MaxParquetAgeSeconds`, `SectionCount`, `SectionAgeP95Seconds`, `SectionCoverageDelta`, `ForceWarmLatencySeconds` (`metric_name`, `project_gid`) | `:217`; invoked from `src/autom8_asana/metrics/__main__.py:280,494,1026` |
+| Cache coalescer | `autom8y/cache-warmer` (`src/autom8_asana/cache/dataframe/coalescer.py:30`) | `CoalescerDedupCount` (`coalescer_key`, unbounded cardinality, no `environment`) | `:50` |
+| Provability sweep and data-quality emitter | `Autom8y/SubstrateProvability` (`src/autom8_asana/substrate/observe.py:404`) | 12 names (`UnprovableCount`, `ProvableCount`, `MaxStalenessAgeSeconds`, `Completeness`, `EvaluatorHeartbeat`, `ExpectedSetMismatchCount`, `ExpectedCount`, `EvaluatedCount`, `EvaluationFailed`, `FutureDatedProofCount`, `ArtifactProvable`, `ActiveRowEconomicNullCount`); run-level dimension `{environment}`, `ArtifactProvable` adds `project_gid`, `entity_type` | `:419-444,519,673` |
+| Serve-side refusal emitter | `Autom8y/SubstrateServe` (`src/autom8_asana/substrate/serve.py:226`) | `SubstrateRefusalCount` (`environment`, plus a second series with `reason`), `FutureDatedProofCount` | `:239-244,341` |
+
+`CloudWatchProvabilityEmitter` is constructed only by `src/autom8_asana/substrate/prov_sweep.py:116` (reached from the `prov_sweep` Lambda). `CloudWatchDataQualityEmitter` is constructed only at `src/autom8_asana/substrate/parity_run.py:363`; that module's docstring says it is an operator tool, "Not imported by any deployed path" (`:38-39`), so `ActiveRowEconomicNullCount` has no scheduled emitter. `CloudWatchRefusalEmitter` has no construction outside its own module; `src/autom8_asana/substrate/serve.py:405` defaults to `NullRefusalEmitter`, so both `Autom8y/SubstrateServe` series are defined but not emitted by any deployed path.
+
+**Other emitters.**
+- EMF (flag-gated, default off): `ReceiverQueryOutcomeSuccess`, `ReceiverQueryOutcomeServerError`, `ServingStaleTotal` in `Autom8y/AsanaReceiverSLI`, dimension `arm` (`src/autom8_asana/observability/prometheus_metrics.py:354,408-437`), called from `src/autom8_asana/api/routes/query.py:539`. The co-read rule puts `ServingStaleTotal` in the same document as the outcome counts.
+- AMP (flag-gated, default off): gauge `autom8y_offer_warm_complete_timestamp{entity_type}` (`src/autom8_asana/lambda_handlers/offer_warm_amp.py:56`), called from `src/autom8_asana/lambda_handlers/cache_warmer.py:594,980`.
+- SDK helpers: `emit_success_timestamp` into per-workflow dead-man namespaces and the fleet namespace (`src/autom8_asana/lambda_handlers/workflow_handler.py:367,386`), the warmer's settings-resolved namespace (`src/autom8_asana/lambda_handlers/cache_warmer.py:1420`) and `Autom8y/AsanaLeadsBridge` (`src/autom8_asana/lambda_handlers/leads_consumer.py:40,140`); metric name and dimensions are SDK-internal [INFERRED `LastSuccessTimestamp` from the alarm that reads it, `terraform/services/asana/observability_alarms.tf:291`].
+- Log-derived (Terraform metric filters): `OfferFrameAgeSeconds{project_gid}`, `OfficePhoneStampUnresolved`, `CacheDegradedMode` (see Alerting).
+- Hook-only metrics that production never wires: `DataServiceClient` emits 7 names (`insights_request_total`, `insights_request_latency_ms`, `insights_request_error_total`, `insights_batch_total`, `insights_batch_size`, `insights_batch_success_count`, `insights_batch_failure_count`) only through `metrics_hook` (`src/autom8_asana/clients/data/client.py:127,153,685-695`; `src/autom8_asana/clients/data/_metrics.py:19-54`); every production construction omits it (`src/autom8_asana/api/dependencies.py:577`, `src/autom8_asana/api/routes/workflows.py:372`, `src/autom8_asana/lambda_handlers/leads_consumer.py:105`). The leads consumer's `grain_bridge_leads_skipped_total` (`src/autom8_asana/automation/workflows/leads_skip.py:31,75`) has the same shape: `GrainBridgeLeadsConsumer` is built without a hook (`src/autom8_asana/lambda_handlers/leads_consumer.py:107-111`). The `ObservabilityHook` protocol's methods are implemented only by `NullObservabilityHook` (`src/autom8_asana/_defaults/observability.py:9-47`) and no `src/` code calls `on_request_start`, `on_rate_limit` or the other hook methods.
+
+**Totals.** Code-defined series with a distinct name: 22 Prometheus + 88 `emit_metric` + 20 direct `put_metric_data` + 3 EMF + 1 AMP = 134, plus 4 SDK platform families, 8 hook-only, 3 log-derived and the SDK dead-man timestamp. At default flags 11 of the 134 have no deployed emitting path: 4 Prometheus series with no call site, 2 `SubstrateServe` series, 3 EMF series (flag off), 1 AMP series (flag off), and `ActiveRowEconomicNullCount` (operator tool only).
+
+### Namespaces
+
+16 literal namespaces in `src/`: the settings default `autom8/lambda` (`src/autom8_asana/settings.py:788-792`); `autom8y/cache-warmer` (`src/autom8_asana/cache/dataframe/coalescer.py:30`); `autom8y/cache-warmer-bulk` (fallback, `src/autom8_asana/lambda_handlers/cache_warmer.py:96`); `Autom8y/AsanaBridgeFleet`; `Autom8y/AsanaEnrollmentBridge`; `Autom8y/AsanaOfferDivergence`; `Autom8y/AsanaLeadsBridge`; `Autom8y/FreshnessProbe`; `Autom8y/AsanaReceiverSLI`; `Autom8y/SubstrateProvability`; `Autom8y/SubstrateServe`; four per-workflow dead-man namespaces `Autom8y/AsanaInsights`, `Autom8y/AsanaAudit`, `Autom8y/AsanaWalkthrough`, `Autom8y/AsanaReconciliation` (`src/autom8_asana/lambda_handlers/insights_export.py:56`, `src/autom8_asana/lambda_handlers/conversation_audit.py:49`, `src/autom8_asana/lambda_handlers/onboarding_walkthrough.py:115`, `src/autom8_asana/lambda_handlers/payment_reconciliation.py:57`); and `BridgeWorkflows` (fallback, `src/autom8_asana/lambda_handlers/workflow_handler.py:345,352`). Terraform adds `Autom8y/AsanaSubstrateFreshness`, `Autom8y/AsanaIntakeCF`, `Autom8y/AsanaWarmerCache`. The deployed value of `ASANA_CW_NAMESPACE` is not in the repo; comments cite a lowercase `autom8y/cache-warmer` value for the warmer family (`src/autom8_asana/cache/dataframe/coalescer.py:27`, `terraform/services/asana/story_warm_dead_alarm.tf:36-37`) [INFERRED].
+
+### Load-bearing log events
+
+Events that a Terraform metric filter (or a documented monorepo filter) keys on; renaming any of them silently un-wires a monitor.
+
+| Event | Emitted at | Consumed by |
 |---|---|---|
-| `autom8/lambda` (default `ASANA_CW_NAMESPACE`) | stratum snapshot: `SchedulingStratumSnapshot{RunEpoch,PushEpoch,PushFailed,Refused,Skipped,SchemaLag,ShadowRun,DegenerateSource,Error}`, `SchedulingStratumUniverseCensus`, `SchedulingStratumPostureSignalRows/UniverseRows`, `SchedulingStratumStatusDrift` (`scheduling_stratum_snapshot.py:290-371,1030-1088,1260`); `InvalidateSuccess/Failure/Duration`, `KeysCleared`, `ProjectManifestInvalidated` (`cache_invalidate.py:156-276`); `SelfContinuationInvoked` (`timeout.py:133`); `IdempotencyFinalizeFailure` (`api/middleware/idempotency.py:787`); `WorkflowInvokeCount` (`api/routes/workflows.py:399`); `StatusPush*`, `GidPush*`, `VocabSync*` (`push_orchestrator.py`, `services/gid_push.py:1058-1311`) | stratum series alarmed by 7 `asana-stratum-*` alarms (monorepo-authored, UV-P) |
-| `autom8y/cache-warmer` (Lambda env) | `WarmSuccess`, `WarmFailure`, `RowsWarmed`, `CheckpointSaved/Resumed`, `WarmerKeysCovered/Enumerated`, `WarmerCheckpointCleared`, `WarmerAimdEngaged`, `WarmerKeyBudgetExhausted`, `WarmerDeadlineYield`, `TotalDuration`, `WarmerCoverageRate` (`cache_warmer.py:439-651,1220`; `cloudwatch.py:88-109`); `StoryWarmSuccess/Failure`, `StoriesWarmed`, `StoryWarmDuration`, `StoryWarmEntity{TaskCount,Success,Failure}` (`story_warmer.py:210-213,459-495`); `CoalescerDedupCount` (`coalescer.py:50`) | `autom8y-asana-story-warm-dead` (SEV-1, ActionsEnabled=false, ALARM); `...-failure-offer` (wrong dims, never fires); `cache-warmer-bulk-cadence-DMS` on `autom8y/cache-warmer-bulk WarmerCheckpointCleared` (ALARM, actions disabled) |
-| `Autom8y/FreshnessProbe` | CLI batch: `MaxParquetAgeSeconds`, `ForceWarmLatencySeconds`, `SectionCount`, `SectionAgeP95Seconds`, `SectionCoverageDelta` (`cloudwatch_emit.py:40-60`); log-derived from the warmer log group: `ActiveOfferRows`, `PopulationFloorBreach`, `ResolverCascadeLoop`, `SectionNameContractViolationError` | `cache-freshness-warning` / `-sustained-p1` + 4 log-derived alarms (`active-offer-rows-collapse`, `population-receipt-below-floor`, `resolver-cascade-loop`, `section-name-contract-violation-error`): all 6 have ActionsEnabled=false; `SectionCoverageDelta` alarm-forbidden by `c6_guard_check` (`cloudwatch_emit.py:88-106`) |
-| `Autom8y/AsanaCacheWarmer` | `LastSuccessTimestamp` (retired namespace; the warmer now writes DMS into `_dms_namespace()`) | orphan `autom8-asana-cache-warmer-DMS-24h` (ALARM, no datapoints since 2026-06-02) |
-| `Autom8y/AsanaBridgeFleet` | `BridgeFleetHealth`, `LastSuccessTimestamp`, `StatusPushSkipped`, `StatusPushUnmappedEntities` (`workflow_handler.py:300-390`, `push_orchestrator.py:184,252`, `gid_push.py:44,79`) | AL-1/AL-4 authored, NOT live (no `asana-AL1/2/3/4/6` alarms live) |
-| `Autom8y/AsanaInsights` (+ `AsanaAudit`, `AsanaWalkthrough`, `AsanaReconciliation`) | per-workflow DMS namespaces: `LastSuccessTimestamp`, `EntitiesProcessed`, `WorkflowDuration` | AL-3 authored, NOT live |
-| `Autom8y/AsanaOfferDivergence` | R7 tripwire: `TradingWithoutActiveOfferCount`, `NewlyTradingWithoutActiveOfferCount`, `ActiveOfferRosterSize`, `EvaluationRefused`, `LastRunEpoch`, `...Bookings`, `...ByClass`, `TrafficOfficesEvaluated`, `TrafficLegUnavailable` (`traffic_offer_divergence_tripwire.py:166-188`) | 5 `asana-r7-*` alarms (2 in ALARM: `active-offer-roster-floor`, `evaluator-dead`; all 5 ActionsEnabled=false) |
-| `Autom8y/AsanaEnrollmentBridge` | 16 metrics (`enrollment_intent_bridge.py:168-201`) | none found |
-| `Autom8y/SubstrateProvability` | `UnprovableCount`, `ProvableCount`, `MaxStalenessAgeSeconds`, `Completeness`, `EvaluatorHeartbeat`, `ExpectedSetMismatchCount`, `ExpectedCount`, `EvaluatedCount`, `EvaluationFailed`, `FutureDatedProofCount`, `ArtifactProvable`, `ActiveRowEconomicNullCount` (`substrate/observe.py:404-440`) | PROV-1..6, 8, 9 live; PROV-7 authored not live |
-| `Autom8y/SubstrateServe` | `SubstrateRefusalCount`, `FutureDatedProofCount` (`serve.py:226-244`) | none; emitter unwired |
-| `Autom8y/AsanaSubstrateFreshness` | `OfferFrameAgeSeconds{project_gid}` (log-derived, TF `observability_alarms.tf:446-462`) | AL-5 live (ActionsEnabled=false) |
-| `Autom8y/AsanaIntakeCF` | `OfficePhoneStampUnresolved` (log-derived, AL-6) | not live |
-| `Autom8y/AsanaWarmerCache` | `CacheDegradedMode` (log-derived) | F-1 live; 0 datapoints ever (quiet-when-healthy by design) |
-| `Autom8y/AsanaReceiverSLI` | EMF `ReceiverQueryOutcomeSuccess/ServerError`, `ServingStaleTotal` | none; ship-dark |
-| `autom8y/asana` | `autom8y-asana-service-error-count` (log filter `ERROR` on service log group) | `autom8y-asana-service-error-count-high` live, actions enabled |
-| `autom8y/asana-exports` | `ExportsHandlerComplete` (log filter) | `...-exports-request-presence-DMS` (ALARM, actions disabled) |
+| `dataframe_cache_{tier}_lkg_serve` with `tier` in `memory`, `s3` | `src/autom8_asana/cache/integration/dataframe_cache.py:768` (tier values at `:300,319`) | AL-5 filter, which pins the `memory` spelling (`terraform/services/asana/observability_alarms.tf:451`) |
+| `cache_degraded_mode` | `src/autom8_asana/cache/backends/redis.py:173,258` | F-1 filter (`terraform/services/asana/warmer_cache_degraded_alarm.tf:71`) |
+| `office_phone_cf_not_found`, `office_phone_cf_stamp_failed` | `src/autom8_asana/services/intake_create_service.py:373,388` | AL-6 filter (`terraform/services/asana/observability_alarms.tf:690`) |
+| `section_name_contract_violation`, `section_last_verified_stamp_failed` | `src/autom8_asana/dataframes/builders/progressive.py:625,637,651` | documented live filter in `docs/runbooks/RUNBOOK-freshness-verification-recency.md:100-112` (filter not in this repo) |
+| `population_receipt_below_floor`, `population_receipt_ok` | `src/autom8_asana/dataframes/builders/post_build_population_receipt.py:240,242` | no in-repo consumer |
+| `cascade_loop_detected` | `src/autom8_asana/dataframes/resolver/cascading.py:313` | no in-repo consumer |
+| `exports_handler_complete` | `src/autom8_asana/api/routes/exports.py:566` | no in-repo consumer |
+| `rate_limit_exceeded` (new) | `src/autom8_asana/api/errors.py:766` | no in-repo consumer; carries `namespace`, `method` |
+| `write_authz_allowed`, `write_authz_would_deny`, `write_authz_denied` | `src/autom8_asana/api/write_authz.py:339,353` (the call at `:353` picks `denied` or `would_deny` by mode) | none: log-only |
+| `metric_emit_error` | `src/autom8_asana/lambda_handlers/cloudwatch.py:83` | none: the only record of a dropped CloudWatch emission |
 
-### Structurally dark emitters
-- **OBS-DATACLIENT-HOOK-001 (NEW)**: `DataServiceClient` metrics (`insights_request_total`, `insights_request_error_total`, `insights_request_latency_ms`, retry counters) pass through `metrics_hook` (`clients/data/client.py:127,153,695`; `_metrics.py:15-40`). `grep metrics_hook= src/` returns zero production wirings (10 in `tests/`), so these metrics are never emitted in production (code-inferred; the only emission path is a hook nobody supplies).
-- **OBS-SERVE-EMITTER-DARK-001 (NEW)**: `CloudWatchRefusalEmitter` (`substrate/serve.py:269`) has no construction outside its module; `Autom8y/SubstrateServe` is empty live. Refusals (the "feature not an outage" SLI, `serve.py:228-232`) are therefore uncounted.
-- **OBS-EMF-DARK-001**: receiver-SLI EMF is off (`api/metrics.py:354-373`; call site `api/routes/query.py:539`); the deploy-gate claim ("10-min >=99%") cannot be self-proved from a durable sink while it is off.
+### Contract-drift log (code-visible)
 
----
+| ID | Drift | Evidence | State |
+|----|-------|----------|-------|
+| DRIFT-AL5-TIER | AL-5's filter pins `dataframe_cache_memory_lkg_serve`; the code builds the event name from the tier and serves LKG from both tiers, so an `s3`-tier LKG serve produces `dataframe_cache_s3_lkg_serve`, which the filter does not match | `src/autom8_asana/cache/integration/dataframe_cache.py:299-301,317-319,768` vs `terraform/services/asana/observability_alarms.tf:451` | open |
+| DRIFT-AL1-INVALID-KEY | AL-1 authors an alarm instance for `skip_reason=invalid_key`; the value is retired for the status push ("nothing emits it today") and is emitted only on the separate `VocabSyncSkipped` series | `terraform/services/asana/observability_alarms.tf:218-223`, `src/autom8_asana/services/gid_push.py:50-53,1560` | open: 1 of 4 AL-1 instances binds a value no `StatusPushSkipped` emitter produces |
+| DRIFT-ENV-DIM | two `environment` conventions (see Credential Topology, bifurcation check) | `src/autom8_asana/settings.py:794`, `src/autom8_asana/substrate/observe.py:415`, `terraform/services/asana/story_warm_dead_alarm.tf:86-88` | open, documented in comments |
+| DRIFT-DMS-NS | the warmer dead-man timestamp once targeted a namespace outside the role's grant | `src/autom8_asana/lambda_handlers/cache_warmer.py:81-107` | resolved in code (namespace from settings); the retired namespace string survives in a CLI wait message (`src/autom8_asana/metrics/__main__.py:445`) |
+| DRIFT-SLO3 | SLO-3 in the spec names a `DMS_NAMESPACE` constant in `src/autom8_asana/lambda_handlers/cache_warmer.py`; no such constant exists now | `.ledge/specs/cache-freshness-observability.md:143` vs `src/autom8_asana/lambda_handlers/cache_warmer.py:96-107` | open |
+| DRIFT-EMITTER-DARK | emitters that exist but have no deployed path: 4 Prometheus series, `SubstrateServe`, `ActiveRowEconomicNullCount`, hook-only metrics, flagged EMF and AMP | see Totals | open |
 
-## Trace Inventory
+**Completeness self-assessment**: every signal class this repo produces has a producer, wire protocol, sink and auth surface documented; the metric inventory is complete by AST walk with explicit totals; the consumer side for traces and scrapes, and the live state of every sink, are outside the repo.
 
-| Span name | Source | Notes |
-|---|---|---|
-| `metric.compute` | `metrics/compute.py:19` | `record_dataframe_shape=True` |
-| `cache.get` | `cache/integration/dataframe_cache.py:241` | enriches current span at `:269-271` |
-| `progressive.build` | `dataframes/builders/progressive.py:1004` | span enrichment `:1264` |
-| `entity.query_rows` / `entity.query_aggregate` | `query/engine.py:129,383` | span enrichment `:165,422` |
-| `predicate.compile` | `query/compiler.py:164` | |
-| `entity.join` | `query/join.py:90` | |
-| `data_service.fetch_join` | `query/fetcher.py:40` | |
-| `entity_query.get_dataframe` | `services/query_service.py:586` | |
-| `strategy.resolution.resolve` / `.resolve_group` | `services/universal_strategy.py:201,330` | errors set `StatusCode.ERROR` |
-| `resolver.entities.resolve` | `api/routes/resolver.py:351` | attrs: entity_type, criteria_count, project_gid, caller_service |
-| `exports.request` | `api/routes/exports.py:352` | six contracted attrs |
-| `payment_reconciliation.process_entity` | `automation/workflows/payment_reconciliation/workflow.py:164` | |
-| `execute_tool {name}` | `mcp/asana_mcp/observability.py:590-591` | no-op without provider |
-| Lambda invocation spans | `@instrument_lambda` (7 of 11 entry points) | exporter UV-P |
-| HTTP server/client spans | `instrument_app`, `HTTPXClientInstrumentor` | |
-| Span-enrichment helpers (read current span only, no new span) | `dataframes/builders/null_number_recovery.py:111`, `post_build_population_receipt.py:36`, `cascade_validator.py:20` | |
-
-Not instrumented: `bridge_base.execute_async` (H-006), S3/Redis clients, account-status push loop, scheduler/ticker coroutines, `lifecycle/` engine.
-
----
-
-## Log Inventory
-
-### SDK and configuration
-- `autom8y_log` is the mandated primitive; ruff bans `structlog`, `logging`, `loguru`, `httpx` (`pyproject.toml:351-361`). Configuration: `core/logging.py:51-111` (`LogConfig(backend="structlog", level, format="auto", intercept_stdlib=True)` then `reset_logging()` first, `:106-109`). Console when TTY, JSON otherwise.
-- Processors: `add_otel_trace_ids`, `_filter_sensitive_data` at `api/lifespan.py:124-127`.
-
-### Log events that are load-bearing for alarms (renaming any of these silently un-wires a monitor)
-| Event | Emitted at | Consumed by (LIVE-OBSERVED filter or TF) |
-|---|---|---|
-| `dataframe_cache_{tier}_lkg_serve` (`memory`/`s3`) | `cache/integration/dataframe_cache.py:768` | AL-5 filter (memory tier only) `observability_alarms.tf:451` |
-| `exports_handler_complete` | `api/routes/exports.py:566` | live filter `autom8-asana-exports-request-presence` |
-| `cache_degraded_mode` | `cache/backends/redis.py:173,258` | `warmer_cache_degraded_alarm.tf:71` (live) |
-| `population_receipt_below_floor` / `population_receipt_ok` | `dataframes/builders/post_build_population_receipt.py:240,242` | live filters on the warmer log group |
-| `cascade_loop_detected` | `dataframes/resolver/cascading.py:313` | live filter -> `ResolverCascadeLoop` |
-| `section_name_contract_violation` | `dataframes/builders/progressive.py:625,637` | live filter (requires `extra.reseed_window IS FALSE` and level error) |
-| `office_phone_cf_not_found` / `office_phone_cf_stamp_failed` | `services/intake_create_service.py:373,388` | AL-6 filter (TF only; not live) |
-| `write_authz_would_deny` / `write_authz_denied` / `write_authz_allowed` | `api/write_authz.py:338-362` | NONE (log-only: no metric filter, no alarm; OBSERVE mode computes the same decision and proceeds, `:325-366`) |
-| `metric_emit_error` | `lambda_handlers/cloudwatch.py:82` | NONE: the only record of a dropped CloudWatch emission |
-| `ERROR` (any level-error line) | everywhere | live filter `autom8y-asana-service-errors` -> `autom8y-asana-service-error-count` -> alarm `autom8y-asana-service-error-count-high` (>10 sum/60s x5, OK) |
-
-### Gaps
-- No Lambda-mode custom processor gap remains (RESOLVED, PR #89), but there is no Lambda log pipeline view: all Lambda log groups are quiet since 2026-09-05.
-- `exports.py` logs carry `request_id` in `extra` but no `trace_id` in event body; correlation relies on the processor.
-
----
-
-## SLO Catalog
+## SLO/SLI Maturity
 
 ### Status of the SLO source
-`.ledge/specs/cache-freshness-observability.md` (738 lines) is still `status: draft`, authored 2026-04-27 by `thermal-monitor` (frontmatter lines 1-14), last touched by commit `46c322ba` (2026-04-28). It was never ratified in the file. All three SLOs below cover the **Lambda warmer / freshness CLI surface**; there are no API-surface (latency/availability/error-rate) SLO targets in this repo. SLOs for the ECS service live in the monorepo (e.g. the `EcsServiceDenominatorAbsent{service=asana,slo=emitting_floor}` rule referenced at `api/sli_heartbeat.py:3-12`; rule body UV-P).
 
-| SLO | Target / window / denominator | SLI & source | Anchor |
+The only SLO catalog in this repo is `.ledge/specs/cache-freshness-observability.md` (frontmatter `status: draft`, authored 2026-04-27 by the thermal-monitor role, `:1-14`). Its last change was commit `46c322ba` ("close cache-freshness-procession", #30). It was never ratified in the file. All three SLOs cover the Lambda warmer and the freshness CLI, not the ECS API surface. No API availability, latency or error-rate SLO target is defined anywhere in `src/`, `terraform/`, `config/`, `docs/runbooks/` or `.github/` (search for `SLO`, `SLI`, burn-rate and error-budget terms returned only the spec-derived references below, receiver-SLI comments in code, and `docs/runbooks/RUNBOOK-freshness-verification-recency.md`).
+
+### SLO inventory (from the spec; measurement code re-checked at this ref)
+
+| SLO | Target, window, denominator | SLI and signal source | Spec anchor | Code state at this ref |
+|---|---|---|---|---|
+| SLO-1 ParquetMaxAgeSLO | 95% of CLI invocations over a rolling 7 days report `MaxParquetAgeSeconds < 21600` for the ACTIVE-classifier fleet; denominator is CLI invocations (spec assumes O(5)/day); error budget 5% | `MaxParquetAgeSeconds` in `Autom8y/FreshnessProbe`, one batch per CLI run (`src/autom8_asana/metrics/cloudwatch_emit.py:217`) | `:105-119` | emitter present; the CLI emits no invocation counter, so the denominator is not measurable from metrics |
+| SLO-2 WarmSuccessRateSLO | `WarmSuccess/(WarmSuccess+WarmFailure)` for `entity_type=offer` at or above 95% over a rolling 7 days | `WarmSuccess`, `WarmFailure` with dimension `entity_type` (`src/autom8_asana/lambda_handlers/cache_warmer.py:590,601,972,1004,1097`) | `:123-135` | emitters present; spec's line anchors (`:473,501`) have rotted; `emit_metric` always adds `environment`, which the spec's dimension set omits |
+| SLO-3 WarmHeartbeatSLO | at least 1 dead-man timestamp per rolling 24 hours | `emit_success_timestamp` (`src/autom8_asana/lambda_handlers/cache_warmer.py:1420`) | `:139-149` | the spec names a `DMS_NAMESPACE` constant that no longer exists; the namespace now comes from settings (`src/autom8_asana/lambda_handlers/cache_warmer.py:99-107`) |
+
+SLI rationale as written in the spec: SLO-1 chooses freshness because `active_mrr` is internal and operational (eventual consistency tolerable, DEF-3 anchor, `:113`); SLO-2 is availability of the warm action; SLO-3 is liveness of the warmer (`:147`). The runbook `docs/runbooks/RUNBOOK-freshness-verification-recency.md:41-61` defines the successor freshness SLI, `verification_age = now - min(last_verified_at)` over active-classified sections, replaces mutation-age as the alarmable gauge, and keeps `mutation_age` as context only (do not alarm). Its threshold guidance (`:63-85`) says the ceiling should be a small multiple of the warm cadence and records that the `verification_age` ceiling alarm "is a separate (future) alarm" not yet wired.
+
+Per-class freshness thresholds that act as in-code SLO constants: `active` 21600 s, `warm` 43200 s, `cold` 86400 s, `near-empty` 604800 s (`src/autom8_asana/metrics/sla_profile.py:66-74`), mirrored in `.know/cache-freshness-ttl-manifest.yaml:9-12`; override order sidecar over manifest over built-ins (`src/autom8_asana/metrics/sla_profile.py:7-9`).
+
+### SLI substrate defined in code (targets sit outside this repo)
+
+| SLI | Definition in code | Target stated in a code comment | Anchor |
 |---|---|---|---|
-| SLO-1 ParquetMaxAgeSLO | 95% of CLI invocations over rolling 7d with `MaxParquetAgeSeconds < 21600`; denominator = CLI invocations (assumed O(5)/day) ; error budget 5% (~1.75 stale reads/week); operational tier; tightens to 99%/1h if `active_mrr` is reclassified investor-grade (DEF-3) | `MaxParquetAgeSeconds`, `Autom8y/FreshnessProbe`, emitted by CLI batch `metrics/cloudwatch_emit.py:217` | spec `:105-121` |
-| SLO-2 WarmSuccessRateSLO | `WarmSuccess/(WarmSuccess+WarmFailure)` for `entity_type=offer` >= 95% rolling 7d | `cache_warmer.py:590,601` | spec `:123-137` |
-| SLO-3 WarmHeartbeatSLO | >= 1 DMS heartbeat per rolling 24h | `emit_success_timestamp(_dms_namespace())` `cache_warmer.py:1420` | spec `:139-151` |
-
-### Other SLI substrate with SLOs defined cross-repo (UV-P on the target numbers)
-- Receiver deploy-gate SLI: `RECEIVER_QUERY_OUTCOME{outcome=success|server_error}` with 4xx not counted (`api/metrics.py:108-112,320-322`) plus `serving_stale_total` as the co-read honesty term (`:550-556`; EMF twin `:373-425` is dark). Gate claim in the code comments: >=99% on both arms, 10-min window (`api/metrics.py:314,330`).
-- Emitting-floor denominator: `autom8y_http_request_duration_seconds_count{service="asana"}` kept lit by `SliHeartbeat` (probe-class).
-- Substrate provability SLIs: `UnprovableCount`, `Completeness`, `EvaluatorHeartbeat` etc. (PROV-1..7) and `MaxStalenessAgeSeconds` (live PROV-8, threshold 7200, 3-of-4 x900s).
-- Offer freshness: `autom8y_offer_warm_complete_timestamp{entity_type=offer}` to AMP feeding monorepo `slo_offer_freshness` (`offer_warm_amp.py:15-21`).
-- Refusal SLI `SubstrateRefusalCount` (`serve.py:239`): emitter unwired.
-
-### SLI rationale
-SLO-1 chooses freshness because `active_mrr` is "internal/operational ... eventual consistency tolerable" (spec DEF-3 anchor); SLO-2 availability of the warm action; SLO-3 liveness of the warmer. Known SLI-validity scars recorded by sibling knowledge: SCAR-FRESHCLOCK-001 (freshness clocks anchored on non-data-age) and AL-5's axis mismatch with the ASR gate (the AL-5 description states it is "NOT an ASR-abort predictor", `observability_alarms.tf:531`).
+| Receiver mirror success rate | `2xx / (2xx + 5xx)` per arm from `autom8y_asana_receiver_query_outcome_total`, 4xx excluded, zero denominator returns `None` rather than a fabricated 100% | deploy gate at or above 99% on both arms for 10 minutes (`src/autom8_asana/observability/prometheus_metrics.py:314,330`) | `:108-112,605-637` |
+| Honesty co-read | success rate is returned only together with `serving_stale_total` | structural, `success_rate_with_stale_context` | `:550-556,650-665` |
+| S7 fallback cause | `receiver_query_fallback_cause_total` split into `cadence_503`, `capacity_502`, `honest_refusal`, plus `data_2xx` | verdict reads cause, not a collapsed total | `:140-186,473-506` |
+| Emitting-floor denominator | probe-class samples on the platform HTTP duration histogram keep `autom8y_http_request_duration_seconds_count{service="asana"}` non-zero while idle; `route_class="probe"` keeps the business denominator clean (G-DENOM) | the alarm that consumes it is in the monorepo | `src/autom8_asana/api/sli_heartbeat.py:1-48,85,112-148` |
+| Event-loop starvation precondition | event-loop lag above 0.5 s and a non-empty offload-gate wait queue | threshold constant `EVENT_LOOP_LAG_STARVATION_THRESHOLD_SECONDS = 0.5` | `src/autom8_asana/observability/prometheus_metrics.py:675,678-705` |
+| Substrate provability | `UnprovableCount`, `Completeness`, `EvaluatorHeartbeat`, `ExpectedSetMismatchCount`, `ExpectedCount`, `FutureDatedProofCount`, `MaxStalenessAgeSeconds` | alarm thresholds in `terraform/services/asana/substrate_v2_provability_alarms.tf` | `src/autom8_asana/substrate/observe.py:404-444` |
+| Serve-side refusal | `SubstrateRefusalCount` counted at the serve choke point so refusals do not burn the availability SLO (`src/autom8_asana/substrate/serve.py:225-236`) | emitter not wired (see Signal Pipe Contracts) | `src/autom8_asana/substrate/serve.py:239,413` |
+| Offer freshness | AMP gauge `autom8y_offer_warm_complete_timestamp{entity_type}` feeding monorepo recording rules named in comments | rules not in this tree | `src/autom8_asana/lambda_handlers/offer_warm_amp.py:15-21,56` |
+| Per-GID served-frame age | log-derived `OfferFrameAgeSeconds{project_gid}` with a stale threshold variable defaulting to 7200 s | the alarm text itself says the 7200 value has no current justification and is pending re-baseline (`terraform/services/asana/observability_alarms.tf:391-424,465-525`) | AL-5 |
+| Warmer coverage | `WarmerCoverageRate = keys_completed / total_enumerated * 100`, zero denominator returns 0.0, not 100 (`src/autom8_asana/lambda_handlers/cloudwatch.py:88-109`) | none | emitted at `src/autom8_asana/lambda_handlers/cache_warmer.py:485` |
 
 ### Burn-rate alerting
-None. ALERT-2 is labelled "SLO Budget Burn" in the spec (`:184`) but is a single-threshold persistence rule (Maximum > 21600 for 6 x 300s), not a multi-window multi-burn-rate construct. AL-5 was tuned three times against flap (history in `observability_alarms.tf:465-651`); the final 3-of-4 x 3600s with `treat_missing_data=missing` and `ok_actions=[]` reduces but does not eliminate flapping (author's own "HONEST LIMIT" at `:600-611`).
+
+None. There is no multi-window multi-burn-rate construct in the repo. The spec's ALERT-2 is labeled an SLO budget burn alert but is a single-threshold persistence rule (`MaxParquetAgeSeconds` above 21600 for 6 evaluation periods of 300 s, `:184-205`). AL-5 was retuned three times against flapping; its final 3-of-4 over 3600 s with `treat_missing_data = "missing"` and no `ok_actions` damps but does not remove the flap, per the file's own "HONEST LIMIT" (`terraform/services/asana/observability_alarms.tf:600-611`).
 
 ### Error-budget policy
-The spec states budget arithmetic and per-SLO "breach action" lines (P2 Slack / P1 page) but no freeze/rollback policy and no named governance owner. No policy file exists in the repo.
 
-### Current readings (LIVE-OBSERVED 2026-10-05)
-- **SLO-1**: series `MaxParquetAgeSeconds{project_gid=1143843662099250,metric_name=active_mrr}` has data on only 12 of the last 45 days. Daily Maxima: 7 days = 1000.0 (<21600) and 5 days = 5,749,348 to 8,268,952 s (66 to 96 days) on 2026-08-23, 08-25, 09-13, 09-20, 09-21. By day-max that is 7/12 = 58% compliant against a 95% target; true per-invocation compliance is not computable (invocation counts are not emitted). The 1000.0 value recurs exactly and looks like a sentinel/fixture value (UV-P: method = read the CLI call that emits it). Actual invocation cadence (<=12 days in 45) is far below the spec's O(5)/day assumption, so the "5% budget = 1.75 reads/week" arithmetic does not apply.
-- **SLO-2**: `WarmSuccess{environment=staging,entity_type=offer}` and `WarmFailure{...}` last datapoints 2026-09-05 / 2026-08-27; zero under `environment=production`. SLO-2 is not computable post 2026-09-05 (dark) and was only ever computable under the `staging` label.
-- **SLO-3**: DMS metric namespace `Autom8y/AsanaCacheWarmer` retired; SLO-3 as written is unmeasurable. Successor is PROV-2 heartbeat (also dark since 2026-09-05).
+The spec states budget arithmetic (SLO-1: 5% of invocations, about 1.75 stale reads per week at its assumed volume, `:119`) and per-SLO breach actions, but no deployment-freeze or rollback policy, no named governance owner, and no policy file exists in the repo (search for freeze, owner, policy and governance terms in the spec returned nothing).
 
-**Completeness**: 72%. Grade C. Basis: SLO inventory, windows, denominators, rationale, budget, current readings and absence of burn-rate/policy all documented with evidence; but the SLOs themselves are draft and unratified, SLO-2/3 are unmeasurable, and cross-repo SLO rule bodies were not read.
+### Current burn-rate state
 
----
+Not obtainable from the repo, and not read from any live source in this pass. The SLO-1 spec's own realism lens states it "will breach immediately in the current production state" because the warmer cadence was unknown when it was written (`:400-403`); that statement is spec-time, not a current reading. Live readings from the prior pass (2026-10-05) are recorded as unverified history under Knowledge Gaps.
 
-## Alert Rules
+**Completeness self-assessment**: SLO inventory, windows, denominators, rationale, absence of burn-rate rules and of an error-budget policy are documented with anchors, and each SLO was cross-checked against the code that would measure it (two of three have drifted anchors or constants). The SLOs are an unratified draft, the ECS service has no in-repo SLO, and no current readings exist.
 
-### A. In-repo Terraform (4 files, 15 resource blocks, 18 alarm instances at default variables) vs live
+## Alerting & Runbook Coverage
 
-`terraform/services/asana/` has no backend/state and no apply pipeline (`warmer_cache_degraded_alarm.tf:18-24`, `story_warm_dead_alarm.tf:53-58`). Every file is a code-of-record; live resources were created by CLI/another repo. `observability_alarms.tf:8-22` self-labels "AUTHORED / UN-DEPLOYED / UN-ARMED".
+### What exists in the repo
 
-| TF alarm | Metric / expression (TF) | Defaults | Live? | Live actions |
-|---|---|---|---|---|
-| AL-1 x4 `asana-AL1-StatusPushSkipped-{reason}` | `Autom8y/AsanaBridgeFleet StatusPushSkipped{environment,skip_reason}` Sum>0, 3600s (`observability_alarms.tf:226-247`) | ticket tier, `notBreaching` | **No** (metric exists live) | n/a |
-| AL-2 `asana-AL2-recon-invocation-gap` | `AWS/Lambda Invocations` <1 per 8h, `breaching` (`:256-274`); PAGE gated on `recon_rule_enabled` (default false) | | **No** | |
-| AL-3 `asana-AL3-insights-LastSuccessTimestamp-stale` | `LastSuccessTimestamp` Max <1 over 26h `breaching` (`:287-306`) | | **No** | |
-| AL-4 `asana-AL4-prod-BridgeFleetHealth-insights-export` | Min <1, 3600s, `missing` (`:323-344`); needs AI-5 `environment` dimension | | **No** | |
-| AL-5 `asana-AL5-offer-frame-stale-{gid}` | `OfferFrameAgeSeconds{project_gid}` Max >7200, 3-of-4 x3600s, `missing`, `ok_actions=[]` (`:527-675`) | | **Yes** | 1 action (`platform-alerts`), **ActionsEnabled=false**, state OK |
-| AL-6 `asana-AL6-office-phone-stamp-unresolved` | log-filter `OfficePhoneStampUnresolved` Sum>0, `notBreaching` (`:687-717`) | | **No** (and 0 metrics in `Autom8y/AsanaIntakeCF`) | |
-| PROV-1..6 | `Autom8y/SubstrateProvability` UnprovableCount, EvaluatorHeartbeat, Completeness, ExpectedSetMismatchCount, ExpectedCount, FutureDatedProofCount `{environment}` (`substrate_v2_provability_alarms.tf:114-277`) | | **Yes** x6 | **0 AlarmActions on all six**; PROV-2 in ALARM since 2026-09-05 |
-| PROV-7 `asana-PROV-7-data-quality-nulls` | `ActiveRowEconomicNullCount` Max>0 (`:302-318`) | | **No** | |
-| F-1 `asana-F1-warmer-cache-degraded-mode` | log-filter `CacheDegradedMode` Sum>0, 300s, `notBreaching`, no ok_actions (`warmer_cache_degraded_alarm.tf:82-102`) | | **Yes** | 1 action, enabled, OK; 0 datapoints ever (quiet-by-design) |
-| `autom8y-asana-story-warm-dead` | `autom8y/cache-warmer StoryWarmSuccess{environment=staging}` Sum<=0, 2-of-2 x7200s, `breaching`, dual-routed `platform-alerts` + `platform-sre-sev1` (`story_warm_dead_alarm.tf:80-106`) | | **Yes** | 2 actions, **ActionsEnabled=false**, state ALARM since 2026-09-05T10:30 |
+`terraform/services/asana/` holds 4 `.tf` files (plus a surfaced-levers note and an example variables file): 19 resource blocks, of which 15 are `aws_cloudwatch_metric_alarm` (18 alarm instances at default variables, because AL-1 expands to 4), 3 are `aws_cloudwatch_log_metric_filter`, and 1 is an optional `aws_sns_topic` (count of resource blocks per file by line search: `terraform/services/asana/observability_alarms.tf` 9, `terraform/services/asana/substrate_v2_provability_alarms.tf` 7, `terraform/services/asana/story_warm_dead_alarm.tf` 1, `terraform/services/asana/warmer_cache_degraded_alarm.tf` 2). There is no Terraform backend, no state and no apply pipeline in this repo (`terraform/services/asana/warmer_cache_degraded_alarm.tf:18-24`, `terraform/services/asana/story_warm_dead_alarm.tf:53-58`); `terraform/services/asana/observability_alarms.tf:8-22` labels the suite "AUTHORED / UN-DEPLOYED / UN-ARMED", and the `.gitignore` in that directory excludes state, plan and local tfvars. Every alarm below is therefore code-of-record. No Prometheus alerting-rule file, no Grafana rule, and no CloudWatch dashboard resource exists in the tree (search for `aws_cloudwatch_dashboard` and dashboard definitions in `terraform/`, `src/`, `.github/`, `config/`, `docker/` found only unrelated `dashboard_uuid` schema fields; the same search shape found alarm resources, positive control).
 
-Counts: 9 of 18 TF-defined instances are live (AL-5, PROV-1..6, F-1, story-warm-dead); 9 are authored-only (AL-1 x4, AL-2, AL-3, AL-4, AL-6, PROV-7). Live without in-repo TF: `asana-PROV-8-offer-content-stale` (Max>7200, 3-of-4 x900s on `MaxStalenessAgeSeconds`) and `asana-PROV-9-offer-artifact-uncovered` (`ArtifactProvable` Min<1, 4-of-4 x900s, `breaching`; ALARM since 2026-08-19); both ActionsEnabled=false (TF header claims PROV-1..PROV-7, `substrate_v2_provability_alarms.tf:2`). **OBS-BINDING-REPORT-GAP-001**: the always-on `alarm_binding_report` output lists AL-1..6 and PROV-1..6 but omits PROV-7 even though `prov7_actions` is defined (`observability_alarms.tf:761-778` vs `substrate_v2_provability_alarms.tf:101,316-317`), so an unbound PROV-7 would not appear in the report.
+### Alarm inventory with emitter cross-check
 
-Binding cure state: `ticket_sns_topic_arn` default `""` (`observability_alarms.tf:100-119`), `require_alarm_binding` default `false` (`:144-153`, enforced only for AL-5 at `:669-674`). LIVE-OBSERVED: PROV-1..6 still carry zero `AlarmActions` six weeks after the cure merged (the 2026-08-11 measurement in the TF comment named PROV-2 and AL-5 as the unobserved ALARMs; PROV-2 is ALARM again today with no action). This is persistence of SCAR-ALARM-BINDING-001 occurrence 4 (the systemic 'zero-action' count), not a new occurrence.
+Columns: metric read (namespace, name, dimension keys), statistic and threshold, period x evaluations, missing-data treatment, default action wiring, runbook tag in the alarm text, and whether code at this ref emits that exact metric.
 
-### B. Live inventory, all asana-named alarms (73; LIVE-OBSERVED 2026-10-05T03:15-03:55Z via `describe-alarms` on prefixes `asana`, `autom8y-asana`, `autom8-asana`)
+| Alarm (instances) | Reads | Condition | Missing data | Default actions | Runbook tag | Emitter in this repo |
+|---|---|---|---|---|---|---|
+| AL-1 `asana-AL1-StatusPushSkipped-{reason}` (4: `feature_disabled`, `url_absent`, `invalid_key`, `three_way_denominator_null`) `terraform/services/asana/observability_alarms.tf:226-247` | `Autom8y/AsanaBridgeFleet`, `StatusPushSkipped`, `{environment, skip_reason}` | Sum > 0, 3600 s x 1 | `notBreaching` | ticket tier (empty unless `ticket_sns_topic_arn` set) | `RB-STATUSPUSH-SKIP` | yes for 3 reasons (`src/autom8_asana/services/gid_push.py:1104,1113`, `src/autom8_asana/lambda_handlers/push_orchestrator.py:255`); NO for `invalid_key` (retired for the status push, `src/autom8_asana/services/gid_push.py:50-53`) |
+| AL-2 `asana-AL2-recon-invocation-gap` `:256-274` | `AWS/Lambda`, `Invocations`, `{FunctionName}` | Sum < 1, 28800 s x 1 | `breaching` | ticket tier; page needs `recon_rule_enabled` (default false) | `RB-RECON-GAP` | AWS-native metric, no code emitter needed |
+| AL-3 `asana-AL3-insights-LastSuccessTimestamp-stale` `:287-306` | `Autom8y/AsanaInsights`, `LastSuccessTimestamp`, no dimensions | Max < 1, 93600 s x 1 | `breaching` | ticket tier | `RB-INSIGHTS-STALE` | the call site exists (`src/autom8_asana/lambda_handlers/workflow_handler.py:367`, namespace `src/autom8_asana/lambda_handlers/insights_export.py:56`, gated on `succeeded > 0`); the metric's name and dimensions are set inside the SDK helper |
+| AL-4 `asana-AL4-prod-BridgeFleetHealth-{workflow}` (1: `insights-export`) `:323-344` | `Autom8y/AsanaBridgeFleet`, `BridgeFleetHealth`, `{environment, workflow_id}` | Min < 1, 3600 s x 1 | `missing` | ticket tier | `RB-BRIDGEFLEET` | yes (`src/autom8_asana/lambda_handlers/workflow_handler.py:304,378`); matches only if the function's `ASANA_CW_ENVIRONMENT` equals the alarm's `environment` variable (default `production`) |
+| AL-5 `asana-AL5-offer-frame-stale-{gid}` (1) `:527-675` | `Autom8y/AsanaSubstrateFreshness`, `OfferFrameAgeSeconds`, `{project_gid}`, produced by log-metric-filter `:446-462` | Max > 7200, 3-of-4 x 3600 s | `missing` | ticket tier; `ok_actions = []` | `RB-SUBSTRATE-FRESHNESS` | yes, but the filter matches only `dataframe_cache_memory_lkg_serve`; the `s3`-tier serve has a different event name (DRIFT-AL5-TIER) |
+| AL-6 `asana-AL6-office-phone-stamp-unresolved` `:700-717` | `Autom8y/AsanaIntakeCF`, `OfficePhoneStampUnresolved`, no dimensions, filter `:687-698` | Sum > 0, 3600 s x 1 | `notBreaching` | ticket tier | `RB-INTAKE-CF-1` | yes (`src/autom8_asana/services/intake_create_service.py:373,388`) |
+| PROV-1 `asana-PROV-1-unprovable` `terraform/services/asana/substrate_v2_provability_alarms.tf:114-130` | `Autom8y/SubstrateProvability`, `UnprovableCount`, `{environment}` | Max > 0, 900 s x 1 | `notBreaching` | ticket tier | `RB-SUBSTRATE-PROVABILITY` | yes (`prov_sweep` Lambda via `src/autom8_asana/substrate/prov_sweep.py:116`) |
+| PROV-2 `...-heartbeat-absence` `:143-159` | `EvaluatorHeartbeat`, `{environment}` | Sum < 1, 3600 s x 1 | `breaching` | ticket tier | `RB-SUBSTRATE-EVALUATOR-DOWN` | yes (same sweep; the operator tool `src/autom8_asana/substrate/parity_run.py` also runs an in-process sweep) |
+| PROV-3 `...-incomplete` `:171-187` | `Completeness`, `{environment}` | Min < 100, 900 s x 1 | `notBreaching` | ticket tier | `RB-SUBSTRATE-INCOMPLETE` | yes |
+| PROV-4 `...-expected-set-mismatch` `:200-216` | `ExpectedSetMismatchCount` | Max > 0, 900 s x 1 | `notBreaching` | ticket tier | `RB-SUBSTRATE-SET-DRIFT` | yes |
+| PROV-5 `...-expected-floor` `:231-247` | `ExpectedCount` | Min < 1, 900 s x 1 | `notBreaching` | ticket tier | `RB-SUBSTRATE-EMPTY-EXPECTED` | yes |
+| PROV-6 `...-future-dated-proof` `:261-277` | `FutureDatedProofCount` (the `SubstrateProvability` series, not the unwired `SubstrateServe` one) | Max > 0, 900 s x 1 | `notBreaching` | ticket tier | `RB-SUBSTRATE-FUTURE-STAMP` | yes |
+| PROV-7 `...-data-quality-nulls` `:302-318` | `ActiveRowEconomicNullCount`, `{environment}` | Max > 0, 900 s x 1 | `notBreaching` | ticket tier | `RB-SUBSTRATE-DATA-QUALITY` | only from the operator parity tool (`src/autom8_asana/substrate/parity_run.py:363`), which is "not imported by any deployed path"; no scheduled emitter |
+| F-1 `asana-F1-warmer-cache-degraded-mode` `terraform/services/asana/warmer_cache_degraded_alarm.tf:82-102` (+ 3 filters, one per warmer log group) | `Autom8y/AsanaWarmerCache`, `CacheDegradedMode`, no dimensions | Sum > 0, 300 s x 1 | `notBreaching` | one notify-tier topic by variable; no `ok_actions` | inline "RB:" text, no tag | yes (`src/autom8_asana/cache/backends/redis.py:173,258`); silent when healthy by design |
+| `autom8y-asana-story-warm-dead` `terraform/services/asana/story_warm_dead_alarm.tf:80-106` | `autom8y/cache-warmer`, `StoryWarmSuccess`, `{environment="staging"}` hard-coded | Sum <= 0, 2-of-2 x 7200 s | `breaching` | notify topic plus the SEV-1 paging topic, both on alarm and ok | runbook named in a monorepo path, no in-repo tag | yes (`src/autom8_asana/lambda_handlers/story_warmer.py:459`, emitted unconditionally per run); the namespace and the `staging` label depend on function env set outside the repo |
 
-| Class | Count | Notes |
-|---|---|---|
-| State: OK / ALARM | 57 / 16 | |
-| `ActionsEnabled=false` | 20 (13 OK, **7 ALARM**) | 7 in ALARM and silent: PROV-9, r7-active-offer-roster-floor, r7-evaluator-dead, DMS-24h, bulk-cadence-DMS, exports-request-presence-DMS, **story-warm-dead (SEV-1)** |
-| Zero `AlarmActions` | 9 | PROV-1..6, `service-canary-5xx`, `canary-healthy-host-serving`, `canary-response-time` |
-| Targets | `autom8y-platform-alerts` 64 bindings; `autom8y-platform-sre-sev1` 16 bindings | |
-| Families | Lambda `*-lambda-errors` / `*-lambda-liveness` / `*-dlq-not-empty` for warmer, bulk, section, conversation-audit, insights-export, onboarding-walkthrough, prov-sweep, scheduling-stratum-snapshot, traffic-offer-divergence, unit-reconciliation; 7 `asana-stratum-*`; 5 `asana-r7-*`; PROV-1..6,8,9; ECS cpu/mem/5xx/error-count/canary; redis x3; freshness x6; story-warm-dead; F-1; AL-5 | Authorship of non-TF alarms UV-P (monorepo) |
-| Dashboards | 1 asana dashboard `autom8y-asana-service` (3 widgets: ECS CPU, ECS memory, Error Count) among 17 account dashboards | none in-repo; the spec's "Cache Freshness - Overview" (spec `:325-351`) was never built |
+State, binding and arming levers: the master kill-switch is `arm_paging` (default false) plus per-alarm membership in `paging_armed_alarms` (default empty); `ticket_sns_topic_arn` defaults to an empty string, which resolves every non-armed alarm's action list to empty (the "binding-blind" class documented at `terraform/services/asana/observability_alarms.tf:100-119`). `require_alarm_binding` defaults false and is enforced only for AL-5 (`:144-153,669-674`). The always-on `alarm_binding_report` output lists AL-1..6 and PROV-1..6 but omits PROV-7 even though `prov7_actions` exists (`terraform/services/asana/observability_alarms.tf:761-778` vs `terraform/services/asana/substrate_v2_provability_alarms.tf:101,316-317`). The example variables file states AL-5 defaults of 7200 / 1800 / 8, while `terraform/services/asana/observability_alarms.tf:652-655` sets 7200 / 3600 / 4 / 3 (threshold, period, evaluation periods, datapoints) (`terraform/services/asana/terraform.tfvars.example:74-85`).
 
-### C. Alarms that cannot fire (LIVE-OBSERVED, "which alarms can actually fire")
+**Alarms whose metric has no emitter at this ref (from the repo alone)**: 1 instance, AL-1 `invalid_key`. **Alarms whose emitter exists only on a non-deployed or operator path**: PROV-7. **Alarms whose emitter is a log event the filter only partly matches**: AL-5. **Alarms whose metric is produced by an SDK helper the repo does not contain, so name and dimensions are unverifiable here**: AL-3. **Alarms that depend on an environment label set outside the repo**: AL-4 (`production`), story-warm-dead (`staging`). Of 18 alarm instances: 11 have an in-repo emitter whose metric identity matches with no external assumption (AL-1 x3, AL-6, PROV-1..6, F-1; PROV-1..6 are additionally pinned by `tests/unit/substrate/test_observe.py:784`); 1 reads an AWS-native metric (AL-2); 6 are the exceptions listed above (AL-1 `invalid_key`, AL-3, AL-4, AL-5, PROV-7, story-warm-dead).
 
-Method (two questions per alarm): (1) does the metric+exact dimension set the alarm reads have any datapoint? (2) when was the last one? Over 71 metric alarms (2 are metric-math):
+**What cannot be checked from the repo**: whether any alarm exists live, its state, its actions or whether its series has datapoints. Live-state alarm facts from the prior pass (2026-10-05) are not carried forward; see Knowledge Gaps.
 
-**OBS-DEAD-ALARMS-001 - 9 alarms with ZERO datapoints in 390d**
-| Alarm | Defect class | Evidence |
-|---|---|---|
-| `autom8y-asana-redis-cpu` / `-evictions` / `-memory` | **wrong dimension key**: alarm pins `ReplicationGroupId=autom8y-asana-redis`; `AWS/ElastiCache` emits `CacheClusterId=autom8y-asana-redis-001` (list-metrics) | cannot fire; replication group `autom8y-asana-redis` exists |
-| `autom8-asana-cache-warmer-failure-offer` | **wrong dimension set**: pins `{entity_type=offer}`; `emit_metric` always adds `environment`, so the series is `{environment=staging,entity_type=offer}`; the spec itself defines the dims without `environment` (`cache-freshness-observability.md` ALERT-3 "Dimensions: entity_type=offer") | cannot fire; real series has 11 day-buckets since 2026-08 |
-| `autom8-asana-dataframe-resolver-clientid-drift` | **emitter never landed in this repo**: `CredClientIdDrift` appears nowhere in `src/` | never fired |
-| `autom8-asana-unit-reconciliation-duration` / `-failure` / `-move-count-spike` | **orphaned/foreign emitter**: namespace `autom8y/unit-reconciliation` empty; no emitter in `src/` | never fired |
-| `asana-F1-warmer-cache-degraded-mode` | quiet-by-design (filter exists on all 3 warmer log groups, LIVE-OBSERVED); has never been exercised end-to-end, so its teeth are unproven | not necessarily dead |
+### Alarms named outside this repo's Terraform
 
-**8 more alarms with no datapoint in the last 30 days** (dark inputs; will read OK/INSUFFICIENT/ALARM by missing-data rule only): `cache-warmer-DMS-24h` (last 2026-06-02), `cache-warmer-section-lambda-errors` (2026-06-03), `conversation-audit-lambda-errors`, `insights-export-lambda-errors`, `insights-export-lambda-liveness`, `onboarding-walkthrough-lambda-errors`, `unit-reconciliation-lambda-errors`, `unit-reconciliation-lambda-liveness`. A further 34 alarms have all of their last-30-day datapoints inside the first 24h bucket of the window (2026-09-05T03:15Z-09-06T03:15Z) and none after: PROV-1..6,8,9; 5 r7; 7 stratum; warmer/bulk/prov-sweep/stratum/traffic Lambda-errors+liveness; 4 log-derived freshness alarms; bulk-cadence-DMS; story-warm-dead; canary-5xx (count-only metric, benign). See OBS-LAMBDA-DARK-001.
+- Stratum producer: `src/autom8_asana/lambda_handlers/scheduling_stratum_snapshot.py:233-246` names the counterpart alarm file in the monorepo and pins `ALARM_BOUND_METRICS` (7 names, `:383-392`); the `tests/unit/lambda_handlers/test_scheduling_stratum_snapshot_durability.py:338` test freezes that set. The R7 tripwire does the same (`src/autom8_asana/lambda_handlers/traffic_offer_divergence_tripwire.py:160-192`).
+- Enrollment bridge: `src/autom8_asana/lambda_handlers/enrollment_intent_bridge.py:150-166` states that no alarm half exists and that its 16 metrics, including the dead-man `LastRunEpoch` and `EvaluationRefused`, "page nobody".
+- Freshness: the runbook documents one live alarm, `autom8-asana-section-name-contract-violation-error`, fed by a log filter (`docs/runbooks/RUNBOOK-freshness-verification-recency.md:100-115`); neither the alarm nor the filter is in this repo's Terraform. The spec's ALERT-1..6 (`.ledge/specs/cache-freshness-observability.md:153-290`) are likewise design text, not Terraform here.
+- Stage-1 receiver alerts named only in code comments: A1 miss-rate spike (`src/autom8_asana/observability/prometheus_metrics.py:77-80,261`), A3 SA-bucket 429 (`:95-97,296`), A5 semaphore saturation above 0.80 for 5 minutes (`:87-89`), A8 mirror-SLI degradation (`src/autom8_asana/api/routes/query.py:459`). No rule file in the repo reads the Prometheus series behind them.
 
-**Cannot-fire-by-construction (TF-visible)**: any `treat_missing_data=notBreaching` alarm on a Lambda-emitted metric is OK-by-absence while the Lambda is dark: PROV-1/3/4/5/6, the 4 stratum fire-only alarms, `asana-r7-trading-*`.
+### Runbook linkage
 
-Hazard sentences (code-visible, not yet fired): AL-5's filter matches only the `memory` tier (`dataframe_cache.py:768` builds `dataframe_cache_{tier}_lkg_serve`; filter pins `..._memory_lkg_serve`), so an s3-tier LKG serve never produces an AL-5 datapoint. `emit_metric` stamps `environment=staging` unless `ASANA_CW_ENVIRONMENT` is set, so every alarm that pins `environment=production` on a Lambda metric depends on an env var that lives outside this repo.
+- 13 distinct `RB-*` identifiers appear in alarm descriptions: `RB-STATUSPUSH-SKIP`, `RB-RECON-GAP`, `RB-INSIGHTS-STALE`, `RB-BRIDGEFLEET`, `RB-SUBSTRATE-FRESHNESS`, `RB-INTAKE-CF-1`, and the seven `RB-SUBSTRATE-*` tags for PROV-1..7. 0 of 13 resolve to a runbook file or heading in `docs/runbooks/`, `runbooks/` or `.ledge/`; the only other file naming any of them is `.ledge/reviews/sre-observability-design.md` (4 mentions, design prose). The alarm descriptions carry prose IDs, not links.
+- Runbooks that do exist: nine runbook files (named RUNBOOK-<topic>) under `docs/runbooks/` (batch-operations, business-model-navigation, cache-troubleshooting, detection-troubleshooting, freshness-verification-recency, onboard-deck, pipeline-automation, rate-limiting, savesession-debugging) plus its `README.md`, the draft `.ledge/specs/cache-freshness-runbook.md` (scenarios Stale-1, Warmer-1, DMS-1, ForceWarm-1, S3-1), and the Atuin Desktop API-ops notebooks under `runbooks/atuin/` (operations, not alert response). `docs/runbooks/RUNBOOK-rate-limiting.md` is the nearest match for the new 429 signals but predates them: it greps logs for `rate_limit_429_received` and does not mention `rate_limit_exceeded`, the `namespace` label or `autom8y_asana_rate_limit_429_total` (line search of that file).
+- The story-warm alarm cites a runbook by file name in the monorepo (`terraform/services/asana/story_warm_dead_alarm.tf:50-51`); F-1 carries inline recovery text (`terraform/services/asana/warmer_cache_degraded_alarm.tf:84`).
 
-### D. Runbook linkage
-- 13 distinct `RB-*` identifiers appear in alarm descriptions (`RB-STATUSPUSH-SKIP`, `RB-RECON-GAP`, `RB-INSIGHTS-STALE`, `RB-BRIDGEFLEET`, `RB-SUBSTRATE-FRESHNESS`, `RB-INTAKE-CF-1`, `RB-SUBSTRATE-{PROVABILITY,EVALUATOR-DOWN,INCOMPLETE,SET-DRIFT,EMPTY-EXPECTED,FUTURE-STAMP,DATA-QUALITY}`). **0 of 13 resolve to a runbook heading** anywhere in the repo; only 4 are even mentioned outside the Terraform (in `.ledge/reviews/sre-observability-design.md`). (`grep` over `*.md/*.py`, 2026-10-05.)
-- Resolving runbooks that do exist: `.ledge/specs/cache-freshness-runbook.md` (400 lines; scenarios Stale-1, Warmer-1, DMS-1, ForceWarm-1, S3-1; alert->runbook table at `:374-383`; also `status: draft`); `docs/runbooks/RUNBOOK-{pipeline-automation,cache-troubleshooting,detection-troubleshooting,freshness-verification-recency,rate-limiting,batch-operations,savesession-debugging,business-model-navigation}.md`; incident runbooks under `.ledge/reviews/` (e.g. `sre-insights-incident-runbook-2026-06-24.md`, `RUNBOOK-read-the-name-s1-2026-09-14.md`). `runbooks/` at repo root contains only Atuin Desktop API-ops notebooks (`runbooks/atuin/*`), not alert runbooks.
-- `story-warm-dead` cites `RUNBOOK-platform-sre-sev1-paging-response.md` in the monorepo (UV-P).
-- No machine link (annotation/URL) from any alarm to a runbook exists; descriptions embed prose IDs only.
+### Synthetic monitoring
 
-### E. Synthetic monitoring
-No scheduled synthetic probe in-repo. Closest: live Lambda `autom8-asana-conversation-audit-freshness-prober` (liveness alarm, last datapoint 2026-10-03, alive), ALB canary alarms (`autom8y-asana-service-canary-*`, targetgroup `a8-asana-green`, 0 actions), `SliHeartbeat` (synthetic in-process, not a probe), and `mcp/canary/test_broken_fixture_canary.py` (CI test).
+- Probes in the repo: container `HEALTHCHECK` on `/health` (`Dockerfile:174-175`); platform probe routes `/health`, `/ready`, `/health/deps` (`src/autom8_asana/api/routes/health.py:387,417,525`); the in-process `SliHeartbeat` (synthetic samples, not a probe of a critical path).
+- Scheduled checks: `.github/workflows/nightly-live-smoke.yml` (cron `15 9 * * *`, `:79`) runs two read-only live smoke suites against durable storage, fails the job if any test skips (anti-theater assertion, `:223`), and on red publishes to the notify-tier SNS topic (`:257-277`); it cannot page on a failure before its credential-bridge step (header `:64-72`). `.github/workflows/aegis-synthetic-coverage.yml` is a CI coverage and memory gate on `src/**` changes, not a runtime monitor. `mcp/canary/test_broken_fixture_canary.py` is a CI fixture test.
+- No scheduled synthetic probe of the ECS API's business paths exists in the repo.
 
-### F. Alert-fatigue candidates
-AL-5 historically 10-12.6 transitions/day (`observability_alarms.tf:485-493,546-552`); mitigated, `ok_actions` dropped by operator ruling 2026-08-12 (`:658-662`). No fire/run counts were collected this pass (UV-P: `describe-alarm-history` per alarm). 
+### Alert-fatigue signals and on-call
 
-### G. On-call
-Not documented in-repo. SNS tiers: notify (`platform-alerts`) and page (`platform-sre-sev1`, SMS+email per TF comment). Escalation policy/rotation owner: UV-P (monorepo `docs/reliability/runbooks/`).
+- Recorded in comments, not re-measured: AL-5 produced about 10 to 12.6 state transitions per day before the 2026-08-12 flap cure (`terraform/services/asana/observability_alarms.tf:485-493,546-552`); the story-warm design rejected a failure-count alarm because `StoryWarmFailure` is routinely nonzero (`terraform/services/asana/story_warm_dead_alarm.tf:13-22`). No per-alarm fire counts exist in the repo.
+- On-call: no rotation, escalation policy or owner is documented in-repo. The notify tier and paging tier are SNS topics named by variable; their subscriptions are described only in comments (`terraform/services/asana/terraform.tfvars.example`, `terraform/services/asana/story_warm_dead_alarm.tf:70-78`).
 
-**Completeness**: 80%. Grade B. Basis: every TF alarm plus all 73 live alarms inventoried with state, actions, datapoint liveness; runbook linkage and on-call documented as absent; expressions of monorepo-authored alarms taken from `describe-alarms` rather than source.
+### Dashboard surface
 
----
+None in the repo. The spec's "Cache Freshness - Overview" dashboard design (`.ledge/specs/cache-freshness-observability.md:325-350`) has no corresponding resource or JSON in the tree.
 
-## Dashboard Surface
-
-None in-repo (no Grafana, CloudWatch dashboard JSON, or `aws_cloudwatch_dashboard` resource in the tree). LIVE-OBSERVED: `autom8y-asana-service` CloudWatch dashboard exists with 3 widgets (ECS CPU, ECS memory, `autom8y/asana` error count) among 17 dashboards in the account. The spec's "Cache Freshness - Overview" dashboard (`cache-freshness-observability.md:325-351`) is unbuilt (no matching dashboard name). Grafana-side dashboards fed by the Prometheus/AMP series: UV-P.
-
----
-
-## Receiver-Reliability Gaps from the Prior Pass (re-verified)
-
-| ID | Prior claim | Status at `c29f58f4` |
-|----|-------------|----------------------|
-| RECV-BULK-001 bulk fan-out starves a `max_concurrent_builds=4` coordinator | cap hard-coded 4 | Cap is now a setting `dataframe_max_concurrent_builds` (env `ASANA_DF_MAX_CONCURRENT_BUILDS`), default still 4 (`settings.py:304-310`; `cache/dataframe/build_coordinator.py:133-143`); the settings comment says task resize is "OQ-1-gated ... NOT applied". Receiver semaphore utilization gauge now exists (`api/metrics.py:90`). Partially mitigated, sizing open. |
-| RECV-BULK-002 SIGTERM orphans in-flight builds | open | **RESOLVED in-repo**: bounded drain `_drain_background_builds` (`api/lifespan.py:34-80`), `BUILD_DRAIN_TIMEOUT_SECONDS` default 25.0 (`settings.py:871-880`); invariant drain <= ECS deregistration_delay is infra-config and unenforced in code |
-| RECV-BULK-003 singleflight coalescing unproven live | open | Code path `build_coordinator_coalesced` still at `cache/dataframe/build_coordinator.py:206`; `Retry-After` on 503 is wired (`api/errors.py:597-610`); no live receipt of a `coalesced` event was sought this pass (UV-P). |
-
----
-
-## Instrumentation Gaps Registry
-
-| ID | Surface | Sev | Status at `c29f58f4` |
-|---|---|---|---|
-| OBS-EXPORTS-001 | exports route | P2 | CLOSED in-repo (span, logs, 4 metrics); SLO/alert residual cross-repo |
-| H-006 | `automation/workflows/bridge_base.py:191-197` no span on `execute_async` | P3 | OPEN; stated blocker (SDK 0.6.1) obsolete since SDK floor is 0.10.0 |
-| LAMBDA-OBS-001 | Lambda entry-point spans | P3 | REOPENED-PARTIAL: 7 of 11 entry points instrumented; stratum, R7 tripwire, enrollment bridge, leads consumer uninstrumented |
-| LOG-TRACE-LAMBDA | log-trace in Lambda | P3 | RESOLVED (SDK default chain; PR #89 root fix) - not re-verified live |
-| SAMPLING-UNDOC | no sampler config in-repo | P3 | OPEN |
-| SLO-API-SURFACE | no ECS/API SLO targets in-repo | P2 | OPEN in-repo (monorepo rules referenced, UV-P) |
-| CRED-TOPOLOGY-MATRIX | no matrix instance / no schema path on this machine | P2 | OPEN |
-| OTLP-ENDPOINT-OPACITY | OTLP endpoint + auth axis unknown | P2 | OPEN (BLOCKING per rubric) |
-| OBS-LAMBDA-DARK-001 (new) | Lambda fleet silent since ~2026-09-05; 34 alarms read OK/ALARM by absence | P1 | OPEN, cause UV-P |
-| OBS-ACTIONS-DISABLED-001 (new) | 20 of 73 live alarms `ActionsEnabled=false`; 7 in ALARM incl. SEV-1 story-warm-dead and AL-5 | P1 | OPEN; whether intentional (soak/mute) not recorded in-repo |
-| OBS-DEAD-ALARMS-001 (new) | 9 alarms with zero datapoints ever in 390d (3 redis wrong-dimension, 1 warmer wrong-dimension set, 1 clientid-drift no emitter, 3 unit-reconciliation foreign emitter, F-1 quiet-by-design) | P2 | OPEN |
-| OBS-ALARM-BINDING-001 (new, persistence) | PROV-1..6 + 3 canary alarms zero `AlarmActions`; `require_alarm_binding` default false | P1 | OPEN; sibling SCAR-ALARM-BINDING-001 |
-| OBS-BINDING-REPORT-GAP-001 (new) | `alarm_binding_report` omits PROV-7 | P3 | OPEN |
-| OBS-IAC-LIVE-DRIFT-001 (new) | IaC vs live: AL-1..4, AL-6, PROV-7 authored not live; PROV-8/9 live not in IaC; AL-5 live `ActionsEnabled=false` while TF default enabled; story-warm-dead live disabled while TF has no `actions_enabled`; `terraform.tfvars.example:79` says AL-5 defaults are 7200/1800/8 but the file sets 3600/4/3 | P2 | OPEN |
-| OBS-AL5-TIER-001 (new) | AL-5 metric-filter pins `memory` tier of an f-string event name; s3-tier serve is invisible | P2 | OPEN (code-inferred) |
-| OBS-MCP-NOEXPORT-001 (new) | MCP spans produced, no SDK/exporter/provider; no logs/metrics | P2 | OPEN; module self-labelled prototype |
-| OBS-DATACLIENT-HOOK-001 (new) | `DataServiceClient` metrics hook has zero prod wirings | P3 | OPEN (code-inferred) |
-| OBS-SERVE-EMITTER-DARK-001 (new) | `CloudWatchRefusalEmitter` unwired; `Autom8y/SubstrateServe` empty | P2 | OPEN |
-| OBS-EMF-DARK-001 (new) | receiver EMF ship-dark; `Autom8y/AsanaReceiverSLI` empty | P3 | OPEN, intentional ship-dark |
-| OBS-WRITEAUTHZ-001 (new) | `write_authz_would_deny`/`denied` log-only: no filter, no metric, no alarm | P2 | OPEN |
-| OBS-RB-UNRESOLVED-001 (new) | 13 `RB-*` runbook IDs in alarm text, 0 resolve | P2 | OPEN |
-| OBS-HIGHCARD-001 (new) | `CoalescerDedupCount` dimension `coalescer_key` (unbounded) | P3 | OPEN; unalarmed by design |
-| OBS-ENV-LABEL-001 (new) | `ASANA_CW_ENVIRONMENT` default `"staging"`; prod Lambdas mislabelled; `WarmSuccess/Failure` exist only under `staging` | P2 | OPEN (class: workflows-env-tag-drift) |
-
----
+**Completeness self-assessment**: every alarm resource, log filter and alarm-bearing doc in the repo is inventoried with its metric identity, emitter status and runbook tag; the live alarm state, history, subscriptions and on-call ownership are not in the repo and were not read.
 
 ## Knowledge Gaps
 
-1. **OTLP backend, endpoint, auth-routing-field, sampler**: invisible from this repo. Verify: `aws ecs describe-task-definition --task-definition autom8y-asana-service` (env), `autom8y-telemetry` SDK source, backend console.
-2. **Prometheus scraper identity** and whether the 22 domain series reach any dashboard/alert (no in-repo rule uses them).
-3. **Why the Lambda fleet is dark** (OBS-LAMBDA-DARK-001): `aws events list-rules`, `aws lambda list-event-source-mappings`, deploy history.
-4. **Whether `ActionsEnabled=false` on 20 alarms is a deliberate mute**: no in-repo record.
-5. **AMP arming state** (`ASR_AMP_EMIT_ENABLED`, `AMP_REMOTE_WRITE_ENDPOINT` on the warmer): not read; AMP workspace not queried.
-6. **SNS subscriptions** for `autom8y-platform-alerts` and `autom8y-platform-sre-sev1` were not re-queried; claims are from TF comments dated 2026-08-11/14.
-7. **Authorship of the 62 non-TF live alarms**: presumed monorepo `autom8y/asana/main.tf` (cited at `cache_warmer.py:81-95`); source not read.
-8. **Alarm history/fire counts** (alert-fatigue evidence) not collected.
-9. **Cross-repo SLO rule bodies** (`EcsServiceDenominatorAbsent`, `slo_offer_freshness`) not read.
-10. **Live trace/log join** (no sample trace or log-to-trace join obtained).
+1. **Live state of every sink and alarm (not checkable from the repo, by design of this pass).** Whether any alarm in `terraform/services/asana/` exists live, its state, its action wiring, whether its metric has datapoints, SNS subscriptions, CloudWatch dashboards, AMP series, and Prometheus scrape targets were not read. This pass made no AWS, Grafana or HTTP calls and did not describe any task definition (barred fleet-wide). Every alarm statement above is about code at `584c8f79`, not about live behavior.
+2. **OTLP binding and sampler (BLOCKING per the rubric).** Exporter protocol, endpoint, auth-routing field and sampler are SDK-managed and are not declared in this tree (search shape and positive control under Sampling). They would be visible in the deployed task or function environment and in the `autom8y-telemetry` source.
+3. **Credential-topology matrix.** The matrix schema file exists in the operator's pinakes skill directory; its name matches the credential name floor, so it was not opened (not read: floored name, operator's act). No matrix instance exists in this repo.
+4. **Land inputs.** No land input was injected. Of the two land files mapped to this domain, the observability-posture file does not exist, and the other has a floored name (it matches the credential pattern), so it was not opened (not read: floored name, operator's act). No `[EXPERIENTIAL]` claim appears in this document.
+5. **External SDK behavior not visible in this tree.** `instrument_app` inbound trace extraction and its `/metrics` auth exclusion (`autom8y_auth` `DEFAULT_EXCLUDE_PATHS`), `instrument_lambda` span and log behavior, the metric name and dimensions written by `emit_success_timestamp` and `emit_business_metric`, whether `create_fleet_app` mounts an access log, and whether Lambda logs carry `trace_id`. Items tagged `[INFERRED]` in the body depend on these.
+6. **Deployed environment values.** `ASANA_CW_NAMESPACE`, `ASANA_CW_ENVIRONMENT`, `SUBSTRATE_PROV_ENVIRONMENT`, the AMP flag and endpoint, and `RECEIVER_SLI_EMF_ENABLED` are set outside the repo. Whether AL-4 and story-warm-dead bind to series that exist depends on them.
+7. **Monorepo halves.** The stratum producer alarms, the R7 divergence alarm, the enrollment-bridge alarm half (stated absent), SLO recording rules (`slo_offer_freshness`, the emitting-floor dead-man), the documented freshness log filters, and the paging runbook are in the `autom8y` parent repo and were not read.
+8. **Approximate measurements.** AST counts (22 Prometheus series, 88 `emit_metric` names, 15 span sites, 11 Lambda handlers) are exact for the patterns walked. The per-package coverage table and the `get_logger` file count are regex sweeps and the metric column is an upper bound. Dynamic metric names that no AST pass can resolve (other than the one conditional at `src/autom8_asana/lambda_handlers/scheduling_stratum_snapshot.py:617`) would be missed; none was found.
+9. **Related knowledge files not relied on.** `.know/feat/observability.md` and `.know/feat/business-metrics.md` exist but were not read for this pass. The `src/autom8_asana/metrics/` package is business-metric computation and the freshness CLI, covered here only where it emits CloudWatch series.
+10. **Prior-pass live observations, unverified history.** The 2026-10-05 pass recorded read-only AWS observations (about five weeks before this pass): the Lambda family silent since early September, 73 asana-named alarms of which 20 had actions disabled and 9 had no actions, 9 metric alarms with zero datapoints in 390 days (three ElastiCache alarms with a wrong dimension key, a warmer-failure alarm whose dimension set omits `environment`, a client-id-drift alarm and three unit-reconciliation alarms with no emitter in `src/`), two live provability alarms (PROV-8, PROV-9) with no in-repo Terraform, a three-widget service dashboard, and SLO-1 and SLO-2 readings. They could not be re-verified and are not carried into the sections above. The code-side facts that explain two of them are re-derived above: no `CredClientIdDrift` or unit-reconciliation emitter exists in `src/` (search returned nothing, with a positive control for the bridge-fleet namespace), and `emit_metric` always adds `environment` (`src/autom8_asana/lambda_handlers/cloudwatch.py:52-54`).
 
-### Changes since prior version (2026-05-08, hash 8980bcd7 -> c29f58f4)
+### Corrections to the prior pass (c29f58f4 -> 584c8f79)
 
-- **OBS-EXPORTS-001: OPEN -> CLOSED in-repo.** Prior anchors (`exports.py:92`, 0 spans/metrics) are obsolete.
-- **Prometheus inventory 7 -> 22** series (`api/metrics.py`); prior table was materially incomplete (receiver SLI, S7 cause, event-loop, CPU semaphore, LKG, exports, 429 split, cache outcome, semaphore utilization).
-- **CloudWatch**: prior listed 3 namespaces and 1 `put_metric_data` helper; main has 6 emitter sites and ~16 namespaces (substrate provability/serve, offer divergence, enrollment bridge, bridge fleet, per-workflow DMS, receiver-SLI EMF).
-- **New surfaces absent from the prior pass**: AMP remote-write (`offer_warm_amp.py`), `SliHeartbeat`, EMF export, MCP sidecar observability, S7 disaggregated cause, substrate provability suite.
-- **Prior "No CloudWatch alarm IaC found in-repo" is wrong at main**: `terraform/services/asana/` has 4 files / 15 alarm resource blocks (never applied by a pipeline from this repo). **Prior "No Prometheus alerting rules" remains true in-repo.**
-- **Prior "Dashboard: none" refined**: no in-repo dashboards; one live 3-widget dashboard.
-- **Dependency lift**: `autom8y-telemetry` floor 0.6.1 -> 0.10.0 (+`remote-write`), `autom8y-log` 0.5.6 -> 0.7.0. H-006's stated blocker (SDK 0.6.1) no longer holds.
-- **LAMBDA-OBS-001 "6 of 6" -> 7 of 11** (entry-point set grew by stratum, R7 tripwire, enrollment bridge, leads consumer).
-- **Prior line anchors rotted**: `lifespan.py:77/85` -> `:124-127/:135-137`; `cache_warmer.py:473-504` WarmSuccess -> `:590-601`; `cloudwatch_emit.py:88-106` unchanged. Prior "DMS-1 alarm specified in spec only, no IaC" is superseded: live orphan DMS-24h exists (ALARM, actions disabled) and was superseded by PROV-2.
-- **SLO**: the spec is unchanged (still draft). Prior statement "alarms deployment status unverified" is now LIVE-OBSERVED: ALERT-1/2 exist live with `ActionsEnabled=false`; ALERT-3 exists with wrong dimensions (cannot fire); ALERT-4 exists as an orphan; ALERT-2 routes to the notify topic only, not PagerDuty as the spec requires.
-- **Prior grade F (45.25) -> C**: the change is evidence-driven (live alarm plane inventoried, signal contracts documented, instrumentation closed), not a claim that the posture improved; the live alarm plane is in worse operational shape (OBS-LAMBDA-DARK-001, OBS-ACTIONS-DISABLED-001).
+| Prior claim | Finding at `584c8f79` | Evidence |
+|---|---|---|
+| Domain Prometheus series, EMF namespace and flag live in `src/autom8_asana/api/metrics.py` (anchors `:24-760`, `:354-425`) | The canonical module is now `src/autom8_asana/observability/prometheus_metrics.py` (857 lines); `src/autom8_asana/api/metrics.py` is a 128-line re-export shim. Anchors moved: series `:24-755`, EMF `:354-446`. | `src/autom8_asana/api/metrics.py:1-60`; `src/autom8_asana/observability/prometheus_metrics.py:24,354` |
+| `instrument_app` at `src/autom8_asana/api/main.py:941` | Call at `:953`, comment block `:941-952` | `src/autom8_asana/api/main.py:941-953` |
+| Direct-import counts: `autom8y_telemetry` in 21 modules; `get_logger` in 251 of 610 files; `trace_computation` used in 8 other modules | `autom8y_telemetry` in 20 modules; `get_logger` in 257 of 628 files; `trace_computation` in 8 modules (9 decorator sites) | AST and regex passes over the manifest |
+| Ruff import ban at `pyproject.toml:351-361` | Now `:510-522` (the dependency block grew by 159 lines) | `pyproject.toml:510-522` |
+| 22 Prometheus series all emit | 18 have call sites; `dataframe_build_duration`, `dataframe_circuit_breaker_state`, `api_calls_total`, `api_call_duration_seconds` and their helpers have no caller in `src/` or `mcp/` | Metric inventory table |
+| Rate-limit namespaces `sa/pat/ip/other` | The key function now also yields a verified-identity `jwt:` namespace, and `record_rate_limit_429` accepts `sa`, `jwt`, `pat`, `ip`, folding the rest to `other`; a `rate_limit_exceeded` log event (namespace and method only) was added | `src/autom8_asana/api/rate_limit.py:101,221-267`; `src/autom8_asana/observability/prometheus_metrics.py:293-307`; `src/autom8_asana/api/errors.py:766-769` |
+| AL-1 authors 4 skip reasons, implied all emitted | `invalid_key` is retired for the status push and has no `StatusPushSkipped` emitter (emitted only on `VocabSyncSkipped`) | `src/autom8_asana/services/gid_push.py:50-53,1560`; `terraform/services/asana/observability_alarms.tf:218-223` |
+| PROV-7 emitter is a normal deployed emitter | `CloudWatchDataQualityEmitter` is constructed only in the operator parity tool, which says it is not imported by any deployed path | `src/autom8_asana/substrate/parity_run.py:38-39,363` |
+| "No Prometheus alerting rules in-repo" | Still true, but four Stage-1 alert names (A1, A3, A5, A8) appear only in code comments with no rule file | `src/autom8_asana/observability/prometheus_metrics.py:77-97,261,296`; `src/autom8_asana/api/routes/query.py:459` |
+| Dark emitters: data-client hook, serve emitter, EMF | Confirmed unchanged and extended: the leads-skip counter has the same unwired-hook shape; `ObservabilityHook` methods are never called by `src/` | `src/autom8_asana/automation/workflows/leads_skip.py:31,75`; `src/autom8_asana/lambda_handlers/leads_consumer.py:107-111` |
+| Entry-point instrumentation 7 of 11 | Re-verified unchanged | `@instrument_lambda` sites listed above |
+| AL-5 matches only the `memory` tier | Re-verified; tier values `memory` and `s3` both flow through the same f-string | `src/autom8_asana/cache/integration/dataframe_cache.py:299-301,317-319,768` |
+| 13 `RB-*` tags, 0 resolve; `alarm_binding_report` omits PROV-7; 4 TF files / 15 alarm blocks / 18 instances | Re-verified | Alerting section |
+| New since the prior pass | `src/autom8_asana/trigger/` (7 files, D6 shadow receiver, dark, 4 modules log, no metric or span); `src/autom8_asana/core/api_settings.py` now holds `ASANA_API_LOG_LEVEL` and `ASANA_API_DEBUG`; verified-identity rate-limit keying | `src/autom8_asana/trigger/__init__.py`; `src/autom8_asana/core/api_settings.py:36-72` |
+| Live-observed alarm, datapoint, dashboard and SLO-reading statements (prior sections "OBS-LAMBDA-DARK-001", "Alarms that cannot fire", live inventory, "Current readings") | Dropped as unverifiable in this pass; see Knowledge Gaps item 10 | no outward calls permitted |
+| Receiver-reliability gap table (RECV-BULK-001..003) | Dropped: outside the obs criteria, not re-derived | n/a |
