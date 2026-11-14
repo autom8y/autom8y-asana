@@ -92,9 +92,9 @@ PRODUCTS_NULL_SHARE_LIMIT = 0.5
 
 #: Offer sections settled for the Unit read and absent from OFFER_CLASSIFIER.
 #: LAUNCH ERROR and SYSTEM ERROR are not live sections today, but legacy names
-#: them and a modern Offer-section writer may target them: legacy's ad factory
-#: moves a failed launch to LAUNCH ERROR (activating in legacy's lists) and a
-#: failed non-launch action to SYSTEM ERROR (active in legacy's lists). ADD NEW
+#: them and a modern Offer-section writer may target them. By the section name,
+#: LAUNCH ERROR holds an Offer whose launch failed (activating in legacy's lists)
+#: and SYSTEM ERROR one that was already running (active in legacy's lists). ADD NEW
 #: OFFER is live and in no legacy list, so it never counts toward a Unit; ignored
 #: is the group with that effect.
 SETTLED_OFFER_SECTIONS: dict[str, AccountActivity] = {
