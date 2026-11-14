@@ -224,8 +224,9 @@ def _require_columns(df: pl.DataFrame, columns: tuple[str, ...], frame: str) -> 
 def _require_products_resolved(unit_df: pl.DataFrame) -> None:
     """Refuse a Unit frame whose ``products`` column is mostly or wholly null.
 
-    The share is taken over every row of the Unit frame. An empty frame has no
-    nulls and passes. See ``PRODUCTS_NULL_SHARE_LIMIT`` for the rule.
+    The share is taken over every row of the Unit frame. An empty Unit frame
+    never reaches this check: ``with_unit_activity`` refuses it first. See
+    ``PRODUCTS_NULL_SHARE_LIMIT`` for the rule.
     """
     unit_count = unit_df.height
     null_count = int(unit_df["products"].null_count())
@@ -251,11 +252,13 @@ def with_unit_activity(unit_df: pl.DataFrame, offer_df: pl.DataFrame) -> pl.Data
 
     Raises:
         UnitActivityInputError: when either frame lacks a column the rule reads,
-            the Offer frame is empty, or ``products`` is null for more than
+            either frame is empty, or ``products`` is null for more than
             ``PRODUCTS_NULL_SHARE_LIMIT`` of the Units. An empty Offer frame
-            cannot ground any marketing Unit, and a mostly-null ``products``
+            cannot ground any marketing Unit, an empty Unit frame would push a
+            snapshot with no Unit rows (the receiver replaces the whole
+            snapshot, so it would delete them), and a mostly-null ``products``
             column cannot tell which branch any Unit takes, so the caller must
-            not push a reading built on either.
+            not push a reading built on any of them.
     """
     import polars as pl
 
@@ -263,6 +266,8 @@ def with_unit_activity(unit_df: pl.DataFrame, offer_df: pl.DataFrame) -> pl.Data
     _require_columns(offer_df, _OFFER_COLUMNS, "offer")
     if offer_df.height == 0:
         raise UnitActivityInputError("the offer frame has no rows")
+    if unit_df.height == 0:
+        raise UnitActivityInputError("the unit frame has no rows")
     _require_products_resolved(unit_df)
 
     offer_sections: dict[tuple[str, str], list[str]] = {}

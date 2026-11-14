@@ -583,6 +583,18 @@ class TestUnitCacheMissWithholds:
         assert _withheld_entry_counts(log) == [1]
         assert _skip_metric_reasons(emit) == ["unit_activity_unavailable"]
 
+    async def test_an_empty_unit_frame_withholds_the_snapshot_and_counts_it(self) -> None:
+        """A present Unit frame with zero rows loses the Unit rows like a cache miss."""
+        mock_push, log, emit = await _run_status_push_with_metrics(
+            {"unit": _units().head(0), "offer": _offers(["ACTIVE"]), "sales": _sales()},
+            completed=("unit", "sales", "offer"),
+        )
+
+        mock_push.assert_not_awaited()
+        assert _skip_reasons(log) == ["the unit frame has no rows"]
+        assert _withheld_entry_counts(log) == [1]
+        assert _skip_metric_reasons(emit) == ["unit_activity_unavailable"]
+
     async def test_a_unit_hit_pushes_with_the_other_entitys_rows(self) -> None:
         mock_push, log, emit = await _run_status_push_with_metrics(
             {"unit": _units(), "offer": _offers(["ACTIVE"]), "sales": _sales()},

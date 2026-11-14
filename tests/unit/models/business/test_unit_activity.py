@@ -395,9 +395,15 @@ class TestProductsNullShareLimit:
         assert activity[:null_products] == [None] * null_products
         assert activity[null_products:] == ["active"] * (100 - null_products)
 
-    def test_an_empty_unit_frame_is_read(self) -> None:
+    def test_an_empty_unit_frame_is_refused(self) -> None:
+        """Zero Units would push a snapshot with no Unit rows, so it is refused."""
         units, offers = _null_share_frames(null_products=0, total=0)
-        assert with_unit_activity(units, offers).height == 0
+        with pytest.raises(UnitActivityInputError, match="the unit frame has no rows"):
+            with_unit_activity(units, offers)
+
+    def test_a_one_unit_frame_is_read(self) -> None:
+        units, offers = _null_share_frames(null_products=0, total=1)
+        assert with_unit_activity(units, offers)[UNIT_ACTIVITY_COLUMN].to_list() == ["active"]
 
     def test_empty_lists_are_not_null(self) -> None:
         """A Unit with no products is a resolved value, so it never counts toward the limit."""
