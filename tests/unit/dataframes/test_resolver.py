@@ -1280,7 +1280,7 @@ class TestAdversarialIntegrationEndToEnd:
             {
                 "mrr": Decimal("5000.00"),  # Decimal
                 "weekly_ad_spend": 1500.50,  # float
-                "discount": "10.5",  # string that should become Decimal
+                "discount": "10%",  # enum string (Utf8), preserved verbatim
                 "specialty": ["Dental"],  # list that should become string
                 "products": "SingleProduct",  # string that should become list
             }
@@ -1299,6 +1299,6 @@ class TestAdversarialIntegrationEndToEnd:
         # Verify proper coercion happened
         assert row.mrr == Decimal("5000.00")
         assert row.weekly_ad_spend == Decimal("1500.5")
-        assert row.discount == Decimal("10.5")
+        assert row.discount == "10%"  # enum string preserved (Utf8 contract)
         assert row.specialty == "Dental"
         assert row.products == ["SingleProduct"]

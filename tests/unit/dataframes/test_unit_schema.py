@@ -70,7 +70,10 @@ class TestUnitSchemaColumns:
             pytest.param("weekly_ad_spend", "Decimal", id="weekly_ad_spend"),
             pytest.param("products", "List[Utf8]", id="products"),
             pytest.param("languages", "List[Utf8]", id="languages"),
-            pytest.param("discount", "Decimal", id="discount"),
+            # Discount is an Asana ENUM ("0%", "10%"), not a number (proven
+            # against live unit project 1201081073731555). Honest enum-string
+            # contract: dtype Utf8, not Decimal.
+            pytest.param("discount", "Utf8", id="discount"),
             pytest.param("office", "Utf8", id="office"),
             pytest.param("office_phone", "Utf8", id="office_phone"),
             pytest.param("vertical", "Utf8", id="vertical"),
@@ -99,7 +102,9 @@ class TestUnitSchemaPolarsConversion:
         # Check Unit-specific columns (Decimal maps to Float64)
         assert polars_schema["mrr"] == pl.Float64
         assert polars_schema["weekly_ad_spend"] == pl.Float64
-        assert polars_schema["discount"] == pl.Float64
+        # Discount is an enum string (Utf8), not a number -- see contract note
+        # in UNIT_SCHEMA / TestUnitSchemaColumns.
+        assert polars_schema["discount"] == pl.Utf8
         assert isinstance(polars_schema["products"], pl.List)
         assert isinstance(polars_schema["languages"], pl.List)
         assert polars_schema["office"] == pl.Utf8

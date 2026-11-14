@@ -253,7 +253,19 @@ class DefaultCustomFieldResolver:
             case "text":
                 return get_attr("text_value")
             case "number":
-                return get_attr("number_value")
+                # Defense parity with text/enum: fall back to display_value when
+                # number_value is null/absent. Asana's list endpoint can return a
+                # populated display_value while number_value is null even when
+                # number_value is requested in opt_fields; without this fallback
+                # the number-branch silently drops a recoverable magnitude (the
+                # display_value recovery otherwise lived only in ``case _``, which
+                # never fires for a known "number" subtype). The downstream coercer
+                # normalizes the display string ("10%", "$4,500") -- so this hands
+                # off a string the coercer can parse, never an invented value.
+                number_value = get_attr("number_value")
+                if number_value is not None:
+                    return number_value
+                return get_attr("display_value")
             case "enum":
                 enum_value = get_attr("enum_value")
                 if enum_value is None:
