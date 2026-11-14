@@ -3,6 +3,10 @@
 Maps Asana project section names to AccountActivity categories (active,
 activating, inactive, ignored) for Offer and Unit entity types.
 
+A Unit's activity is not its own section's group: ``unit_activity`` holds the
+single definition (a marketing Unit reads its Offers' sections). This module
+holds the section lists that definition reads.
+
 Frozen, no I/O, O(1) lookup, case-insensitive matching.
 """
 
@@ -210,35 +214,36 @@ OFFER_CLASSIFIER: SectionClassifier = SectionClassifier.from_groups(
     },
 )
 
+# Legacy's Unit section lists: the ONE list definition for a Unit's own section.
+#
+# Consulted from the monolith's ``BusinessUnits.SECTIONS`` (four groups, fourteen
+# names), not imported from it. Under the ratified activity rule a Unit's own
+# section governs only a Unit with no marketing product; a marketing Unit takes
+# its activity from its Offers (see ``unit_activity.classify_unit_activity``, the
+# single definition of Unit activity). Every reader of a Unit's own section reads
+# these lists: UNIT_CLASSIFIER below, the reconciliation section registry's
+# name-to-bucket join, and the reconciliation processor's unit-section check.
+#
+# "Engaged" and "Scheduled" are inactive here, as in legacy: Engaged is counted
+# apart from activating. "Next Steps", "Account Review" and "Account Error" are in
+# no list, as in legacy, so a Unit there has no activity group.
+LEGACY_UNIT_SECTIONS: dict[AccountActivity, frozenset[str]] = {
+    AccountActivity.ACTIVE: frozenset({"Month 1", "Consulting", "Active"}),
+    AccountActivity.ACTIVATING: frozenset({"Onboarding", "Implementing", "Delayed", "Preview"}),
+    AccountActivity.INACTIVE: frozenset(
+        {"Unengaged", "Engaged", "Scheduled", "Paused", "Cancelled", "No Start"}
+    ),
+    AccountActivity.IGNORED: frozenset({"Templates"}),
+}
+
+# The own-section reading of a Unit, by legacy's lists. For a non-marketing Unit
+# this is its activity. For a marketing Unit it is NOT: consumers that need Unit
+# activity read ``unit_activity.classify_unit_activity`` (or the frame column it
+# builds).
 UNIT_CLASSIFIER: SectionClassifier = SectionClassifier.from_groups(
     entity_type="unit",
     project_gid="1201081073731555",
-    groups={
-        "active": {
-            "Month 1",
-            "Consulting",
-            "Active",
-        },
-        "activating": {
-            "Onboarding",
-            "Implementing",
-            "Delayed",
-            "Preview",
-            "Engaged",  # Per truth audit: forward momentum, not inactive
-            "Scheduled",  # Per truth audit: scheduled interaction = activating
-        },
-        "inactive": {
-            "Unengaged",
-            "Paused",
-            "Cancelled",
-            "No Start",
-            "Account Review",  # Per truth audit: moved from EXCLUDED to INACTIVE
-            "Account Error",  # Per truth audit: moved from EXCLUDED to INACTIVE
-        },
-        "ignored": {
-            "Templates",
-        },
-    },
+    groups={activity.value: set(names) for activity, names in LEGACY_UNIT_SECTIONS.items()},
 )
 
 # ---------------------------------------------------------------------------

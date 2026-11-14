@@ -482,7 +482,7 @@ class TestGidPushResponse:
 
 import polars as pl
 
-from autom8_asana.models.business.activity import AccountActivity
+from autom8_asana.models.business.unit_activity import UNIT_ACTIVITY_COLUMN
 from autom8_asana.services.gid_push import (
     PIPELINE_TYPE_BY_PROJECT_GID,
     extract_status_from_dataframe,
@@ -491,6 +491,8 @@ from autom8_asana.services.gid_push import (
 # Known project GID for "unit" pipeline type
 _UNIT_GID = "1201081073731555"
 _UNKNOWN_GID = "9999999999999999"
+# A process-pipeline project, looked up rather than restated.
+_SALES_GID = next(gid for gid, kind in PIPELINE_TYPE_BY_PROJECT_GID.items() if kind == "sales")
 
 # Expected output keys for every entry dict
 _EXPECTED_KEYS = {
@@ -503,114 +505,90 @@ _EXPECTED_KEYS = {
 }
 
 
-def _make_classifier(mapping: dict[str, AccountActivity | None]):
-    """Create a mock classifier with a controlled classify() method."""
-    mock = MagicMock()
-    mock.classify.side_effect = lambda s: mapping.get(s)
-    return mock
+def _logger_fake():
+    """A logger fake with the real logger protocol's interface."""
+    from unittest.mock import create_autospec
+
+    from autom8y_log import LoggerProtocol
+
+    return create_autospec(LoggerProtocol, instance=True)
+
+
+def _unit_frame(**columns: list) -> pl.DataFrame:
+    """A Unit frame as the push sees it: the activity column already computed."""
+    return pl.DataFrame(columns, schema_overrides={UNIT_ACTIVITY_COLUMN: pl.Utf8})
 
 
 class TestExtractStatusFromDataframe:
     """Tests for extract_status_from_dataframe.
 
-    Covers all 6 early-exit branches, the active-only filter (SD-02),
-    output shape validation, and classifier fallback behavior.
+    A Unit frame's activity is read from its ``unit_activity`` column, never
+    re-derived from its section. Other entity types are classified from their
+    section. Covers the early exits, the active-only filter (SD-02) and the
+    output shape.
 
     Ref: H-03 from CASE-account-status-state-projection.md
     """
 
     # ------------------------------------------------------------------
-    # Branch 1: Unknown project GID
+    # Early exits
     # ------------------------------------------------------------------
 
     def test_unknown_project_gid_returns_empty(self) -> None:
-        """GID not in PIPELINE_TYPE_BY_PROJECT_GID returns empty list."""
-        df = pl.DataFrame({"office_phone": ["+15551234567"], "section": ["Active"]})
-        result = extract_status_from_dataframe(df, _UNKNOWN_GID, "unit")
-        assert result == []
-
-    # ------------------------------------------------------------------
-    # Branch 2: Missing required columns
-    # ------------------------------------------------------------------
+        df = _unit_frame(
+            office_phone=["+15551234567"], section=["Active"], unit_activity=["active"]
+        )
+        assert extract_status_from_dataframe(df, _UNKNOWN_GID, "unit") == []
 
     def test_missing_office_phone_column_returns_empty(self) -> None:
-        """DataFrame without office_phone column returns empty list."""
-        df = pl.DataFrame({"name": ["Test Business"], "section": ["Active"]})
-
-        with patch(
-            "autom8_asana.models.business.activity.get_classifier",
-            return_value=_make_classifier({"Active": AccountActivity.ACTIVE}),
-        ):
-            result = extract_status_from_dataframe(df, _UNIT_GID, "unit")
-
-        assert result == []
-
-    # ------------------------------------------------------------------
-    # Branch 3: Empty/falsy phone values
-    # ------------------------------------------------------------------
+        df = _unit_frame(name=["Test Business"], section=["Active"], unit_activity=["active"])
+        assert extract_status_from_dataframe(df, _UNIT_GID, "unit") == []
 
     def test_empty_phone_skipped(self) -> None:
-        """Rows with empty or None phone values are skipped."""
-        df = pl.DataFrame(
-            {
-                "office_phone": ["", None, "+15551234567"],
-                "section": ["Active", "Active", "Active"],
-            }
+        df = _unit_frame(
+            office_phone=["", None, "+15551234567"],
+            section=["Active", "Active", "Active"],
+            unit_activity=["active", "active", "active"],
         )
-
-        with patch(
-            "autom8_asana.models.business.activity.get_classifier",
-            return_value=_make_classifier({"Active": AccountActivity.ACTIVE}),
-        ):
-            result = extract_status_from_dataframe(df, _UNIT_GID, "unit")
-
-        # Only the third row (valid phone) should produce an entry
-        assert len(result) == 1
-        assert result[0]["phone"] == "+15551234567"
-
-    # ------------------------------------------------------------------
-    # Branch 4: No section name found
-    # ------------------------------------------------------------------
+        result = extract_status_from_dataframe(df, _UNIT_GID, "unit")
+        assert [e["phone"] for e in result] == ["+15551234567"]
 
     def test_no_section_name_skipped(self) -> None:
-        """Row with no section_name column and no memberships is skipped."""
-        df = pl.DataFrame({"office_phone": ["+15551234567"]})
+        """The row's own section is still required for the pipeline_section label."""
+        df = _unit_frame(office_phone=["+15551234567"], unit_activity=["active"])
+        assert extract_status_from_dataframe(df, _UNIT_GID, "unit") == []
 
-        with patch(
-            "autom8_asana.models.business.activity.get_classifier",
-            return_value=_make_classifier({}),
-        ):
+    def test_unit_frame_without_activity_column_yields_nothing(self) -> None:
+        """No column, no rows: the section is never used as a fallback."""
+        df = pl.DataFrame({"office_phone": ["+15551234567"], "section": ["Active"]})
+
+        with patch("autom8_asana.services.gid_push.logger", new=_logger_fake()) as mock_logger:
             result = extract_status_from_dataframe(df, _UNIT_GID, "unit")
 
         assert result == []
+        mock_logger.warning.assert_called_once()
+        assert mock_logger.warning.call_args.args[0] == "status_extract_unit_activity_absent"
 
-    def test_section_from_section_name_column(self) -> None:
-        """Section name is extracted from the section_name column when present."""
-        df = pl.DataFrame(
-            {
-                "office_phone": ["+15551234567"],
-                "vertical": ["chiropractic"],
-                "section": ["Month 1"],
-            }
+    # ------------------------------------------------------------------
+    # The unit activity comes from the column, not the section
+    # ------------------------------------------------------------------
+
+    def test_unit_activity_is_read_from_the_column_not_the_section(self) -> None:
+        df = _unit_frame(
+            office_phone=["+15551234567", "+15551234568"],
+            vertical=["dental", "dental"],
+            section=["Engaged", "Active"],
+            unit_activity=["active", None],
         )
 
-        with patch(
-            "autom8_asana.models.business.activity.get_classifier",
-            return_value=_make_classifier({"Month 1": AccountActivity.ACTIVE}),
-        ):
-            result = extract_status_from_dataframe(df, _UNIT_GID, "unit")
+        result = extract_status_from_dataframe(df, _UNIT_GID, "unit")
 
         assert len(result) == 1
-        assert result[0]["pipeline_section"] == "Month 1"
+        assert result[0]["phone"] == "+15551234567"
         assert result[0]["account_activity"] == "active"
+        assert result[0]["pipeline_section"] == "Engaged"
 
-    def test_section_from_memberships_dict(self) -> None:
-        """Section name is extracted from memberships when section_name column absent.
-
-        Uses a real list-typed memberships column to exercise the branch.
-        The `if memberships is not None:` guard (fixed from `if memberships:`)
-        handles Polars list scalars without raising TypeError.
-        """
+    def test_section_from_memberships_labels_the_entry(self) -> None:
         memberships_data = [
             {
                 "section": {"name": "Onboarding", "gid": "123"},
@@ -620,19 +598,15 @@ class TestExtractStatusFromDataframe:
         df = pl.DataFrame(
             {
                 "office_phone": ["+15551234567"],
-                "memberships": [memberships_data],  # list column — Polars Object dtype
+                "memberships": [memberships_data],
+                UNIT_ACTIVITY_COLUMN: ["activating"],
             }
         )
 
-        with (
-            patch(
-                "autom8_asana.models.business.activity.get_classifier",
-                return_value=_make_classifier({"Onboarding": AccountActivity.ACTIVATING}),
-            ),
-            patch(
-                "autom8_asana.models.business.activity.extract_section_name",
-                return_value="Onboarding",
-            ),
+        with patch(
+            "autom8_asana.models.business.activity.extract_section_name",
+            autospec=True,
+            return_value="Onboarding",
         ):
             result = extract_status_from_dataframe(df, _UNIT_GID, "unit")
 
@@ -640,136 +614,49 @@ class TestExtractStatusFromDataframe:
         assert result[0]["pipeline_section"] == "Onboarding"
         assert result[0]["account_activity"] == "activating"
 
-    # ------------------------------------------------------------------
-    # Branch 5: Classifier returns None (unknown section)
-    # ------------------------------------------------------------------
-
-    def test_unknown_section_classified_as_none_skipped(self) -> None:
-        """Section name that classifier doesn't recognize is skipped."""
-        df = pl.DataFrame(
-            {
-                "office_phone": ["+15551234567"],
-                "section": ["UNKNOWN_SECTION"],
-            }
-        )
-
-        with patch(
-            "autom8_asana.models.business.activity.get_classifier",
-            return_value=_make_classifier({"UNKNOWN_SECTION": None}),
-        ):
-            result = extract_status_from_dataframe(df, _UNIT_GID, "unit")
-
-        assert result == []
+    def test_an_unknown_activity_value_fails_loudly(self) -> None:
+        df = _unit_frame(office_phone=["+15551234567"], section=["Active"], unit_activity=["busy"])
+        with pytest.raises(ValueError, match="busy"):
+            extract_status_from_dataframe(df, _UNIT_GID, "unit")
 
     # ------------------------------------------------------------------
-    # Branch 6: Active-only filter (SD-02)
+    # Active-only filter (SD-02)
     # ------------------------------------------------------------------
 
-    def test_inactive_section_filtered_out(self) -> None:
-        """Section classified as INACTIVE is not persisted (SD-02)."""
-        df = pl.DataFrame(
-            {
-                "office_phone": ["+15551234567"],
-                "section": ["Paused"],
-            }
+    @pytest.mark.parametrize("activity", ["inactive", "ignored", None])
+    def test_non_billable_unit_rows_are_not_persisted(self, activity) -> None:
+        df = _unit_frame(
+            office_phone=["+15551234567"], section=["Active"], unit_activity=[activity]
         )
+        assert extract_status_from_dataframe(df, _UNIT_GID, "unit") == []
 
-        with patch(
-            "autom8_asana.models.business.activity.get_classifier",
-            return_value=_make_classifier({"Paused": AccountActivity.INACTIVE}),
-        ):
-            result = extract_status_from_dataframe(df, _UNIT_GID, "unit")
-
-        assert result == []
-
-    def test_ignored_section_filtered_out(self) -> None:
-        """Section classified as IGNORED is not persisted (SD-02)."""
-        df = pl.DataFrame(
-            {
-                "office_phone": ["+15551234567"],
-                "section": ["Templates"],
-            }
+    @pytest.mark.parametrize("activity", ["active", "activating"])
+    def test_billable_unit_rows_are_persisted(self, activity) -> None:
+        df = _unit_frame(
+            office_phone=["+15551234567"], section=["Paused"], unit_activity=[activity]
         )
-
-        with patch(
-            "autom8_asana.models.business.activity.get_classifier",
-            return_value=_make_classifier({"Templates": AccountActivity.IGNORED}),
-        ):
-            result = extract_status_from_dataframe(df, _UNIT_GID, "unit")
-
-        assert result == []
-
-    def test_active_section_persisted(self) -> None:
-        """Section classified as ACTIVE is persisted (SD-02)."""
-        df = pl.DataFrame(
-            {
-                "office_phone": ["+15551234567"],
-                "section": ["Active"],
-            }
-        )
-
-        with patch(
-            "autom8_asana.models.business.activity.get_classifier",
-            return_value=_make_classifier({"Active": AccountActivity.ACTIVE}),
-        ):
-            result = extract_status_from_dataframe(df, _UNIT_GID, "unit")
-
-        assert len(result) == 1
-        assert result[0]["account_activity"] == "active"
-
-    def test_activating_section_persisted(self) -> None:
-        """Section classified as ACTIVATING is persisted (SD-02)."""
-        df = pl.DataFrame(
-            {
-                "office_phone": ["+15551234567"],
-                "section": ["Implementing"],
-            }
-        )
-
-        with patch(
-            "autom8_asana.models.business.activity.get_classifier",
-            return_value=_make_classifier({"Implementing": AccountActivity.ACTIVATING}),
-        ):
-            result = extract_status_from_dataframe(df, _UNIT_GID, "unit")
-
-        assert len(result) == 1
-        assert result[0]["account_activity"] == "activating"
+        result = extract_status_from_dataframe(df, _UNIT_GID, "unit")
+        assert [e["account_activity"] for e in result] == [activity]
 
     # ------------------------------------------------------------------
     # Output shape validation
     # ------------------------------------------------------------------
 
     def test_output_entry_keys_and_types(self) -> None:
-        """Every entry dict has the expected 6 keys with correct types."""
-        df = pl.DataFrame(
-            {
-                "office_phone": ["+15551234567"],
-                "vertical": ["chiropractic"],
-                "section": ["Active"],
-            }
+        df = _unit_frame(
+            office_phone=["+15551234567"],
+            vertical=["chiropractic"],
+            section=["Active"],
+            unit_activity=["active"],
         )
 
-        with patch(
-            "autom8_asana.models.business.activity.get_classifier",
-            return_value=_make_classifier({"Active": AccountActivity.ACTIVE}),
-        ):
-            result = extract_status_from_dataframe(df, _UNIT_GID, "unit")
+        result = extract_status_from_dataframe(df, _UNIT_GID, "unit")
 
         assert len(result) == 1
         entry = result[0]
-
-        # All expected keys present
         assert set(entry.keys()) == _EXPECTED_KEYS
-
-        # Type checks
-        assert isinstance(entry["phone"], str)
-        assert isinstance(entry["vertical"], str)
-        assert isinstance(entry["pipeline_type"], str)
-        assert isinstance(entry["account_activity"], str)
-        assert isinstance(entry["pipeline_section"], str)
-        assert isinstance(entry["stage_entered_at"], str)
-
-        # Value checks
+        for key in _EXPECTED_KEYS:
+            assert isinstance(entry[key], str), key
         assert entry["phone"] == "+15551234567"
         assert entry["vertical"] == "chiropractic"
         assert entry["pipeline_type"] == "unit"
@@ -777,55 +664,37 @@ class TestExtractStatusFromDataframe:
         assert entry["pipeline_section"] == "Active"
 
     def test_vertical_defaults_to_empty_string(self) -> None:
-        """Row with no vertical column or None vertical defaults to ''."""
-        # No vertical column at all
-        df = pl.DataFrame(
-            {
-                "office_phone": ["+15551234567"],
-                "section": ["Active"],
-            }
+        df = _unit_frame(
+            office_phone=["+15551234567"], section=["Active"], unit_activity=["active"]
         )
-
-        with patch(
-            "autom8_asana.models.business.activity.get_classifier",
-            return_value=_make_classifier({"Active": AccountActivity.ACTIVE}),
-        ):
-            result = extract_status_from_dataframe(df, _UNIT_GID, "unit")
-
+        result = extract_status_from_dataframe(df, _UNIT_GID, "unit")
         assert len(result) == 1
         assert result[0]["vertical"] == ""
 
     # ------------------------------------------------------------------
-    # Classifier fallback
+    # Non-unit entity types classify their own section
     # ------------------------------------------------------------------
 
-    def test_unknown_entity_type_warns_and_skips(self) -> None:
-        """Entity type not recognized by get_classifier logs warning and returns empty.
-
-        Per TC-5: silent UNIT_CLASSIFIER fallback replaced with warn+skip
-        to eliminate incorrect classification of process pipeline rows.
-        """
+    def test_process_pipeline_rows_classify_their_section(self) -> None:
         df = pl.DataFrame(
             {
-                "office_phone": ["+15551234567"],
-                "section": ["Active"],
+                "office_phone": ["+15551234567", "+15551234568"],
+                "section": ["ACTIVE", "INACTIVE"],
             }
         )
 
-        with (
-            patch(
-                "autom8_asana.models.business.activity.get_classifier",
-                return_value=None,  # Unknown entity type
-            ) as mock_get,
-            patch(
-                "autom8_asana.services.gid_push.logger",
-            ) as mock_logger,
-        ):
+        result = extract_status_from_dataframe(df, _SALES_GID, "sales")
+
+        assert [(e["phone"], e["account_activity"]) for e in result] == [("+15551234567", "active")]
+        assert result[0]["pipeline_type"] == "sales"
+
+    def test_unknown_entity_type_warns_and_skips(self) -> None:
+        """Per TC-5: an entity type with no classifier warns and skips, no fallback."""
+        df = pl.DataFrame({"office_phone": ["+15551234567"], "section": ["Active"]})
+
+        with patch("autom8_asana.services.gid_push.logger", new=_logger_fake()) as mock_logger:
             result = extract_status_from_dataframe(df, _UNIT_GID, "unknown_entity")
 
-        # get_classifier was called with the entity type
-        mock_get.assert_called_once_with("unknown_entity")
-        # Warning was logged
         mock_logger.warning.assert_called_once_with(
             "process_pipeline_no_classifier",
             extra={
@@ -833,5 +702,4 @@ class TestExtractStatusFromDataframe:
                 "project_gid": _UNIT_GID,
             },
         )
-        # No entries returned (warn+skip, not fallback)
         assert result == []

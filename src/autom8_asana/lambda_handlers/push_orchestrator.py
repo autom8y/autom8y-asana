@@ -126,6 +126,46 @@ async def _push_gid_mappings_for_completed_entities(
         )
 
 
+async def _unit_frame_with_activity(
+    unit_df: Any,
+    *,
+    get_project_gid: Any,
+    cache: Any,
+    invocation_id: str,
+) -> Any | None:
+    """Return the Unit frame with its ``unit_activity`` column, or None.
+
+    Unit activity is computed ONCE per snapshot, here, where both the ECS and
+    the Lambda pushes read their Unit frame, from the Unit and Offer frames the
+    same cache holds (``unit_activity.with_unit_activity``, the single
+    definition). A marketing Unit's activity needs the Offer frame, so without a
+    usable one this returns None and the caller withholds the whole snapshot:
+    the receiver keeps its last good one rather than a snapshot without Units.
+    """
+    from autom8_asana.models.business.unit_activity import (
+        UnitActivityInputError,
+        with_unit_activity,
+    )
+
+    offer_project_gid = get_project_gid("offer")
+    offer_entry = await cache.get_async(offer_project_gid, "offer") if offer_project_gid else None
+    if offer_entry is None or offer_entry.dataframe is None:
+        logger.warning(
+            "status_push_unit_activity_skipped",
+            extra={"reason": "offer_frame_unavailable", "invocation_id": invocation_id},
+        )
+        return None
+
+    try:
+        return with_unit_activity(unit_df, offer_entry.dataframe)
+    except UnitActivityInputError as e:
+        logger.warning(
+            "status_push_unit_activity_skipped",
+            extra={"reason": str(e), "invocation_id": invocation_id},
+        )
+        return None
+
+
 async def _push_account_status_for_completed_entities(
     completed_entities: list[str],
     get_project_gid: Any,
@@ -135,7 +175,9 @@ async def _push_account_status_for_completed_entities(
     """Push account status to autom8_data for each warmed entity type.
 
     Extracts section classifications from warmed DataFrames and
-    aggregates all entries into a single snapshot push.
+    aggregates all entries into a single snapshot push. The Unit frame first
+    gets its ``unit_activity`` column (``_unit_frame_with_activity``), which the
+    extraction reads instead of the Unit's own section.
 
     Non-blocking: all errors are caught and logged.
 
@@ -188,6 +230,10 @@ async def _push_account_status_for_completed_entities(
     )
 
     all_entries: list[dict[str, Any]] = []
+    # Set when the Unit frame was read but its activity could not be computed.
+    # The receiver REPLACES the whole snapshot, so a snapshot without its Unit
+    # rows would delete them there: such a snapshot is withheld, never pushed.
+    unit_activity_withheld = False
 
     for entity_type in completed_entities:
         project_gid = get_project_gid(entity_type)
@@ -199,14 +245,29 @@ async def _push_account_status_for_completed_entities(
             if entry is None or entry.dataframe is None:
                 continue
 
+            df = entry.dataframe
+            if entity_type == "unit":
+                df = await _unit_frame_with_activity(
+                    df,
+                    get_project_gid=get_project_gid,
+                    cache=cache,
+                    invocation_id=invocation_id,
+                )
+                if df is None:
+                    unit_activity_withheld = True
+                    continue
+
             entries = extract_status_from_dataframe(
-                df=entry.dataframe,
+                df=df,
                 project_gid=project_gid,
                 entity_type=entity_type,
             )
             all_entries.extend(entries)
 
         except Exception as e:  # BROAD-CATCH: isolation  # noqa: BLE001
+            if entity_type == "unit":
+                # The Unit rows are lost to this snapshot; never push it without them.
+                unit_activity_withheld = True
             logger.warning(
                 "status_extract_entity_error",
                 extra={
@@ -216,6 +277,17 @@ async def _push_account_status_for_completed_entities(
                     "invocation_id": invocation_id,
                 },
             )
+
+    if unit_activity_withheld:
+        logger.warning(
+            "status_push_snapshot_withheld",
+            extra={
+                "reason": "unit_activity_unavailable",
+                "entry_count": len(all_entries),
+                "invocation_id": invocation_id,
+            },
+        )
+        return
 
     if all_entries:
         from datetime import UTC, datetime

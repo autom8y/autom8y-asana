@@ -221,6 +221,16 @@ class TestUnitAccountActivity:
         unit = _make_unit("No Start")
         assert unit.account_activity == AccountActivity.INACTIVE
 
+    def test_engaged_section_is_inactive_never_activating(self) -> None:
+        """Engaged is counted apart from activating (legacy's inactive list)."""
+        unit = _make_unit("Engaged")
+        assert unit.account_activity == AccountActivity.INACTIVE
+
+    def test_account_review_section_has_no_group(self) -> None:
+        """Legacy lists Account Review nowhere."""
+        unit = _make_unit("Account Review")
+        assert unit.account_activity is None
+
 
 # ---------------------------------------------------------------------------
 # Business.max_unit_activity

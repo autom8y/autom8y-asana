@@ -196,6 +196,8 @@ class TestPushAccountStatusDispatch:
                 "office_phone": ["+15551230001"],
                 "vertical": ["chiropractor"],
                 "section": ["Active"],
+                # Non-marketing: activity is its own section, so the row pushes.
+                "products": [["Videography"]],
             }
         )
         offer_df = pl.DataFrame(
@@ -307,7 +309,11 @@ class TestPushAccountStatusDispatch:
         assert unmapped_emits[0].args[1] == 0
 
     async def test_extract_failure_does_not_propagate(self) -> None:
-        """Extraction failure per-entity is isolated — must not raise."""
+        """Extraction failure per-entity is isolated — must not raise.
+
+        Uses a non-unit entity so the patched extraction is actually reached
+        (a unit frame first goes through the Unit activity step).
+        """
         from autom8_asana.lambda_handlers.push_orchestrator import (
             _push_account_status_for_completed_entities,
         )
@@ -322,13 +328,211 @@ class TestPushAccountStatusDispatch:
             patch(
                 "autom8_asana.services.gid_push.extract_status_from_dataframe",
                 side_effect=Exception("extraction failed"),
-            ),
+            ) as mock_extract,
             patch("autom8_asana.lambda_handlers.push_orchestrator.emit_metric"),
         ):
             # Must not raise — BROAD-CATCH: isolation
             await _push_account_status_for_completed_entities(
-                completed_entities=["unit"],
+                completed_entities=["offer"],
                 get_project_gid=lambda _: "proj-001",
                 cache=mock_cache,
                 invocation_id="test-inv",
             )
+
+        mock_extract.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Unit activity at the push seam: computed once from the Unit and Offer frames
+# ---------------------------------------------------------------------------
+
+
+def _project_of(kind: str) -> str:
+    from autom8_asana.services.gid_push import PIPELINE_TYPE_BY_PROJECT_GID
+
+    return next(g for g, k in PIPELINE_TYPE_BY_PROJECT_GID.items() if k == kind)
+
+
+def _frames_cache(frames: dict[str, object]):
+    """A DataFrameCache fake (autospec) serving real entries by entity type."""
+    from datetime import UTC, datetime
+    from unittest.mock import create_autospec
+
+    from autom8_asana.cache.integration.dataframe_cache import (
+        DataFrameCache,
+        DataFrameCacheEntry,
+    )
+
+    def _get(project_gid: str, entity_type: str, current_watermark=None):
+        df = frames.get(entity_type)
+        if df is None:
+            return None
+        now = datetime.now(UTC)
+        return DataFrameCacheEntry(
+            project_gid=project_gid,
+            entity_type=entity_type,
+            dataframe=df,
+            watermark=now,
+            created_at=now,
+            schema_version="test",
+        )
+
+    cache = create_autospec(DataFrameCache, instance=True)
+    cache.get_async.side_effect = _get
+    return cache
+
+
+def _gids(entity_type: str) -> str | None:
+    known = {"unit": _project_of("unit"), "offer": "offer-project", "sales": _project_of("sales")}
+    return known.get(entity_type)
+
+
+async def _run_status_push(
+    frames: dict[str, object], completed: tuple[str, ...] = ("unit", "offer")
+):
+    from unittest.mock import create_autospec
+
+    from autom8y_log import LoggerProtocol
+
+    from autom8_asana.lambda_handlers.push_orchestrator import (
+        _push_account_status_for_completed_entities,
+    )
+
+    with (
+        patch(
+            "autom8_asana.services.gid_push.push_status_to_data_service",
+            new_callable=AsyncMock,
+            return_value=True,
+        ) as mock_push,
+        patch("autom8_asana.lambda_handlers.push_orchestrator.emit_metric"),
+        patch(
+            "autom8_asana.lambda_handlers.push_orchestrator.logger",
+            new=create_autospec(LoggerProtocol, instance=True),
+        ) as log,
+    ):
+        await _push_account_status_for_completed_entities(
+            completed_entities=list(completed),
+            get_project_gid=_gids,
+            cache=_frames_cache(frames),
+            invocation_id="test-inv",
+        )
+    return mock_push, log
+
+
+def _units():
+    import polars as pl
+
+    return pl.DataFrame(
+        {
+            "office_phone": ["+15550100001", "+15550100002"],
+            "vertical": ["dental", "dental"],
+            "section": ["Engaged", "Engaged"],
+            "products": [["Meta Marketing"], ["Videography"]],
+        }
+    )
+
+
+def _offers(sections: list[str]):
+    import polars as pl
+
+    return pl.DataFrame(
+        {
+            "office_phone": ["+15550100001"] * len(sections),
+            "vertical": ["dental"] * len(sections),
+            "section": sections,
+        },
+        schema={"office_phone": pl.Utf8, "vertical": pl.Utf8, "section": pl.Utf8},
+    )
+
+
+def _skip_reasons(log) -> list[str]:
+    return [
+        c.kwargs["extra"]["reason"]
+        for c in log.warning.call_args_list
+        if c.args[0] == "status_push_unit_activity_skipped"
+    ]
+
+
+class TestUnitActivityAtThePushSeam:
+    async def test_marketing_unit_is_pushed_from_its_offers_not_its_section(self) -> None:
+        """Both Units sit in Engaged; only the marketing one, read from its Offer, pushes."""
+        mock_push, _ = await _run_status_push({"unit": _units(), "offer": _offers(["ACTIVE"])})
+
+        mock_push.assert_awaited_once()
+        entries = mock_push.call_args.kwargs["entries"]
+        assert [(e["phone"], e["account_activity"]) for e in entries] == [
+            ("+15550100001", "active")
+        ]
+        # The label still carries the Unit's own section (meaning shift, named in the PR).
+        assert entries[0]["pipeline_section"] == "Engaged"
+
+    async def test_unit_rows_are_left_out_without_an_offer_frame(self) -> None:
+        mock_push, log = await _run_status_push({"unit": _units()})
+
+        mock_push.assert_not_awaited()
+        assert _skip_reasons(log) == ["offer_frame_unavailable"]
+
+    async def test_unit_rows_are_left_out_on_an_empty_offer_frame(self) -> None:
+        mock_push, log = await _run_status_push({"unit": _units(), "offer": _offers([])})
+
+        mock_push.assert_not_awaited()
+        assert len(_skip_reasons(log)) == 1
+        assert "no rows" in _skip_reasons(log)[0]
+
+    async def test_unit_rows_are_left_out_when_products_are_missing(self) -> None:
+        mock_push, log = await _run_status_push(
+            {"unit": _units().drop("products"), "offer": _offers(["ACTIVE"])}
+        )
+
+        mock_push.assert_not_awaited()
+        assert len(_skip_reasons(log)) == 1
+        assert "products" in _skip_reasons(log)[0]
+
+    async def test_snapshot_is_withheld_not_pushed_without_its_unit_rows(self) -> None:
+        """The receiver replaces the whole snapshot: other rows never go out alone."""
+        import polars as pl
+
+        sales = pl.DataFrame({"office_phone": ["+15550100003"], "section": ["ACTIVE"]})
+
+        mock_push, log = await _run_status_push(
+            {"unit": _units(), "sales": sales}, completed=("unit", "sales", "offer")
+        )
+
+        mock_push.assert_not_awaited()
+        withheld = [
+            c for c in log.warning.call_args_list if c.args[0] == "status_push_snapshot_withheld"
+        ]
+        assert len(withheld) == 1
+        assert withheld[0].kwargs["extra"]["reason"] == "unit_activity_unavailable"
+        assert withheld[0].kwargs["extra"]["entry_count"] == 1
+
+    async def test_a_failing_unit_extraction_also_withholds_the_snapshot(self) -> None:
+        """Any loss of the Unit rows withholds; the other entity's row is not pushed alone."""
+        import polars as pl
+
+        from autom8_asana.services import gid_push
+
+        real_extract = gid_push.extract_status_from_dataframe
+
+        def _extract(df, project_gid, entity_type):
+            if entity_type == "unit":
+                raise ValueError("unit extraction failed")
+            return real_extract(df=df, project_gid=project_gid, entity_type=entity_type)
+
+        sales = pl.DataFrame({"office_phone": ["+15550100003"], "section": ["ACTIVE"]})
+        with patch(
+            "autom8_asana.services.gid_push.extract_status_from_dataframe",
+            autospec=True,
+            side_effect=_extract,
+        ):
+            mock_push, log = await _run_status_push(
+                {"unit": _units(), "offer": _offers(["ACTIVE"]), "sales": sales},
+                completed=("unit", "sales", "offer"),
+            )
+
+        mock_push.assert_not_awaited()
+        assert [
+            c.kwargs["extra"]["entry_count"]
+            for c in log.warning.call_args_list
+            if c.args[0] == "status_push_snapshot_withheld"
+        ] == [1]

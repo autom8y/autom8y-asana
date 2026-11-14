@@ -45,6 +45,22 @@ _EXPECTED_NAMESPACE = "Autom8y/AsanaBridgeFleet"
 _METRIC = "StatusPushSkipped"
 
 
+def _unit_activity_passthrough() -> Any:
+    """The Unit activity step, faked to hand the frame on unchanged.
+
+    These tests drive the push seam with a patched extraction, so the Unit
+    activity step is out of their scope; the fake matches the real signature.
+    """
+    from unittest.mock import create_autospec
+
+    from autom8_asana.lambda_handlers import push_orchestrator
+
+    return create_autospec(
+        push_orchestrator._unit_frame_with_activity,
+        side_effect=lambda unit_df, **_: unit_df,
+    )
+
+
 def _skip_calls(emit: MagicMock) -> list[Any]:
     """Return the emit_metric calls that targeted StatusPushSkipped."""
     return [c for c in emit.call_args_list if c.args and c.args[0] == _METRIC]
@@ -246,6 +262,10 @@ class TestThreeWayDenominatorNullSkip:
                 "autom8_asana.services.gid_push.extract_status_from_dataframe",
                 return_value=[],  # every entity contributes zero entries
             ),
+            patch(
+                "autom8_asana.lambda_handlers.push_orchestrator._unit_frame_with_activity",
+                new=_unit_activity_passthrough(),
+            ),
             patch("autom8_asana.lambda_handlers.push_orchestrator.emit_metric") as emit,
         ):
             await _push_account_status_for_completed_entities(
@@ -276,6 +296,10 @@ class TestThreeWayDenominatorNullSkip:
             patch(
                 "autom8_asana.services.gid_push.extract_status_from_dataframe",
                 return_value=[{"phone": "+15551234567"}],
+            ),
+            patch(
+                "autom8_asana.lambda_handlers.push_orchestrator._unit_frame_with_activity",
+                new=_unit_activity_passthrough(),
             ),
             patch(
                 "autom8_asana.services.gid_push.push_status_to_data_service",

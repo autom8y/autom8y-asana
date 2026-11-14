@@ -279,9 +279,13 @@ class Unit(
     def account_activity(self) -> AccountActivity | None:
         """Classify this unit's section into an activity category.
 
-        Uses UNIT_CLASSIFIER to map the unit's current section name
-        to an AccountActivity value. Requires the task to have been
-        fetched with memberships.section.name in opt_fields.
+        Uses UNIT_CLASSIFIER (legacy's Unit lists) to map the unit's current
+        section name to an AccountActivity value. Requires the task to have
+        been fetched with memberships.section.name in opt_fields.
+
+        This is the own-section reading. Under the activity rule it is a
+        non-marketing Unit's activity only; a marketing Unit's activity comes
+        from its Offers (``unit_activity.classify_unit_activity``).
 
         Returns:
             AccountActivity or None if section is unknown or memberships
