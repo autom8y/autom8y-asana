@@ -21,12 +21,16 @@
  *   AC-G8  measured weight < 10 MB ideal / < 25 MB hard (measured, not projected)
  *   AC-G9  deliberately-broken fixture fires RED against the REAL build (EXIT 1,
  *          named error, NO output) — missing screenshot AND mutated namespace
+ *   AC-DW7 RENDER canary over a LOCAL http origin (127.0.0.1, never a live GET):
+ *          #dc-root carries no runtime-source marker, the URL carries no
+ *          addr/client, and a decoy <x-dc> inside a <script> never renders
  *
  * Exit non-zero if ANY assertion fails (the gate). This harness is run
  * rite-disjointly by qa-adversary; the build author does NOT grade STRONG here.
  */
 
 import { execFileSync } from 'node:child_process';
+import { createServer } from 'node:http';
 import {
   readFileSync, writeFileSync, mkdirSync, rmSync, existsSync, cpSync, readdirSync,
   mkdtempSync, chmodSync,
@@ -1113,6 +1117,124 @@ function checkCliRelayRevalidation() {
   }
 }
 
+// Runtime-source markers: strings that exist ONLY in the inlined dc-runtime
+// source, never in authored deck content. DW-7's garbage template began with
+// the runtime's own "not a Design Component" error literal.
+const DW7_RUNTIME_MARKERS = [
+  'not a Design Component', 'registry.bump', 'function updateHtml', 'jsSeq', 'parsed.propsMeta',
+];
+const DW7_DECOY = 'DW7-DECOY-PAYLOAD';
+
+/**
+ * Serve a directory over 127.0.0.1 (port 0) — a LOCAL origin, never a live GET.
+ * file:// cannot reproduce DW-7 because Chromium refuses fetch(location.href) on
+ * file: URLs; the re-hydration path only fires from an http(s) origin.
+ */
+async function serveDir(dir) {
+  const srv = createServer((req, res) => {
+    const rel = decodeURIComponent(new URL(req.url, 'http://127.0.0.1').pathname).replace(/^\/+/, '');
+    const p = join(dir, rel);
+    if (!rel || rel.includes('..') || !existsSync(p)) { res.writeHead(404); res.end(); return; }
+    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+    res.end(readFileSync(p));
+  });
+  await new Promise((resolve) => srv.listen(0, '127.0.0.1', resolve));
+  return { origin: `http://127.0.0.1:${srv.address().port}`, close: () => srv.close() };
+}
+
+/**
+ * AC-DW7 — the RENDER canary for DEFER-WATCH DW-7 (x-dc parse collision +
+ * WS-GUARD arm-b runtime URL leak). The frozen single-file deck embeds the
+ * dc-runtime AHEAD of the real <x-dc> block, and the runtime source itself
+ * contains a literal "<x-dc>" (an error message). A text-level first-match
+ * extractor fed by an unguarded fetch(location.href) re-hydration selected that
+ * literal and re-rendered ~0.5 MB of runtime JS into #dc-root, while the
+ * render-then-freeze seed left ?addr=<mailbox>&client=<name> on the URL.
+ *
+ * Two-sided: (a) the REAL frozen output, served over a LOCAL http origin, must
+ * render with NO runtime-source marker in #dc-root, NO addr/client on the final
+ * URL, and the frozen address STILL personalized (positive control — the strip
+ * must not cost personalization); (b) a deliberately corrupt INPUT — the same
+ * bytes with a decoy "<x-dc>…</x-dc>" payload inside a <script> placed before the
+ * real block — must render WITHOUT the decoy text. RED on the pre-#200 runtime
+ * (regex parseDcText + unguarded re-fetch) and on the pre-#200 template (no
+ * capture-then-strip); GREEN on main. No defect is injected into working code —
+ * only the INPUT is corrupted.
+ */
+async function checkDw7RenderCanary(d) {
+  const frozenOut = d.out.replace(/\.html$/, '.dw7.frozen.html');
+  const decoyOut = d.out.replace(/\.html$/, '.dw7.decoy.html');
+  buildDeck({ ...d, out: frozenOut }, ['--addr', EXPECTED_ADDR, '--client', CLIENT]);
+  const frozenPath = join(EXPORT_DIR, frozenOut);
+  const decoyPath = join(EXPORT_DIR, decoyOut);
+
+  // Corrupt INPUT: a decoy <x-dc> payload inside a <script> BEFORE the real block.
+  const frozenHtml = readFileSync(frozenPath, 'utf8');
+  const realOpen = frozenHtml.match(/^<x-dc>$/gm) || [];
+  if (realOpen.length !== 1) {
+    fail('AC-DW7', `${d.out}: expected exactly one real <x-dc> open tag on its own line, found ${realOpen.length}`);
+    return;
+  }
+  const decoyScript = `<script>/* AC-DW7 decoy — a text-level extractor picks THIS up */var __dw7Decoy="<x-dc>${DW7_DECOY}</x-dc>";</script>\n`;
+  writeFileSync(decoyPath, frozenHtml.replace(/^<x-dc>$/m, `${decoyScript}<x-dc>`), 'utf8');
+
+  const cases = [
+    { file: d.out, query: '', personalized: false, label: 'placeholder deck, no query' },
+    { file: d.out, query: `?addr=${encodeURIComponent(EXPECTED_ADDR)}&client=${encodeURIComponent(CLIENT)}`, personalized: true, label: 'explicit ?addr+client' },
+    { file: frozenOut, query: '', personalized: true, label: 'render-then-freeze seed' },
+    { file: decoyOut, query: '', personalized: true, label: 'decoy <x-dc> input' },
+  ];
+
+  const server = await serveDir(EXPORT_DIR);
+  const browser = await chromium.launch({ headless: true });
+  try {
+    for (const c of cases) {
+      const page = await browser.newPage();
+      const pageErrors = [];
+      page.on('pageerror', (e) => pageErrors.push(e.message));
+      try {
+        await page.goto(`${server.origin}/${c.file}${c.query}`, { waitUntil: 'load', timeout: 30000 });
+      } catch (e) {
+        log(`    [nav note] ${e.message.split('\n')[0]}`);
+      }
+      await page.waitForTimeout(2500); // let the (guarded) re-hydration settle
+      const r = await page.evaluate(({ markers, addr }) => {
+        const root = document.getElementById('dc-root');
+        const text = root ? root.textContent || '' : '';
+        const html = root ? root.innerHTML : '';
+        const sp = new URL(location.href).searchParams;
+        return {
+          hasRoot: !!root,
+          hits: markers.filter((m) => text.includes(m) || html.includes(m)),
+          urlAddr: sp.has('addr'),
+          urlClient: sp.has('client'),
+          personalized: html.includes(addr),
+          textLen: text.length,
+        };
+      }, { markers: [...DW7_RUNTIME_MARKERS, DW7_DECOY], addr: EXPECTED_ADDR });
+      await page.close();
+
+      const problems = [];
+      if (!r.hasRoot) problems.push('no #dc-root');
+      if (r.hits.length) problems.push(`runtime-source markers in #dc-root: ${r.hits.join(', ')}`);
+      if (r.urlAddr) problems.push('URL carries addr=');
+      if (r.urlClient) problems.push('URL carries client=');
+      if (c.personalized && !r.personalized) problems.push('frozen/explicit address NOT rendered (personalization lost)');
+      if (pageErrors.length) problems.push(`${pageErrors.length} page error(s)`);
+      if (problems.length === 0) {
+        pass('AC-DW7', `${d.out} [${c.label}]: #dc-root clean (${r.textLen} chars), URL clean, personalized=${r.personalized}`);
+      } else {
+        fail('AC-DW7', `${d.out} [${c.label}]: ${problems.join('; ')}`);
+      }
+    }
+  } finally {
+    await browser.close();
+    server.close();
+    rmSync(frozenPath, { force: true });
+    rmSync(decoyPath, { force: true });
+  }
+}
+
 async function main() {
   log('=== Contente deck inliner — ACCEPTANCE (live offline instrument) ===\n');
 
@@ -1141,6 +1263,7 @@ async function main() {
     log(`--- ${d.deck} ---`);
     checkDeterminism(d);             // AC-G7 (also leaves a fresh build in export/)
     await checkLiveOffline(d);       // AC-G1..G6, G8 (live ?addr personalization)
+    await checkDw7RenderCanary(d);   // AC-DW7 (render over a LOCAL http origin: no runtime source in #dc-root, no addr/client on the URL)
     await checkPersonalizedFreeze(d); // AC-G5' (render-then-freeze, NO ?addr, offline)
     await checkClientScriptBreakFreeze(d); // AC-CLIENT-BREAK (FINDING B: hostile --client)
     await checkClientLengthBoundaries(d);  // AC-G5-LEN (FAULT-13b: 63/64/65 + live leak string)
@@ -1154,7 +1277,7 @@ async function main() {
 
   log('=== SUMMARY ===');
   if (failures === 0) {
-    log("ALL ACCEPTANCE ASSERTIONS PASS (AC-G1..G9, AC-G5', AC-G5'', AC-CLIENT-BREAK, AC-CLIENT-GATE, AC-G5-LEN, AC-G5-LEN-CLAMP, AC-G5-UNI, AC-TITLE-DEFAULT, MC-1-RED, MC-1-HOST, CLI-relay, CLI-revalidate).");
+    log("ALL ACCEPTANCE ASSERTIONS PASS (AC-G1..G9, AC-DW7, AC-G5', AC-G5'', AC-CLIENT-BREAK, AC-CLIENT-GATE, AC-G5-LEN, AC-G5-LEN-CLAMP, AC-G5-UNI, AC-TITLE-DEFAULT, MC-1-RED, MC-1-HOST, CLI-relay, CLI-revalidate).");
     process.exit(0);
   } else {
     log(`${failures} ACCEPTANCE ASSERTION(S) FAILED.`);
