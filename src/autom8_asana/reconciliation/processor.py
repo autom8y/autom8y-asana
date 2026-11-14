@@ -27,9 +27,12 @@ from autom8y_log import get_logger
 
 from autom8_asana.clients.utils.pii import mask_phone_number
 from autom8_asana.models.business.activity import (
-    OFFER_CLASSIFIER,
     AccountActivity,
     get_classifier,
+)
+from autom8_asana.models.business.unit_activity import (
+    classify_offer_section,
+    classify_unit_section,
 )
 from autom8_asana.reconciliation.section_registry import (
     EXCLUDED_SECTION_GIDS,
@@ -57,21 +60,14 @@ from autom8_asana.lifecycle.config import load_config as _load_lifecycle_config
 DERIVATION_TABLE: dict[str, str] = _load_lifecycle_config().build_derivation_table()
 
 # ---------------------------------------------------------------------------
-# Offer activity -> valid unit sections mapping (Fix 2)
+# Offer activity -> unit section check (Fix 2)
 # ---------------------------------------------------------------------------
-# When the offer fallback fires, classify the offer section via
-# OFFER_CLASSIFIER, then check whether the unit's current section is
-# already valid for that activity state. If valid -> no-op. If not ->
-# recommend move to the default target section for the activity.
-
-OFFER_ACTIVITY_VALID_UNIT_SECTIONS: dict[AccountActivity, frozenset[str]] = {
-    AccountActivity.ACTIVE: frozenset({"Active", "Month 1", "Consulting"}),
-    AccountActivity.ACTIVATING: frozenset(
-        {"Onboarding", "Implementing", "Preview", "Engaged", "Scheduled"}
-    ),
-    AccountActivity.INACTIVE: frozenset({"Paused", "Unengaged", "Cancelled", "No Start"}),
-    AccountActivity.IGNORED: frozenset(),  # No action for terminal offer states
-}
+# When the offer fallback fires, classify the offer section with the Unit
+# activity definition's Offer read (unit_activity.classify_offer_section), then
+# check whether the unit's current section is in the same group of legacy's
+# Unit lists (unit_activity.classify_unit_section, folded both sides). Same
+# group -> no-op. Otherwise -> recommend a move to the default target section
+# for the activity. There is no second unit-section vocabulary here.
 
 OFFER_ACTIVITY_DEFAULT_UNIT_SECTION: dict[AccountActivity, str | None] = {
     AccountActivity.ACTIVE: "Active",
@@ -593,49 +589,44 @@ class ReconciliationBatchProcessor:
 
             # Activity-aware action decision based on offer lookup outcome.
             # Instead of comparing raw offer section names against unit
-            # section names (cross-project name mismatch), classify the
-            # offer section and map to valid unit sections.
+            # section names (cross-project name mismatch), classify both and
+            # compare groups.
             if offer_section is None:
                 # No offer data found for this unit -- nothing to compare.
                 result.no_op_count += 1
             else:
-                offer_activity = OFFER_CLASSIFIER.classify(offer_section)
+                offer_activity = classify_offer_section(offer_section)
                 if offer_activity is None or offer_activity == AccountActivity.IGNORED:
                     # Terminal/unknown offer state -- no action.
                     result.no_op_count += 1
+                elif classify_unit_section(section_name) is offer_activity:
+                    # Unit's section is already in the offer's group of
+                    # legacy's Unit lists -- no action needed.
+                    result.no_op_count += 1
                 else:
-                    valid_unit_sections = OFFER_ACTIVITY_VALID_UNIT_SECTIONS.get(
+                    target = OFFER_ACTIVITY_DEFAULT_UNIT_SECTION.get(
                         offer_activity,
-                        frozenset(),
                     )
-                    if section_name in valid_unit_sections:
-                        # Unit is already in a valid section for this
-                        # offer activity state -- no action needed.
+                    if target is None:
+                        # No default target (e.g., IGNORED) -- no action.
+                        result.no_op_count += 1
+                    elif target == section_name:
+                        # Unit is already in the default target section.
                         result.no_op_count += 1
                     else:
-                        target = OFFER_ACTIVITY_DEFAULT_UNIT_SECTION.get(
-                            offer_activity,
-                        )
-                        if target is None:
-                            # No default target (e.g., IGNORED) -- no action.
-                            result.no_op_count += 1
-                        elif target == section_name:
-                            # Unit is already in the default target section.
-                            result.no_op_count += 1
-                        else:
-                            result.actions.append(
-                                ReconciliationAction(
-                                    unit_gid=unit_gid,
-                                    phone=LeadPhone(mask_phone_number(phone)),
-                                    vertical=vertical,
-                                    current_section=section_name,
-                                    target_section=target,
-                                    reason=(
-                                        f"offer in '{offer_section}' "
-                                        f"(classified: {offer_activity.name}) "
-                                        f"-> unit should be '{target}'"
-                                    ),
-                                )
+                        result.actions.append(
+                            ReconciliationAction(
+                                unit_gid=unit_gid,
+                                phone=LeadPhone(mask_phone_number(phone)),
+                                vertical=vertical,
+                                current_section=section_name,
+                                target_section=target,
+                                reason=(
+                                    f"offer in '{offer_section}' "
+                                    f"(classified: {offer_activity.name}) "
+                                    f"-> unit should be '{target}'"
+                                ),
                             )
+                        )
 
         return result

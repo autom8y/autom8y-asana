@@ -94,7 +94,12 @@ def _make_mock_builder_result(total_rows: int = 3) -> MagicMock:
 
 
 def _make_unit_frame():
-    """A small unit frame whose rows classify ACTIVE under UNIT_CLASSIFIER."""
+    """A small unit frame of non-marketing Units in active sections.
+
+    A non-marketing Unit's activity is its own section by legacy's lists, so
+    both rows are ACTIVE under the Unit activity rule. The fake cache serves
+    this same frame as the Offer frame, which only has to be non-empty here.
+    """
     import polars as pl
 
     return pl.DataFrame(
@@ -102,6 +107,7 @@ def _make_unit_frame():
             "office_phone": ["+15551230001", "+15551230002"],
             "vertical": ["chiropractor", "chiropractor"],
             "section": ["Active", "Month 1"],
+            "products": [["Videography"], ["Videography"]],
         }
     )
 
@@ -120,7 +126,10 @@ def _make_ready_registry(entity_type: str = "unit", project_gid: str = _UNIT_PRO
     registry.get_all_entity_types.return_value = [entity_type]
     config = MagicMock()
     config.project_gid = project_gid
-    registry.get_config.side_effect = lambda et: config if et == entity_type else None
+    offer_config = MagicMock()
+    offer_config.project_gid = "offer-project"
+    configs = {entity_type: config, "offer": offer_config}
+    registry.get_config.side_effect = configs.get
     return registry
 
 

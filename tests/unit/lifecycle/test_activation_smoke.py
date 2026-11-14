@@ -2,11 +2,11 @@
 
 Three things are under test, in descending order of what they protect:
 
-1. THE REFERENT IS INJECTED. Four-plus competing ``activating`` vocabularies are
-   constructed here and driven through the SAME mechanism, including two that
-   govern one project and classify ``Engaged``/``Scheduled`` OPPOSITELY. The
-   mechanism yields opposite verdicts and privileges neither. A build that
-   hard-coded one vocabulary would fail ``test_opposing_vocabularies_*``.
+1. THE REFERENT IS INJECTED. Competing ``activating`` vocabularies are
+   constructed here and driven through the SAME mechanism; the offers and units
+   vocabularies disagree on section names and the mechanism honors each. The
+   units vocabulary is the ruled one (legacy's Unit lists): ``Engaged`` and
+   ``Scheduled`` are not activating, so there is one reading, not two.
 2. THE GATE IS TWO-SIDED. A healthy pipe permits; a broken pipe refuses and names
    the failing check and its kind. Both directions are asserted, pipe-free: the
    two sides differ only in the injected ``facts``.
@@ -84,7 +84,7 @@ def offers_referent() -> LifecycleReferent:
 def units_referent() -> LifecycleReferent:
     """Vocabulary 2: units grain, project 1201081073731555.
 
-    This one places ``Engaged`` and ``Scheduled`` in ``activating``.
+    It reads legacy's Unit lists, so ``Engaged`` and ``Scheduled`` are inactive.
     """
     return LifecycleReferent(
         name="units-1201081073731555",
@@ -93,33 +93,6 @@ def units_referent() -> LifecycleReferent:
         bucket_set=FOUR_BUCKETS,
         activating_buckets=frozenset({"activating"}),
         matcher=_matcher_from(UNIT_CLASSIFIER),
-    )
-
-
-def units_opposing_referent() -> LifecycleReferent:
-    """Vocabulary 3: the SAME project, opposing ``Engaged``/``Scheduled``.
-
-    F-2 is open precisely because a second vocabulary governs project
-    1201081073731555 and does NOT treat ``Engaged``/``Scheduled`` as activating.
-    These tests do not assert which reading is authoritative -- that is the
-    operator's fork. They assert only that BOTH are expressible as referents and
-    that the mechanism reports them as the disagreement they are.
-    """
-    return LifecycleReferent(
-        name="units-1201081073731555-opposing",
-        grain="unit",
-        project_gid="1201081073731555",
-        bucket_set=FOUR_BUCKETS,
-        activating_buckets=frozenset({"activating"}),
-        matcher=_mapping_matcher(
-            {
-                "Onboarding": "activating",
-                "Implementing": "activating",
-                "Engaged": "inactive",
-                "Scheduled": "inactive",
-                "Active": "active",
-            }
-        ),
     )
 
 
@@ -166,7 +139,6 @@ def business_unit_two_member_referent() -> LifecycleReferent:
 ALL_REFERENTS = [
     offers_referent,
     units_referent,
-    units_opposing_referent,
     process_pipeline_referent,
     business_unit_two_member_referent,
 ]
@@ -222,27 +194,20 @@ def test_offers_and_units_activating_sets_differ_but_both_are_honoured() -> None
 
 
 @pytest.mark.parametrize("section", ["Engaged", "Scheduled"])
-def test_opposing_vocabularies_over_one_project_yield_opposite_verdicts(section: str) -> None:
-    """THE F-2 FENCE.
+def test_units_vocabulary_does_not_treat_engaged_or_scheduled_as_activating(
+    section: str,
+) -> None:
+    """The ruled reading, and only it: Engaged is counted apart from activating.
 
-    Two referents over project 1201081073731555 classify ``Engaged``/``Scheduled``
-    oppositely. The mechanism reports both faithfully. If this module had picked a
-    vocabulary, one of these two assertions would be impossible to satisfy.
+    The control beside it (Onboarding) shows the same hook does record an
+    activating move, so the None is the vocabulary, not a dead hook.
     """
-    permissive = _hook(units_referent())
-    opposing = _hook(units_opposing_referent())
+    units = _hook(units_referent())
 
-    assert permissive.referent.project_gid == opposing.referent.project_gid
-
-    permissive_transition = permissive.observe(subject_gid="g1", to_section=section)
-    opposing_transition = opposing.observe(subject_gid="g1", to_section=section)
-
-    assert permissive_transition is not None, f"{section} is activating under the units vocabulary"
-    assert opposing_transition is None, f"{section} is NOT activating under the opposing vocabulary"
-
-    # And the transition that IS recorded names the vocabulary that recorded it,
-    # so a downstream reader is never handed an unattributed activation fact.
-    assert permissive_transition.referent_name == "units-1201081073731555"
+    assert units.observe(subject_gid="g1", to_section=section) is None
+    control = units.observe(subject_gid="g1", to_section="Onboarding")
+    assert control is not None
+    assert control.referent_name == units.referent.name
 
 
 def test_module_ships_no_default_referent() -> None:

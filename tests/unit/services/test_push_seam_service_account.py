@@ -195,6 +195,26 @@ def _status_entry() -> dict[str, Any]:
     }
 
 
+def _pass_unit_frame_through(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fake the Unit activity step (real signature) so the frame passes unchanged.
+
+    These tests patch the extraction to exercise the token lane; the Unit
+    activity step that precedes it is out of their scope.
+    """
+    from unittest.mock import create_autospec
+
+    from autom8_asana.lambda_handlers import push_orchestrator
+
+    monkeypatch.setattr(
+        push_orchestrator,
+        "_unit_frame_with_activity",
+        create_autospec(
+            push_orchestrator._unit_frame_with_activity,
+            side_effect=lambda unit_df, **_: unit_df,
+        ),
+    )
+
+
 def _gid_index() -> Any:
     from datetime import UTC, datetime
 
@@ -571,6 +591,7 @@ class TestStatusSeam:
         monkeypatch.setattr(
             gid_push, "extract_status_from_dataframe", lambda **_: [_status_entry()]
         )
+        _pass_unit_frame_through(monkeypatch)
         orch_emit = MagicMock()
         orch_log = MagicMock()
         monkeypatch.setattr(push_orchestrator, "emit_metric", orch_emit)
@@ -606,6 +627,7 @@ class TestStatusSeam:
         monkeypatch.setattr(
             gid_push, "extract_status_from_dataframe", lambda **_: [_status_entry()]
         )
+        _pass_unit_frame_through(monkeypatch)
         orch_emit = MagicMock()
         orch_log = MagicMock()
         monkeypatch.setattr(push_orchestrator, "emit_metric", orch_emit)

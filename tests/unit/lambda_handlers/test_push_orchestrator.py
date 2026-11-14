@@ -196,6 +196,8 @@ class TestPushAccountStatusDispatch:
                 "office_phone": ["+15551230001"],
                 "vertical": ["chiropractor"],
                 "section": ["Active"],
+                # Non-marketing: activity is its own section, so the row pushes.
+                "products": [["Videography"]],
             }
         )
         offer_df = pl.DataFrame(
@@ -307,7 +309,11 @@ class TestPushAccountStatusDispatch:
         assert unmapped_emits[0].args[1] == 0
 
     async def test_extract_failure_does_not_propagate(self) -> None:
-        """Extraction failure per-entity is isolated — must not raise."""
+        """Extraction failure per-entity is isolated — must not raise.
+
+        Uses a non-unit entity so the patched extraction is actually reached
+        (a unit frame first goes through the Unit activity step).
+        """
         from autom8_asana.lambda_handlers.push_orchestrator import (
             _push_account_status_for_completed_entities,
         )
@@ -322,13 +328,451 @@ class TestPushAccountStatusDispatch:
             patch(
                 "autom8_asana.services.gid_push.extract_status_from_dataframe",
                 side_effect=Exception("extraction failed"),
-            ),
+            ) as mock_extract,
             patch("autom8_asana.lambda_handlers.push_orchestrator.emit_metric"),
         ):
             # Must not raise — BROAD-CATCH: isolation
             await _push_account_status_for_completed_entities(
-                completed_entities=["unit"],
+                completed_entities=["offer"],
                 get_project_gid=lambda _: "proj-001",
                 cache=mock_cache,
                 invocation_id="test-inv",
             )
+
+        mock_extract.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Unit activity at the push seam: computed once from the Unit and Offer frames
+# ---------------------------------------------------------------------------
+
+
+def _project_of(kind: str) -> str:
+    from autom8_asana.services.gid_push import PIPELINE_TYPE_BY_PROJECT_GID
+
+    return next(g for g, k in PIPELINE_TYPE_BY_PROJECT_GID.items() if k == kind)
+
+
+def _frames_cache(frames: dict[str, object]):
+    """A DataFrameCache fake (autospec) serving real entries by entity type."""
+    from datetime import UTC, datetime
+    from unittest.mock import create_autospec
+
+    from autom8_asana.cache.integration.dataframe_cache import (
+        DataFrameCache,
+        DataFrameCacheEntry,
+    )
+
+    def _get(project_gid: str, entity_type: str, current_watermark=None):
+        df = frames.get(entity_type)
+        if df is None:
+            return None
+        now = datetime.now(UTC)
+        return DataFrameCacheEntry(
+            project_gid=project_gid,
+            entity_type=entity_type,
+            dataframe=df,
+            watermark=now,
+            created_at=now,
+            schema_version="test",
+        )
+
+    cache = create_autospec(DataFrameCache, instance=True)
+    cache.get_async.side_effect = _get
+    return cache
+
+
+def _gids(entity_type: str) -> str | None:
+    known = {"unit": _project_of("unit"), "offer": "offer-project", "sales": _project_of("sales")}
+    return known.get(entity_type)
+
+
+async def _run_status_push_with_metrics(
+    frames: dict[str, object], completed: tuple[str, ...] = ("unit", "offer")
+):
+    """Run the real orchestrator; return the push, logger and emit_metric mocks."""
+    from unittest.mock import create_autospec
+
+    from autom8y_log import LoggerProtocol
+
+    from autom8_asana.lambda_handlers.push_orchestrator import (
+        _push_account_status_for_completed_entities,
+    )
+
+    with (
+        patch(
+            "autom8_asana.services.gid_push.push_status_to_data_service",
+            new_callable=AsyncMock,
+            return_value=True,
+        ) as mock_push,
+        patch("autom8_asana.lambda_handlers.push_orchestrator.emit_metric") as emit,
+        patch(
+            "autom8_asana.lambda_handlers.push_orchestrator.logger",
+            new=create_autospec(LoggerProtocol, instance=True),
+        ) as log,
+    ):
+        await _push_account_status_for_completed_entities(
+            completed_entities=list(completed),
+            get_project_gid=_gids,
+            cache=_frames_cache(frames),
+            invocation_id="test-inv",
+        )
+    return mock_push, log, emit
+
+
+async def _run_status_push(
+    frames: dict[str, object], completed: tuple[str, ...] = ("unit", "offer")
+):
+    mock_push, log, _ = await _run_status_push_with_metrics(frames, completed)
+    return mock_push, log
+
+
+def _units():
+    import polars as pl
+
+    return pl.DataFrame(
+        {
+            "office_phone": ["+15550100001", "+15550100002"],
+            "vertical": ["dental", "dental"],
+            "section": ["Engaged", "Engaged"],
+            "products": [["Meta Marketing"], ["Videography"]],
+        }
+    )
+
+
+def _offers(sections: list[str]):
+    import polars as pl
+
+    return pl.DataFrame(
+        {
+            "office_phone": ["+15550100001"] * len(sections),
+            "vertical": ["dental"] * len(sections),
+            "section": sections,
+        },
+        schema={"office_phone": pl.Utf8, "vertical": pl.Utf8, "section": pl.Utf8},
+    )
+
+
+def _skip_reasons(log) -> list[str]:
+    return [
+        c.kwargs["extra"]["reason"]
+        for c in log.warning.call_args_list
+        if c.args[0] == "status_push_unit_activity_skipped"
+    ]
+
+
+class TestUnitActivityAtThePushSeam:
+    async def test_marketing_unit_is_pushed_from_its_offers_not_its_section(self) -> None:
+        """Both Units sit in Engaged; only the marketing one, read from its Offer, pushes."""
+        mock_push, _ = await _run_status_push({"unit": _units(), "offer": _offers(["ACTIVE"])})
+
+        mock_push.assert_awaited_once()
+        entries = mock_push.call_args.kwargs["entries"]
+        assert [(e["phone"], e["account_activity"]) for e in entries] == [
+            ("+15550100001", "active")
+        ]
+        # The label still carries the Unit's own section (meaning shift, named in the PR).
+        assert entries[0]["pipeline_section"] == "Engaged"
+
+    async def test_unit_rows_are_left_out_without_an_offer_frame(self) -> None:
+        mock_push, log = await _run_status_push({"unit": _units()})
+
+        mock_push.assert_not_awaited()
+        assert _skip_reasons(log) == ["offer_frame_unavailable"]
+
+    async def test_unit_rows_are_left_out_on_an_empty_offer_frame(self) -> None:
+        mock_push, log = await _run_status_push({"unit": _units(), "offer": _offers([])})
+
+        mock_push.assert_not_awaited()
+        assert len(_skip_reasons(log)) == 1
+        assert "no rows" in _skip_reasons(log)[0]
+
+    async def test_unit_rows_are_left_out_when_products_are_missing(self) -> None:
+        mock_push, log = await _run_status_push(
+            {"unit": _units().drop("products"), "offer": _offers(["ACTIVE"])}
+        )
+
+        mock_push.assert_not_awaited()
+        assert len(_skip_reasons(log)) == 1
+        assert "products" in _skip_reasons(log)[0]
+
+    async def test_snapshot_is_withheld_not_pushed_without_its_unit_rows(self) -> None:
+        """The receiver replaces the whole snapshot: other rows never go out alone."""
+        import polars as pl
+
+        sales = pl.DataFrame({"office_phone": ["+15550100003"], "section": ["ACTIVE"]})
+
+        mock_push, log = await _run_status_push(
+            {"unit": _units(), "sales": sales}, completed=("unit", "sales", "offer")
+        )
+
+        mock_push.assert_not_awaited()
+        withheld = [
+            c for c in log.warning.call_args_list if c.args[0] == "status_push_snapshot_withheld"
+        ]
+        assert len(withheld) == 1
+        assert withheld[0].kwargs["extra"]["reason"] == "unit_activity_unavailable"
+        assert withheld[0].kwargs["extra"]["entry_count"] == 1
+
+    async def test_a_failing_unit_extraction_also_withholds_the_snapshot(self) -> None:
+        """Any loss of the Unit rows withholds; the other entity's row is not pushed alone."""
+        import polars as pl
+
+        from autom8_asana.services import gid_push
+
+        real_extract = gid_push.extract_status_from_dataframe
+
+        def _extract(df, project_gid, entity_type):
+            if entity_type == "unit":
+                raise ValueError("unit extraction failed")
+            return real_extract(df=df, project_gid=project_gid, entity_type=entity_type)
+
+        sales = pl.DataFrame({"office_phone": ["+15550100003"], "section": ["ACTIVE"]})
+        with patch(
+            "autom8_asana.services.gid_push.extract_status_from_dataframe",
+            autospec=True,
+            side_effect=_extract,
+        ):
+            mock_push, log = await _run_status_push(
+                {"unit": _units(), "offer": _offers(["ACTIVE"]), "sales": sales},
+                completed=("unit", "sales", "offer"),
+            )
+
+        mock_push.assert_not_awaited()
+        assert [
+            c.kwargs["extra"]["entry_count"]
+            for c in log.warning.call_args_list
+            if c.args[0] == "status_push_snapshot_withheld"
+        ] == [1]
+
+
+def _skip_metric_reasons(emit) -> list[str]:
+    """The skip_reason of every StatusPushSkipped emit, in order."""
+    return [
+        (c.kwargs.get("dimensions") or {}).get("skip_reason")
+        for c in emit.call_args_list
+        if c.args and c.args[0] == "StatusPushSkipped"
+    ]
+
+
+def _withheld_entry_counts(log) -> list[int]:
+    return [
+        c.kwargs["extra"]["entry_count"]
+        for c in log.warning.call_args_list
+        if c.args[0] == "status_push_snapshot_withheld"
+    ]
+
+
+def _sales():
+    import polars as pl
+
+    return pl.DataFrame({"office_phone": ["+15550100003"], "section": ["ACTIVE"]})
+
+
+class TestUnitCacheMissWithholds:
+    """A Unit cache miss loses the Unit rows: the other entity's rows never go out alone."""
+
+    async def test_a_unit_cache_miss_withholds_the_snapshot_and_counts_it(self) -> None:
+        mock_push, log, emit = await _run_status_push_with_metrics(
+            {"offer": _offers(["ACTIVE"]), "sales": _sales()},
+            completed=("unit", "sales", "offer"),
+        )
+
+        mock_push.assert_not_awaited()
+        assert _skip_reasons(log) == ["unit_frame_unavailable"]
+        assert _withheld_entry_counts(log) == [1]
+        assert _skip_metric_reasons(emit) == ["unit_activity_unavailable"]
+
+    async def test_an_empty_unit_frame_withholds_the_snapshot_and_counts_it(self) -> None:
+        """A present Unit frame with zero rows loses the Unit rows like a cache miss."""
+        mock_push, log, emit = await _run_status_push_with_metrics(
+            {"unit": _units().head(0), "offer": _offers(["ACTIVE"]), "sales": _sales()},
+            completed=("unit", "sales", "offer"),
+        )
+
+        mock_push.assert_not_awaited()
+        assert _skip_reasons(log) == ["the unit frame has no rows"]
+        assert _withheld_entry_counts(log) == [1]
+        assert _skip_metric_reasons(emit) == ["unit_activity_unavailable"]
+
+    async def test_a_unit_hit_pushes_with_the_other_entitys_rows(self) -> None:
+        mock_push, log, emit = await _run_status_push_with_metrics(
+            {"unit": _units(), "offer": _offers(["ACTIVE"]), "sales": _sales()},
+            completed=("unit", "sales", "offer"),
+        )
+
+        mock_push.assert_awaited_once()
+        entries = mock_push.call_args.kwargs["entries"]
+        assert sorted((e["pipeline_type"], e["phone"]) for e in entries) == [
+            ("sales", "+15550100003"),
+            ("unit", "+15550100001"),
+        ]
+        assert _skip_reasons(log) == []
+        assert _withheld_entry_counts(log) == []
+        assert _skip_metric_reasons(emit) == []
+
+
+# ---------------------------------------------------------------------------
+# The products null share: a present but mostly-null column withholds
+# ---------------------------------------------------------------------------
+
+
+def _unit_population(null_products: int, total: int = 100):
+    """``total`` marketing Units in Engaged, each with an ACTIVE Offer.
+
+    The first ``null_products`` Units have a null ``products`` value. Every Unit
+    has an ACTIVE Offer, so a null Unit that pushed would prove a guessed branch.
+    """
+    import polars as pl
+
+    phones = [f"+1555010{i:04d}" for i in range(total)]
+    units = pl.DataFrame(
+        {
+            "office_phone": phones,
+            "vertical": ["dental"] * total,
+            "section": ["Engaged"] * total,
+            "products": [None] * null_products + [["Meta Marketing"]] * (total - null_products),
+        },
+        schema={
+            "office_phone": pl.Utf8,
+            "vertical": pl.Utf8,
+            "section": pl.Utf8,
+            "products": pl.List(pl.Utf8),
+        },
+    )
+    offers = pl.DataFrame(
+        {"office_phone": phones, "vertical": ["dental"] * total, "section": ["ACTIVE"] * total},
+        schema={"office_phone": pl.Utf8, "vertical": pl.Utf8, "section": pl.Utf8},
+    )
+    return units, offers, phones
+
+
+class TestProductsNullShare:
+    """Refuse when more than half the Units have null products (exactly half passes)."""
+
+    async def test_a_present_all_null_column_is_withheld_and_counted(self) -> None:
+        units, offers, _ = _unit_population(null_products=100)
+        assert "products" in units.columns
+
+        mock_push, log, emit = await _run_status_push_with_metrics({"unit": units, "offer": offers})
+
+        mock_push.assert_not_awaited()
+        assert _skip_reasons(log) == [
+            "products is null for 100 of 100 units, more than the 50% limit"
+        ]
+        assert _withheld_entry_counts(log) == [0]
+        assert _skip_metric_reasons(emit) == ["unit_activity_unavailable"]
+
+    async def test_just_over_the_limit_is_withheld(self) -> None:
+        units, offers, _ = _unit_population(null_products=51)
+
+        mock_push, log, emit = await _run_status_push_with_metrics({"unit": units, "offer": offers})
+
+        mock_push.assert_not_awaited()
+        assert _skip_reasons(log) == [
+            "products is null for 51 of 100 units, more than the 50% limit"
+        ]
+        assert _skip_metric_reasons(emit) == ["unit_activity_unavailable"]
+
+    async def test_exactly_half_null_is_at_the_limit_and_pushes(self) -> None:
+        """The boundary: 50 of 100 is not MORE than half, so the frame is read."""
+        units, offers, phones = _unit_population(null_products=50)
+
+        mock_push, log, emit = await _run_status_push_with_metrics({"unit": units, "offer": offers})
+
+        mock_push.assert_awaited_once()
+        entries = mock_push.call_args.kwargs["entries"]
+        assert sorted(e["phone"] for e in entries) == phones[50:]
+        assert {e["account_activity"] for e in entries} == {"active"}
+        assert _skip_reasons(log) == []
+        assert _skip_metric_reasons(emit) == []
+
+    async def test_just_under_the_limit_pushes_and_null_units_get_no_activity(self) -> None:
+        units, offers, phones = _unit_population(null_products=49)
+
+        mock_push, log, emit = await _run_status_push_with_metrics({"unit": units, "offer": offers})
+
+        mock_push.assert_awaited_once()
+        pushed = sorted(e["phone"] for e in mock_push.call_args.kwargs["entries"])
+        assert pushed == phones[49:]
+        assert set(pushed).isdisjoint(phones[:49])
+        assert _skip_reasons(log) == []
+        assert _skip_metric_reasons(emit) == []
+
+    async def test_a_real_shape_mix_pushes_every_resolved_unit_and_no_null_one(self) -> None:
+        """Mostly marketing, a few non-marketing, many with no products, two null."""
+        import polars as pl
+
+        marketing = ["Meta Marketing"]
+        rows: list[tuple[str, str, list[str] | None, str | None]] = [
+            # (phone last-4, own section, products, Offer section)
+            ("0201", "Engaged", marketing, "ACTIVE"),
+            ("0202", "Active", marketing, "ACTIVE"),
+            ("0203", "Month 1", marketing, "STAGED"),
+            ("0204", "Engaged", marketing, "MANUAL"),
+            ("0205", "Scheduled", marketing, "ACTIVE"),
+            ("0206", "Paused", marketing, "OPTIMIZE - Human Review"),
+            ("0207", "Onboarding", marketing, "IMPLEMENTING"),
+            ("0208", "Engaged", marketing, "NEW LAUNCH REVIEW"),
+            ("0209", "Active", marketing, "INACTIVE"),
+            ("0210", "Active", marketing, None),
+            ("0211", "Active", ["Videography"], "INACTIVE"),
+            ("0212", "Month 1", [], None),
+            ("0213", "Active", [], None),
+            ("0214", "Consulting", [], None),
+            ("0215", "Onboarding", [], None),
+            ("0216", "Delayed", [], None),
+            ("0217", "Paused", [], None),
+            ("0218", "Cancelled", [], None),
+            ("0219", "Active", None, "ACTIVE"),
+            ("0220", "Onboarding", None, "IMPLEMENTING"),
+        ]
+        phone = "+1555010{}".format
+        units = pl.DataFrame(
+            {
+                "office_phone": [phone(r[0]) for r in rows],
+                "vertical": ["dental"] * len(rows),
+                "section": [r[1] for r in rows],
+                "products": [r[2] for r in rows],
+            },
+            schema={
+                "office_phone": pl.Utf8,
+                "vertical": pl.Utf8,
+                "section": pl.Utf8,
+                "products": pl.List(pl.Utf8),
+            },
+        )
+        offer_rows = [(phone(r[0]), r[3]) for r in rows if r[3] is not None]
+        offers = pl.DataFrame(
+            {
+                "office_phone": [p for p, _ in offer_rows],
+                "vertical": ["dental"] * len(offer_rows),
+                "section": [s for _, s in offer_rows],
+            },
+            schema={"office_phone": pl.Utf8, "vertical": pl.Utf8, "section": pl.Utf8},
+        )
+
+        mock_push, log, emit = await _run_status_push_with_metrics({"unit": units, "offer": offers})
+
+        mock_push.assert_awaited_once()
+        pushed = {e["phone"]: e["account_activity"] for e in mock_push.call_args.kwargs["entries"]}
+        assert pushed == {
+            phone("0201"): "active",
+            phone("0202"): "active",
+            phone("0203"): "active",
+            phone("0204"): "active",
+            phone("0205"): "active",
+            phone("0206"): "active",
+            phone("0207"): "activating",
+            phone("0208"): "activating",
+            phone("0211"): "active",
+            phone("0212"): "active",
+            phone("0213"): "active",
+            phone("0214"): "active",
+            phone("0215"): "activating",
+            phone("0216"): "activating",
+        }
+        assert phone("0219") not in pushed
+        assert phone("0220") not in pushed
+        assert _skip_reasons(log) == []
+        assert _skip_metric_reasons(emit) == []

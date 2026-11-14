@@ -50,6 +50,7 @@ from autom8_asana.core.project_registry import UNIT_PROJECT
 from autom8_asana.lambda_handlers.traffic_offer_divergence_tripwire import (
     CANARY_SENTINEL_PHONE,
 )
+from autom8_asana.models.business.unit_activity import with_unit_activity
 from autom8_asana.reconciliation.section_registry import (
     _RECEIPT_NAME_TO_GID,
     EXCLUDED_SECTION_GIDS,
@@ -211,21 +212,35 @@ class TestCanarySentinelAccountStatusExclusion:
     BR-3 adds the canary unit to the Business Units project, whose pipeline_type
     is "unit" -- so, absent the exclusion, the synthetic unit would emit a row
     into the business-of-record account-status ledger. The exclusion (mirroring
-    the R7 tripwire, #326) drops it. Uses the REAL unit classifier (Onboarding
-    -> activating) so the drop is provably the phone-match, not some other
-    filter.
+    the R7 tripwire, #326) drops it. Uses the REAL Unit activity rule (a
+    marketing Unit, activating from its IMPLEMENTING Offer) so the drop is
+    provably the phone-match, not some other filter.
     """
 
     @staticmethod
-    def _row(phone: str) -> pl.DataFrame:
-        # Identical active-section row; ONLY the phone differs between arms.
-        return pl.DataFrame(
+    def _frame(phones: list[str]) -> pl.DataFrame:
+        # Identical marketing-Unit rows with an IMPLEMENTING Offer each; ONLY the
+        # phone differs between arms.
+        units = pl.DataFrame(
             {
-                "office_phone": [phone],
-                "vertical": [_REAL_VERTICAL],
-                "section": [ONBOARDING_SECTION_NAME],
+                "office_phone": phones,
+                "vertical": [_REAL_VERTICAL] * len(phones),
+                "section": [ONBOARDING_SECTION_NAME] * len(phones),
+                "products": [["Meta Marketing"]] * len(phones),
             }
         )
+        offers = pl.DataFrame(
+            {
+                "office_phone": phones,
+                "vertical": [_REAL_VERTICAL] * len(phones),
+                "section": ["IMPLEMENTING"] * len(phones),
+            }
+        )
+        return with_unit_activity(units, offers)
+
+    @classmethod
+    def _row(cls, phone: str) -> pl.DataFrame:
+        return cls._frame([phone])
 
     def test_real_phone_emits_an_entry(self) -> None:
         """(+) control: an identical row with a REAL phone emits one entry.
@@ -247,13 +262,7 @@ class TestCanarySentinelAccountStatusExclusion:
 
     def test_mixed_frame_keeps_only_the_real_row(self) -> None:
         """A frame with both rows emits ONLY the real one -- no synthetic leak."""
-        df = pl.DataFrame(
-            {
-                "office_phone": [CANARY_SENTINEL_PHONE, "+15551239876"],
-                "vertical": [_REAL_VERTICAL, _REAL_VERTICAL],
-                "section": [ONBOARDING_SECTION_NAME, ONBOARDING_SECTION_NAME],
-            }
-        )
+        df = self._frame([CANARY_SENTINEL_PHONE, "+15551239876"])
         result = extract_status_from_dataframe(df, UNIT_PROJECT, "unit")
         phones = {e["phone"] for e in result}
         assert phones == {"+15551239876"}

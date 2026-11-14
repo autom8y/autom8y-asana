@@ -452,6 +452,8 @@ def _cache_with_unit_rows() -> MagicMock:
             "office_phone": ["+15551230001", "+15551230002"],
             "vertical": ["chiropractor", "chiropractor"],
             "section": ["Active", "Month 1"],
+            # Non-marketing Units: activity is their own section, so both push.
+            "products": [["Videography"], ["Videography"]],
         }
     )
     cache = MagicMock()

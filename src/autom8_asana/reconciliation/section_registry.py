@@ -24,6 +24,8 @@ from typing import TYPE_CHECKING, Literal
 
 from autom8y_log import get_logger
 
+from autom8_asana.models.business.activity import LEGACY_UNIT_SECTIONS, AccountActivity
+
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
@@ -347,22 +349,27 @@ _RECEIPT_NAME_TO_GID: dict[str, str] = {
 }
 
 # =============================================================================
-# Vendored monolith BusinessUnits.SECTIONS name->bucket taxonomy (READ-only)
+# Monolith BusinessUnits.SECTIONS name->bucket taxonomy (READ-only)
 # =============================================================================
-# Vendored copy of the monolith behavioral source-of-truth for bucketing.
-# Source (READ-only, NEVER live-imported at module-load -- the monolith is a
-# cross-repo package that must not be a runtime import dependency):
+# The monolith's behavioral source of truth for bucketing, consulted (never
+# live-imported -- the monolith is a cross-repo package that must not be a
+# runtime import dependency):
 #   autom8/apis/asana_api/objects/project/models/business_units/main.py:17-38
 #
-# Vendored verbatim in the monolith's bucket->names shape for a direct
-# eyeball-diff against source. A drift between this copy and the live monolith
-# surfaces as an R-REG-4 ``taxonomy_divergence`` finding (informational) -- it is
-# NEVER auto-reconciled.
+# It is held ONCE, as ``activity.LEGACY_UNIT_SECTIONS``, which the single Unit
+# activity definition (``unit_activity``) also reads; this registry derives its
+# bucket->names view from it, renaming the ``ignored`` group to the monolith's
+# ``ignore`` bucket. A drift between that copy and the live monolith surfaces as
+# an R-REG-4 ``taxonomy_divergence`` finding (informational) -- it is NEVER
+# auto-reconciled.
+_BUCKET_BY_ACTIVITY: dict[AccountActivity, Bucket] = {
+    AccountActivity.ACTIVE: "active",
+    AccountActivity.ACTIVATING: "activating",
+    AccountActivity.INACTIVE: "inactive",
+    AccountActivity.IGNORED: "ignore",
+}
 _VENDORED_MONOLITH_SECTIONS: dict[Bucket, frozenset[str]] = {
-    "active": frozenset({"Month 1", "Consulting", "Active"}),
-    "activating": frozenset({"Onboarding", "Implementing", "Delayed", "Preview"}),
-    "inactive": frozenset({"Unengaged", "Engaged", "Scheduled", "Paused", "Cancelled", "No Start"}),
-    "ignore": frozenset({"Templates"}),
+    _BUCKET_BY_ACTIVITY[activity]: names for activity, names in LEGACY_UNIT_SECTIONS.items()
 }
 _VENDORED_MONOLITH_IGNORE_NAMES: frozenset[str] = _VENDORED_MONOLITH_SECTIONS["ignore"]
 

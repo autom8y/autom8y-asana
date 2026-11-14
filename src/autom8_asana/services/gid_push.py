@@ -56,6 +56,13 @@ SKIP_REASON_URL_ABSENT = "url_absent"
 # The value stays reserved in the closed enum; nothing emits it today.
 SKIP_REASON_INVALID_KEY = "invalid_key"
 SKIP_REASON_THREE_WAY_DENOMINATOR_NULL = "three_way_denominator_null"
+# unit_activity_unavailable: the orchestrator withheld the whole snapshot because
+# its Unit rows could not be computed (a Unit cache miss, no usable Offer frame,
+# a column the rule reads is missing, the products column is mostly null, or the
+# Unit extraction raised). The receiver replaces the full snapshot, so the push is
+# skipped and the receiver keeps its last good one. Emitted once per withheld
+# snapshot (push_orchestrator), never per cause.
+SKIP_REASON_UNIT_ACTIVITY_UNAVAILABLE = "unit_activity_unavailable"
 
 # StatusPushRowsSkipped skip_class dimension values (closed enum). Per-row
 # snapshot guards (sprint-C6): a single defective row must be dropped
@@ -844,13 +851,20 @@ def extract_status_from_dataframe(
 ) -> list[dict[str, Any]]:
     """Extract account status entries from a warmed DataFrame.
 
-    Classifies each (phone, vertical) row using the appropriate
-    SectionClassifier, filtering to only ACTIVE and ACTIVATING
-    classifications (active-only registry [SD-02]).
+    A Unit frame's activity is READ from its ``unit_activity`` column, which
+    ``unit_activity.with_unit_activity`` computes once from the Unit and Offer
+    frames (the single definition of Unit activity). It is never re-derived here
+    from the Unit's own section; a Unit frame without the column yields no
+    entries (fail closed: no snapshot is better than a wrong one). Any other
+    entity type is classified from its section by its SectionClassifier. Only
+    ACTIVE and ACTIVATING rows are kept (active-only registry [SD-02]).
+
+    ``pipeline_section`` still carries the row's own section name. For a
+    marketing Unit that is no longer the section its activity came from.
 
     Args:
         df: Polars DataFrame with columns: office_phone, vertical, gid,
-            and section membership data.
+            and section membership data (plus ``unit_activity`` for units).
         project_gid: Asana project GID for pipeline_type resolution.
         entity_type: Entity type (e.g., 'unit', 'offer').
 
@@ -870,9 +884,11 @@ def extract_status_from_dataframe(
     )
     from autom8_asana.models.business.activity import (
         AccountActivity,
+        SectionClassifier,
         extract_section_name,
         get_classifier,
     )
+    from autom8_asana.models.business.unit_activity import UNIT_ACTIVITY_COLUMN
 
     pipeline_type = PIPELINE_TYPE_BY_PROJECT_GID.get(project_gid)
     if pipeline_type is None:
@@ -885,17 +901,32 @@ def extract_status_from_dataframe(
         )
         return []
 
-    # Get the appropriate classifier
-    classifier = get_classifier(entity_type)
-    if classifier is None:
-        logger.warning(
-            "process_pipeline_no_classifier",
-            extra={
-                "entity_type": entity_type,
-                "project_gid": project_gid,
-            },
-        )
-        return []
+    # A Unit's activity is read from the frame column; anything else from its
+    # section classifier.
+    reads_unit_activity = entity_type == "unit"
+    classifier: SectionClassifier | None = None
+    if reads_unit_activity:
+        if UNIT_ACTIVITY_COLUMN not in df.columns:
+            logger.warning(
+                "status_extract_unit_activity_absent",
+                extra={
+                    "entity_type": entity_type,
+                    "project_gid": project_gid,
+                    "expected_column": UNIT_ACTIVITY_COLUMN,
+                },
+            )
+            return []
+    else:
+        classifier = get_classifier(entity_type)
+        if classifier is None:
+            logger.warning(
+                "process_pipeline_no_classifier",
+                extra={
+                    "entity_type": entity_type,
+                    "project_gid": project_gid,
+                },
+            )
+            return []
 
     entries: list[dict[str, Any]] = []
     now = datetime.now(UTC).isoformat()
@@ -943,8 +974,13 @@ def extract_status_from_dataframe(
         if not section_name:
             continue
 
-        # Classify
-        activity = classifier.classify(section_name)
+        # Classify: read the Unit's computed activity, or classify the section.
+        activity: AccountActivity | None
+        if classifier is None:
+            raw_activity = df[UNIT_ACTIVITY_COLUMN][row_idx]
+            activity = AccountActivity(raw_activity) if raw_activity else None
+        else:
+            activity = classifier.classify(section_name)
         if activity is None:
             continue
 

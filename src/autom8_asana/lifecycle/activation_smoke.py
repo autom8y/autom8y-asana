@@ -20,9 +20,11 @@ placement-transition fact either lane holds.
 
 THE REFERENT IS INJECTED. THIS MODULE PICKS NO VOCABULARY.
 ----------------------------------------------------------
-At least four ``activating`` vocabularies exist across at least three grains, and
-two of them govern the SAME project while classifying ``Engaged`` and ``Scheduled``
-OPPOSITELY. Which one is authoritative is an OPEN operator/architect fork (F-2).
+At least four ``activating`` vocabularies exist across at least three grains. Two
+of them used to govern the SAME project while classifying ``Engaged`` and
+``Scheduled`` OPPOSITELY (fork F-2). The ratified activity rule closed that fork:
+``UNIT_CLASSIFIER`` now reads legacy's Unit lists, where both are inactive. The
+module still picks no vocabulary; the caller does.
 
 A hook that hard-codes one of them would resolve that fork by implementation --
 silently, invisibly, and with the authority of running code. So this module takes

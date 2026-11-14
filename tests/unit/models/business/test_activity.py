@@ -16,6 +16,7 @@ import pytest
 from autom8_asana.models.business.activity import (
     ACTIVITY_PRIORITY,
     CLASSIFIERS,
+    LEGACY_UNIT_SECTIONS,
     OFFER_CLASSIFIER,
     PROCESS_PIPELINE_SECTIONS,
     UNIT_CLASSIFIER,
@@ -432,34 +433,26 @@ class TestUnitClassifier:
         assert len(active) == 3
 
     def test_activating_sections(self) -> None:
+        """Legacy's activating list: Engaged and Scheduled are not in it."""
         activating = UNIT_CLASSIFIER.sections_for(AccountActivity.ACTIVATING)
-        assert "onboarding" in activating
-        assert "implementing" in activating
-        assert "delayed" in activating
-        assert "preview" in activating
-        # Per truth audit: "engaged" and "scheduled" moved from INACTIVE to ACTIVATING
-        assert "engaged" in activating
-        assert "scheduled" in activating
-        assert len(activating) == 6
+        assert activating == {"onboarding", "implementing", "delayed", "preview"}
 
     def test_inactive_sections(self) -> None:
+        """Legacy's inactive list, where Engaged is counted apart from activating."""
         inactive = UNIT_CLASSIFIER.sections_for(AccountActivity.INACTIVE)
-        assert "unengaged" in inactive
-        # Per truth audit: "engaged" and "scheduled" moved to ACTIVATING
-        assert "engaged" not in inactive
-        assert "scheduled" not in inactive
-        assert "paused" in inactive
-        assert "cancelled" in inactive
-        assert "no start" in inactive
-        # Per truth audit: "account review" and "account error" added as INACTIVE
-        assert "account review" in inactive
-        assert "account error" in inactive
-        assert len(inactive) == 6  # -2 (engaged, scheduled) +2 (account review, account error)
+        assert inactive == {"unengaged", "engaged", "scheduled", "paused", "cancelled", "no start"}
 
     def test_ignored_sections(self) -> None:
         ignored = UNIT_CLASSIFIER.sections_for(AccountActivity.IGNORED)
-        assert "templates" in ignored
-        assert len(ignored) == 1
+        assert ignored == {"templates"}
+
+    @pytest.mark.parametrize("section", ["Next Steps", "Account Review", "Account Error"])
+    def test_names_legacy_lists_nowhere_are_unclassified(self, section: str) -> None:
+        assert UNIT_CLASSIFIER.classify(section) is None
+
+    def test_reads_the_one_list_definition(self) -> None:
+        for activity, names in LEGACY_UNIT_SECTIONS.items():
+            assert UNIT_CLASSIFIER.sections_for(activity) == {n.lower() for n in names}
 
     def test_total_section_count(self) -> None:
         total = (
@@ -468,7 +461,7 @@ class TestUnitClassifier:
             + len(UNIT_CLASSIFIER.sections_for(AccountActivity.INACTIVE))
             + len(UNIT_CLASSIFIER.sections_for(AccountActivity.IGNORED))
         )
-        assert total == 16  # +2: Account Review, Account Error per truth audit
+        assert total == 14  # legacy's fourteen Unit list names
 
     def test_classify_case_insensitive(self) -> None:
         assert UNIT_CLASSIFIER.classify("Month 1") == AccountActivity.ACTIVE
@@ -477,7 +470,9 @@ class TestUnitClassifier:
 
     def test_billable_sections(self) -> None:
         billable = UNIT_CLASSIFIER.billable_sections()
-        assert len(billable) == 9  # 3 active + 6 activating per truth audit
+        assert len(billable) == 7  # legacy's 3 active + 4 activating
+        assert "engaged" not in billable
+        assert "scheduled" not in billable
 
 
 # ---------------------------------------------------------------------------

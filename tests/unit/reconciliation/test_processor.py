@@ -18,7 +18,6 @@ import pytest
 from autom8_asana.reconciliation.processor import (
     DERIVATION_TABLE,
     OFFER_ACTIVITY_DEFAULT_UNIT_SECTION,
-    OFFER_ACTIVITY_VALID_UNIT_SECTIONS,
     ReconciliationAction,
     ReconciliationBatchProcessor,
 )
@@ -1159,27 +1158,22 @@ class TestDerivationTableDrift:
         assert set(DERIVATION_TABLE.keys()) == expected
 
     def test_derivation_table_values_are_real_unit_sections(self) -> None:
-        """Every derivation target is a real Business Units section name.
+        """Every derivation target has a group in legacy's Unit lists or is excluded.
 
-        Note: Not all targets are in UNIT_CLASSIFIER -- some (e.g., "Next Steps")
-        are in EXCLUDED_SECTION_NAMES. The derivation table covers ALL unit
+        Some targets (e.g., "Next Steps") are in no legacy list and are in
+        EXCLUDED_SECTION_NAMES instead. The derivation table covers ALL unit
         sections, not just classified ones.
         """
-        from autom8_asana.models.business.activity import (
-            UNIT_CLASSIFIER,
-            AccountActivity,
-        )
+        from autom8_asana.models.business.unit_activity import classify_unit_section
         from autom8_asana.reconciliation.section_registry import EXCLUDED_SECTION_NAMES
 
-        all_known: set[str] = set()
-        for activity in AccountActivity:
-            all_known |= UNIT_CLASSIFIER.sections_for(activity)
-        all_known |= {n.lower() for n in EXCLUDED_SECTION_NAMES}
-
         for process_type, unit_section in DERIVATION_TABLE.items():
-            assert unit_section.lower() in all_known, (
+            assert (
+                classify_unit_section(unit_section) is not None
+                or unit_section in EXCLUDED_SECTION_NAMES
+            ), (
                 f"DERIVATION_TABLE[{process_type!r}] = {unit_section!r} "
-                f"not in UNIT_CLASSIFIER or EXCLUDED_SECTION_NAMES"
+                f"is in no legacy Unit list and not in EXCLUDED_SECTION_NAMES"
             )
 
 
@@ -1618,23 +1612,119 @@ class TestOfferActivityMapping:
         assert result.no_op_count == 1
         assert len(result.actions) == 0
 
-    def test_valid_unit_sections_mapping_consistency(self) -> None:
-        """OFFER_ACTIVITY_VALID_UNIT_SECTIONS covers all four activity states."""
+    def test_default_target_mapping_covers_every_activity(self) -> None:
+        """OFFER_ACTIVITY_DEFAULT_UNIT_SECTION covers all four activity states."""
         from autom8_asana.models.business.activity import AccountActivity
 
         for activity in AccountActivity:
-            assert activity in OFFER_ACTIVITY_VALID_UNIT_SECTIONS, (
-                f"Missing OFFER_ACTIVITY_VALID_UNIT_SECTIONS entry for {activity}"
-            )
             assert activity in OFFER_ACTIVITY_DEFAULT_UNIT_SECTION, (
                 f"Missing OFFER_ACTIVITY_DEFAULT_UNIT_SECTION entry for {activity}"
             )
 
-    def test_default_section_is_in_valid_set(self) -> None:
-        """Each non-None default target section is in its valid set."""
+    def test_default_target_is_in_the_activitys_group_of_legacys_lists(self) -> None:
+        """A move target must already satisfy the check that triggered the move."""
+        from autom8_asana.models.business.unit_activity import classify_unit_section
+
         for activity, default in OFFER_ACTIVITY_DEFAULT_UNIT_SECTION.items():
             if default is not None:
-                valid = OFFER_ACTIVITY_VALID_UNIT_SECTIONS[activity]
-                assert default in valid, (
-                    f"Default '{default}' for {activity} not in valid set {valid}"
+                assert classify_unit_section(default) is activity, (
+                    f"Default {default!r} for {activity} is not in that group"
                 )
+
+    def test_offer_activating_unit_in_engaged_generates_action(self) -> None:
+        """Engaged is counted apart from activating: an activating offer moves it."""
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1"],
+                "section": ["Engaged"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
+        offer_df = pl.DataFrame(
+            {
+                "gid": ["offer_1"],
+                "section": ["IMPLEMENTING"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
+
+        result = ReconciliationBatchProcessor(unit_df, offer_df).process()
+
+        assert len(result.actions) == 1
+        assert result.actions[0].current_section == "Engaged"
+        assert result.actions[0].target_section == "Onboarding"
+
+    def test_offer_activating_unit_in_delayed_is_no_op(self) -> None:
+        """Delayed is in legacy's activating list, so an activating offer agrees."""
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1"],
+                "section": ["Delayed"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
+        offer_df = pl.DataFrame(
+            {
+                "gid": ["offer_1"],
+                "section": ["ACTIVATING"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
+
+        result = ReconciliationBatchProcessor(unit_df, offer_df).process()
+
+        assert result.no_op_count == 1
+        assert len(result.actions) == 0
+
+    def test_unit_section_is_compared_with_the_legacy_fold(self) -> None:
+        """A separator variant of a listed name is the same section."""
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1"],
+                "section": ["MONTH-1"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
+        offer_df = pl.DataFrame(
+            {
+                "gid": ["offer_1"],
+                "section": ["ACTIVE"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
+
+        result = ReconciliationBatchProcessor(unit_df, offer_df).process()
+
+        assert result.no_op_count == 1
+        assert len(result.actions) == 0
+
+    def test_offer_in_launch_error_reads_as_activating(self) -> None:
+        """LAUNCH ERROR is settled activating for the Unit read."""
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1"],
+                "section": ["Paused"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
+        offer_df = pl.DataFrame(
+            {
+                "gid": ["offer_1"],
+                "section": ["LAUNCH ERROR"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
+
+        result = ReconciliationBatchProcessor(unit_df, offer_df).process()
+
+        assert len(result.actions) == 1
+        assert result.actions[0].target_section == "Onboarding"
+        assert "classified: ACTIVATING" in result.actions[0].reason
